@@ -440,6 +440,7 @@ class FollowCalendarActivity : AppCompatActivity() {
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
         close.setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // TK-REQUESTED (2026-07-24): "everywhere calling is possible in the
@@ -555,9 +556,20 @@ class FollowCalendarActivity : AppCompatActivity() {
         } catch (_: Exception) { }
         val picker = android.app.DatePickerDialog(this, com.tkbiswas.pilesclinic.R.style.PilesDatePicker, { _, y, m, day ->
             val iso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, day)
+            /* 🔴🔒 V1222 ③ (০৮.০৯.২০২৬) — FollowUpActivity-র হুবহু একই সুরক্ষা
+               (নিয়ম ৭)। সঙ্গে সঙ্গের বার্তা অটুট; নিচে কাজটা সত্যিই না বসলে
+               পরে একটা সৎ খবর যায়। */
             Toast.makeText(this@FollowCalendarActivity, "Next follow-up set", Toast.LENGTH_SHORT).show()
             BackgroundWork.run {
-                val ok = repository.updateNextFollow(resolveFollowUpId(item), iso)
+                val ok = repository.updateNextFollowSaved(resolveFollowUpId(item), iso).also { s2 ->
+                    if (!s2) runOnUiThread {
+                        if (!isFinishing && !isDestroyed) Toast.makeText(
+                            this@FollowCalendarActivity,
+                            "Not sent yet — saved on this phone, will send when online",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } || true
                 if (ok && item.stage != "Inquiry") {
                     try {
                         ChamberAttendanceRepository.markExpected(this@FollowCalendarActivity, item.mobile, item.name, item.branch, iso, user.mobile)
@@ -568,7 +580,7 @@ class FollowCalendarActivity : AppCompatActivity() {
                 }
             }
         }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
-        picker.setTitle(NoBengali.s("⏰ Next Follow-up Call — বাধ্যতামূলক"))
+        picker.setTitle(NoBengali.s("⏰ Next Follow-up Call — required"))
         picker.setCancelable(false)
         picker.setCanceledOnTouchOutside(false)
         picker.setOnShowListener {
@@ -578,5 +590,6 @@ class FollowCalendarActivity : AppCompatActivity() {
             picker.getButton(AlertDialog.BUTTON_NEGATIVE)?.visibility = View.GONE
         }
         picker.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(picker) } catch (_: Throwable) { }   // 🤫 V774
     }
 }

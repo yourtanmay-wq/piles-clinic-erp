@@ -56,12 +56,29 @@ class FollowUpAdapter(
         val b = holder.binding
         try {
 
+        // 🟢🔒 V648 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — Follow-up-এর আসল
+        // কার্ডের সাথে মেলানো সিরিয়াল নম্বর ব্যাজ।
+        b.tvFuSerial.text = (position + 1).toString()
+
         // 🔴🔴 TK-REPORTED (31.07.2026): নাম না থাকলে মোবাইল দুইবার দেখাত।
-        b.tvName.text = "👤 " + item.name.ifBlank { "UNKNOWN" }
+        // 🟢🔒 V694 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — নামের আগে আর 👤 নয়:
+        //   বাঁ পাশে এখন লাল সিরিয়াল ব্যাজটাই থাকে, ঠিক আসল Follow-up
+        //   কার্ডের মতো (`buildFollowCard`: সিরিয়াল থাকলে 👤 বসে না)।
+        b.tvName.text = item.name.ifBlank { "UNKNOWN" }
         b.tvMobile.text = "📞 ${formatMobileForDisplay(item.mobile)}"
+        /* 📋🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — নামেও লম্বা চাপে কপি, ঠিক
+           নিচের নম্বরটার মতোই (Draft-এর কার্ডও একই দেখতে, তাই একই আচরণ)।
+           ⛔ নম্বর কপির পুরনো কোডে এক অক্ষরও হাত পড়েনি। */
+        b.tvName.setOnLongClickListener {
+            if (item.name.isBlank()) false
+            else {
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "Name", item.name.trim())
+                android.widget.Toast.makeText(it.context, "Name copied", android.widget.Toast.LENGTH_SHORT).show()
+                true
+            }
+        }
         b.tvMobile.setOnLongClickListener {
-            val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", item.mobile))
+            com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "mobile", item.mobile)   // 🤫 V772
             android.widget.Toast.makeText(it.context, "Mobile copied", android.widget.Toast.LENGTH_SHORT).show()
             true
         }
@@ -92,6 +109,13 @@ class FollowUpAdapter(
         //   Patient (Treatment)-> LEFT avatar+PATIENT   | RIGHT Prescription + payment ring
         when (item.stage) {
             "Inquiry" -> {
+                // 🟢🔒 V694 — Enquiry-তে বাঁদিকের কলাম **থাকে** (কল-সিগন্যাল
+                //   ওখানেই বসে) — আসল কার্ডেও তাই। আর পিল/আইডির সারি এখানে
+                //   নেই। ⚠️ দুটোই এখানে **স্পষ্ট করে** বসানো হলো, নইলে
+                //   RecyclerView পুরনো সারি আবার ব্যবহার করলে Patient কার্ডের
+                //   লুকানো/দেখানো অবস্থাটা Enquiry-তে থেকে যেত।
+                b.llLeft.visibility = View.VISIBLE
+                b.llIdRow.visibility = View.GONE
                 b.llCallSignal.visibility = View.VISIBLE
                 b.llPhoto.visibility = View.GONE
                 b.tvVisitAdvance.visibility = View.GONE
@@ -121,7 +145,7 @@ class FollowUpAdapter(
                         b.tvTimeType.visibility = View.VISIBLE
                     }
                     tt.equals("Official Time", ignoreCase = true) -> {
-                        b.tvTimeType.text = "🕘 Official Time"
+                        b.tvTimeType.text = "Official Time"
                         b.tvTimeType.setBackgroundColor(android.graphics.Color.parseColor("#0C9E33"))
                         b.tvTimeType.visibility = View.VISIBLE
                     }
@@ -132,45 +156,56 @@ class FollowUpAdapter(
             }
             "Patient" -> { // Visit tab
                 b.llCallSignal.visibility = View.GONE
-                b.llPhoto.visibility = View.VISIBLE
+                // 🟢🔒 V694 — আসল কার্ডে Visit/Patient-এ বাঁদিকের ৬২dp কলামটা
+                //   পুরোপুরি বাদ (TK-APPROVED 27.07.2026), তাই নাম-মোবাইল
+                //   একদম বাঁ প্রান্ত থেকে শুরু হয়। এখানেও তাই।
+                b.llPhoto.visibility = View.GONE
+                b.llLeft.visibility = View.GONE
                 b.tvVisitAdvance.visibility = View.VISIBLE
                 b.llPayment.visibility = View.GONE
                 // TK-REQUESTED (2026-07-23): time-type badge is Enquiry-only;
                 // hide it here so a recycled view can't carry it over.
                 b.tvTimeType.visibility = View.GONE
 
-                b.tvVisitedPill.visibility = View.VISIBLE
-                b.tvVisitedPill.text = "VISITED"
-                b.tvRegDate.text = item.patientId.ifBlank { regDate }
+                // 🟢🔒 V694 — পিল ও আইডি হারায়নি: ট্যাগের নিচে নিজের সারিতে।
+                b.llIdRow.visibility = View.VISIBLE
+                b.tvStatusPill.text = "VISITED"
+                b.tvIdOnRow.text = item.patientId.ifBlank { regDate }
+                b.tvIdOnRow.visibility = if (b.tvIdOnRow.text.isNullOrBlank()) View.GONE else View.VISIBLE
                 b.tvVisitAdvance.setOnClickListener { onPayment(item) }
-                TripleTapEdit.attach(b.tvAvatar) { onPhotoEdit(item) }
-                TripleTapEdit.attach(b.tvVisitedPill) { onStatusMenu(item) }
-                TripleTapEdit.attach(b.tvRegDate) { onEdit(item) }
+                TripleTapEdit.attach(b.tvStatusPill) { onStatusMenu(item) }
+                TripleTapEdit.attach(b.tvIdOnRow) { onEdit(item) }
             }
             else -> { // Treatment -> Patient tab
                 b.llCallSignal.visibility = View.GONE
-                b.llPhoto.visibility = View.VISIBLE
+                // 🟢🔒 V694 — উপরের Visit কার্ডের একই কথা।
+                b.llPhoto.visibility = View.GONE
+                b.llLeft.visibility = View.GONE
                 b.tvVisitAdvance.visibility = View.GONE
                 b.llPayment.visibility = View.VISIBLE
                 // TK-REQUESTED (2026-07-23): time-type badge is Enquiry-only.
                 b.tvTimeType.visibility = View.GONE
 
-                b.tvVisitedPill.visibility = View.VISIBLE
-                b.tvVisitedPill.text = "PATIENT"
-                b.tvRegDate.text = item.patientId.ifBlank { regDate }
-                TripleTapEdit.attach(b.tvAvatar) { onPhotoEdit(item) }
-                TripleTapEdit.attach(b.tvVisitedPill) { onStatusMenu(item) }
-                TripleTapEdit.attach(b.tvRegDate) { onEdit(item) }
+                // 🟢🔒 V694 — পিল ও আইডি ট্যাগের নিচে নিজের সারিতে।
+                b.llIdRow.visibility = View.VISIBLE
+                b.tvStatusPill.text = "PATIENT"
+                b.tvIdOnRow.text = item.patientId.ifBlank { regDate }
+                b.tvIdOnRow.visibility = if (b.tvIdOnRow.text.isNullOrBlank()) View.GONE else View.VISIBLE
+                TripleTapEdit.attach(b.tvStatusPill) { onStatusMenu(item) }
+                TripleTapEdit.attach(b.tvIdOnRow) { onEdit(item) }
 
                 val pct = if (item.bill > 0) Math.min(100.0, Math.round(item.paid / item.bill * 100.0).toDouble()).toInt() else 0
-                b.tvPayPct.text = "$pct%"
+                // 🔴🔒 V683 (২৫.০৮.২০২৬) — সলিড চাকতির বদলে আসল কার্ডের
+                // PaymentRingView + আলাদা রঙিন Bill/Due পিল (FollowUpActivity.
+                // buildFollowCard()-এর হুবহু একই মান/রং)।
+                b.paymentRing.percent = pct
                 val due = Math.max(0.0, item.bill - item.paid)
-                b.tvBillDue.text = if (item.bill > 0)
-                    "₹${"%,.0f".format(item.bill)}\n/ ₹${"%,.0f".format(due)}"
-                else "0 / 0"
-                b.tvPayPct.setOnClickListener { onPayment(item) }
+                b.tvBillPill.text = "Bill\n₹${"%,.0f".format(item.bill)}"
+                b.tvDuePill.text = "Due\n₹${"%,.0f".format(due)}"
+                b.paymentRing.setOnClickListener { onPayment(item) }
                 b.tvPrescription.setOnClickListener { onPrescription(item) }
-                TripleTapEdit.attach(b.tvBillDue) { onPayment(item) }
+                TripleTapEdit.attach(b.tvBillPill) { onPayment(item) }
+                TripleTapEdit.attach(b.tvDuePill) { onPayment(item) }
             }
         }
 
@@ -193,9 +228,47 @@ class FollowUpAdapter(
             }
         }
 
-        val nextLabel = if (item.stage == "Inquiry") "Next Follow up Call" else "Next Follow-up"
+        // 🟢🔒🔒 V649 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "আরো ভালোভাবে যাচাই
+        // করুন") — আসল কারণ: এই আলাদা FollowUpAdapter "LAST CALL" লাইনটাই
+        // কখনো দেখাত না, আর "NEXT CALL"-এর বদলে ভুল লেখা ("Next Follow up
+        // Call:"/"Next Follow-up:") দেখাত — আসল অ্যাপে (TK-এর ছবিতে) দুটোই
+        // ছোট, নির্দিষ্ট লেখা "LAST CALL ..." / "NEXT CALL ...", পাশাপাশি,
+        // রিমার্ক-বাক্সের ভেতরে উপরে। FollowUpItem-এ lastCallDate/lastCallBy/
+        // lastCallTime আগে থেকেই আছে (আগের V543/B39-এ প্রমাণিত ঘর, নতুন কিছু
+        // যোগ করা হয়নি) — শুধু এখানে পড়া হচ্ছিল না।
+        val lastDt = item.lastCallDate
+        val lastBy = item.lastCallBy
+        val lastTm = item.lastCallTime
+        val lastWhen = if (lastDt.isNotBlank()) {
+            val dateTxt = FollowUpModel.displayDate(lastDt)
+            val tm = formatTime12(lastTm)
+            dateTxt + (if (tm.isNotBlank()) " : $tm" else "")
+        } else ""
+        /* 🆕🔒 V850 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "যেগুলো এনকোয়ারি
+           কার্ড সেগুলোতে লাস্ট কল থাকবে; যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে
+           লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে রেজিস্ট্রেশন করেছিল"।
+           ⛔ `regDate` ফাঁকা হলে নিচের লাইনটা **হুবহু আগের মতোই** চলে — তাই
+              Follow-up ও Trash-প্রিভিউর কার্ড এক অক্ষরও বদলায়নি। */
+        val regDt = item.regDate
+        /* 🟢🔒 V874 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — Follow-up
+           কার্ডের হুবহু একই বদল এখানেও (খাতার নিয়ম ৭): REGISTERED-এর লাইনটা
+           আগের মতোই, তার **নিচের লাইনে** LAST CALL-এর তারিখ · সময় · কে।
+           ⛔ কল না হয়ে থাকলে দ্বিতীয় লাইনটা বসেই না — কার্ড আগের মতোই।
+           ⛔ TK: *"NEXT CALL এ time থাকবে না"* ⇒ ডান দিকের লেখা অপরিবর্তিত। */
+        val regLastLine = if (lastDt.isNotBlank())
+            "\nLAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "") else ""
+        /* 🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+           TK: *"Registered এর তারিখ এবং কে করেছে এখানে থাকবে না — View All এ
+           ক্লিক করলে দেখা যায় শুধুমাত্র সেটাই থাকবে"*।
+           ⚠️ ৩০.০৮.২০২৬-এ TK এই লাইনটা *"যা আছে তাই থাকবে"* বলে বন্ধ করেছিলেন;
+              ৩১.০৮-এ তিনি নিজে উল্টো নির্দেশ দিয়েছেন — আজকেরটাই চলবে।
+           ⛔ তথ্য কোথাও মোছা হয়নি — REGISTERED-এর তারিখ ও কে করেছে, দুটোই
+              View All-এ আগের মতোই আছে; শুধু কার্ড থেকে লাইনটা উঠল। */
+        b.tvLastCall.text = if (lastDt.isNotBlank())
+            "LAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "")
+        else "LAST CALL —"
         b.tvNextFollow.text = if (item.nextFollow.isNotBlank())
-            "$nextLabel: ${FollowUpModel.displayDate(item.nextFollow)}" else ""
+            "NEXT CALL ${FollowUpModel.displayDate(item.nextFollow)}" else "NEXT CALL —"
 
         b.btnCall.setOnClickListener { onCall(item) }
         b.btnWhatsApp.setOnClickListener { onWhatsApp(item) }
@@ -215,6 +288,32 @@ class FollowUpAdapter(
         // সারির বাংলা কখনো ঢাকাই পড়ত না। এখন প্রতিটা বাইন্ডের শেষেই সরাসরি সুইপ —
         // বাংলা-বন্ধ না থাকলে কিছুই করে না (activeCache false ⇒ সাথে সাথে ফেরত)।
         try { NoBengali.sweep(holder.itemView) } catch (_: Throwable) { }
+    }
+
+    /** 🟢🔒 V649 (২৫.০৮.২০২৬) — "HH:mm" (24-ঘণ্টা, ডেটাবেসে যেমন সেভ থাকে)
+     *  কে "h:mm a" (১২-ঘণ্টা, AM/PM) দেখানোর জন্য। ⛔ সেভ করা আসল সময় এক
+     *  অক্ষরও বদলায় না — শুধু দেখানোর সময় রূপ বদলায়। ফাঁকা/ভুল ফরম্যাট
+     *  হলে চুপচাপ ফাঁকা ফেরত যায় (কার্ড ভাঙে না)। */
+    private fun formatTime12(raw: String): String {
+        if (raw.isBlank()) return ""
+        return try {
+            /* 🔴🔒 V850 (নিজের যাচাইয়ে ধরা পড়া দোষ) — `history`-র `time` ঘরে
+               কোথাও "HH:mm" জমা হয়, আবার কোথাও **পুরো ISO** ("2026-08-29T
+               11:20:05.000Z" — যেমন `EnquiryModel.buildFollowUpRow()`)। আগে
+               সরাসরি `:` দিয়ে ভাঙা হত, তাই ISO হলে প্রথম টুকরো "…T11" হয়ে
+               `toInt()` ভেঙে যেত ⇒ সময়টা চুপচাপ উধাও হয়ে যেত।
+               এখন 'T'-এর পরের অংশটাই নেওয়া হয়। ⛔ "HH:mm" আগের মতোই চলে। */
+            val body = raw.trim().substringAfter('T', raw.trim())
+            val parts = body.split(":")
+            if (parts.size < 2) return ""
+            var h = parts[0].trim().toInt()
+            val m = parts[1].take(2).toInt()
+            val ampm = if (h < 12) "AM" else "PM"
+            if (h == 0) h = 12 else if (h > 12) h -= 12
+            /* ⏰ V835 (TK-নির্দেশ): `3:15 PM` → `3.15 PM`। এই ফাংশনটা
+               প্রজেক্টে **শুধু এখানেই** (LAST CALL লাইনে) চলে — খুঁজে দেখা। */
+            "%d.%02d %s".format(h, m, ampm)
+        } catch (_: Throwable) { "" }
     }
 
     /** Display-only formatting. Stored number and Call/WhatsApp logic remain unchanged. */

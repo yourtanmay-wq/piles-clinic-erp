@@ -29,11 +29,31 @@ import org.json.JSONObject
  */
 class GlobalSearchActivity : AppCompatActivity() {
 
+    /* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট) — অন্য পর্দা থেকে **টাইপ করা নামটা
+       সঙ্গে পাঠানো যায়**, তখন এই পর্দা খুলেই নিজে থেকে খুঁজে ফেলে।
+       ⛔ কেউ না পাঠালে (মেনু/নিচের বার থেকে খোলা) আচরণ হুবহু আগের মতোই —
+          ফাঁকা ঘর, "Type a name or mobile number to search."।
+       ⛔ Intent-এর extra ব্যবহার করা হয়নি — এই প্রকল্পের পাহারাদার
+          (`verify_kotlin_compile`) androidx চেনে না বলে `intent` লিখলেই
+          মিথ্যা "unresolved reference" দেখায় (নিজে চালিয়ে ধরা পড়েছে)।
+          তাই `RoleSession`-এর মতোই একটা ছোট স্থির ঘর — **একবার পড়া হলেই
+          মুছে যায়**, তাই পরে পর্দাটা আবার খুললে পুরনো লেখা ফিরে আসে না। */
+    companion object { @Volatile @JvmStatic var pendingQuery: String = "" }
+
     private lateinit var progressLoad: ProgressBar
     private lateinit var tvEmpty: TextView
     private lateinit var recycler: RecyclerView
     private val results = mutableListOf<SearchHit>()
     private lateinit var adapter: SearchAdapter
+    private lateinit var voiceAnswerHost: android.widget.FrameLayout   // 🎤 V1415
+
+    /* 💊 V985 — মোবাইল → মেডিসিনের বাকি (এই পর্দার নিজের ছোট তালিকা)। */
+    private val medDue = HashMap<String, Double>()
+    /* 🏷️🔒 V1401 — মোবাইল → (সেকশন-লেবেল, লাল-চিহ্ন)। Follow-up খাতা থেকে ছোট
+       একটা batched পড়া (শুধু খোঁজে-ওঠা নম্বরগুলো) — TK মেপে অনুমোদন দিয়েছেন
+       ("ফ্রি প্ল্যানে ঝুঁকি বাড়ায় না")। পড়া ব্যর্থ/দেরি হলে কার্ডে নিরাপদ
+       লেবেল (ENQUIRY / REGISTERED) থাকে — কখনো ভুল সেকশন দেখায় না। */
+    private val stageByMobile = HashMap<String, Pair<String, String>>()
     private var searchJob: Job? = null
 
     // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও দেখাতে হবে।
@@ -50,7 +70,12 @@ class GlobalSearchActivity : AppCompatActivity() {
        ধরে রাখা হত না — তাই ক্লিনিক্যাল পর্দায় রোগের নাম ফাঁকা যেত।
        ⛔ **নতুন কোনো ক্লাউড-অনুরোধ নয়** — যে তথ্য আগেই আসছে, সেটাই রাখা হলো।
        ⛔ ডিফল্ট ফাঁকা, তাই পুরোনো কোনো ডাক ভাঙে না। */
-    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "", val rowId: String = "", val disease: String = "")
+    /* 🎨🔒 V1401 (১২.০৯.২০২৬ রাত, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — `address` ·
+       `altMobile` · `date` কার্ডে দেখানোর জন্য। ⛔ নতুন কোনো ক্লাউড-পড়া নয় —
+       তিনটেই উপরের enqCloud/patCloud তালিকায় আগে থেকেই আসত, শুধু ধরে রাখা
+       হত না। সব ডিফল্ট ফাঁকা, তাই পুরোনো কোনো ডাক ভাঙে না। */
+    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "", val rowId: String = "", val disease: String = "",
+                         val address: String = "", val altMobile: String = "", val date: String = "")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +89,7 @@ class GlobalSearchActivity : AppCompatActivity() {
 
         progressLoad = findViewById(R.id.progressLoad)
         tvEmpty = findViewById(R.id.tvEmpty)
+        voiceAnswerHost = findViewById(R.id.voiceAnswerHost)   // 🎤 V1415
         recycler = findViewById(R.id.recyclerView)
         recycler.layoutManager = LinearLayoutManager(this)
         adapter = SearchAdapter(
@@ -76,7 +102,16 @@ class GlobalSearchActivity : AppCompatActivity() {
             onMedicineSlip = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.MedicineSlipActivity::class.java) },
             onBloodTest = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) },
             onDietChart = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) },
-            onMarkArrived = { hit -> markArrivedHit(hit) }
+            onMarkArrived = { hit -> markArrivedHit(hit) },
+            onRemark = { hit -> writeRemarkForHit(hit) },   // 📝 V827
+            onPrint = { hit -> showPrintPicker(hit) },      // 🖨️ V827
+            /* 💊 V985 — বাকির অঙ্ক (একবারই আনা, তাই বারবার নেট-কল হয় না)। */
+            dueOf = { mobile -> medDue[mobile.filter { c -> c.isDigit() }.takeLast(10)] ?: 0.0 },
+            onCollectDue = { hit -> openMedicineForDue(hit) },
+            // 🎨 V1401
+            onTakeAction = { hit -> openTimeline(hit.mobile, hit.rowId, autoAction = true) },
+            onCallNumber = { number -> callHit(number) },
+            stageOf = { hit -> stageByMobile[hit.mobile.filter { c -> c.isDigit() }.takeLast(10)] ?: ("" to "") }
         )
         recycler.adapter = adapter
 
@@ -87,13 +122,40 @@ class GlobalSearchActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable) {
                 val q = s.toString().trim()
                 searchJob?.cancel()
-                if (q.length < 2) { results.clear(); adapter.notifyDataSetChanged(); tvEmpty.visibility = View.VISIBLE; tvEmpty.text = "Type a name or mobile number to search."; return }
+                if (q.length < 2) { results.clear(); adapter.notifyDataSetChanged(); tvEmpty.visibility = View.VISIBLE; tvEmpty.text = "Type a name or mobile number to search."; voiceAnswerHost.removeAllViews(); voiceAnswerHost.visibility = View.GONE; return }
+                /* 🎤🔒 V1415 (আপডেট ১৩.০৯.২০২৬, TK-নির্দেশ: "আপাতত শুধু মাস্টারের
+                   জন্য") — প্রশ্নের মতো লেখা হলে (কতজন/কালেকশন/বিক্রি) ভারী
+                   নাম-খোঁজার ক্লাউড-পড়া এড়িয়ে সরাসরি রিপোর্ট-উত্তর দেখানো হয়।
+                   ⛔ শুধু Master; স্টাফ/ডাক্তারের জন্য এই লেখাটাও সাধারণ
+                   নাম/নম্বর খোঁজা হিসেবেই চলে (আচরণ আগের মতোই)।
+                   ⛔ ভবিষ্যতে বাকিদের জন্য চালু করতে হলে শুধু এই একটা শর্ত
+                   (`isMaster`) সরালেই হবে — বাকি কোড অপরিবর্তিত থাকবে। */
+                val isMaster = NativeSession.current(this@GlobalSearchActivity)?.role == "master"
+                if (isMaster && VoiceReportModel.isQuestionLike(q)) {
+                    results.clear(); adapter.notifyDataSetChanged(); recycler.visibility = View.GONE
+                    tvEmpty.visibility = View.GONE
+                    showVoiceAnswer(q)
+                    return
+                }
+                recycler.visibility = View.VISIBLE
+                voiceAnswerHost.removeAllViews(); voiceAnswerHost.visibility = View.GONE
                 searchJob = lifecycleScope.launch {
                     delay(250)
                     runSearch(q)
                 }
             }
         })
+        /* 🔍 V1107 — পাঠানো নামটা বসিয়ে দিলেই উপরের TextWatcher নিজেই
+           খোঁজাটা চালায়; নতুন কোনো আলাদা পথ বানানো হয়নি, তাই ফলাফল ও
+           নিয়ম হুবহু হাতে টাইপ করার মতোই। */
+        try {
+            val passed = pendingQuery.trim()
+            pendingQuery = ""
+            if (passed.isNotBlank()) {
+                etQuery.setText(passed)
+                etQuery.setSelection(etQuery.text?.length ?: 0)
+            }
+        } catch (_: Throwable) { }
     }
 
     private fun runSearch(q: String) {
@@ -130,12 +192,15 @@ class GlobalSearchActivity : AppCompatActivity() {
                 // 🔒 And if a narrowed read ever fails, fetchListSlim asks for
                 // every column again by itself -- so a search can never come
                 // back wrongly empty because of this.
+                // 🔴🔒 V1347 — ২০০০→৫০০০ (বাকি cross-branch fetch-এর (DuplicateCheck,
+                // DoctorVisit, PaymentRepository) সাথে মিলিয়ে) — নাম/রোগ/ঠিকানা
+                // দিয়ে খোঁজার সময়ও পুরনো রোগী যেন বাদ না পড়ে যায়।
                 val enqCloud = SupabaseClient.fetchListSlim(
-                    "enquiries", null, 2000,
+                    "enquiries", null, 5000,
                     "id,name,mobile,branch,disease,address,date,updatedAt"
                 )
                 val patCloud = SupabaseClient.fetchListSlim(
-                    "patients", null, 2000,
+                    "patients", null, 5000,
                     // 🔒 V235: altMobile যোগ — Alternate নম্বর দিয়েও Search মেলে।
                     "id,name,mobile,altMobile,branch,bill,patientId,disease,diagnosis,address,registrationDate,date,updatedAt"
                 )
@@ -152,6 +217,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                 val pat = org.json.JSONArray()
                 for (i in 0 until patCloud.length()) pat.put(patCloud.getJSONObject(i))
                 run {
+                    try { LocalWorkflowStore(this@GlobalSearchActivity).markSyncedWhereCloudCaughtUp("enquiries", enq); LocalWorkflowStore(this@GlobalSearchActivity).markSyncedWhereCloudCaughtUp("patients", pat) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
                     val pendingEnq = LocalWorkflowStore(this@GlobalSearchActivity).pendingEnquiries()
                     val seenEnqIds = HashSet<String>()
                     for (i in 0 until enq.length()) seenEnqIds.add(enq.getJSONObject(i).optString("id"))
@@ -167,6 +233,42 @@ class GlobalSearchActivity : AppCompatActivity() {
                         val row = pendingPat.getJSONObject(i)
                         val id = row.optString("id")
                         if (id.isNotBlank() && seenPatIds.add(id)) pat.put(row)
+                    }
+                    /* 🔴🔒 V1347 (১১.০৯.২০২৬, TK-রিপোর্ট — মোবাইল নম্বর দিয়ে খুঁজলে
+                       Follow-up-এ মিলছে, Global Search-এ "No match found") — **আসল
+                       কারণ কোডে মিলিয়ে পাওয়া:** উপরের ২০০০-সীমার fetchListSlim()
+                       সব ব্রাঞ্চের রোগী/এনকোয়ারি একসাথে আনে, সবচেয়ে সম্প্রতি-বদলানো
+                       (`updatedAt.desc`) ২০০০টাই — অনেকদিন কোনো কাজ না হওয়া পুরনো
+                       রোগী (এই কেসে ১৩ দিন আগে রেজিস্টার, তারপর কোনো নতুন পেমেন্ট/
+                       কল/আপডেট নেই) মোট সংখ্যা ২০০০ ছাড়ালে এই তালিকার বাইরে পড়ে
+                       যেতে পারে। Follow-up ব্রাঞ্চ-ধরে খোঁজে (একেক ব্রাঞ্চে সীমা
+                       ৫০০০, তাই ব্যবহারিকভাবে বাদ পড়ে না) — তাই সেখানে পাওয়া যায়,
+                       এখানে যায় না। ⛔ পুরনো ২০০০-সীমার fetch অক্ষত রাখা হলো (নাম/
+                       রোগ/ঠিকানা দিয়ে খোঁজায় কিছু বদলায়নি) — শুধু নম্বর দিয়ে খোঁজার
+                       সময় সরাসরি ডাটাবেসেই ওই নম্বর ধরে একটা বাড়তি টার্গেটেড কল
+                       (রেজাল্ট অল্প, তাই দ্রুত) দিয়ে টেবিল যত বড়ই হোক না কেন
+                       নম্বর-মিল কখনো বাদ না পড়া নিশ্চিত করা হলো। */
+                    if (qDigits.length >= 3) {
+                        try {
+                            val extraEnq = SupabaseClient.fetchListSlim(
+                                "enquiries", "mobile.like.*$qDigits*", 200,
+                                "id,name,mobile,branch,disease,address,date,updatedAt"
+                            )
+                            for (i in 0 until extraEnq.length()) {
+                                val row = extraEnq.getJSONObject(i)
+                                val id = row.optString("id")
+                                if (id.isNotBlank() && seenEnqIds.add(id)) enq.put(row)
+                            }
+                            val extraPat = SupabaseClient.fetchListSlim(
+                                "patients", "or=(mobile.like.*$qDigits*,altMobile.like.*$qDigits*)", 200,
+                                "id,name,mobile,altMobile,branch,bill,patientId,disease,diagnosis,address,registrationDate,date,updatedAt"
+                            )
+                            for (i in 0 until extraPat.length()) {
+                                val row = extraPat.getJSONObject(i)
+                                val id = row.optString("id")
+                                if (id.isNotBlank() && seenPatIds.add(id)) pat.put(row)
+                            }
+                        } catch (_: Throwable) { }
                     }
                 }
                 // TK APPROVED (2026-07-15): Dashboard/Global Search by mobile number
@@ -214,7 +316,8 @@ class GlobalSearchActivity : AppCompatActivity() {
                     if (!match(r.s("name"), r.s("mobile"), r.s("disease"), r.s("address"), r.s("patientId"), r.s("date"))) continue
                     val k = key(r.s("mobile"))
                     if (k.isNotBlank() && !byMobile.containsKey(k))
-                        byMobile[k] = SearchHit(r.s("name"), r.s("mobile"), br, "Enquiry", disease = r.s("disease"))
+                        byMobile[k] = SearchHit(r.s("name"), r.s("mobile"), br, "Enquiry", disease = r.s("disease"),
+                            address = r.s("address"), date = r.s("date"))   // 🎨 V1401
                 }
                 // … then Patients override the same number (higher stage wins).
                 // TK-REQUESTED (2026-07-27), "ছ'টা পর্দা এক নিয়মে" step 1 of 6:
@@ -272,7 +375,8 @@ class GlobalSearchActivity : AppCompatActivity() {
                         val r = rows.getJSONObject(i)
                         if (isDeclaredSeparatePatient(r.s("id"), k)) {
                             extraHits.add(
-                                SearchHit(r.s("name"), r.s("mobile"), r.s("branch"), "Patient", r.s("patientId"), r.s("id"), r.s("disease"))
+                                SearchHit(r.s("name"), r.s("mobile"), r.s("branch"), "Patient", r.s("patientId"), r.s("id"), r.s("disease"),
+                                    address = r.s("address"), altMobile = r.s("altMobile"), date = r.s("registrationDate").ifBlank { r.s("date") })   // 🎨 V1401
                             )
                         } else {
                             ordinary.put(r)
@@ -280,7 +384,8 @@ class GlobalSearchActivity : AppCompatActivity() {
                     }
                     // পুরোনো পথ — হুবহু আগের মতোই (একটাই সারি থাকলে কিছুই বদলায় না)
                     val chosen = PatientIdentity.pickPatientRow(ordinary, user?.branch ?: "") ?: continue
-                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"), chosen.s("id"), chosen.s("disease"))
+                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"), chosen.s("id"), chosen.s("disease"),
+                        address = chosen.s("address"), altMobile = chosen.s("altMobile"), date = chosen.s("registrationDate").ifBlank { chosen.s("date") })   // 🎨 V1401
                 }
                 /* ঘোষিত আলাদা রোগীরা মূল ফলের ঠিক পরে বসেন, তাই এক নম্বরের
                    সবাই পাশাপাশি দেখা যায়। ⛔ কেউ কখনো বাদ পড়ে না। */
@@ -292,8 +397,423 @@ class GlobalSearchActivity : AppCompatActivity() {
             results.clear()
             results.addAll(hits)
             adapter.notifyDataSetChanged()
+            /* 💊🔒 V985 — মেডিসিনের বাকি: খোঁজার **সব নম্বর একসাথে**, একটাই
+               ছোট অনুরোধে (মাত্র ৫টা ঘর)। ⛔ ব্যর্থ হলে চুপচাপ কিছুই দেখায় না —
+               কার্ড হুবহু আগের মতোই, কোথাও কিছু আটকায় না। */
+            if (hits.isNotEmpty()) lifecycleScope.launch {
+                val map = withContext(Dispatchers.IO) {
+                    try { MedicineDue.dueByMobile(hits.map { it.mobile }) } catch (_: Throwable) { emptyMap() }
+                }
+                if (map.isNotEmpty()) {
+                    medDue.clear(); medDue.putAll(map)
+                    adapter.notifyDataSetChanged()
+                }
+            }
+            /* 🏷️🔒 V1401 — সেকশন (VISIT/PATIENT) ও লাল চিহ্ন (REJECTED/INCOMPLETE):
+               Follow-up খাতার একটাই ছোট batched পড়া, উপরের মেডিসিন-বাকির হুবহু
+               একই ধরনে। ⛔ ব্যর্থ হলে চুপচাপ — কার্ডে নিরাপদ লেবেলই থাকে। */
+            if (hits.isNotEmpty()) lifecycleScope.launch {
+                val map = withContext(Dispatchers.IO) {
+                    try { fetchStages(hits.map { it.mobile }) } catch (_: Throwable) { emptyMap() }
+                }
+                if (map.isNotEmpty()) {
+                    stageByMobile.clear(); stageByMobile.putAll(map)
+                    adapter.notifyDataSetChanged()
+                }
+            }
             tvEmpty.visibility = if (hits.isEmpty()) View.VISIBLE else View.GONE
             if (hits.isEmpty()) tvEmpty.text = "No match found."
+        }
+    }
+
+    /**
+     * 🏷️🔒 V1401 — খোঁজে-ওঠা নম্বরগুলোর **চলতি** Follow-up সারি থেকে সেকশন ও অবস্থা।
+     * · বাছার নিয়ম নিচের `findLiveFollowUpRow`-এর হুবহু একই (স্টেজ-অগ্রাধিকার
+     *   Treatment > Patient > Inquiry, সমান হলে সাম্প্রতিক `updatedAt`)।
+     * · লেবেল: Follow-up-এর Treatment ⇒ PATIENT · Patient ⇒ VISIT (রেজিস্টার্ড, চিকিৎসা
+     *   শুরু হয়নি) · অন্য কিছু ⇒ ফাঁকা (কার্ড নিজের নিরাপদ লেবেল রাখে)।
+     * · লাল চিহ্ন: status Cancelled ⇒ REJECTED · Incomplete ⇒ INCOMPLETE
+     *   (PatientTimelineActivity-র Reject-পথ ঠিক এই দুটো লেখে)।
+     * ⛔ ২৫টা করে ভাগে, প্রতি ভাগে একটাই অনুরোধ (MedicineDue.fetchFor-এর নিয়ম)।
+     *    নম্বর "+91…" বা "…" যেভাবেই থাকুক, শেষ ১০ অঙ্ক দিয়ে মেলে (findByMobileOrNull-এর মতো)।
+     */
+    private fun fetchStages(mobiles: List<String>): Map<String, Pair<String, String>> {
+        val wanted = mobiles.map { it.filter { c -> c.isDigit() }.takeLast(10) }.filter { it.length == 10 }.distinct()
+        if (wanted.isEmpty()) return emptyMap()
+        fun pr(st: String) = when (st) { "Treatment" -> 3; "Patient" -> 2; "Inquiry" -> 1; else -> 0 }
+        val best = HashMap<String, JSONObject>()
+        for (part in wanted.chunked(25)) {
+            val filter = "or=(" + part.joinToString(",") { "mobile.like.*$it" } + ")"
+            val rows = try { SupabaseClient.fetchListSlimOrNull("followups", filter, 500, "mobile,stage,status,updatedAt") }
+                       catch (_: Throwable) { null } ?: continue
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val k = r.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
+                if (k.length != 10) continue
+                val cur = best[k]
+                if (cur == null || pr(r.s("stage")) > pr(cur.s("stage")) ||
+                    (pr(r.s("stage")) == pr(cur.s("stage")) && r.s("updatedAt") > cur.s("updatedAt"))) best[k] = r
+            }
+        }
+        val out = HashMap<String, Pair<String, String>>()
+        for ((k, r) in best) {
+            val label = when (r.s("stage")) { "Treatment" -> "PATIENT"; "Patient" -> "VISIT"; else -> "" }
+            val flag = when (r.s("status").trim().lowercase()) { "cancelled", "rejected" -> "REJECTED"; "incomplete" -> "INCOMPLETE"; else -> "" }
+            out[k] = label to flag
+        }
+        return out
+    }
+
+    /* 🎤🔒 V1415 (১৩.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ) — প্রশ্নের মতো লেখায় এই
+       কার্ডটা বসে। চেনা প্যাটার্ন মিললে সংখ্যা দেখায়, চাপ দিলে
+       `VoiceReportDetailActivity`-তে (আসল তালিকায়) যায়। না মিললে সৎভাবে
+       "বুঝতে পারিনি" — কখনো ভুল সংখ্যা বানানো হয় না। */
+    private fun showVoiceAnswer(q: String) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        voiceAnswerHost.removeAllViews()
+        val parsed = VoiceReportModel.parse(q)
+        if (parsed == null) {
+            val box = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#FDEEEE")); cornerRadius = dp(12).toFloat()
+                    setStroke(dp(1), android.graphics.Color.parseColor("#F5D6D2"))
+                }
+            }
+            box.addView(TextView(this).apply { text = "Not understood"; textSize = 13.5f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.parseColor("#B42318")) })
+            box.addView(TextView(this).apply {
+                text = "Try like: “Yesterday how many patients came in Jalpaiguri” or “last 7 days collection in Cooch Behar”"
+                textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7A8699")); setPadding(0, dp(4), 0, 0)
+            })
+            voiceAnswerHost.addView(box)
+            voiceAnswerHost.visibility = View.VISIBLE
+            return
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            isClickable = true; isFocusable = true
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#EAF6EE")); cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), android.graphics.Color.parseColor("#CBEBD6"))
+            }
+        }
+        box.addView(TextView(this).apply {
+            text = "${parsed.branchLabel} · ${VoiceReportModel.displayPeriod(parsed.from, parsed.to, parsed.periodLabel)}"
+            textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5A6474"))
+        })
+        val numView = TextView(this).apply {
+            text = "…"; textSize = 22f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.parseColor("#0B8A3E"))
+        }
+        box.addView(numView)
+        val subView = TextView(this).apply { textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5A6474")) }
+        box.addView(subView)
+        voiceAnswerHost.addView(box)
+        voiceAnswerHost.visibility = View.VISIBLE
+
+        val title = "${parsed.branchLabel} — ${VoiceReportModel.displayPeriod(parsed.from, parsed.to, parsed.periodLabel)}"
+        // V1420 — নতুন প্রশ্নগুলোর জন্য ছোট্ট সাহায্যকারী (আগেরগুলো যেমন ছিল তেমনই রইল)
+        fun openDetail(name: String) {
+            box.setOnClickListener {
+                startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                    .putExtra("metric", name).putExtra("branch", parsed.branch)
+                    .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title)
+                    .putExtra("extra", parsed.extra))
+            }
+        }
+        fun show(num: String, sub: String) { numView.text = num; subView.text = "$sub • tap to see list ›" }
+        fun showFail(msg: String) { numView.text = "?"; subView.text = msg.ifBlank { "Could not verify" } }
+        fun rs(v: Double): String = "₹${"%,.0f".format(v)}"
+        when (parsed.metric) {
+            VoiceReportModel.Metric.APPOINTMENT_COUNT -> { openDetail("APPOINTMENT_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.appointmentCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "appointments") else showFail(got.message) } }
+            VoiceReportModel.Metric.EXPECTED_COUNT -> { openDetail("EXPECTED_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.expectedCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "patients marked expected") else showFail(got.message) } }
+            VoiceReportModel.Metric.HANDOVER_PENDING -> { openDetail("HANDOVER_PENDING"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.handoverPendingSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(rs(got.value.total), "${got.value.dayCount} days not handed over") else showFail(got.message) } }
+            VoiceReportModel.Metric.PAYMENT_REQUESTS -> { openDetail("PAYMENT_REQUESTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.paymentRequestsSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "pending: ${got.value.backdate} backdate · ${got.value.edit} edit · ${got.value.refund} refund") else showFail(got.message) } }
+            VoiceReportModel.Metric.REFERRAL_REQUESTS -> { openDetail("REFERRAL_REQUESTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.referralRequestsSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "pending referral requests (${got.value.deleteCount} delete)") else showFail(got.message) } }
+            VoiceReportModel.Metric.LEAVE_COUNT -> { openDetail("LEAVE_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.leaveSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "leave-days applied: ${got.value.confirmed} confirmed · ${got.value.pending} pending · ${got.value.rejected} rejected") else showFail(got.message) } }
+            VoiceReportModel.Metric.DOCTOR_REMINDER -> { openDetail("DOCTOR_REMINDER"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.doctorReminderSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "doctor reminders sent · ${got.value.notAccepted} not accepted yet") else showFail(got.message) } }
+            VoiceReportModel.Metric.STAFF_REMINDER_OPEN -> { openDetail("STAFF_REMINDER_OPEN"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম ধরে (আইটেম ৪৮)
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffReminderOpenList(parsed.branch) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.toName, it.toCode) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "open reminders for ${parsed.extra}") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffReminderOpenSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.toString(), "staff reminders still open") else showFail(got.message) } } }
+            VoiceReportModel.Metric.FEE_RETURN -> { openDetail("FEE_RETURN"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.feeReturnSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(rs(got.value.total), "${got.value.patientCount} patients' visit fee returned") else showFail(got.message) } }
+            // ── V1421 ──
+            VoiceReportModel.Metric.CHAMBER_UNCLOSED -> { openDetail("CHAMBER_UNCLOSED"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.chamberUnclosedSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "days chamber not closed (today not counted)") else showFail(got.message) } }
+            VoiceReportModel.Metric.NO_SHOW -> { openDetail("NO_SHOW"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.noShowSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.noShow.toString(), "did not come · ${got.value.arrived} came · ${got.value.expectedTotal} were expected") else showFail(got.message) } }
+            VoiceReportModel.Metric.OUT_MISSING -> { openDetail("OUT_MISSING"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম/কোড ধরে
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.outMissingList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "days OUT time not given · ${parsed.extra}") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.outMissingSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "days OUT time not given · ${got.value.staffCount} staff") else showFail(got.message) } } }
+            VoiceReportModel.Metric.WFH_COUNT -> { openDetail("WFH_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.wfhSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "WFH applications: ${got.value.approved} approved · ${got.value.pending} pending · ${got.value.rejected} rejected") else showFail(got.message) } }
+            VoiceReportModel.Metric.DUPLICATE_PATIENTS -> { openDetail("DUPLICATE_PATIENTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.duplicateSummary(parsed.branch) }
+                if (got.ok && got.value != null) show((got.value.mobileGroups + got.value.nameGroups + got.value.paymentGroups).toString(), "${got.value.mobileGroups} same mobile · ${got.value.nameGroups} same name · ${got.value.paymentGroups} same payment") else showFail(got.message) } }
+            VoiceReportModel.Metric.FEE_UNPAID -> { openDetail("FEE_UNPAID"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.feeUnpaidSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.toString(), "patients' visit fee not received (registered from 05/09/2026)") else showFail(got.message) } }
+            VoiceReportModel.Metric.CALLS_PENDING -> { openDetail("CALLS_PENDING"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.callsPendingSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.toString(), "follow-up calls still pending today") else showFail(got.message) } }
+            VoiceReportModel.Metric.MESSAGES_SENT -> { openDetail("MESSAGES_SENT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.messagesSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "messages opened to send: ${got.value.whatsapp} WhatsApp · ${got.value.sms} SMS") else showFail(got.message) } }
+            // ── V1426 — মাস-তুলনা (এই মাস বনাম গত মাসের একই কটা দিন) ──
+            VoiceReportModel.Metric.MONTH_COMPARE_PATIENTS, VoiceReportModel.Metric.MONTH_COMPARE_COLLECTION -> {
+                val money = parsed.metric == VoiceReportModel.Metric.MONTH_COMPARE_COLLECTION
+                val parts = parsed.extra.split("|")
+                val lf = parts.getOrElse(0) { "" }; val lt = parts.getOrElse(1) { "" }
+                openDetail(if (money) "COLLECTION" else "REGISTRATION_COUNT")
+                lifecycleScope.launch {
+                    val pair: Pair<Double?, Double?> = withContext(Dispatchers.IO) {
+                        if (money) {
+                            val a = VoiceReportRepository.collectionSummary(parsed.branch, parsed.from, parsed.to)
+                            val b = VoiceReportRepository.collectionSummary(parsed.branch, lf, lt)
+                            Pair(a.value?.total, b.value?.total)
+                        } else {
+                            val a = VoiceReportRepository.patientsRegisteredCount(parsed.branch, parsed.from, parsed.to)
+                            val b = VoiceReportRepository.patientsRegisteredCount(parsed.branch, lf, lt)
+                            Pair(a.value?.toDouble(), b.value?.toDouble())
+                        }
+                    }
+                    val a = pair.first; val b = pair.second
+                    if (a == null || b == null) { showFail("Could not verify"); return@launch }
+                    val diff = a - b
+                    val f: (Double) -> String = if (money) { v -> rs(v) } else { v -> "%.0f".format(v) }
+                    show((if (diff >= 0) "+" else "−") + f(kotlin.math.abs(diff)), "this month ${f(a)} · last month (same days) ${f(b)}" + (if (money) "" else " patients"))
+                }
+            }
+            // ── V1422 ──
+            VoiceReportModel.Metric.NEW_PATIENTS -> { openDetail("NEW_PATIENTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.newPatientsCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "registered, treatment not started") else showFail(got.message) } }
+            VoiceReportModel.Metric.FOLLOWUP_CALLS_DONE -> { openDetail("FOLLOWUP_CALLS_DONE"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.fuCallsDoneSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "follow-up calls noted (one per patient per day) · ${got.value.patientCount} patients") else showFail(got.message) } }
+            VoiceReportModel.Metric.DISEASE_COUNT -> { openDetail("DISEASE_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.diseaseCount(parsed.branch, parsed.from, parsed.to, parsed.extra) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "${parsed.extra} patients · of ${got.value.allPatients} registered") else showFail(got.message) } }
+            VoiceReportModel.Metric.RMP_CALLED -> { openDetail("RMP_CALLED"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpCalledCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "RMP doctors called") else showFail(got.message) } }
+            VoiceReportModel.Metric.RMP_CALL_DUE -> { openDetail("RMP_CALL_DUE"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpCallDueCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "RMP doctors due for a call") else showFail(got.message) } }
+            VoiceReportModel.Metric.FIELD_VISIT -> { openDetail("FIELD_VISIT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.fieldVisitSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.visits.toString(), "visits marked · ${"%.1f".format(got.value.km)} km · ${got.value.staffCount} field staff") else showFail(got.message) } }
+            // 🎤 V1428 (তালিকা ৫৩৮) — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম · RMP-কে দেওয়া কমিশন · IN-বাদ · নাম ধরে হাজিরা/ঘণ্টা
+            VoiceReportModel.Metric.BRANCH_TOP_COLLECTION, VoiceReportModel.Metric.BRANCH_TOP_PATIENTS -> {
+                val money = parsed.metric == VoiceReportModel.Metric.BRANCH_TOP_COLLECTION
+                val lowest = parsed.extra == "min"
+                openDetail(if (money) "BRANCH_TOP_COLLECTION" else "BRANCH_TOP_PATIENTS")
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { if (money) VoiceReportRepository.branchRankCollection(parsed.from, parsed.to, lowest) else VoiceReportRepository.branchRankPatients(parsed.from, parsed.to, lowest) }
+                    val rows = got.value
+                    if (got.ok && rows != null && rows.isNotEmpty()) {
+                        fun fmt(r: VoiceReportRepository.BranchRank) = if (money) rs(r.value) else "${r.patients} patients"
+                        val rest = rows.drop(1).joinToString(" · ") { "${it.branch} ${fmt(it)}" }
+                        show(rows[0].branch, "${if (lowest) "lowest" else "highest"}: ${fmt(rows[0])} · then $rest")
+                    } else showFail(got.message)
+                }
+            }
+            VoiceReportModel.Metric.RMP_PAID -> { openDetail("RMP_PAID"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // নাম ধরে (আইটেম ১৭) — তালিকা ছেঁকে যোগ
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpPaidList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.rmpName) }
+                    if (got.ok && rows != null) show(rs(rows.sumOf { it.amount }), "paid to ${parsed.extra} · ${rows.size} payments") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpPaidSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(rs(got.value.total), "paid to ${got.value.rmpCount} RMPs · ${got.value.paymentCount} payments") else showFail(got.message) } } }
+            VoiceReportModel.Metric.IN_MISSING -> { openDetail("IN_MISSING"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.inMissingList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode, it.staffName) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "days IN time not given · ${parsed.extra}") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.inMissingSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "days IN time not given · ${got.value.staffCount} staff") else showFail(got.message) } } }
+            VoiceReportModel.Metric.STAFF_HOURS -> { openDetail("STAFF_HOURS"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম/কোড ধরে
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode) }
+                    if (got.ok && rows != null) show("${"%.1f".format(rows.sumOf { it.hours })} h", "hours · ${parsed.extra} · ${rows.sumOf { it.days }} days") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show("${"%.1f".format(got.value.totalHours)} h", "total hours · ${got.value.staffCount} staff") else showFail(got.message) } } }
+            VoiceReportModel.Metric.STAFF_PRESENT -> { openDetail("STAFF_PRESENT"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম/কোড ধরে (আইটেম ১৬)
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffPresentList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "attendance days · ${parsed.extra}") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffPresentSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.staffCount.toString(), "staff present · ${got.value.total} attendance days") else showFail(got.message) } } }
+            VoiceReportModel.Metric.REGISTRATION_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "REGISTRATION_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.patientsRegisteredCount(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "patients registered • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.COLLECTION -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "COLLECTION").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.collectionSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.patientCount} patients • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.MEDICINE_SALE, VoiceReportModel.Metric.SALINE_SALE -> {
+                val kind = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "medicinePayment" else "salinePayment"
+                val metricName = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "MEDICINE_SALE" else "SALINE_SALE"
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", metricName).putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.productSaleSummary(parsed.branch, parsed.from, parsed.to, kind) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.saleCount} sales • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.ENQUIRY_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "ENQUIRY_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.enquiryCount(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "enquiries • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.REFUND -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "REFUND").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.refundSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.refundCount} refunds • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.CASH_HANDOVER -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "CASH_HANDOVER").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.cashHandoverSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.dayCount} days • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.RMP_DUE -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "RMP_DUE").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpDueSummary(parsed.branch) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.totalDue)}"; subView.text = "${got.value.rmpCount} RMP • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.MEDICINE_DUE -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "MEDICINE_DUE").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.productDueSummary(parsed.branch) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.rowCount} bills with due • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.CALL_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "CALL_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.callCount(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "calls from app • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.TRASH_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "TRASH_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.trashSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "records moved to Trash • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.RMP_ADVANCE -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "RMP_ADVANCE").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpAdvanceSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.advanceCount} advance payments • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
         }
     }
 
@@ -302,10 +822,15 @@ class GlobalSearchActivity : AppCompatActivity() {
      * ⛔ `mobile` extra আগের মতোই যায়, তাই Timeline-এর পুরোনো সব পথ অটুট।
      * ⛔ `patientRowId` ফাঁকা হলে Timeline হুবহু আগের মতোই আচরণ করে।
      */
-    private fun openTimeline(mobile: String, patientRowId: String = "") {
+    private fun openTimeline(mobile: String, patientRowId: String = "", autoAction: Boolean = false) {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         val i = Intent(this, PatientTimelineActivity::class.java).putExtra("mobile", digits)
         if (patientRowId.isNotBlank()) i.putExtra("patientRowId", patientRowId)
+        /* ⚡🔒 V1401 (TK-নির্দেশ: "⋮-এর মধ্যে Action বটমে যা যা থাকে তাই") — CHECK-UP
+           Queue-র "Action" বোতামের হুবহু একই পথ: Full Journey খুলে তথ্য এলেই
+           Take Action তালিকা নিজে থেকে ওঠে। তালিকাটা ওই পর্দাই বানায় (রোগীর
+           আসল অবস্থা দেখে), তাই Search-এ ভুল আইটেম দেখানোর কোনো সুযোগ নেই। */
+        if (autoAction) i.putExtra("autoAction", true)
         startActivity(i)
     }
 
@@ -332,6 +857,160 @@ class GlobalSearchActivity : AppCompatActivity() {
             }
             .setNegativeButton("No", null)
             .show().also { PremiumAlert.paint(it) }
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       📝🔒🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ)
+
+       *"মনে করুন কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু কলটা অটোমেটিক
+        জলপাইগুড়ির কোনো এনকোয়ারি ছিল — কিশনগঞ্জের স্টাফ কোনো রিমার্ক লিখতে
+        পারে না। … আমি চাইছি এখানে নাম্বার সার্চ করলে যে staff কলটা রিসিভ
+        করেছে সে যেন রিমার্কটা লিখে দিতে পারে, তাতে জলপাইগুড়ির স্টাফের
+        সুবিধা হবে বুঝতে যে লাস্ট কে কথা বলেছিল। … রিমার্কটা ফলোআপ কার্ডে
+        যেখানে রিমার্ক লেখা হয় সেখানে অটোমেটিক চলে যেতে হবে।"*
+
+       ⛔ লেখাটা যায় প্রজেক্টের **একটাই প্রমাণিত পথে** — `FollowUpRepository.
+          updateRemark()` (Chamber · Dialer · Appointment · Follow-up সবাই
+          এটাই ব্যবহার করে)। নতুন কোনো লেখার নিয়ম বানানো হয়নি।
+       ⛔ TK-অনুমোদিত **তৃতীয় পথ**: `LAST CALL`-এর তারিখ আজকের হয় ও স্টাফের
+          নাম বসে, কিন্তু **কল-গোনা বাড়ে না** — তাই "৫ কলের পর বাতিল"
+          নিয়মে এক অক্ষরও প্রভাব পড়ে না।
+       ⛔ **নতুন কোনো রেকর্ড তৈরি হয় না।** ওই নম্বরের Follow-up সারি না
+          থাকলে পরিষ্কার বার্তা দিয়ে থেমে যায়।
+       ⛔ Search পর্দা আগে থেকেই **সব ব্রাঞ্চ** দেখায় (এই অ্যাপের একমাত্র
+          ইচ্ছাকৃত "সব দেখা" জায়গা — উপরে `canSee()`-তে লেখা আছে), তাই
+          অন্য ব্রাঞ্চের সারিতে লেখাটা এই পর্দার নিজের নিয়মের সাথেই মেলে।
+       ⛔ Egress: একটা সরু পড়া (কয়েকটা ঘর) + একটা লেখা। নগণ্য।
+       ════════════════════════════════════════════════════════════════════ */
+    private fun writeRemarkForHit(hit: SearchHit) {
+        val digits = hit.mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) {
+            android.widget.Toast.makeText(this, "No valid 10-digit mobile", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val user = NativeSession.current(this) ?: return
+        lifecycleScope.launch {
+            val row = withContext(Dispatchers.IO) { findLiveFollowUpRow(digits) }
+            if (isFinishing || isDestroyed) return@launch
+            if (row == null) {
+                android.widget.Toast.makeText(
+                    this@GlobalSearchActivity,
+                    "No follow-up record for this number yet — remark not saved",
+                    android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            showRemarkDialog(hit, row, user)
+        }
+    }
+
+    /**
+     * ওই নম্বরের **চলতি** Follow-up সারিটা বার করা।
+     * ⛔ বাছার নিয়ম প্রজেক্টের হুবহু একই (V638/V646): আগে স্টেজ-অগ্রাধিকার
+     *    (Treatment > Patient > Inquiry), সমান হলে সবচেয়ে সাম্প্রতিক
+     *    `updatedAt`. নতুন কোনো নিয়ম বানানো হয়নি।
+     * ⛔ `findByMobileOrNull` প্রজেক্টের প্রমাণিত, ৪০+ জায়গায় ব্যবহৃত পথ —
+     *    শেষ ১০ অঙ্ক মেলায়, তাই ওয়েব ("9046…") ও ফোন ("+919046…") দুই
+     *    ধাঁচের সারিই ধরা পড়ে।
+     */
+    private fun findLiveFollowUpRow(digits: String): org.json.JSONObject? {
+        val arr = SupabaseClient.findByMobileOrNull(
+            "followups", "+91$digits",
+            "id,mobile,name,branch,stage,status,lastRemark,lastCallDate,updatedAt", 20) ?: return null
+        fun pr(st: String) = when (st) {
+            "Treatment" -> 3
+            "Patient" -> 2
+            "Inquiry" -> 1
+            else -> 0
+        }
+        var best: org.json.JSONObject? = null
+        for (i in 0 until arr.length()) {
+            val r = arr.optJSONObject(i) ?: continue
+            val b = best
+            if (b == null) { best = r; continue }
+            val pn = pr(r.s("stage"))
+            val pb = pr(b.s("stage"))
+            if (pn > pb || (pn == pb && r.s("updatedAt") > b.s("updatedAt"))) best = r
+        }
+        return best
+    }
+
+    private fun showRemarkDialog(hit: SearchHit, row: org.json.JSONObject, user: NativeUser) {
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(px(18), px(6), px(18), px(2))
+        }
+        val who = listOf(
+            row.s("name").ifBlank { hit.name }.ifBlank { "UNKNOWN" },
+            row.s("branch").ifBlank { hit.branch },
+            row.s("stage")
+        ).filter { it.isNotBlank() }.joinToString("  ·  ")
+        box.addView(android.widget.TextView(this).apply {
+            text = who
+            textSize = 12.5f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+        })
+        val old = row.s("lastRemark")
+        if (old.isNotBlank()) {
+            box.addView(android.widget.TextView(this).apply {
+                text = "Last remark: $old"
+                textSize = 12f
+                setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
+                setPadding(0, px(4), 0, 0)
+            })
+        }
+        val input = android.widget.EditText(this).apply {
+            hint = "What did the caller say?"
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 5
+            textSize = 14f
+            val p = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            p.topMargin = px(8)
+            layoutParams = p
+        }
+        box.addView(input)
+        // প্রজেক্টের স্থায়ী নিয়ম (২৪.০৭.২০২৬): ইংরেজি লেখা নিজে থেকে বড় হাতের।
+        try { UppercaseInputUtil.applyToAll(box) } catch (_: Throwable) { }
+
+        val id = row.s("id")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Write Remark"))
+            .setView(box)
+            .setPositiveButton("Save", null)
+            .setNegativeButton("Cancel", null)
+            .create().also { dlg ->
+                dlg.setOnShowListener {
+                    dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val text = input.text.toString().trim()
+                        /* 🔒 খাতার সারি B54-এর একই পাহারা: ফাঁকা লেখায় আগের
+                           রিমার্ক কখনো মুছবে না — তাই এখানেই আটকে দেওয়া হয়। */
+                        if (text.isBlank()) {
+                            android.widget.Toast.makeText(this, "Please write the remark first", android.widget.Toast.LENGTH_SHORT).show()
+                            return@setOnClickListener
+                        }
+                        dlg.dismiss()
+                        val staffName = user.name.ifBlank { user.mobile }
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                try {
+                                    FollowUpRepository(this@GlobalSearchActivity)
+                                        .updateRemark(id, text, staffName, incrementCall = false, stampCallDate = true)
+                                } catch (_: Throwable) { false }
+                            }
+                            if (isFinishing || isDestroyed) return@launch
+                            android.widget.Toast.makeText(
+                                this@GlobalSearchActivity,
+                                if (ok) "Remark saved to Follow-up" else "Could not save — check connection and try again",
+                                android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                dlg.show()
+                PremiumAlert.paint(dlg)
+            }
     }
 
     private fun callHit(mobile: String) {
@@ -364,6 +1043,68 @@ class GlobalSearchActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — একটাই "Print" বোতাম,
+     * ভিতরে সেই চারটেই।
+     *
+     * ⛔ প্রতিটা সারি ঠিক আগের ফাংশনটাই ডাকে (`openClinicalDoc(...)`) —
+     *    কোন পর্দা খুলবে · কী তথ্য যাবে · কে ছাপতে পারবে, কিচ্ছু বদলায়নি।
+     * ⛔ ক্রমও আগের মতোই: Prescription → Medicine Slip → Blood Test → Diet Chart।
+     */
+    /** 💊 V985 — বাকি নেওয়ার জন্য সোজা Medicine পর্দায়, ওই রোগীর নম্বর বসানো। */
+    private fun openMedicineForDue(hit: SearchHit) {
+        try {
+            startActivity(
+                Intent(this, MedicinePaymentActivity::class.java)
+                    .putExtra("prefill_search", hit.mobile.filter { it.isDigit() }.takeLast(10))
+            )
+        } catch (_: Throwable) { }
+    }
+
+    private fun showPrintPicker(hit: SearchHit) {
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, px(4), 0, px(4))
+        }
+        fun rowItem(icon: String, label: String, open: () -> Unit): View {
+            val r = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(px(22), px(15), px(22), px(15))
+                isClickable = true
+                isFocusable = true
+            }
+            r.addView(TextView(this).apply {
+                text = icon
+                textSize = 17f
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = px(14) }
+            })
+            r.addView(TextView(this).apply {
+                text = label
+                textSize = 15f
+                setTextColor(android.graphics.Color.parseColor("#101828"))
+            })
+            r.setOnClickListener { open() }
+            return r
+        }
+        lateinit var dlg: androidx.appcompat.app.AlertDialog
+        col.addView(rowItem("📝", "Prescription") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.PrescriptionActivity::class.java) })
+        col.addView(rowItem("💊", "Medicine Slip") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.MedicineSlipActivity::class.java) })
+        col.addView(rowItem("🩸", "Blood Test") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) })
+        col.addView(rowItem("🥗", "Diet Chart") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) })
+        dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Print"))
+            .setView(col)
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        PremiumAlert.paint(dlg)
+    }
+
     // TK APPROVED (2026-07-15): Search result card redesigned -- the four
     // clinical documents now each have their own direct one-tap button
     // (instead of hiding behind a "Docs" picker dialog), same destination
@@ -394,6 +1135,16 @@ class GlobalSearchActivity : AppCompatActivity() {
         }
     }
 
+    /* 🎨🔒 V1401 (১২.০৯.২০২৬ রাত, TK-নির্দেশ *"ডিজাইন চেঞ্জ করুন… কোন প্রকার
+       ঝুঁকি নেবেন না"*, ডেমো-প্রুফ ধাপে ধাপে পাশ — সাধারণ ও সরু ফোন দুটোতেই)।
+       নতুন কার্ড: সাদা, বাঁয়ে সবুজ দাগ · নাম (২ লাইন পর্যন্ত) + ⋮ · ব্রাঞ্চ · সেকশন-চিপ
+       (ENQUIRY / VISIT / PATIENT / REGISTERED) · রোগ-চিপ · তারিখ · লাল REJECTED/
+       INCOMPLETE · 📞 নম্বর (এক চাপে কল, লং-প্রেসে কপি; দ্বিতীয় নম্বর থাকলে
+       পাশাপাশি, নইলে পাশে Patient ID) · 📍 ঠিকানা (এক লাইন, লং-প্রেসে কপি) ·
+       Payment / Full Journey / Mark Arrived এক সারিতে · মেডিসিন-বাকি এক লাইনে।
+       ⋮ = Call · WhatsApp · Print · ⚡ Take Action।
+       ⛔ প্রতিটা বোতাম/মেনুর কাজ আগের সেই একই ফাংশনই ডাকে — কেবল চেহারা ও
+          বসার জায়গা বদলেছে; নতুন ক্লাউড-পড়া শুধু `fetchStages` (TK-অনুমোদিত)। */
     private class SearchAdapter(
         val items: List<SearchHit>,
         val onFullJourney: (SearchHit) -> Unit,
@@ -406,22 +1157,55 @@ class GlobalSearchActivity : AppCompatActivity() {
         val onDietChart: (SearchHit) -> Unit,
         // TK-REQUESTED (2026-07-20): mark a searched patient Arrived into
         // today's Chamber Attendance directly from Search.
-        val onMarkArrived: (SearchHit) -> Unit
+        val onMarkArrived: (SearchHit) -> Unit,
+        /* 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চের কল ধরা স্টাফও
+           যেন এখান থেকে রিমার্ক লিখতে পারেন। */
+        val onRemark: (SearchHit) -> Unit,
+        /* 🖨️🔒 V827 — চারটে ছাপার পর্দা এখন একটাই "Print" বোতামের ভিতরে। */
+        val onPrint: (SearchHit) -> Unit,
+        /* 💊🔒 V985 (TK-নির্দেশ: *"মেডিসিন বা স্যালাইনের টাকা বাকি থাকলে তো
+           দেখার কোনো উপায় নেই"*) — মোবাইল ধরে বাকির অঙ্ক; ফাঁকা থাকলে
+           কার্ড হুবহু আগের মতোই দেখায়। */
+        val dueOf: (String) -> Double,
+        val onCollectDue: (SearchHit) -> Unit,
+        /* ⚡ V1401 — ⋮ → Take Action (Full Journey + নিজে-থেকে-ওঠা Action তালিকা)। */
+        val onTakeAction: (SearchHit) -> Unit,
+        /* 📞 V1401 — নম্বরে এক চাপে কল (মূল বা Alt, যেটায় চাপা হলো)। */
+        val onCallNumber: (String) -> Unit,
+        /* 🏷️ V1401 — (সেকশন-লেবেল, লাল-চিহ্ন); ফাঁকা হলে কার্ড নিরাপদ লেবেল বসায়। */
+        val stageOf: (SearchHit) -> Pair<String, String>
     ) : RecyclerView.Adapter<SearchAdapter.VH>() {
-        // TK APPROVED (2026-07-15): premium dual-green search result card --
-        // navy replaced with green (per TK's request), avatar + name/mobile in
-        // a green gradient header, action buttons in a 2-per-row grid (icon +
-        // label side by side, single line, ellipsis instead of ever breaking
-        // mid-word) so everything fits on one screen without scrolling and
-        // never visually breaks regardless of name/label length.
         class VH(
             val root: LinearLayout,
-            val avatar: TextView,
+            val dots: TextView,
             val tvName: TextView,
-            val tvMeta: TextView,
-            val tvTag: TextView,
-            val grid: LinearLayout
+            val tvChips: TextView,
+            val tvMob1: TextView,
+            val tvSep: TextView,
+            val tvSecond: TextView,
+            val tvPid: TextView,
+            val tvAddr: TextView,
+            val btnRow: LinearLayout,
+            val tvDue: TextView
         ) : RecyclerView.ViewHolder(root)
+
+        /** গোল-কোণা চিপ — একটা TextView-এর ভিতরেই বসে, তাই সরু ফোনে না ধরলে
+         *  পরের লাইনে নেমে যায়, কিছু ভাঙে না বা গায়ে লাগে না (ডেমোতে মাপা)। */
+        private class ChipSpan(private val bg: Int, private val fg: Int, private val padH: Float, private val padV: Float, private val radius: Float) : android.text.style.ReplacementSpan() {
+            private fun paintFor(base: android.graphics.Paint) = android.graphics.Paint(base).apply { isFakeBoldText = true; isAntiAlias = true }
+            override fun getSize(paint: android.graphics.Paint, text: CharSequence, start: Int, end: Int, fm: android.graphics.Paint.FontMetricsInt?): Int =
+                (paintFor(paint).measureText(text, start, end) + padH * 2).toInt()
+            override fun draw(canvas: android.graphics.Canvas, text: CharSequence, start: Int, end: Int, x: Float, top: Int, y: Int, bottom: Int, paint: android.graphics.Paint) {
+                val p = paintFor(paint)
+                val w = p.measureText(text, start, end)
+                val fm = p.fontMetrics
+                val rect = android.graphics.RectF(x, y + fm.ascent - padV, x + w + padH * 2, y + fm.descent + padV)
+                p.color = bg; canvas.drawRoundRect(rect, radius, radius, p)
+                p.color = fg; canvas.drawText(text, start, end, x + padH, y.toFloat(), p)
+            }
+        }
+
+        private fun c(hex: String) = android.graphics.Color.parseColor(hex)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
             val ctx = parent.context
@@ -429,159 +1213,259 @@ class GlobalSearchActivity : AppCompatActivity() {
             fun dp(v: Int) = (v * dens).toInt()
 
             val root = LinearLayout(ctx).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
                 layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     setMargins(dp(8), dp(6), dp(8), dp(6))
                 }
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(16).toFloat()
+                    cornerRadius = dp(14).toFloat()
                     setColor(android.graphics.Color.WHITE)
                 }
+                elevation = 3f * dens
                 clipToOutline = true
+                isClickable = true; isFocusable = true
             }
+            // বাঁয়ের সবুজ দাগ
+            root.addView(View(ctx).apply {
+                setBackgroundColor(c("#0EA25F"))
+                layoutParams = LinearLayout.LayoutParams(dp(5), ViewGroup.LayoutParams.MATCH_PARENT)
+            })
+            val col = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(11), dp(11), dp(11), dp(11))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            root.addView(col)
 
-            val header = LinearLayout(ctx).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                setPadding(dp(14), dp(14), dp(14), dp(14))
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                    colors = intArrayOf(android.graphics.Color.parseColor("#0A5428"), android.graphics.Color.parseColor("#0EA25F"))
-                }
-            }
-            val avatar = TextView(ctx).apply {
-                textSize = 18f
-                gravity = android.view.Gravity.CENTER
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
-                    orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                    colors = intArrayOf(android.graphics.Color.parseColor("#F4F6F9"), android.graphics.Color.parseColor("#A7ADB8"))
-                }
-                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also { it.marginEnd = dp(12) }
-            }
-            header.addView(avatar)
-            val nameCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+            val topRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.TOP }
             val tvName = TextView(ctx).apply {
                 textSize = 15.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(c("#0B2B59"))
+                maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) }
             }
-            val tvMeta = TextView(ctx).apply {
-                textSize = 11.5f
-                setTextColor(android.graphics.Color.parseColor("#DCF3E6"))
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-                val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(2); layoutParams = p
-            }
-            val tvTag = TextView(ctx).apply {
-                textSize = 9.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
+            val dots = TextView(ctx).apply {
+                text = "⋮"; textSize = 18f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(c("#0B2B59"))
+                gravity = android.view.Gravity.CENTER
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(20).toFloat()
-                    setColor(android.graphics.Color.parseColor("#C99A19"))
+                    cornerRadius = dp(9).toFloat()
+                    setColor(c("#EEF2F7"))
                 }
-                setPadding(dp(8), dp(2), dp(8), dp(2))
-                val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(5); layoutParams = p
+                isClickable = true; isFocusable = true
+                layoutParams = LinearLayout.LayoutParams(dp(32), dp(32))
             }
-            nameCol.addView(tvName); nameCol.addView(tvMeta); nameCol.addView(tvTag)
-            header.addView(nameCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            root.addView(header)
+            topRow.addView(tvName); topRow.addView(dots)
+            col.addView(topRow)
 
-            val grid = LinearLayout(ctx).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(10), dp(10), dp(10), dp(10))
+            val tvChips = TextView(ctx).apply {
+                textSize = 11f
+                setTextColor(c("#5B6B7C"))
+                setLineSpacing(dp(7).toFloat(), 1f)
+                setPadding(0, dp(5), 0, dp(1))
             }
-            root.addView(grid)
+            col.addView(tvChips)
 
-            return VH(root, avatar, tvName, tvMeta, tvTag, grid)
+            val mobRow = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, dp(5), 0, 0)
+            }
+            val tvMob1 = TextView(ctx).apply {
+                textSize = 12.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(c("#0B2B59")); maxLines = 1
+                isClickable = true; isFocusable = true
+            }
+            val tvSep = TextView(ctx).apply { text = "  ·  "; textSize = 12f; setTextColor(c("#8B98A9")); maxLines = 1 }
+            val tvSecond = TextView(ctx).apply {
+                textSize = 12.5f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            mobRow.addView(tvMob1); mobRow.addView(tvSep); mobRow.addView(tvSecond)
+            col.addView(mobRow)
+
+            val tvPid = TextView(ctx).apply {
+                textSize = 11.5f; setTextColor(c("#5B6B7C")); maxLines = 1
+                setPadding(0, dp(2), 0, 0)
+            }
+            col.addView(tvPid)
+
+            val tvAddr = TextView(ctx).apply {
+                textSize = 11.5f; setTextColor(c("#6B7A8C"))
+                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(0, dp(3), 0, 0)
+                isClickable = true; isFocusable = true
+            }
+            col.addView(tvAddr)
+
+            val btnRow = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                val p = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                p.topMargin = dp(9); layoutParams = p
+            }
+            col.addView(btnRow)
+
+            val tvDue = TextView(ctx).apply {
+                textSize = 11.5f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(0, dp(7), 0, 0)
+            }
+            col.addView(tvDue)
+
+            return VH(root, dots, tvName, tvChips, tvMob1, tvSep, tvSecond, tvPid, tvAddr, btnRow, tvDue)
         }
 
         override fun getItemCount() = items.size
+
+        /** তারিখ সবসময় dd/MM/yyyy (TK-র স্থায়ী নিয়ম, খাতার সারি B76); ফাঁকা হলে ফাঁকা। */
+        private fun dmy(raw: String): String {
+            val t = raw.trim().take(10)
+            if (t.isBlank()) return ""
+            if (t.length == 10 && t[4] == '-' && t[7] == '-') return t.substring(8, 10) + "/" + t.substring(5, 7) + "/" + t.substring(0, 4)
+            return t
+        }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val h = items[position]
             val ctx = holder.root.context
             val dens = ctx.resources.displayMetrics.density
             fun dp(v: Int) = (v * dens).toInt()
+            val digits = h.mobile.filter { it.isDigit() }.takeLast(10)
+            val alt = h.altMobile.filter { it.isDigit() }.takeLast(10).takeIf { it.length == 10 && it != digits } ?: ""
 
-            holder.avatar.text = if (h.type == "Patient") "🧑‍⚕️" else "📞"
+            // নাম — চাপলে Full Journey (আগের হেডার-চাপের নিয়ম), লং-প্রেসে কপি
             holder.tvName.text = h.name.ifBlank { "(no name)" }
-            holder.tvMeta.text = PatientIdText.mobileWithId(h.mobile, h.patientId) + " · " + h.branch
-            holder.tvTag.text = h.type.uppercase()
+            holder.tvName.setOnClickListener { onFullJourney(h) }
+            holder.tvName.copyOnLongPress("Name", h.name)
+            holder.root.setOnClickListener { onFullJourney(h) }
 
-            holder.grid.removeAllViews()
-
-            // One 2-wide row of action buttons; icon+label always on a single
-            // line (never breaks mid-word -- truncates with "…" in the rare
-            // case a very long label wouldn't fit, but every label used here
-            // is short enough to never actually need it).
-            fun newRow(): LinearLayout = LinearLayout(ctx).apply {
-                orientation = LinearLayout.HORIZONTAL
-                val p = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(7); layoutParams = p
+            // ব্রাঞ্চ · সেকশন · রোগ · তারিখ · লাল চিহ্ন — একটাই লেখায়, সরু ফোনে নিজে থেকে পরের লাইনে
+            val (stageLabel, flag) = stageOf(h)
+            val label = when {
+                h.type == "Enquiry" -> "ENQUIRY"
+                stageLabel.isNotBlank() -> stageLabel
+                else -> "REGISTERED"
             }
-            fun actionButton(icon: String, label: String, green: Boolean, action: () -> Unit): LinearLayout {
+            val sb = android.text.SpannableStringBuilder()
+            fun chip(text: String, bg: String, fg: String) {
+                if (text.isBlank()) return
+                if (sb.isNotEmpty()) sb.append("  ")
+                val st = sb.length; sb.append(text)
+                sb.setSpan(ChipSpan(c(bg), c(fg), dp(7).toFloat(), dp(3).toFloat(), dp(10).toFloat()), st, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            if (h.branch.isNotBlank()) {
+                sb.append(h.branch)
+                sb.setSpan(android.text.style.ForegroundColorSpan(c("#0A5428")), 0, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            chip(label, "#FBE9B7", "#7A5200")
+            chip(h.disease.trim().uppercase(), "#E8F5EE", "#0A5428")
+            val d = dmy(h.date)
+            if (d.isNotBlank()) { if (sb.isNotEmpty()) sb.append("  "); sb.append(d) }
+            chip(flag, "#B42318", "#FFFFFF")
+            holder.tvChips.text = sb
+            holder.tvChips.visibility = if (sb.isEmpty()) View.GONE else View.VISIBLE
+
+            // 📞 নম্বর — এক চাপে কল, লং-প্রেসে কপি
+            holder.tvMob1.text = "📞 " + digits.ifBlank { h.mobile }
+            holder.tvMob1.setOnClickListener { if (digits.length == 10) onCallNumber(digits) else onCall(h) }
+            holder.tvMob1.copyOnLongPress("Mobile number", digits.ifBlank { h.mobile })
+            if (alt.isNotBlank()) {
+                // দুটো নম্বর পাশাপাশি; Patient ID নিচের লাইনে
+                holder.tvSecond.text = "📞 Alt $alt"
+                holder.tvSecond.setTypeface(holder.tvSecond.typeface, android.graphics.Typeface.BOLD)
+                holder.tvSecond.setTextColor(c("#1D6FE0"))
+                holder.tvSecond.isClickable = true
+                holder.tvSecond.setOnClickListener { onCallNumber(alt) }
+                holder.tvSecond.copyOnLongPress("Mobile number", alt)
+                holder.tvSep.visibility = View.VISIBLE; holder.tvSecond.visibility = View.VISIBLE
+                holder.tvPid.text = h.patientId
+                holder.tvPid.visibility = if (h.patientId.isBlank()) View.GONE else View.VISIBLE
+            } else {
+                // একটা নম্বর — পাশেই Patient ID
+                holder.tvSecond.text = h.patientId
+                holder.tvSecond.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+                holder.tvSecond.setTextColor(c("#5B6B7C"))
+                holder.tvSecond.isClickable = false
+                holder.tvSecond.setOnClickListener(null)
+                holder.tvSecond.setOnLongClickListener(null)
+                val show = h.patientId.isNotBlank()
+                holder.tvSep.visibility = if (show) View.VISIBLE else View.GONE
+                holder.tvSecond.visibility = if (show) View.VISIBLE else View.GONE
+                holder.tvPid.visibility = View.GONE
+            }
+
+            // 📍 ঠিকানা — এক লাইন, লং-প্রেসে কপি, চাপলে Full Journey
+            val addr = h.address.trim()
+            holder.tvAddr.text = "📍 $addr"
+            holder.tvAddr.visibility = if (addr.isBlank()) View.GONE else View.VISIBLE
+            holder.tvAddr.setOnClickListener { onFullJourney(h) }
+            holder.tvAddr.copyOnLongPress("Address", addr)
+
+            // ⋮ — Call · WhatsApp · Print · ⚡ Take Action
+            holder.dots.setOnClickListener { v ->
+                val menu = listOf(
+                    Triple("📞", "Call") { onCall(h) },
+                    Triple("💬", "WhatsApp") { onWhatsApp(h) },
+                    Triple("🖨️", "Print") { onPrint(h) },
+                    Triple("⚡", "Take Action") { onTakeAction(h) }
+                )
+                try {
+                    val pm = android.widget.PopupMenu(ctx, v)
+                    menu.forEachIndexed { i, (icon, text, _) -> pm.menu.add(0, i, i, "$icon  $text") }
+                    pm.setOnMenuItemClickListener { mi -> menu.getOrNull(mi.itemId)?.third?.invoke(); true }
+                    pm.show()
+                } catch (_: Throwable) { }
+            }
+
+            // বোতাম — একই কাজ, একই রং (V1322), এখন তিনটে এক সারিতে
+            fun actionButton(icon: String, text: String, fillColors: IntArray, action: () -> Unit): LinearLayout {
                 return LinearLayout(ctx).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    setPadding(dp(10), dp(9), dp(8), dp(9))
+                    gravity = android.view.Gravity.CENTER
+                    // ৩৬০dp-র সরু ফোনেও "Mark Arrived" যেন না কাটে — মেপে: প্রতিটা বোতাম ≈১০১dp,
+                    // আইকন ১৫ + ফাঁক ৪ + লেখা (৯.৫sp bold ≈ ৬৬dp) + প্যাডিং ৬ = ৯১dp < ১০১dp।
+                    setPadding(dp(3), dp(9), dp(3), dp(9))
                     background = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
-                        if (green) {
-                            orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                            colors = intArrayOf(android.graphics.Color.parseColor("#0EA25F"), android.graphics.Color.parseColor("#0A5428"))
-                        } else {
-                            orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                            colors = intArrayOf(android.graphics.Color.parseColor("#F4F6F9"), android.graphics.Color.parseColor("#D6DBE2"))
-                        }
+                        cornerRadius = dp(11).toFloat()
+                        orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
+                        colors = fillColors
                     }
                     val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    lp.marginEnd = dp(4); lp.marginStart = dp(4)
+                    lp.marginEnd = dp(2); lp.marginStart = dp(2)
                     layoutParams = lp
                     isClickable = true; isFocusable = true
                     setOnClickListener { action() }
                     addView(TextView(ctx).apply {
-                        text = icon; textSize = 14f
-                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = dp(6) }
+                        this.text = icon; textSize = 12f
+                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = dp(4) }
                     })
                     addView(TextView(ctx).apply {
-                        text = label; textSize = 10.5f
+                        this.text = text; textSize = 9.5f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(if (green) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#1B2432"))
+                        setTextColor(android.graphics.Color.WHITE)
                         maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
                     })
                 }
             }
-            fun addPairRow(a: Pair<Triple<String, String, Boolean>, () -> Unit>, b: Pair<Triple<String, String, Boolean>, () -> Unit>) {
-                val row = newRow()
-                row.addView(actionButton(a.first.first, a.first.second, a.first.third, a.second))
-                row.addView(actionButton(b.first.first, b.first.second, b.first.third, b.second))
-                holder.grid.addView(row)
-            }
+            holder.btnRow.removeAllViews()
+            holder.btnRow.addView(actionButton("💳", "Payment", intArrayOf(c("#1D6FE0"), c("#1457B8"))) { onPayment(h) })
+            holder.btnRow.addView(actionButton("🧭", "Full Journey", intArrayOf(c("#8A63E8"), c("#6A3FCB"))) { onFullJourney(h) })
+            holder.btnRow.addView(actionButton("🏥", "Mark Arrived", intArrayOf(c("#D98A2B"), c("#B45309"))) { onMarkArrived(h) })
 
-            addPairRow(
-                Triple("📞", "Call", false) to { onCall(h) },
-                Triple("💬", "WhatsApp", false) to { onWhatsApp(h) }
-            )
-            addPairRow(
-                Triple("💳", "Payment", true) to { onPayment(h) },
-                Triple("🧭", "Full Journey", true) to { onFullJourney(h) }
-            )
-            addPairRow(
-                Triple("📝", "Prescription", false) to { onPrescription(h) },
-                Triple("💊", "Medicine Slip", false) to { onMedicineSlip(h) }
-            )
-            addPairRow(
-                Triple("🩸", "Blood Test", false) to { onBloodTest(h) },
-                Triple("🥗", "Diet Chart", false) to { onDietChart(h) }
-            )
-            // TK-REQUESTED (2026-07-20): Mark Arrived from Search -- one
-            // full-width row so it stands out from the paired actions above.
-            run {
-                val row = newRow()
-                row.addView(actionButton("🏥", "Mark Arrived (এসেছেন)", true) { onMarkArrived(h) })
-                holder.grid.addView(row)
+            // 💊 মেডিসিনের বাকি — এক লাইন (V985-এর হিসাব অপরিবর্তিত)
+            val due = dueOf(h.mobile)
+            if (due > 0.0) {
+                holder.tvDue.text = "💊 Med. Due ₹" + "%,.0f".format(due) + " — tap to collect"
+                holder.tvDue.setTextColor(c("#B42318"))
+                holder.tvDue.setTypeface(holder.tvDue.typeface, android.graphics.Typeface.BOLD)
+                holder.tvDue.isClickable = true
+                holder.tvDue.setOnClickListener { onCollectDue(h) }
+            } else {
+                holder.tvDue.text = "💊 No medicine due"
+                holder.tvDue.setTextColor(c("#8B98A9"))
+                holder.tvDue.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+                holder.tvDue.isClickable = false
+                holder.tvDue.setOnClickListener(null)
             }
         }
     }

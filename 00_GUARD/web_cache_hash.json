@@ -1,0 +1,42 @@
+{
+  "styles.css": {
+    "v": "v1335",
+    "sha": "adf4924c4c0516c0fc47632764892cd75ee51bb41ccf293ef66d8416ac56a113"
+  },
+  "config.js": {
+    "v": "v1378",
+    "sha": "97abe4e629f1ead006bd6820359d2758d2f420d137af252ef3378940d37d0c5b"
+  },
+  "app.js": {
+    "v": "v1406",
+    "sha": "4406a3fe69c5d0bbf820f80ab58a5c74ce6759163323cb902d07d0bf0e24399b"
+  },
+  "module_core.js": {
+    "v": "v1338",
+    "sha": "461221556c451619e1d35a83950b68654d26720ae3849860be9ef1de0289532c"
+  },
+  "profile.js": {
+    "v": "v1406",
+    "sha": "3713e587e746494cf0ac9087b7aac62435bc51c968cfe9d9193fc61c1bbb4c40"
+  },
+  "doctorreminder.js": {
+    "v": "v1241",
+    "sha": "412d8a924b37f1b4944b3357f964b273af71e3fedd9cc4e94b8b81dcfa938ba5"
+  },
+  "notebook.js": {
+    "v": "v1406",
+    "sha": "ad9729c2d9278e81300d3476b30750111cce49da25d5b28497de156207a71103"
+  },
+  "finance.js": {
+    "v": "v1322",
+    "sha": "4f148bf15d1b9df81811cc20936dd2bd6cbd7e1c81b9774f5ff0f4d06ac7702e"
+  },
+  "partners.js": {
+    "v": "v1203",
+    "sha": "76a4539d37da512ac08bb1b3e9df2810ea30d4776718783ab8b4270489b781d6"
+  },
+  "rmp_commission.js": {
+    "v": "v1402",
+    "sha": "ad2967443cfdedf43f44e1d17a1e9ec5b3b280af25d7acef00820defab9cfb98"
+  }
+}

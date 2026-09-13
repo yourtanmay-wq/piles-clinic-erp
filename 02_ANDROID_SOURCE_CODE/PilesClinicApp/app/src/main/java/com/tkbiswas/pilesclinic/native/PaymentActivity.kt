@@ -160,6 +160,18 @@ class PaymentActivity : AppCompatActivity() {
         })
 
         binding.btnBack.setOnClickListener { finish() }
+        /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ করুন, তবে সাবধানে"*)
+           — অ্যাপের থিমে XML-এর সাদামাটা `<Button>` আপনা-আপনি **MaterialButton**
+           হয়ে যায়, আর সেটা `android:background` **অগ্রাহ্য করে** নিজের গাঢ় নীল
+           `backgroundTint` বসিয়ে দেয়। ফলে XML-এ লেখা রংটা ফোনে কখনো দেখা যেত না
+           (কম্পিউটারে ঠিকই দেখা যেত)। `backgroundTintList = null` বসালে তবেই
+           XML-এর drawable-টা দেখা যায় — প্রজেক্টের নিজেরই প্রমাণিত ওষুধ
+           (`DoctorQueueAdapter` · `DraftCardAdapter`-এ আগে থেকেই চলছে, পাহারা ৯.৩২)।
+           ⛔ শুধু চেহারা — বোতামের কাজ · জায়গা · লেখা কিচ্ছু বদলায়নি। */
+        binding.btnAddPayment.backgroundTintList = null
+        binding.btnMedicinePayment.backgroundTintList = null
+        binding.btnMonthlyCollection.backgroundTintList = null
+        binding.btnCollectionHistory.backgroundTintList = null
         binding.btnAddPayment.setOnClickListener { showSearchPatientDialog() }
         binding.btnMedicinePayment.setOnClickListener { startActivity(Intent(this, MedicinePaymentActivity::class.java)) }
         setupDatePick()
@@ -281,7 +293,9 @@ class PaymentActivity : AppCompatActivity() {
         fun refreshDateText() {
             // 🔒 B576 (TK-নির্দেশ): তারিখ 08/08/2026 রূপে (স্ল্যাশ), ▾ তীর ছাড়া।
             // DateUtil.display দেয় dd.MM.yyyy — শুধু ডট→স্ল্যাশ, অন্য পর্দা অপরিবর্তিত।
-            binding.tvDatePick.text = DateUtil.display(selectedCollectionDate).replace('.', '/')
+            // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): এখানে বিন্দুকে স্ল্যাশ করা হত,
+            // তাই একই অ্যাপে দুই রকম তারিখ দেখাত। এখন প্রজেক্টের এক ফরম্যাটই।
+            binding.tvDatePick.text = DateUtil.display(selectedCollectionDate)
             val isToday = selectedCollectionDate == PaymentModel.today()
             // 🔵 B611 (10.08.2026, TK-অনুমোদিত ফুল-স্ক্রিন প্রুফ): তারিখ উপরে
             // ব্যাজেই একবার আছে — তাই summary কার্ডের "COLLECTION SUMMARY · তারিখ"
@@ -454,7 +468,36 @@ class PaymentActivity : AppCompatActivity() {
         }
     }
 
+    /* 🔴🔴🔒 V937 (৩১.০৮.২০২৬, TK-রিপোর্ট, ৬টা ছবিসহ — *"আমি মাস্টার, ৩ টাকা
+       ডিলিট করতে পারলাম না"* · *"আমি ক্লোজ কেন চাপবো, ডিলিট করেছি আমার সামনের
+       থেকে অটোমেটিক ডিলিট হতে হবে"*)।
+
+       ─── আসল কারণ (কোড ধরে, আন্দাজ নয়) ─────────────────────────────────
+       ডিলিট **সত্যিই হচ্ছিল** (`TrashHelper.moveToTrash` ক্লাউড থেকে মুছে
+       Trash-এ রাখে, তাই "Master informed" বার্তাও আসত)। কিন্তু রোগীর খোলা
+       **পেমেন্ট-তালিকার পপ-আপটা কেউ নতুন করে আঁকত না** — তাই মুছে যাওয়া
+       সারিটা পর্দায় থেকে যেত, আর উপরের "Total · X payments"-ও পুরনো থাকত।
+       TK ওই পুরনো সারিতেই আবার চাপ দিয়েছেন, তাই একই বার্তা আবার এসেছে ও
+       মনে হয়েছে ডিলিট হচ্ছেই না।
+
+       ─── সমাধান ────────────────────────────────────────────────────────
+       কোন রোগীর তালিকা এই মুহূর্তে খোলা আছে সেটা মনে রাখা হয়, আর ডিলিট/এডিট
+       সফল হলে `refreshOpenCollectionDetails()` সেটাকে **নিজেই** নতুন করে
+       আঁকে — TK-কে আর Close চেপে আবার ঢুকতে হবে না।
+       ⛔ টাকার হিসাব · ডিলিটের নিয়ম · অনুমতি — কিছুই ছোঁয়া হয়নি, শুধু পর্দা। */
+    private var openCollectionRow: CollectionRow? = null
+    private var openCollectionDlg: AlertDialog? = null
+
+    private fun refreshOpenCollectionDetails() {
+        val r = openCollectionRow ?: return
+        val d = openCollectionDlg
+        if (d == null || !d.isShowing) return
+        try { d.dismiss() } catch (_: Throwable) { }
+        showCollectionDetails(r)
+    }
+
     private fun showCollectionDetails(row: CollectionRow) {
+        openCollectionRow = row
         val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) {
             Toast.makeText(this, "This entry has no mobile number", Toast.LENGTH_SHORT).show()
@@ -527,6 +570,9 @@ class PaymentActivity : AppCompatActivity() {
             // is completely unchanged, only the look was plain before.
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
+            // 🔴🔒 V816 — নিচে তৈরি হওয়া পপ-আপটা উপরের কলব্যাকে দরকার,
+            //    তাই নামটা আগেই ঘোষণা করা (Kotlin-এ ব্যবহারের আগে ঘোষণা লাগে)।
+            lateinit var dlg: AlertDialog
             val root = LinearLayout(this@PaymentActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 background = android.graphics.drawable.GradientDrawable().apply {
@@ -612,9 +658,41 @@ class PaymentActivity : AppCompatActivity() {
                         val sp = if (p.s("payType").equals("treatment", true)) PaymentModel.paymentSplit(p) else 0.0 to 0.0
                         val modeText = if (p.s("payType").equals("treatment", true) && sp.first > 0.0 && sp.second > 0.0)
                             "CASH + ONLINE" else p.s("mode").ifBlank { "CASH" }
-                        text = "${DateUtil.display(p.s("date"))} · $modeText"
+                        /* 🕒 V1106 (TK-নির্দেশ) — তারিখের পাশে সময়। ব্যাকডেট করা
+                           পেমেন্টে সময় বসে না (সেটা অন্য দিনের ঘড়ি)। */
+                        text = "${PaymentModel.dayAndClock(p.s("date"), p.s("createdAt"))} · $modeText"
                         textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#8A93A6"))
                     })
+                    /* 🔴🔒 V1153 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"এখানে
+                       সেই staff-এর নাম নেই কেন?"* (KABITA BANU-র ₹৮,০০২ কে নিয়েছে
+                       খুঁজতে গিয়ে)। ⇒ তথ্যটা সারিতে আগে থেকেই জমা (`receivedBy`,
+                       না থাকলে `createdBy`), শুধু দেখানো হত না।
+                       ⛔ নম্বর থেকে স্টাফ-কোড বের হয় প্রজেক্টের প্রমাণিত পথেই;
+                          চেনা না গেলে লাইনটাই বসে না (আন্দাজে কিছু দেখানো হয় না)।
+                       ⛔ টাকার অঙ্ক · তারিখ · লেবেল · রিমার্ক — কিছুই বদলায়নি। */
+                    run {
+                        val byMob = p.s("receivedBy").ifBlank { p.s("createdBy") }
+                        /* 🔴🔒 V1171 (০৭.০৯.২০২৬, TK: *"২৬১ করুন, স্টাফের নাম
+                           বসিয়ে দিন"*) — আগে শুধু বাঁধা তালিকার নাম দেখা হত, আর
+                           স্টাফের বেলায় ওখানে **কোডই** জমা থাকে; অ্যাপ থেকে যোগ
+                           করা স্টাফ তো কিছুই দেখাত না। এখন আগে **সম্পূর্ণ নাম**
+                           খোঁজা হয় (ফোনে আগে থেকেই জমানো তালিকা, কখনো নেটে যায়
+                           না), না পেলে আগের নিয়মটাই।
+                           ⛔ চেনা না গেলে লাইনটা আগের মতোই বসে না। */
+                        val byNorm = try { StaffDirectory.normalizeMobile(byMob) } catch (_: Throwable) { "" }
+                        val byName = try {
+                            CloudStaffDirectory.cachedNameFor(this@PaymentActivity, byNorm)
+                                ?.takeIf { it.isNotBlank() }
+                                ?: StaffDirectory.findAccount(byNorm)?.name.orEmpty()
+                        } catch (_: Throwable) { "" }
+                        if (byName.isNotBlank()) {
+                            left.addView(TextView(this@PaymentActivity).apply {
+                                text = "👤 $byName"; textSize = 11.5f
+                                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                                setTextColor(android.graphics.Color.parseColor("#0B5F2E"))
+                            })
+                        }
+                    }
                     if (rem.isNotBlank()) {
                         left.addView(TextView(this@PaymentActivity).apply {
                             text = "📝 $rem"; textSize = 11f
@@ -631,12 +709,41 @@ class PaymentActivity : AppCompatActivity() {
                     if (!dateChosenFromHeader || user.role == "master") {
                         val eventCount = p.optInt("_displayEventCount", p.optJSONArray("dailyEvents")?.length() ?: 1).coerceAtLeast(1)
                         if (p.s("payType").equals("treatment", true) && eventCount > 1) {
-                            // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত ফটো-প্রুফ): শুধু
-                            // Master-এর জন্য এখন ভেঙে দেখানো (breakdown) খোলে —
-                            // স্টাফের জন্য নিচের সতর্কবার্তাই আগের মতো অপরিবর্তিত।
+                            // 🟢🔒 V618 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই
+                            // করে) — V471-এ এই ভাঙা-দেখা (breakdown) শুধু
+                            // Master-এর জন্য রাখা হয়েছিল, কারণ তখন ভয় ছিল
+                            // "Cash/Online split আন্দাজ করতে হবে"। যাচাই করে
+                            // দেখা গেছে **সেই ভয়টা এখানে প্রযোজ্যই না** —
+                            // এই পর্দা `dailyEvents`-এর প্রতিটা **আসল, আলাদা,
+                            // আগে থেকে জানা** এন্ট্রি দেখায় (কোনো অনুমান নেই)।
+                            // তাই এখন বাকি সব পেমেন্টের মতোই একই "আজ/গতকাল-
+                            // মুক্ত, তার বেশি হলে Master লাগবে" নিয়ম —
+                            // `PaymentModel.withinFreeEditWindow()`, প্রজেক্টে
+                            // আগে থেকেই ব্যবহৃত একই একটাই উৎস।
+                            val canOpenBreakdown = user.role == "master" || PaymentModel.withinFreeEditWindow(p.s("date"))
                             TripleTapEdit.attach(row2) {
-                                if (user.role == "master") showDailyEventsBreakdown(p)
-                                else Toast.makeText(this@PaymentActivity, "This day's payment combines $eventCount entries. Split-safe correction is required.", Toast.LENGTH_LONG).show()
+                                if (canOpenBreakdown) showDailyEventsBreakdown(p) {
+                                    // 🔴 V816 — বাইরের পপ-আপ বন্ধ করে নতুন করে খোলা,
+                                    //    যাতে উপরের মোট ও "X payments" সঙ্গে সঙ্গে ঠিক দেখায়।
+                                    try { dlg.dismiss() } catch (_: Throwable) { }
+                                    showCollectionDetails(row)
+                                }
+                                /* 🔴🔒 V1350 (১১.০৯.২০২৬, TK-রিপোর্ট — "অ্যাডভান্স ডিলিট করতে
+                                   চাইলাম, মাস্টার রিকুয়েস্ট গেল না কেন") — সাধারণ (একক) পুরনো
+                                   পেমেন্টের মতোই এখন এখানেও মাস্টারের ঘণ্টায় একটা নোটিশ যায়;
+                                   আগে শুধু এই Toast দেখিয়েই থেমে যেত, মাস্টার কিছুই জানতেন না।
+                                   ⛔ ইচ্ছে করেই "Approve & Delete" এক-চাপ বোতাম নেই — এই সারিতে
+                                      একাধিক আলাদা এন্ট্রি থাকে, কোনটা মুছতে হবে এক-চাপে নিশ্চিত
+                                      বোঝা যায় না; ভুল করে পুরো দিনের সব টাকা মুছে যাওয়ার ঝুঁকি
+                                      এড়াতে শুধু জানানো — মাস্টার নিজে Payment স্ক্রিনে খুলে
+                                      (Master হিসেবে বিভাজন সবসময় খোলে) ঠিক এন্ট্রিটা বেছে নেবেন। */
+                                else lifecycleScope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try { DeletePermission.sendCombinedPaymentReviewRequest(this@PaymentActivity, user, p, "Wants to edit/delete an entry") }
+                                        catch (_: Throwable) { false }
+                                    }
+                                    Toast.makeText(this@PaymentActivity, DeletePermission.lastMessage(), Toast.LENGTH_LONG).show()
+                                }
                             }
                         } else TripleTapEdit.attach(row2) { tryEditPayment(p) }
                     }
@@ -659,10 +766,12 @@ class PaymentActivity : AppCompatActivity() {
             root.addView(close)
 
             UppercaseInputUtil.applyToAll(root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
-            val dlg = AlertDialog.Builder(this@PaymentActivity).setView(root).setCancelable(true).create()
+            dlg = AlertDialog.Builder(this@PaymentActivity).setView(root).setCancelable(true).create()
+            openCollectionDlg = dlg   // 🔴🔒 V937 — এই পপ-আপটাই পরে নিজে নতুন হবে
             dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             close.setOnClickListener { dlg.dismiss() }
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         }
     }
 
@@ -689,8 +798,20 @@ class PaymentActivity : AppCompatActivity() {
     // ⛔ সাধারণ (মিশ্র নয়) পেমেন্টের Edit/Delete — উপরের/নিচের কোড —
     //    এক অক্ষরও বদলানো হয়নি।
     // =========================================================================
-    private fun showDailyEventsBreakdown(p: org.json.JSONObject) {
+    /* 🔴🔒 V816 (২৯.০৮.২০২৬, TK-রিপোর্ট) — ভিতরের এন্ট্রি মুছলে/বদলালে
+       **বাইরের রোগী-পপ-আপটাও** নতুন করে আঁকতে হবে; নইলে উপরে পুরনো মোট
+       (₹10,001) আর "2 payments" লেখাই থেকে যেত, TK ভাবতেন মোছেইনি।
+       ⛔ কলব্যাক না দিলে আচরণ হুবহু আগের মতোই। */
+    private fun showDailyEventsBreakdown(p: org.json.JSONObject, onChanged: (() -> Unit)? = null) {
         val events = p.optJSONArray("dailyEvents") ?: return
+        /* 🔴🔒 V937 (TK-রিপোর্ট: *"এখান থেকে একটা ডিলিট হয়ে যাওয়ার পরে অটোমেটিক
+           বেঁকে চলে যায় কেন?"*) — আগে ভিতরের এন্ট্রি মোছার সাথে সাথেই বাইরের
+           তালিকা-পপ-আপ বন্ধ করে **নতুন করে খোলা** হত (V816, যাতে উপরের মোট ঠিক
+           দেখায়) — সেই নতুন পপ-আপটাই উপরে এসে এই ভাঙা-দেখার পপ-আপ ঢেকে দিত।
+           এখন বাইরেরটা নতুন হবে **এই পপ-আপ বন্ধ হওয়ার পরে**, তাই পরপর কয়েকটা
+           এন্ট্রি মোছা যাবে, বারবার তিনবার চাপতে হবে না।
+           ⛔ V816-এর উদ্দেশ্য (মোট সবসময় ঠিক) অক্ষত — শুধু সময়টা পিছিয়ে গেল। */
+        var outerNeedsRefresh = false
         val label = p.s("payLabel").ifBlank { p.s("paymentLabel").ifBlank { "Payment" } }
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
@@ -728,10 +849,14 @@ class PaymentActivity : AppCompatActivity() {
                 val eventId = e.optString("eventId")
                 val amt = e.optDouble("amount", 0.0)
                 val mode = e.s("mode").ifBlank { "CASH" }
-                val timeTxt = try {
-                    val ts = e.s("createdAt")
-                    if (ts.isBlank()) "" else android.text.format.DateFormat.format("h:mm a", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(ts) ?: java.util.Date()).toString()
-                } catch (_: Throwable) { "" }
+                /* 🔴🕒 V1106 (TK-নির্দেশ, SADDAM-এর ডুপ্লিকেট খুঁজতে গিয়ে ধরা) —
+                   **এখানে সময়টা ভুল দেখাত।** আগে `createdAt`-কে UTC ধরে ফোনের
+                   ঘড়িতে বদলানো হত, অথচ ওই লেখাটা ফোনের **নিজের ঘড়ির** সময়
+                   (শেষে শুধু `Z` অক্ষরটা বসানো) ⇒ প্রতিটা সময় **৫ঘ ৩০মি এগিয়ে**
+                   দেখাত। এখন যেভাবে জমা আছে ঠিক সেভাবেই পড়া হয়।
+                   ⛔ পুরো প্রকল্পে একটাই নিয়ম (`PaymentModel.clockOf`), তাই দুই
+                      পর্দায় দুরকম সময় আর দেখাতে পারে না। */
+                val timeTxt = PaymentModel.clockOf(e.s("createdAt"))
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER_VERTICAL
@@ -800,6 +925,7 @@ class PaymentActivity : AppCompatActivity() {
                                         val fresh = withContext(Dispatchers.IO) { try { repository.findPaymentById(p.s("id")) } catch (_: Throwable) { null } }
                                         if (fresh != null) refreshList(fresh) else dialog.dismiss()
                                         loadSummary()
+                                        outerNeedsRefresh = true   // 🔴🔒 V937 — বন্ধ হলে তবেই বাইরেরটা নতুন হবে
                                     }
                                 }
                             }
@@ -808,7 +934,8 @@ class PaymentActivity : AppCompatActivity() {
                         .show().also { PremiumAlert.paint(it) }
                 }
                 delIcn.setOnClickListener {
-                    AlertDialog.Builder(this@PaymentActivity)
+                    // 🛡️ V768 — এখানেও একই পাহারা (নিচে dlgOne-এ ১ সেকেন্ড অপেক্ষা)।
+                    val dlgOne = AlertDialog.Builder(this@PaymentActivity)
                         .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "🗑️ Delete this entry?"))
                         .setMessage("₹${"%,.0f".format(amt)} ($mode${if (timeTxt.isNotBlank()) ", $timeTxt" else ""}) will be removed. The other ${evs.length() - 1} entries stay unchanged. Master is informed.")
                         .setPositiveButton("Yes, delete this entry") { _, _ ->
@@ -822,11 +949,22 @@ class PaymentActivity : AppCompatActivity() {
                                     if (fresh != null && (fresh.optJSONArray("dailyEvents")?.length() ?: 0) > 0) refreshList(fresh)
                                     else dialog.dismiss()
                                     loadSummary()
+                                    outerNeedsRefresh = true   // 🔴🔒 V937 — বন্ধ হলে তবেই বাইরেরটা নতুন হবে
                                 }
                             }
                         }
                         .setNegativeButton("Cancel", null)
                         .show().also { PremiumAlert.paint(it) }
+                    // 🛡️ V768 — "Yes, delete this entry" প্রথম ১ সেকেন্ড নিষ্ক্রিয়,
+                    //    যাতে পরপর চাপ দেওয়ার সময় ভুল করে মুছে না যায়।
+                    //    ⛔ Cancel প্রথম থেকেই সচল।
+                    dlgOne.getButton(AlertDialog.BUTTON_POSITIVE)?.let { yes ->
+                        yes.isEnabled = false
+                        yes.alpha = 0.45f
+                        yes.postDelayed({
+                            try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                        }, 1000L)
+                    }
                 }
                 listBox.addView(row)
                 listBox.addView(View(this).apply {
@@ -840,11 +978,18 @@ class PaymentActivity : AppCompatActivity() {
             .setView(root)
             .setNegativeButton("Close", null)
             .create()
+        // 🔴🔒 V937 — ভিতরে কিছু বদলে থাকলে বাইরের তালিকা এখন নতুন হবে।
+        dialog.setOnDismissListener { if (outerNeedsRefresh) onChanged?.invoke() }
         dialog.show()
         try { PremiumAlert.paint(dialog) } catch (_: Throwable) { }
     }
 
     private fun tryEditPayment(p: org.json.JSONObject) {
+        // 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি এডিট নয় — Timeline/Follow-up-এর একই নিয়ম।
+        if (PaymentModel.isMarkerOnlyRow(p.s("payType"))) {
+            Toast.makeText(this, "This is a system marker row (Bill edit / Expected / Arrived) — it holds no money and can't be edited", Toast.LENGTH_LONG).show()
+            return
+        }
         val eventCount = p.optInt("_displayEventCount", p.optJSONArray("dailyEvents")?.length() ?: 1).coerceAtLeast(1)
         if (p.s("payType").equals("treatment", true) && eventCount > 1) {
             Toast.makeText(this, "This day's payment combines $eventCount entries. Cash/Online split will not be guessed.", Toast.LENGTH_LONG).show()
@@ -971,11 +1116,40 @@ class PaymentActivity : AppCompatActivity() {
                 isClickable = true; isFocusable = true
             }
             root.addView(deleteBtn)
+            /* 🛡️🔴🔒 V773 (২৮.০৮.২০২৬) — **TK-এর আসল অভিযোগটা এখানেই ছিল।**
+               TK: *"সেখানে চাপ দিলে অটোমেটিক ডিলিট হয়ে যায় — আমি চাইছি
+               সতর্কবার্তা দিক, Are you sure"*।
+
+               V768-এ আমি ভুল করেছিলাম: ধরে নিয়েছিলাম সতর্কবার্তা সব জায়গায়
+               আগে থেকেই আছে, শুধু তাড়াহুড়োর চাপ লেগে যাচ্ছে — তাই শুধু ১
+               সেকেন্ডের অপেক্ষা বসিয়েছিলাম। কিন্তু **এই বোতামটায় কোনো
+               সতর্কবার্তাই ছিল না** — এক চাপেই সোজা মুছে যেত। যাচাই করতে
+               গিয়ে ধরা পড়ল।
+
+               এখন: আগে "Are you sure?" পপ-আপ, আর "Yes" প্রথম ১ সেকেন্ড
+               নিষ্ক্রিয় (ঠিক V768-এর অন্য দুটো ডিলিটের মতোই)।
+               ⛔ Cancel প্রথম থেকেই সচল।
+               ⛔ ডিলিটের আসল কাজ (undoAttendanceMark) এক অক্ষরও বদলায়নি। */
             deleteBtn.setOnClickListener {
-                lifecycleScope.launch {
-                    val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(id) }
-                    Toast.makeText(this@PaymentActivity, if (ok) "Entry deleted" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                val ask = AlertDialog.Builder(this@PaymentActivity)
+                    .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "🗑️ Delete this entry?"))
+                    .setMessage("The \"Marked Arrived\" entry will be removed. This cannot be undone from here.")
+                    .setPositiveButton("Yes, delete") { _, _ ->
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(id) }
+                            Toast.makeText(this@PaymentActivity, if (ok) "Entry deleted" else "Failed — check connection", Toast.LENGTH_SHORT).show()
+                            if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .setCancelable(false)
+                    .show().also { PremiumAlert.paint(it) }
+                ask.getButton(AlertDialog.BUTTON_POSITIVE)?.let { yes ->
+                    yes.isEnabled = false
+                    yes.alpha = 0.45f
+                    yes.postDelayed({
+                        try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                    }, 1000L)
                 }
             }
         }
@@ -1041,14 +1215,15 @@ class PaymentActivity : AppCompatActivity() {
                                         DeletePermission.sendRequest(
                                             this@PaymentActivity, u, "Payment",
                                             p.s("name"), p.s("mobile"), p.s("patientCode"),
-                                            p.s("branch"), "$amtText ($labelText)", p.s("id")
+                                            p.s("branch"), "$amtText ($labelText)", p.s("id"),
+                                            entryDate = p.s("date")   // 🟢 V1134 — কোন তারিখের টাকা, TK-নির্দেশ
                                         )
                                     } catch (_: Throwable) { false }
                                 }
                                 Toast.makeText(
-                                    this@PaymentActivity, NoBengali.s(if (sent) "Request sent to Master" else "Failed — check the network"),
+                                    this@PaymentActivity, NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                                     Toast.LENGTH_LONG
-                                ).show()
+                                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                             }
                         }
                         .setNegativeButton("Close", null)
@@ -1078,6 +1253,25 @@ class PaymentActivity : AppCompatActivity() {
                     .setNegativeButton("No", null)
                     .setCancelable(false)
                     .show().also { PremiumAlert.paint(it) }
+                /* 🛡️🔒 V768 (২৭.০৮.২০২৬, TK-রিপোর্ট: *"৩ বার চাপ দিতে গিয়ে ভুল করে
+                   ডিলিট হয়ে গেছে ... সতর্কবার্তা দিক Are you sure"*)
+
+                   **আসল কারণ (কোড ধরে যাচাই):** সতর্কবার্তা **আগে থেকেই ছিল**।
+                   কিন্তু এই পর্দায় এডিট খুলতে পরপর চাপ দিতে হয় — সতর্কবার্তা
+                   ভেসে ওঠামাত্র পরের চাপটা ঠিক "Yes, delete"-এর উপরেই পড়ে যেত।
+                   অর্থাৎ TK সতর্কবার্তা দেখারই সময় পাননি।
+
+                   **সমাধান:** "Yes, delete" প্রথম **১ সেকেন্ড নিষ্ক্রিয়** থাকে
+                   (লেখাও ধূসর), তাই তাড়াহুড়োর চাপ কখনো ওটায় লাগতে পারে না।
+                   ⛔ "No" প্রথম থেকেই সচল — বাতিল করতে কোনো অপেক্ষা নেই।
+                   ⛔ ডিলিটের আসল কাজ এক অক্ষরও বদলায়নি। */
+                confirmDialog.getButton(AlertDialog.BUTTON_POSITIVE).let { yes ->
+                    yes.isEnabled = false
+                    yes.alpha = 0.45f
+                    yes.postDelayed({
+                        try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                    }, 1000L)
+                }
                 confirmDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                     confirmDialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
                     confirmDialog.getButton(AlertDialog.BUTTON_NEGATIVE).isEnabled = false
@@ -1093,9 +1287,13 @@ class PaymentActivity : AppCompatActivity() {
                             this@PaymentActivity,
                             if (ok) "Payment deleted — Master informed" else "Could not delete — check connection and try again",
                             Toast.LENGTH_LONG
-                        ).show()
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         confirmDialog.dismiss()
-                        if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                        if (ok) {
+                            if (!directFormOnly) loadSummary()
+                            dialog.dismiss()
+                            refreshOpenCollectionDetails()   // 🔴🔒 V937 — সারিটা সঙ্গে সঙ্গে চলে যাবে
+                        }
                     }
                 }
                 }
@@ -1138,10 +1336,13 @@ class PaymentActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { SupabaseClient.updateById("payments", id, fields) }
                     Toast.makeText(this@PaymentActivity, if (ok) "Payment updated" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                    // 🔴🔒 V937 — নিয়ম ৬.২: এডিটেও ঠিক একই ফাঁক ছিল (বদলানো অঙ্ক
+                    // তালিকায় পুরনোই দেখাত)। ডিলিটের মতোই তালিকা নিজেই নতুন হবে।
+                    if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss(); refreshOpenCollectionDetails() }
                 }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         }
         if (!canEdit) {
             lifecycleScope.launch {
@@ -1149,11 +1350,48 @@ class PaymentActivity : AppCompatActivity() {
                     try { BackdatePaymentGrant.isGrantedNow(user?.mobile ?: "", p.s("date")) } catch (_: Throwable) { false }
                 }
                 if (granted) proceed()
-                else Toast.makeText(this@PaymentActivity, "Only Master can edit entries older than yesterday", Toast.LENGTH_SHORT).show()
+                else offerDeleteRequestWhenEditBlocked(p, user)   /* 🔴 V1299 — তালিকা ৪১৫ */
             }
             return
         }
         proceed()
+    }
+
+    /* 🔴🔒 V1299 (১০.০৯.২০২৬, তালিকা ৪১৫, TK: *"ঠিক করুন সাবধানে"*) — **পুরনো এন্ট্রিতে
+       স্টাফ Master-কে ডিলিট-অনুরোধ পাঠাতেই পারতেন না।** TK-র B52-নিয়ম (২৮.০৭): স্টাফ শুধু
+       আজ/গতকালের এন্ট্রি বদলাতে পারেন — সেটা অটুট। কিন্তু "Send Request" বোতামটা ছিল
+       এডিট-জানলার ভিতরে, আর পুরনো এন্ট্রিতে ওই জানলাই খোলে না ⇒ শুধু একটা toast।
+       এখন: একই নিয়মে আটকালে একটা ছোট জানলা — "Send delete request to Master"; পাঠানোর
+       নিয়ম ও বার্তা হুবহু এডিট-জানলার Delete-বোতামের (DeletePermission.sendRequest, V1134
+       তারিখসহ, V1176 বার্তা)। ⛔ কিছু মোছে না, কিছু বদলায় না — শুধু Master-এর ঘণ্টায় অনুরোধ। */
+    private fun offerDeleteRequestWhenEditBlocked(p: org.json.JSONObject, user: NativeUser?) {
+        val u = user ?: return
+        val amtText = "₹${"%,.0f".format(p.optDouble("amount", 0.0))}"
+        val labelText = p.s("payLabel").ifBlank { p.s("paymentLabel").ifBlank { "Payment" } }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Only Master can edit"))
+            .setMessage(
+                "$amtText ($labelText) · ${DateUtil.display(p.s("date"))}\n\n" +
+                "Only Master can edit entries older than yesterday.\n" +
+                "You can ask Master to delete this entry — nothing changes until Master approves."
+            )
+            .setPositiveButton("Send delete request") { _, _ ->
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            DeletePermission.sendRequest(
+                                this@PaymentActivity, u, "Payment",
+                                p.s("name"), p.s("mobile"), p.s("patientCode"),
+                                p.s("branch"), "$amtText ($labelText)", p.s("id"),
+                                entryDate = p.s("date")
+                            )
+                        } catch (_: Throwable) { false }
+                    }
+                    Toast.makeText(this@PaymentActivity, NoBengali.s(DeletePermission.lastMessage()), Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show().also { PremiumAlert.paint(it) }
     }
 
     // TK-REQUESTED REDESIGN (2026-07-20): the old dialog only took an exact
@@ -1275,13 +1513,29 @@ class PaymentActivity : AppCompatActivity() {
             searchJob?.cancel()
             searchJob = lifecycleScope.launch {
                 kotlinx.coroutines.delay(250)
-                val matches = try {
+                val found = try {
                     withContext(Dispatchers.IO) { repository.searchPatients(q) }
                 } catch (t: Throwable) { emptyList() }
+                /* 🏥🔒 V1235 (০৮.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, খাতার সারি ৩৫৯):
+                   *"বীরপাড়া ব্রাঞ্চ থেকে পেমেন্ট উইন্ডো খুলে নাম এন্ট্রি করলে সমস্ত
+                   ব্রাঞ্চের পেশেন্ট সাজেস্ট করছে — যে স্টাফ যে ব্রাঞ্চের, শুধু সেই
+                   ব্রাঞ্চের পেশেন্টই সাজেস্ট হবে এবং পেমেন্ট নিতে পারবে"*।
+                   **নতুন কোনো নিয়ম বানানো হয়নি** — টাকা নেওয়ার নিয়মটা TK-এর
+                   নিজেরই ২৭.০৭.২০২৬-এর নিয়ম, কোডে `MoneyBranchGuard`-এ আগে
+                   থেকেই বসানো ছিল ও ফর্ম সেভের সময় আটকাতও। বাদ ছিল শুধু
+                   **এই তালিকাটা** — তাই স্টাফ অন্য ব্রাঞ্চের নাম দেখে চাপ দিতেন,
+                   আর আটকানো হত অনেক পরে। এখন ঠিক সেই একই নিয়মেই তালিকা ছাঁকা হয়।
+                   ⛔ মাস্টার (বা "All" ব্রাঞ্চ) আগের মতোই সবাইকে দেখেন।
+                   ⛔ কারো ব্রাঞ্চ ও Patient ID দুটোই ফাঁকা হলে আগের মতোই দেখায়
+                      (MoneyBranchGuard-এর নিজের নিয়ম — টাকা যেন কখনো আটকে না যায়)। */
+                val matches = found.filter {
+                    MoneyBranchGuard.canTakeMoney(this@PaymentActivity, it.branch, it.patientId)
+                }
                 if (matches.isEmpty()) {
                     resultsContainer.removeAllViews()
                     val empty = TextView(this@PaymentActivity).apply {
-                        text = "No match found"
+                        text = if (found.isEmpty()) "No match found"
+                               else "No match in your branch \u2014 this patient belongs to another branch."
                         textSize = 12f
                         setTextColor(android.graphics.Color.parseColor("#999999"))
                         setPadding(dp(4), dp(6), 0, 0)
@@ -1301,6 +1555,7 @@ class PaymentActivity : AppCompatActivity() {
 
         dialog.setButton(AlertDialog.BUTTON_POSITIVE, "Search") { _, _ -> runSearch() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /**
@@ -1332,7 +1587,7 @@ class PaymentActivity : AppCompatActivity() {
             .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
             .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
             .setOnCancelListener { finishWith(null) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     /**
@@ -1442,17 +1697,27 @@ class PaymentActivity : AppCompatActivity() {
             )
         }
         box.addView(modeSpinner)
-        box.addView(TextView(this).apply { text = "Reason (কারণ)"; textSize = 12f; setPadding(0, (12 * d).toInt(), 0, 4) })
+        box.addView(TextView(this).apply { text = NoBengali.s("Reason (কারণ)"); textSize = 12f; setPadding(0, (12 * d).toInt(), 0, 4) })
         val reasonInput = EditText(this).apply { hint = "Refund reason" }
         box.addView(reasonInput)
         UppercaseInputUtil.applyToAll(box)
 
         val isMaster = user.role.equals("master", ignoreCase = true)
-        val autoApprove = isMaster || repository.chamberOpenToday(patient.branch)
+        /* 🔴🔒 V1360 (১১.০৯.২০২৬, পুরো প্রজেক্ট যাচাইয়ে ধরা): `chamberOpenToday` ক্লাউডে
+           প্রশ্ন করে, অথচ এখানে পর্দার নিজের সুতোয় ডাকা হত — Android-এ পর্দার সুতোয়
+           নেটের কাজ **সবসময় ব্যর্থ** হয় (চুপচাপ), তাই স্টাফ চেম্বার খোলা থাকলেও
+           সবসময় "Send refund request" দেখতেন, আর সেভের পরে ভুল বার্তা পেতেন
+           (আসলে সঙ্গে সঙ্গেই অনুমোদিত হত)। Patient Timeline-এর প্রমাণিত পথে (পিছনের
+           সুতোয়, `withContext(IO)`) নেওয়া হলো। ⛔ ফর্ম · সীমা · আঙুলের তালা · সেভ — কিচ্ছু বদলায়নি। */
+        lifecycleScope.launch {
+        val autoApprove = isMaster || withContext(Dispatchers.IO) {
+            try { repository.chamberOpenToday(patient.branch) } catch (_: Throwable) { false }
+        }
+        if (isFinishing || isDestroyed) return@launch
         val posLabel = if (autoApprove) "Refund now" else "Send refund request"
-        val dialog = AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "💸 Refund"))
-            .setView(android.widget.ScrollView(this).apply { addView(box) })
+        val dialog = AlertDialog.Builder(this@PaymentActivity)
+            .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "💸 Refund"))
+            .setView(android.widget.ScrollView(this@PaymentActivity).apply { addView(box) })
             .setPositiveButton(posLabel, null)
             .setNegativeButton("Cancel", null)
             .create()
@@ -1461,16 +1726,25 @@ class PaymentActivity : AppCompatActivity() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
             if (refundSaving) return@setOnClickListener
             val amt = amtInput.text.toString().toDoubleOrNull() ?: 0.0
-            if (amt <= 0.0) { Toast.makeText(this, "Enter a valid refund amount", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (amt <= 0.0) { Toast.makeText(this@PaymentActivity, "Enter a valid refund amount", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
             // 🔒 V217 (§B216): Screen-স্তরেই প্রথম পাহারা — জমার চেয়ে বেশি লিখলে
             // সঙ্গে সঙ্গে আটকানো, ক্লাউড পর্যন্ত পাঠাতেই হয় না। আসল/চূড়ান্ত
             // পাহারা `saveRefund`-এর ভিতরেই (pending-ও ধরে), এটা শুধু দ্রুত UX।
             // 🔴 V509 (২১.০৮.২০২৬, TK-সিদ্ধান্ত): সীমা এখন চিকিৎসার জমা + Visit Fee।
             if (amt > patient.refundableTotal + 0.5) {
-                Toast.makeText(this, "Refund can't be more than the refundable amount (₹${"%,.0f".format(patient.refundableTotal)})", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@PaymentActivity, "Refund can't be more than the refundable amount (₹${"%,.0f".format(patient.refundableTotal)})", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
             val reason = reasonInput.text.toString().trim()
+            /* 🔴🔒 V1152 (০৬.০৯.২০২৬, TK-নির্দেশ) — *"রিটার্ন কি কারণে করল
+               রিমার্ক লেখাটা জরুরী"* ⇒ কারণ ফাঁকা রাখলে ফেরত হবে না।
+               ⛔ টাকার কোনো নিয়ম/সীমা বদলায়নি — শুধু একটা ঘর বাধ্যতামূলক হলো। */
+            if (reason.isBlank()) {
+                Toast.makeText(this@PaymentActivity, "Refund reason mandatory — write why the money is being returned", Toast.LENGTH_LONG)
+                    .show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                reasonInput.requestFocus()
+                return@setOnClickListener
+            }
             /* 🔴🔒 V527 (২২.০৮.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"এক টাকাও যদি
                ফেরত দিতে, তাও ফিঙ্গারপ্রিন্ট চাইবে। ফিঙ্গারপ্রিন্ট না, পাসওয়ার্ড
                দিলেও যেন কার্যকরী হয়।"*
@@ -1482,12 +1756,60 @@ class PaymentActivity : AppCompatActivity() {
                ⛔ উপরের সব যাচাই (জমার চেয়ে বেশি নয়, duplicate-tap পাহারা) আগেই
                   হয়ে গেছে — টাকার নিয়ম এক অক্ষরও বদলায়নি। */
             refundSaving = true
+            /* 🟡🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: *"Refund ২ বার হয়ে গেল আটকালো
+               কেন না? … ডুপ্লিকেট সেরকম একটা pop up কেন আসলো না"*)
+
+               আজকের দিনে এই রোগীর হুবহু **একই পরিমাণ** ফেরত আগে থেকে থাকলে
+               আগে সতর্কবার্তা — V708-এ TK-অনুমোদিত সেই একই নিয়ম:
+               **Cancel = কিছুই হবে না · OK = জেনেশুনে তবুও**।
+               ⛔ টাকার নিয়ম/সীমা/আঙুলের তালা — কিচ্ছু বদলায়নি, শুধু আগে
+                  একটা প্রশ্ন যোগ হলো।
+               ⛔ নেট খারাপ হলে `todaysRefundLike` চুপচাপ `null` দেয় ⇒ সৎ
+                  ফেরত কখনো আটকায় না। */
+            lifecycleScope.launch {
+                // 🔴 V1152 — একই অঙ্ক **ও একই ধরন** হলে তবেই সতর্কবার্তা।
+                val dup = withContext(Dispatchers.IO) {
+                    repository.todaysRefundLike(patient, amt, reason, user.mobile, modeSpinner.selectedItem.toString())
+                }
+                if (dup == null) { refundUnlockAndSave(patient, amt, modeSpinner.selectedItem.toString(), reason, refundNonce, autoApprove, dialog, directFormOnly); return@launch }
+                val prevTime = dup.s("time")
+                val prevWhy = dup.s("reason")
+                AlertDialog.Builder(this@PaymentActivity)
+                    .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "⚠️ Same refund already today"))
+                    .setMessage(
+                        "A refund of ₹${"%,.0f".format(amt)} for this patient is already recorded today" +
+                        (if (prevTime.isNotBlank()) " at $prevTime" else "") +
+                        (if (prevWhy.isNotBlank()) "\n(Reason: $prevWhy)" else "") +
+                        "\n\nRefunding again will take another ₹${"%,.0f".format(amt)} out of the collection.\n\n" +
+                        "Cancel = do nothing.  OK = refund again anyway."
+                    )
+                    .setPositiveButton("OK, refund again") { _, _ ->
+                        refundUnlockAndSave(patient, amt, modeSpinner.selectedItem.toString(), reason, refundNonce, autoApprove, dialog, directFormOnly)
+                    }
+                    .setNegativeButton("Cancel") { _, _ -> refundSaving = false }
+                    .setOnCancelListener { refundSaving = false }
+                    .show().also {
+                        PremiumAlert.paint(it)
+                        com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
+                    }
+            }
+        }
+        }   // 🔴 V1360 — lifecycleScope.launch (chamberOpenToday পিছনের সুতোয়)
+    }
+
+    /** 🟡🔒 V786 — উপরের সতর্কবার্তার পরে (বা সতর্কবার্তা না লাগলে) আসল
+     *  ফেরতের কাজ। ⛔ ভিতরের একটাও লাইন বদলায়নি — শুধু আলাদা ফাংশনে সরানো
+     *  হলো, যাতে "OK, refund again"-এও হুবহু একই পথ চলে। */
+    private fun refundUnlockAndSave(
+        patient: PatientBillInfo, amt: Double, mode: String, reason: String,
+        refundNonce: String, autoApprove: Boolean, dialog: AlertDialog, directFormOnly: Boolean
+    ) {
             askMoneyUnlock("Refund \u20b9${"%,.0f".format(amt)}") { unlocked ->
             if (!unlocked) { refundSaving = false; return@askMoneyUnlock }
             lifecycleScope.launch {
                 try {
                     val result = withContext(Dispatchers.IO) {
-                        repository.saveRefund(patient, amt, modeSpinner.selectedItem.toString(), reason, user, refundNonce)
+                        repository.saveRefund(patient, amt, mode, reason, user, refundNonce)
                     }
                     // সৎ বার্তা: cloud-এ সত্যিই বসলে তবেই Success — নইলে আসল কারণ
                     // (নেট সমস্যা / জমার চেয়ে বেশি) দেখানো হয়, কখনো ভুয়ো "Success" নয়।
@@ -1503,7 +1825,6 @@ class PaymentActivity : AppCompatActivity() {
                 } finally { refundSaving = false }
             }
             }
-        }
     }
 
     /**
@@ -1535,7 +1856,8 @@ class PaymentActivity : AppCompatActivity() {
     // ১ম লাইনে গ্রাম+পোস্ট, ২য় লাইনে থানা+জেলা; তারপর প্রতি লাইন থেকে লেবেল
     // (Vill:/PO:/PS:/Dist:) কাটা হয়। চিহ্ন না পেলে এক লাইন। সেভ-হওয়া ঠিকানা
     // বদলায় না — শুধু দেখানোর সময়।
-    private fun addressTwoLines(address: String): String {
+    private fun addressTwoLines(addressIn: String): String {
+        val address = addressIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
         if (address.isBlank()) return address
         fun strip(a: String): String = a.split(",").joinToString(",") { part ->
             val trimmed = part.trim()
@@ -1564,7 +1886,7 @@ class PaymentActivity : AppCompatActivity() {
         return buildString {
             append("*${b.clinicName}*\n")
             append("${b.addressLine}\n")
-            append("Ph: ${b.phoneLine}\n")
+            append("Ph: ${b.phoneLine}  |  Helpline: ${com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE}\n")
             append("--------------------------------\n")
             append("*TREATMENT PAYMENT RECEIPT*\n\n")
             append("Patient : ${patient.name}\n")
@@ -1610,7 +1932,7 @@ td.v{font-weight:700;color:#10223A}
 .due{color:#b0392b}
 .ty{text-align:center;margin-top:26px;font-size:13px;color:#0B7A34;font-weight:700}
 </style></head><body>
-<div class="h"><div class="cn">${payEsc(b.clinicName)}</div><div class="ad">${payEsc(b.addressLine)} &nbsp;·&nbsp; Ph: ${payEsc(b.phoneLine)}</div></div>
+<div class="h"><div class="cn">${payEsc(b.clinicName)}</div><div class="ad">${payEsc(b.addressLine)} &nbsp;·&nbsp; Ph: ${payEsc(b.phoneLine)} &nbsp;·&nbsp; Helpline: ${payEsc(com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE)}</div></div>
 <div class="tt">TREATMENT PAYMENT RECEIPT</div>
 <table>
 <tr><td class="k">Patient</td><td class="v">${payEsc(patient.name)}</td></tr>
@@ -1638,7 +1960,7 @@ $dueRow
                     try {
                         val pm = getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val adapter = view.createPrintDocumentAdapter("TreatmentPayment")
-                        pm.print("Treatment Payment", adapter, android.print.PrintAttributes.Builder().build())
+                        pm.print("Treatment Payment", adapter, PrintQuality.builder().build())
                     } catch (_: Throwable) {
                         Toast.makeText(this@PaymentActivity, "Print not available", Toast.LENGTH_SHORT).show()
                     }
@@ -1709,6 +2031,10 @@ $dueRow
         }
 
         val billValueRef = arrayOfNulls<TextView>(1)
+        /* 🔴 V1109 — ছোট পপ-আপ থেকে বিলটা **এইমাত্র সত্যিই সেভ হয়েছে** কিনা।
+           থাকলে বাইরের বড় SAVE একই কাজ আর দ্বিতীয়বার করে না (নইলে একই
+           বিল-সংশোধনের দুটো অডিট-সারি বসত)। ⛔ অন্য কোনো আচরণ বদলায় না। */
+        var billEditedTo = 0.0
         fun openBillEdit() {
             val inp = EditText(this).apply {
                 // B411: TEXT + DigitsKeyListener (সব ফোনে কীবোর্ড খোলে)।
@@ -1720,11 +2046,62 @@ $dueRow
             AlertDialog.Builder(this)
                 .setCustomTitle(PremiumAlert.header(this, "Edit Total Bill"))
                 .setView(inp)
+                /* ═══════════════════════════════════════════════════════════
+                   🔴🔒 V1109 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — SANJAY RAY,
+                   JPE-15082026-004): *"Bill Edit করলাম এনার। 43500 বিল হয়েছে,
+                   কিন্তু Edit করলাম আবার সেই ভুল Bill টা ই রয়ে গেল কিন্তু কেন
+                   এমন হবে?"*
+
+                   ─── 🔴 আসল কারণ (কোড ধরে মেপে পাওয়া, আন্দাজ নয়) ─────────
+                   এই "Save" বোতামটা **কোথাও কিছু সেভ করত না**। শুধু (ক) লুকানো
+                   `billInput`-এ লেখাটা বসাত, (খ) পর্দার পিলে নতুন সংখ্যাটা
+                   দেখাত। আসল সেভ হত **অনেক পরে**, যখন স্টাফ বাইরের বড়
+                   **SAVE** বোতামটা চাপতেন (`billOnlyCorrection` পথ)।
+                   ⇒ TK পিলে ৪৩,৫০০ দেখে ভাবতেন হয়ে গেছে, ফর্ম বন্ধ করে দিতেন —
+                     ডেটাবেসে এক পয়সাও যেত না, তাই আবার খুললে সেই ৩০,০০০।
+                   ⛔ বোতামে "Save" লেখা থাকা অবস্থায় কিছু সেভ না হওয়া —
+                      এটা সরাসরি ভুল বার্তা, বিশেষ করে টাকার হিসাবে।
+
+                   ─── এখন কী হয় ───────────────────────────────────────────────
+                   Save চাপলেই **সঙ্গে সঙ্গে ডেটাবেসে বসে** — প্রকল্পের আগে
+                   থেকেই থাকা প্রমাণিত `updateBillOnly()` দিয়ে, যেটা একই সঙ্গে
+                   ফোনের জমানো কপি ঠিক করে আর "কে · কখন · কত থেকে কত" নোটটাও
+                   Follow-up হিস্ট্রিতে লিখে রাখে।
+                   ⛔ ব্রাঞ্চের নিয়ম অটুট (`updateBillOnly`-এর ভিতরেই পাহারা)।
+                   ⛔ সেভ না হলে **সৎ বার্তা** দেখানো হয়, পিলেও পুরনো সংখ্যাই
+                      ফিরে আসে — ভুয়ো "হয়ে গেছে" কখনো দেখাবে না।
+                   ⛔ বাইরের বড় SAVE-এর পুরনো পথ এক অক্ষরও বদলায়নি; সেটা এখন
+                      একই মান আবার লিখতে গেলে কিছুই ক্ষতি হয় না।
+                   ═══════════════════════════════════════════════════════════ */
                 .setPositiveButton("Save") { _, _ ->
                     val v = inp.text?.toString()?.trim().orEmpty()
-                    billInput.setText(v)
                     val bv = v.toDoubleOrNull() ?: 0.0
+                    if (bv <= 0.0) {
+                        Toast.makeText(this, "Enter a valid Total Bill", Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                    val oldBill = billInput.text?.toString()?.trim()?.toDoubleOrNull() ?: patient.bill
+                    billInput.setText(v)
                     billValueRef[0]?.text = "₹${"%,.0f".format(bv)}"
+                    lifecycleScope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            try {
+                                repository.updateBillOnly(
+                                    patient, bv, oldBill, user.mobile, user.name.ifBlank { user.mobile }
+                                )
+                            } catch (_: Throwable) { false }
+                        }
+                        if (ok) {
+                            Toast.makeText(this@PaymentActivity, "Total Bill saved — ₹${"%,.0f".format(bv)}", Toast.LENGTH_SHORT).show()
+                            billEditedTo = bv          // 🔴 V1109 — বাইরের SAVE যেন আবার একই কাজ না করে
+                            loadSummary()
+                        } else {
+                            // ⛔ সৎ: সেভ হয়নি ⇒ পর্দাও পুরনো সংখ্যাতেই ফিরে যায়।
+                            billInput.setText(if (oldBill > 0.0) oldBill.toInt().toString() else "")
+                            billValueRef[0]?.text = "₹${"%,.0f".format(oldBill)}"
+                            Toast.makeText(this@PaymentActivity, "Bill not saved — check connection and try again", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
                 .setNegativeButton("Cancel", null)
                 .show().also { PremiumAlert.paint(it) }
@@ -1742,8 +2119,11 @@ $dueRow
                 if (onTap != null) { isClickable = true; setOnClickListener { onTap() } }
             }
             col.addView(TextView(this).apply { text = k; textSize = 8f; setTextColor(cFaint) })
+            /* 🔠🔒 V1328 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ: "BILL PAID DUE এর
+               Amount এর সংখ্যা একটু বোল্ট হবে") — আগেও Typeface.BOLD ছিল, তাই
+               সাইজ একটু বাড়ানো হলো (13→14.5) যাতে চোখে স্পষ্ট মোটা দেখায়। */
             val vtv = TextView(this).apply {
-                text = valueText; textSize = 13f; setTextColor(color)
+                text = valueText; textSize = 14.5f; setTextColor(color)
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
             col.addView(vtv)
@@ -1892,8 +2272,11 @@ $dueRow
         val modeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         fun makeModeBox(label: String): TextView = TextView(this).apply {
             text = label; gravity = android.view.Gravity.CENTER
-            textSize = 15f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding(cpx(13), cpx(13), cpx(13), cpx(13))
+            /* 🎨🔒 V1147 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — বাক্স দুটো একটু
+               ছোট: ভেতরের ফাঁক ১৩→৯dp, লেখা ১৫→১৪sp। ⛔ চাপা · রঙ · কোনটা
+               বাছা আছে · সেভ — কিচ্ছু বদলায়নি, শুধু মাপ। */
+            textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(cpx(9), cpx(9), cpx(9), cpx(9))
             isClickable = true; isFocusable = true
         }
         val cashBox = makeModeBox("💵 CASH")
@@ -1970,6 +2353,11 @@ $dueRow
         val dateValue = TextView(this).apply {
             text = NoBengali.s("Actual deposit date")
             setTextColor(payDateGrey)
+            // 📏🔒 V1328 (TK-নির্দেশ: "এই বক্সটাকে সামান্য নিচে নামান... লেখাগুলো
+            // একটু ছোট ছোট থাকবে, যতই বক্সের মধ্যে এক লাইনে বসে যায়") — আগে
+            // সাইজ ফিক্সড ছিল না (ডিফল্ট ধরত); এখন ছোট করে বসানো হলো যাতে বাংলা
+            // "প্রকৃত জমা: DD/MM/YYYY"-ও সবসময় এক লাইনেই থাকে।
+            textSize = 12f
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
             val d = resources.displayMetrics.density
             setPadding((14 * d).toInt(), (12 * d).toInt(), (14 * d).toInt(), (12 * d).toInt())
@@ -1982,14 +2370,18 @@ $dueRow
                     if (iso == PaymentModel.today()) {
                         text = NoBengali.s("Actual deposit date"); setTextColor(payDateGrey)
                     } else {
-                        text = NoBengali.s("প্রকৃত জমা: ${java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(cal2.time)}"); setTextColor(payDateDark)
+                        text = NoBengali.s("প্রকৃত জমা: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(cal2.time)}"); setTextColor(payDateDark)
                     }
                 }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
                     datePicker.maxDate = System.currentTimeMillis()
                 }.show()
             }
         }
-        container.addView(dateValue)
+        // 📏🔒 V1328 (TK-নির্দেশ) — Cash/Online-এর সঙ্গে গায়ে-গায়ে লাগত, তাই
+        // উপরে একটু ফাঁক (১৪dp) দেওয়া হলো।
+        container.addView(dateValue, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).also { it.topMargin = (14 * resources.displayMetrics.density).toInt() })
 
         // Premium styling (look only — no field/logic change): rounded inputs +
         // navy bold labels, matching the Registration screen.
@@ -2061,7 +2453,10 @@ $dueRow
 
         val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            val p = (16 * d).toInt(); setPadding(p, (8 * d).toInt(), p, p)
+            /* 🎨🔒 V1147 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — চারটে বোতাম
+               একটু নিচে নামল: উপরের ফাঁক ৮→২০dp, তাই Payment Mode-এর বাক্সের
+               সঙ্গে আর গায়ে-গায়ে লাগে না। ⛔ বোতামের কাজ · ক্রম · রং অটুট। */
+            val p = (16 * d).toInt(); setPadding(p, (20 * d).toInt(), p, p)
         }
         // 🔒 B564 (TK-অনুমোদিত প্রুফ) — ৪ বোতাম: Cancel · Share · Print · Save।
         // 🔒 B570 (TK-নির্দেশ): বোতামের লেখা যেন এক লাইনে থাকে ("CANC EL"-এর মতো
@@ -2091,10 +2486,11 @@ $dueRow
         val shareBtn = payActionBtn("🟢 SHARE", "#12A04A")
         val printBtn = payActionBtn("🖨 PRINT", "#1F6FE0")
         val saveBtn = payActionBtn("💾 SAVE", "#0B7A34")
-        actionRow.addView(cancelBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
-        actionRow.addView(shareBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
-        actionRow.addView(printBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
-        actionRow.addView(saveBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f))
+        // 📏🔒 V1328 (TK-নির্দেশ: "এই চারটা বক্সের উচ্চতা সামান্য একটু কম করবেন") — ৪৬dp → ৪০dp।
+        actionRow.addView(cancelBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
+        actionRow.addView(shareBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
+        actionRow.addView(printBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
+        actionRow.addView(saveBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f))
         root.addView(actionRow)
 
         UppercaseInputUtil.applyToAll(root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
@@ -2201,7 +2597,9 @@ $dueRow
             // changed and NO new payment amount is entered, this is a bill-only
             // correction. Anyone may fix the bill on its own -- no forced
             // payment; correctBill() writes a who/when/old→new audit row.
-            val billOnlyCorrection = patient.billLocked && amtVal <= 0 && billVal > 0 && billVal != patient.bill
+            // 🔴 V1109 — ছোট পপ-আপেই সেভ হয়ে থাকলে এখানে আর কিছু করার নেই।
+            val billOnlyCorrection = patient.billLocked && amtVal <= 0 && billVal > 0 &&
+                billVal != patient.bill && billVal != billEditedTo
             if (billOnlyCorrection) {
                 FieldError.clear(billInput); FieldError.clear(amtInput)
                 lifecycleScope.launch {
@@ -2243,7 +2641,8 @@ $dueRow
             // locked bill was unlocked (3-tap) and changed, and no new payment
             // amount is entered, just update the bill (anyone may) and log WHO
             // edited it -- instead of forcing a new payment.
-            val billChanged = patient.billLocked && billVal > 0 && billVal != patient.bill
+            val billChanged = patient.billLocked && billVal > 0 &&
+                billVal != patient.bill && billVal != billEditedTo   // 🔴 V1109
             if (billChanged && amtVal <= 0) {
                 val vBill = FieldError.validate(listOf<Triple<View, Boolean, String>>(
                     Triple(billInput, billVal > 0, "Enter a valid Total cost")
@@ -2296,7 +2695,16 @@ $dueRow
                         try { BackdatePaymentGrant.isGrantedNow(user.mobile, pickedActualDate) } catch (_: Throwable) { false }
                     }
                     if (hasGrant) {
-                        doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = true, receiptMode = receiptMode)
+                        /* 🔴🔒 V1272 — Master-এর অনুমতি থাকা স্টাফও এই পথে
+                           সরাসরি সেভ করেন, তাই এখানেও ওই তারিখের ডুপ্লিকেট
+                           প্রশ্নটা লাগে — নইলে ফাঁকটা আধখানা বন্ধ হতো। */
+                        PaymentDayGuard.confirmBeforeSave(
+                            this@PaymentActivity, repository, patient, amtVal,
+                            0.0, repository.nextLabelFor(patient.id, pickedActualDate),
+                            mode = selectedPayMode, forDate = pickedActualDate
+                        ) {
+                            doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = true, receiptMode = receiptMode)
+                        }
                         return@launch
                     }
                     // Staff: never saves a real payment directly -- goes to
@@ -2326,15 +2734,28 @@ $dueRow
             // ইন্টারনেটে না বুঝে দ্বিতীয়বার সেভ করা আটকাতে)। আজ কিছু নেওয়া না
             // হলে কোনো পপ-আপ আসে না, তখন নিচের সেভ হুবহু আগের মতোই চলে।
             // ব্যাকডেট পেমেন্টে এই প্রশ্ন আসে না (ওটা মাস্টারের নিজের সিদ্ধান্ত)।
-            PaymentDayGuard.confirmIfAlreadyPaidToday(
+            /* 🔴 V1106 (TK-নির্দেশ) — এখন সেভ চাপার মুহূর্তে ক্লাউডকেও একবার
+               জিজ্ঞাসা করা হয় (হুবহু এই অঙ্ক আজ আগে বসেছে কিনা), তাই অন্য ফোনে
+               নেওয়া টাকাও ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+            PaymentDayGuard.confirmBeforeSave(
                 this@PaymentActivity,
+                repository,
+                patient,
+                amtVal,
                 if (isBackdated) 0.0 else repository.paidOnDateFor(patient.id),
-                patient.name,
-                repository.nextLabelFor(patient.id, if (isBackdated) pickedActualDate else "")
+                repository.nextLabelFor(patient.id, if (isBackdated) pickedActualDate else ""),
+                /* 🔴🔒 V1272 (০৯.০৯.২০২৬, TK-নির্দেশ: *"ব্যাকডেট এর ফাঁকটাও
+                   বন্ধ করুন"*) — আগে ব্যাকডেট হলে ক্লাউড-যাচাই বাদ যেত
+                   (`skipCloudCheck = isBackdated`), তাই পুরনো তারিখে একই অঙ্ক
+                   দুবার বসলেও প্রশ্ন আসত না। এখন **ওই তারিখের** সারি দেখে
+                   প্রশ্ন হয়। ⛔ আটকায় না, শুধু জিজ্ঞাসা। */
+                mode = selectedPayMode,  // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই
+                forDate = if (isBackdated) pickedActualDate else ""
             ) {
                 doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = false, receiptMode = receiptMode)
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 }

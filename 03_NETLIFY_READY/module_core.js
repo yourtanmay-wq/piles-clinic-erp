@@ -112,7 +112,14 @@
     try { raw = JSON.parse(localStorage.getItem('rk_session') || 'null'); } catch (e) {}
     if (!raw || !raw.mobile) return null;
     var mobDigits = String(raw.mobile).replace(/\D/g, '').slice(-10);
-    return MOD.SPECIAL_CODE[mobDigits] || String(raw.name || '').trim().toUpperCase() || null;
+    // 🔑 V749 (২৭.০৮.২০২৬, TK: "KNE-LAXMI — এত মানুষ") — অ্যাপ থেকে যোগ করা
+    //    লোকের **কোড** এখন আলাদা `code` ঘরে আসে, নাম থেকে নয়। তাই পর্দায়
+    //    আসল নাম দেখানো যায়, আর auth-ইমেল (`<কোড>@staff.piles`) মিলে যায়।
+    //    ⛔ পুরনো ২৩ জনের সেশনে `code` ঘর নেই ⇒ আগের নিয়মই (নাম→কোড) অটুট,
+    //       এক অক্ষরও বদল নেই। Android-এ হুবহু একই ব্যবস্থা (ModuleAuth)।
+    return MOD.SPECIAL_CODE[mobDigits]
+        || String(raw.code || '').trim().toUpperCase()
+        || String(raw.name || '').trim().toUpperCase() || null;
   };
 
   MOD.autoSignIn = async function () {
@@ -253,15 +260,49 @@
   // Module-পরিচয় যেন কখনো না থেকে যায়): এখন cached সেশন ব্যবহারের আগে সবসময়
   // যাচাই হয় সেটা *এখনকার* main-app ব্যবহারকারীরই কিনা — না মিললে চুপচাপ
   // সাইন-আউট করে বর্তমান ব্যবহারকারী হিসেবেই আবার সাইন-ইন হয়।
+  /* 🔴🔴🔒 V1230 (০৮.০৯.২০২৬ — TK, দুবার বলার পরে: *"staff profile · income and
+     expense — চাপ করলে কোন কাজ হয় না · কিছু আসে না, ওপেনও হয় না"*)।
+
+     **কোডে মেপে পাওয়া কারণ:** এই দরজাটা আগে **কিচ্ছু না দেখিয়ে** সোজা
+     `restore()` / `autoSignIn()`-এর জন্য অপেক্ষা করত। ও দুটো ইন্টারনেটে কথা
+     বলে; উত্তর না এলে (নেট ঝুলে থাকা · টোকেন আটকে যাওয়া) **কোনো উত্তরই আসে না**
+     ⇒ পর্দা যেমন ছিল তেমনই থাকে, ব্যবহারকারীর মনে হয় বোতামটা মরা।
+     (এখানে নেট বন্ধ বলে সঙ্গে সঙ্গে "Could not open" আসত, তাই এতদিন ধরা পড়েনি —
+      TK-র ওখানে নেট আছে, তাই ওটা ঝুলে থাকে।)
+
+     ⇒ দুটো সুরক্ষা বসল, দুটোই "কম করে, বেশি নয়" ধরনের:
+       ① চাপ দেওয়ামাত্রই **"Opening…" কার্ড** বসে — পর্দা আর কখনো নিঃশব্দ থাকে না।
+       ② লগইনের ধাপে **১২ সেকেন্ডের সময়সীমা** — উত্তর না এলে সৎ বার্তা দেখায়,
+          অনন্তকাল অপেক্ষা করে না।
+     ⛔ সফল হলে আচরণ **হুবহু আগের মতোই** — একই `render()`, একই `flushQueue()`।
+     ⛔ কোনো তথ্য · অনুমতি · সেভের নিয়ম ছোঁয়া হয়নি। */
+  MOD._withTimeout = function (promise, ms) {
+    return Promise.race([
+      Promise.resolve(promise).catch(function (e) { return { ok: false, error: String(e && e.message || e) }; }),
+      new Promise(function (res) { setTimeout(function () { res({ __timeout: true }); }, ms || 12000); })
+    ]);
+  };
   MOD.gate = async function (title, render) {
     var host = document.getElementById('app');
+    // ① সঙ্গে সঙ্গে কিছু দেখাও — পর্দা কখনো নিঃশব্দ থাকবে না
+    try {
+      host.innerHTML = '<div class="wrap"><div class="topbar"><b>' + MOD.esc(title) + '</b></div>' +
+        '<div class="page"><div class="card"><h2>Opening…</h2>' +
+        '<p class="mut">Signing in to this module. Please wait a moment.</p></div></div></div>';
+    } catch (e) {}
     var expected = MOD.expectedCode();
-    if (!MOD._session) await MOD.restore();
+    var timedOut = false;
+    if (!MOD._session) {
+      var rr = await MOD._withTimeout(MOD.restore(), 12000);
+      if (rr && rr.__timeout) timedOut = true;
+    }
     if (MOD._session && expected && MOD._session.code !== expected) {
-      await MOD.signOut();
+      await MOD._withTimeout(MOD.signOut(), 8000);
     }
     if (MOD._session) { MOD.flushQueue(); return render(); }
-    var r = await MOD.autoSignIn();
+    var r = timedOut ? { ok: false, error: 'Slow or blocked internet — could not sign in to this module. Please check the connection and try again.' }
+                     : await MOD._withTimeout(MOD.autoSignIn(), 12000);
+    if (r && r.__timeout) r = { ok: false, error: 'Slow or blocked internet — could not sign in to this module. Please check the connection and try again.' };
     if (r.ok) { MOD.flushQueue(); return render(); }
     host.innerHTML =
       '<div class="wrap"><div class="topbar"><b>' + MOD.esc(title) + '</b></div>' +
@@ -274,22 +315,45 @@
   // Log an in-app Call-button press (owner rule 8). Records ONLY the press —
   // never claims the call connected, never a duration. Writes to wn.call_taps
   // and never touches any existing table.
+  /* 🔴🔒 V913 (৩১.০৮.২০২৬ — TK: "আপলোড করার পরে সেটা কার্যকরী হবে তো?")
+     **নিজের কাজ যাচাই করতে গিয়ে ধরা পড়ল:** V911-এ কল-গোনা বসানো হয়েছিল,
+     কিন্তু এই ঘরটা মডিউল-সেশন না থাকলে **চুপচাপ ফিরে যেত** — যে স্টাফ কখনো
+     Work Notebook/Staff Profiles খোলেননি, তাঁর একটাও কল গোনা হত না।
+     ফোনে `logCallTap()` দরকার হলে **নিজে থেকেই নিঃশব্দে সাইন-ইন** করে নেয়
+     (`signInCurrentSession`) — এখানেও ঠিক তাই।
+     ⛔ সাইন-ইনটা মডিউলের **নিজের আলাদা** Supabase ক্লায়েন্টে (`rk_module_auth`),
+        তাই মূল অ্যাপের লগইনে এক অক্ষরও হাত পড়ে না।
+     ⛔ কোনো পর্দা বা পাসওয়ার্ড দেখায় না (V252-এর নিঃশব্দ পথ)।
+     ⛔ একবার ব্যর্থ হলে এই পাতায় আর চেষ্টা করা হয় না — অকারণ নেট-ডাক নেই। */
+  MOD._callTapSignInFailed = false;
   MOD.logCallTap = async function (mobile) {
     try {
+      if (!MOD._session && !MOD._callTapSignInFailed) {
+        try { await MOD.restore(); } catch (e) {}
+        if (!MOD._session) {
+          try { await MOD.autoSignIn(); } catch (e) {}
+          if (!MOD._session) MOD._callTapSignInFailed = true;
+        }
+      }
       if (!MOD._session) return;
-      var sb = await MOD.client();
-      if (!sb) return;
       // 🔴 V452 (19.08.2026, TK-অনুমোদিত): ভবিষ্যতের App Call-এ Master
       // Staff Performance থেকে exact dialed number দেখতে পারবেন। পুরনো
       // masked-only call আন্দাজ করে পূরণ করা হবে না। Existing mask field-ও
       // backward compatibility-এর জন্য আগের মতোই রাখা হচ্ছে।
       var full = String(mobile || '').replace(/\D/g, '');
-      await sb.schema('wn').from('call_taps').insert({
+      var row = {
         id: MOD.uuid(), staff_code: MOD._session.code,
         target_mobile_mask: MOD.maskMobile(full || mobile),
         target_mobile: full || null,
         call_date: MOD.todayIST()
-      });
+      };
+      /* 🔴🔒 V1338 (১১.০৯.২০২৬, TK-নির্দেশ, JPE-CRP ১৭-বনাম-৪ Android-এর একই
+         সমস্যা এখানেও যাচাই করে পাওয়া) — আগে সরাসরি `sb...insert()`, ব্যর্থ
+         হলে (নেট/tel: লিংকে ট্যাবটা সরে যাওয়ার আগেই) সেই কল-লগ চিরকালের
+         জন্য হারিয়ে যেত, কোনো retry ছিল না। এখন প্রকল্পের নিজের প্রতিষ্ঠিত
+         `MOD.save()` (local-first + id-upsert + ব্যর্থ হলে MOD.queueWrite,
+         পরে MOD.gate()-এর flushQueue() আবার পাঠায়) — অন্য সব লেখার মতোই। */
+      await MOD.save('wn', 'call_taps', row);
     } catch (e) {}
   };
 

@@ -16,7 +16,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="10dp"
-    android:layout_marginVertical="4dp"
+    android:layout_marginVertical="3dp"
     app:cardCornerRadius="13dp"
     app:cardElevation="1.5dp"
     app:cardBackgroundColor="@color/clinic_card">
@@ -29,7 +29,7 @@
         <!-- Left priority bar: colour set in adapter (green/red) -->
         <View
             android:id="@+id/priorityBar"
-            android:layout_width="4dp"
+            android:layout_width="6dp"
             android:layout_height="match_parent"
             android:background="#16A34A" />
 
@@ -37,8 +37,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="10dp">
+            android:paddingHorizontal="11dp"
+            android:paddingVertical="4dp">
 
             <!-- Top row: avatar · sender+time · priority chip -->
             <LinearLayout
@@ -55,7 +55,7 @@
                     android:gravity="center"
                     android:text="N"
                     android:textColor="#FFFFFF"
-                    android:textSize="12sp"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
 
                 <LinearLayout
@@ -70,7 +70,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="All Staff"
-                        android:textSize="12sp"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:textSize="10sp"
                         android:textStyle="bold"
                         android:textColor="#14361F" />
 
@@ -79,7 +81,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="date"
-                        android:textSize="10sp"
+                        android:textSize="10.5sp"
                         android:textColor="@color/clinic_text_secondary" />
                 </LinearLayout>
 
@@ -96,28 +98,146 @@
                     android:padding="0dp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/tvChip"
+                <!-- 🎨🔒 V1141 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Seen By
+                     notice-এর নিচে রাখুন, তাহলে কার্ডটা আরো কম্প্যাক্ট হবে"*।
+                     ⛔ `tvTargets`-এর id ও অ্যাডাপ্টারের বাইন্ডিং হুবহু আগের —
+                        শুধু জায়গা বদলেছে (নিচের আলাদা লাইন থেকে এখানে)। -->
+                <!-- 🎨🔒 V1163 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "খ") — NOTICE ও
+                     "Seen by N" আগে **উপর-নিচে দুই লাইনে** ছিল, তাই কার্ডের মাথাটাই
+                     দুই লাইন উঁচু হত। এখন **পাশাপাশি এক লাইনে**। ⛔ দুটোরই id ও
+                     অ্যাডাপ্টারের বাইন্ডিং হুবহু আগের — শুধু সাজ। -->
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_brief_chip_normal"
-                    android:paddingHorizontal="8dp"
-                    android:paddingVertical="2dp"
-                    android:text="NOTICE"
-                    android:textSize="9sp"
-                    android:textStyle="bold"
-                    android:textColor="#166534" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical|end">
+
+                    <TextView
+                        android:id="@+id/tvChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:background="@drawable/bg_brief_chip_normal"
+                        android:paddingHorizontal="9dp"
+                        android:paddingVertical="4dp"
+                        android:text="NOTICE"
+                        android:textSize="9sp"
+                        android:textStyle="bold"
+                        android:textColor="#166534" />
+
+                    <TextView
+                        android:id="@+id/tvTargets"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="8dp"
+                        android:gravity="end"
+                        android:text="All Staff"
+                        android:textSize="10.5sp"
+                        android:textColor="@color/brand_blue" />
+                </LinearLayout>
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/tvTitle"
+            <!-- 🎨🔒 V1102 (০৫.০৯.২০২৬ — TK নিজের নকশার ছবি পাঠিয়েছেন ও পাশ
+                 করেছেন): শিরোনাম এখন গোল "পিল", আর তার পাশে রোগের পিল।
+                 ⛔ `tvTitle`-এর id ও অ্যাডাপ্টারের বাইন্ডিং হুবহু আগের। -->
+            <LinearLayout
+                android:id="@+id/rowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="7dp"
-                android:text="Title"
-                android:textSize="11.5sp"
-                android:textStyle="bold"
-                android:textColor="#111827" />
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <!-- 🎨🔒 V1349 (১১.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — খুব লম্বা
+                     শিরোনামে ("Delete Payment — NAGENDRA SINGH") পাশের চিপ দুটো
+                     (Disease/Staff) প্রায়-শূন্য জায়গা পেয়ে অক্ষর-ভেঙে উপর-নিচ
+                     হয়ে যেত (LinearLayout-এর নিয়ম: পরের wrap_content সিবলিং যা
+                     জায়গা বাকি থাকে তা-ই পায়)। এখন `tvTitle`-ই weight=1 নিয়ে
+                     সংকুচিত/এক-লাইনে-কাটা হবে, চিপ দুটো সবসময় নিজেদের পূর্ণ
+                     মাপ পাবে। ⛔ ছোট শিরোনামে (বেশিরভাগ কার্ড) কিচ্ছু বদলায়নি,
+                     পিল আগের মতোই লেখা-জড়ানো। -->
+                <TextView
+                    android:id="@+id/tvTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_brief_chip_normal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="3dp"
+                    android:text="Title"
+                    android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="#12271E" />
+
+                <TextView
+                    android:id="@+id/tvChipDisease"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:background="@drawable/bg_brief_chip_normal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="3dp"
+                    android:text="Disease"
+                    android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="#12271E"
+                    android:visibility="gone" />
+
+                <!-- 🏷️🔒 V1207 (০৮.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK:
+                     "New Enquiry এর পাশে staff এর নাম থাকবে … Enquiry Piles
+                     Jpe-Crp — এই তিনটা পাশাপাশি Tag হিসাবে থাকবে"।
+                     ⛔ ডিফল্ট gone — যেখানে কোড জানা নেই সেখানে বসেই না। -->
+                <TextView
+                    android:id="@+id/tvChipStaff"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:background="@drawable/bg_brief_chip_normal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="3dp"
+                    android:text="Staff"
+                    android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="#12271E"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- 🎨 V1102 — রোগীর নাম ও নম্বর এক লাইনে, নিচে Patient ID।
+                 ⛔ শুরুতে `gone`; শুধু অ্যাপের নিজের তিন নোটিশে (New Enquiry ·
+                    New Registration · Advance Received) বসে, লেখাটা চেনা গেলে। -->
+            <LinearLayout
+                android:id="@+id/rowPatient"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal"
+                android:gravity="bottom"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvPatientName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="NAME"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold"
+                    android:textColor="#0F2118" />
+
+                <TextView
+                    android:id="@+id/tvPatientPhone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="+91"
+                    android:textSize="12sp"
+                    android:textColor="#1A73E8" />
+            </LinearLayout>
+
 
             <TextView
                 android:id="@+id/tvMessage"
@@ -128,15 +248,19 @@
                 android:textSize="11.5sp"
                 android:lineSpacingMultiplier="1.15"
                 android:textColor="#374151" />
-
+            <!-- 🔴🔒 V1165 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — "By …" লাইনটা
+                 এখন **বার্তার নিচে**। অনুরোধ-কার্ডে ক্রমটা তখন হয়: কী মোছা হবে →
+                 নম্বর ও অঙ্ক → কে চেয়েছে। ⛔ স্বয়ংক্রিয় নোটিশে বার্তাটা লুকানো
+                 থাকে, তাই সেখানে দেখতে এক অক্ষরও বদলায় না। ⛔ id অপরিবর্তিত। -->
             <TextView
-                android:id="@+id/tvTargets"
+                android:id="@+id/tvPatientId"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="5dp"
-                android:text="All Staff"
-                android:textSize="10sp"
-                android:textColor="@color/brand_blue" />
+                android:layout_marginTop="3dp"
+                android:text="Patient ID"
+                android:textSize="10.5sp"
+                android:textColor="#7A8791"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tvReplies"
@@ -173,9 +297,9 @@
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
-                    android:paddingVertical="8dp"
+                    android:paddingVertical="4dp"
                     android:text="Approve"
-                    android:textSize="11.5sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
                     android:visibility="gone" />
@@ -195,9 +319,9 @@
                     android:layout_marginEnd="8dp"
                     android:background="@drawable/bg_brief_btn_dark"
                     android:gravity="center"
-                    android:paddingVertical="8dp"
+                    android:paddingVertical="4dp"
                     android:text="Seen"
-                    android:textSize="11.5sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF" />
 
@@ -214,13 +338,13 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginEnd="8dp"
-                    android:background="@drawable/bg_brief_btn_ghost"
+                    android:background="@drawable/bg_brief_btn_dark"
                     android:gravity="center"
-                    android:paddingVertical="8dp"
+                    android:paddingVertical="4dp"
                     android:text="View"
-                    android:textSize="11.5sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
-                    android:textColor="#0A7A45"
+                    android:textColor="#FFFFFF"
                     android:visibility="gone" />
 
                 <TextView
@@ -231,24 +355,24 @@
                     android:layout_marginEnd="8dp"
                     android:background="@drawable/bg_brief_btn_ghost"
                     android:gravity="center"
-                    android:paddingVertical="8dp"
+                    android:paddingVertical="4dp"
                     android:text="Reply"
-                    android:textSize="11.5sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#0F172A" />
 
                 <TextView
                     android:id="@+id/btnDelete"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_brief_btn_danger"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_brief_btn_ghost"
                     android:gravity="center"
-                    android:paddingHorizontal="14dp"
-                    android:paddingVertical="8dp"
-                    android:text="Delete"
-                    android:textSize="11.5sp"
+                    android:paddingVertical="4dp"
+                    android:text="Close"
+                    android:textSize="10sp"
                     android:textStyle="bold"
-                    android:textColor="#E11D48" />
+                    android:textColor="#3F4B54" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

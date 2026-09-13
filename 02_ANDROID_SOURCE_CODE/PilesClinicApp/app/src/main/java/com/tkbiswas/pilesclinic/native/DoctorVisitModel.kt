@@ -17,6 +17,10 @@ data class DoctorVisitItem(
     //      সেভ ও ডুপ্লিকেট-চেকে ব্যবহার হয়।
     val altMobiles: String = "",
     val area: String,
+    /* 🚓🔒 V1034 (০৪.০৯.২০২৬, TK-নির্দেশ: *"আরএমপি ঠিকানা লেখা আছে, আমি চাইছি
+       সেই আরএমপি কোন থানায়"*) — ডাক্তার কোন থানার অধীনে।
+       ⛔ ডিফল্ট ফাঁকা, তাই ডেটাবেসে ঘরটা না থাকলেও পুরনো কিছু ভাঙে না। */
+    val policeStation: String = "",
     val branch: String,
     val remarks: String,
     val lastCallDate: String,
@@ -100,6 +104,7 @@ object DoctorVisitModel {
         mobile = row.s("mobile"),
         altMobiles = row.s("altMobiles"),
         area = row.s("area"),
+        policeStation = row.s("policeStation"),
         branch = row.s("branch"),
         remarks = row.s("remarks"),
         lastCallDate = row.s("lastCallDate"),
@@ -149,7 +154,7 @@ object DoctorVisitModel {
         return paid
     }
 
-    fun buildNewDoctorRow(name: String, mobileDigitsOnly: String, branch: String, area: String, remarks: String, nextCallDate: String, staffMobile: String, altMobiles: String = ""): JSONObject {
+    fun buildNewDoctorRow(name: String, mobileDigitsOnly: String, branch: String, area: String, remarks: String, nextCallDate: String, staffMobile: String, altMobiles: String = "", policeStation: String = ""): JSONObject {
         val now = isoNow()
         val row = JSONObject()
             .put("id", "dv_" + UUID.randomUUID().toString().replace("-", ""))
@@ -173,6 +178,8 @@ object DoctorVisitModel {
         // 🟢 B630: বাড়তি নম্বর থাকলে তবেই `altMobiles` লেখা হয় — খালি হলে নয়।
         //   এতে SQL (কলাম) ভুলে বাদ পড়লেও সাধারণ ডাক্তার-সেভ ব্যর্থ হয় না।
         if (altMobiles.isNotBlank()) row.put("altMobiles", altMobiles)
+        // 🚓 V1034 — থানা লেখা থাকলে তবেই বসে (ঘর না থাকলেও সেভ ব্যর্থ হয় না)।
+        if (policeStation.isNotBlank()) row.put("policeStation", policeStation)
         return row
     }
 

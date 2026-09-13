@@ -195,6 +195,34 @@ class LocalWorkflowStore(context: Context) {
     }
 
 
+    /** V1320 (তালিকা ৪২৪, একই দোষ আরেক জায়গায় — নিয়ম ৭): batched সংস্করণ,
+     *  ঠিক upsertFollowUps-এর প্যাটার্নে। RegistrationRepository.flushPending()
+     *  আগে প্রতিটা সফল-sync হওয়া সারির জন্য আলাদা করে upsertPatient() ডাকত —
+     *  N সারি মানে N বার পুরো টেবিল পড়া+লেখা। এখন একবারেই। */
+    fun upsertPatients(rows: List<JSONObject>, syncStatus: String = "PENDING") {
+        if (rows.isEmpty()) return
+        synchronized(LOCK) {
+            val stored = load("patients")
+            for (row in rows) {
+                val copy = JSONObject(row.toString()).put("_syncStatus", syncStatus)
+                val id = copy.optString("id")
+                var replaced = false
+                for (i in 0 until stored.length()) {
+                    val old = stored.getJSONObject(i)
+                    if (id.isNotBlank() && old.optString("id") == id) {
+                        if (isStaleCloudRefresh(old, syncStatus, copy)) { replaced = true; break }
+                        val keys = copy.keys()
+                        while (keys.hasNext()) { val k = keys.next(); old.put(k, copy.opt(k)) }
+                        stored.put(i, old); replaced = true; break
+                    }
+                }
+                if (!replaced) stored.put(copy)
+            }
+            save("patients", stored)
+        }
+    }
+
+
     /** Every locally-cached "patients" row not yet confirmed synced. */
     fun pendingPatients(): JSONArray {
         val out = JSONArray()
@@ -228,6 +256,32 @@ class LocalWorkflowStore(context: Context) {
         if (!replaced) rows.put(copy)
         save("payments", rows)
             }
+    }
+
+
+    /** V1320 (তালিকা ৪২৪, নিয়ম ৭) — উপরের upsertPatients-এর মতোই, "payments"-এর
+     *  জন্য batched সংস্করণ। */
+    fun upsertPayments(rows: List<JSONObject>, syncStatus: String = "PENDING") {
+        if (rows.isEmpty()) return
+        synchronized(LOCK) {
+            val stored = load("payments")
+            for (row in rows) {
+                val copy = JSONObject(row.toString()).put("_syncStatus", syncStatus)
+                val id = copy.optString("id")
+                var replaced = false
+                for (i in 0 until stored.length()) {
+                    val old = stored.getJSONObject(i)
+                    if (id.isNotBlank() && old.optString("id") == id) {
+                        if (isStaleCloudRefresh(old, syncStatus, copy)) { replaced = true; break }
+                        val keys = copy.keys()
+                        while (keys.hasNext()) { val k = keys.next(); old.put(k, copy.opt(k)) }
+                        stored.put(i, old); replaced = true; break
+                    }
+                }
+                if (!replaced) stored.put(copy)
+            }
+            save("payments", stored)
+        }
     }
 
 
@@ -284,6 +338,32 @@ class LocalWorkflowStore(context: Context) {
         if (!replaced) rows.put(copy)
         save("enquiries", rows)
             }
+    }
+
+
+    /** V1320 (তালিকা ৪২৪, নিয়ম ৭) — উপরের upsertPatients-এর মতোই, "enquiries"-এর
+     *  জন্য batched সংস্করণ। EnquiryRepository.flushPending()-এ ব্যবহৃত। */
+    fun upsertEnquiries(rows: List<JSONObject>, syncStatus: String = "PENDING") {
+        if (rows.isEmpty()) return
+        synchronized(LOCK) {
+            val stored = load("enquiries")
+            for (row in rows) {
+                val copy = JSONObject(row.toString()).put("_syncStatus", syncStatus)
+                val id = copy.optString("id")
+                var replaced = false
+                for (i in 0 until stored.length()) {
+                    val old = stored.getJSONObject(i)
+                    if (id.isNotBlank() && old.optString("id") == id) {
+                        if (isStaleCloudRefresh(old, syncStatus, copy)) { replaced = true; break }
+                        val keys = copy.keys()
+                        while (keys.hasNext()) { val k = keys.next(); old.put(k, copy.opt(k)) }
+                        stored.put(i, old); replaced = true; break
+                    }
+                }
+                if (!replaced) stored.put(copy)
+            }
+            save("enquiries", stored)
+        }
     }
 
 
@@ -390,6 +470,42 @@ class LocalWorkflowStore(context: Context) {
      *
      * এই দুটো ফাংশন মুছে ফেলার সময় ফোনের কপিটাও পরিষ্কার করে।
      */
+    /** 🔴🔒 V1311 (তালিকা ৪২৩, রুল ৭): ক্লাউড থেকে আসা সারি ফোনের **PENDING** কপির সমান বা নতুন
+     *  (updatedAt) হলে কপিটা SYNCED হয়ে যায় — "চিরকাল PENDING" আর হয় না, তাই তালিকাগুলোয়
+     *  আধখানা/পুরনো কপি ঢুকে পড়ার পথ বন্ধ। শুধু একই id · দুটোতেই updatedAt আছে · ক্লাউড >= ফোন —
+     *  তবেই। ক্লাউড পুরনো হলে (ফোনের লেখা এখনো ওঠেনি) কিছুই ছোঁয় না — sync-এর কাজ sync করে। */
+    fun markSyncedWhereCloudCaughtUp(table: String, cloudRows: JSONArray?) {
+        if (cloudRows == null || cloudRows.length() == 0) return
+        val list = ArrayList<JSONObject>(cloudRows.length())
+        for (i in 0 until cloudRows.length()) cloudRows.optJSONObject(i)?.let { list.add(it) }
+        markSyncedWhereCloudCaughtUp(table, list)
+    }
+
+    fun markSyncedWhereCloudCaughtUp(table: String, cloudRows: List<JSONObject>) {
+        if (table !in listOf("patients", "payments", "followups", "enquiries", "medical")) return
+        if (cloudRows.isEmpty()) return
+        try {
+            val cloudStamp = HashMap<String, String>()
+            for (r in cloudRows) {
+                val id = r.optString("id"); val u = r.optString("updatedAt")
+                if (id.isNotBlank() && u.isNotBlank()) cloudStamp[id] = u
+            }
+            if (cloudStamp.isEmpty()) return
+            synchronized(LOCK) {
+                val rows = load(table)
+                var changed = false
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i) ?: continue
+                    if (row.optString("_syncStatus") != "PENDING") continue
+                    val c = cloudStamp[row.optString("id")] ?: continue
+                    val l = row.optString("updatedAt")
+                    if (l.isNotBlank() && c >= l) { row.put("_syncStatus", "SYNCED"); rows.put(i, row); changed = true }
+                }
+                if (changed) save(table, rows)
+            }
+        } catch (_: Throwable) { }
+    }
+
     fun forgetRecord(table: String, id: String) {
         if (table.isBlank() || id.isBlank()) return
         synchronized(LOCK) {
@@ -399,6 +515,30 @@ class LocalWorkflowStore(context: Context) {
             for (i in 0 until rows.length()) {
                 val row = rows.optJSONObject(i) ?: continue
                 if (row.optString("id") == id) { dropped = true; continue }
+                kept.put(row)
+            }
+            if (dropped) save(table, kept)
+        }
+    }
+
+    /** 🔴🔴🔒 V1319 (১১.০৯.২০২৬, তালিকা ৪২৪ — আসল কারণ): V1305-এ `mergeOwnPhoneRows()`-এর
+     *  একটা লুপে **প্রতিটা পুরনো সারির জন্য আলাদা করে** `forgetRecord()` ডাকা হত — মানে
+     *  পুরো জমানো টেবিল (হাজার হাজার সারি হতে পারে, মাসের পর মাস আসল ব্যবহারে) **প্রতিটা
+     *  পুরনো সারির জন্য আলাদা করে** আবার পড়া-ছাঁকা-লেখা হত। ২০-৩০টা পুরনো সারি থাকলেই
+     *  এটা তত বারই পুরো টেবিল ছুঁয়ে ফেলত — ঠিক এই এলোমেলো ধীরগতি/আটকে যাওয়ার কারণ,
+     *  আর V1305-এর আগে এই লুপই ছিল না বলে সমস্যাটা আজই প্রথম তৈরি হয়েছে (TK ঠিক ধরেছেন)।
+     *  **সমাধান:** একসাথে অনেক id ভুলে যাওয়ার জন্য — টেবিল **একবারই** পড়া-ছাঁকা-লেখা হয়। */
+    fun forgetRecords(table: String, ids: Collection<String>) {
+        if (table.isBlank() || ids.isEmpty()) return
+        val idSet = ids.filter { it.isNotBlank() }.toHashSet()
+        if (idSet.isEmpty()) return
+        synchronized(LOCK) {
+            val rows = load(table)
+            val kept = JSONArray()
+            var dropped = false
+            for (i in 0 until rows.length()) {
+                val row = rows.optJSONObject(i) ?: continue
+                if (idSet.contains(row.optString("id"))) { dropped = true; continue }
                 kept.put(row)
             }
             if (dropped) save(table, kept)
@@ -700,9 +840,21 @@ class LocalWorkflowStore(context: Context) {
     } catch (_: Exception) { JSONArray() }
 
     private fun save(key: String, rows: JSONArray) {
+        // 🔴🔴🔒 V1317 (১১.০৯.২০২৬, TK-রিপোর্ট — Follow-up ও Payment পর্দা কালো হয়ে
+        // আটকে যাচ্ছিল, একাধিক ভিডিওতে প্রমাণিত, রেকর্ডিং/রোটেশন/নেট-স্পিড কোনোটাই
+        // কারণ নয় বলে TK নিজে ধরিয়ে দিয়েছেন): আসল কারণ — এই `.commit()` ডিস্কে
+        // লেখা শেষ না হওয়া পর্যন্ত থেমে থাকে (synchronous)। V1311-এ আমারই যোগ করা
+        // `markSyncedWhereCloudCaughtUp()` প্রতিবার পর্দা খোলার সময় এই সেভ-টা
+        // ডাকতে শুরু করে (১৭টা জায়গায়, Follow-up ও Payment-সহ) — ফোনে মাসের পর
+        // মাস জমা হওয়া বড় স্থানীয় খাতা (followups/payments, বিশেষত Master-এর
+        // All Branches-এ) প্রতিবার পুরোটাই আবার ডিস্কে লেখার চেষ্টা করত, আটকে
+        // দিত। ⛔ এই বাগটা আমারই ভুল (V1311), আগে থেকে ছিল না। **সমাধান:**
+        // `MyPhoneWrites.kt`-এর প্রমাণিত একই কৌশল — `.apply()` (সঙ্গে সঙ্গে
+        // মেমরিতে বসে, তাই এখনই পড়া/পরের কাজ ঠিক আগের মতোই পায়; ডিস্কের কাজ
+        // পিছনে চলে) — পর্দা আর আটকাবে না।
         val text = rows.toString()
         snapshot[key] = text
-        prefs.edit().putString(key, text).commit()
+        prefs.edit().putString(key, text).apply()
     }
     private fun digits(v: String): String = v.filter(Char::isDigit).takeLast(10)
     private fun isoNow(): String = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date())

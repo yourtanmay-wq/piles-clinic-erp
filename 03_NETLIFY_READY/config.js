@@ -16,9 +16,32 @@ window.RK_CONFIG = {
     staff: [
       {mobile:'9883605917', name:'KNE-LAXMI', branch:'Kishanganj'},
       {mobile:'8676002200', name:'KNE-BRANCH', branch:'Kishanganj'},
+      /* 🟢🔒 V1136 (০৬.০৯.২০২৬, TK-নির্দেশ) — কিশানগঞ্জের নতুন স্টাফ
+         MANISHA LAKRA (KNE-KISHAN10), জয়েন ০৩.০৯.২০২৬। ফোনের
+         StaffDirectory.kt-র হুবহু যমজ, তাই দুই দিকে একই লগইন। */
+      {mobile:'7482966958', name:'KNE-KISHAN10', branch:'Kishanganj'},
+      /* 🟢🔒 V1137 (০৬.০৯.২০২৬, TK-নির্দেশ) — কিশানগঞ্জের নতুন স্টাফ
+         ARCHANA MANDAL BISWAS (KNE-KISHAN11), জয়েন ০৬.০৯.২০২৬।
+         ফোনের StaffDirectory.kt-র হুবহু যমজ। */
+      {mobile:'7478288608', name:'KNE-KISHAN11', branch:'Kishanganj'},
+      /* 🟢🔒 V1378 (১২.০৯.২০২৬, TK-নির্দেশ) — কিশানগঞ্জের নতুন স্টাফ
+         ISHRAT PARWEEN (KNE-KISHAN12)। ফোনের StaffDirectory.kt-র হুবহু যমজ। */
+      {mobile:'9679319516', name:'KNE-KISHAN12', branch:'Kishanganj'},
       /* V453 (20.08.2026, TK-approved): KNE-KISHAN5 (6207841890) কাজ ছেড়ে দিয়েছে,
          আর এখানে নেই — পুরনো নম্বর দিয়ে আর লগইন হবে না। পুরনো রেকর্ড অক্ষত। */
-      {mobile:'9162625854', name:'KNE-KISHAN6', branch:'Kishanganj'}, // SITARA PARBIN
+      /* 🔴 V734 (27.08.2026, TK-এর সরাসরি নির্দেশ): কিশানগঞ্জের KNE-KISHAN6
+         ঘরের স্টাফ কাজ থেকে বাদ। TK-এর নির্দেশে তাঁর নাম ও মোবাইল নম্বর
+         কোথাও রাখা হয়নি — কমেন্টেও নয়। ⇒ ওই নম্বরে আর লগইন হবে না।
+         V453-এ KNE-KISHAN5-এর হুবহু একই নিয়ম।
+         ⛔ পুরোনো রেকর্ড কিছুই মোছা হয়নি — শুধু ঢোকার পথ বন্ধ। */
+      /* 🔒🔒 V834 (২৯.০৮.২০২৬, TK-নির্দেশ: "কাজ থেকে বের করে দিয়েছি") —
+         KNE-KISHAN8 (7321960416) এই তালিকা থেকে **তুলে নেওয়া হলো**, তাই এই
+         নম্বরে আর লগইন হবে না।
+         ⚠️ ওয়েবেও একই নিয়ম: আগে এই বাঁধা তালিকা দেখা হয়, না পেলে তবেই
+            `staff_login_list()` — আর ওই সার্ভার-ফাংশন `active = false` হলে
+            নামটাই ফেরত দেয় না। ⇒ **মেঘেও Remove করতে হবে**।
+         ⛔ V453-এ KNE-KISHAN5-এর হুবহু একই নিয়ম — পুরোনো রেকর্ড কিছুই মোছা
+            হয়নি, শুধু ঢোকার পথ বন্ধ। */
       {mobile:'9647840067', name:'JPE-CRP', branch:'Jalpaiguri'},
       {mobile:'8101397763', name:'JPE-JALPAI-13', branch:'Jalpaiguri'},
       {mobile:'8167096595', name:'JPE-RUPAM', branch:'Jalpaiguri'},
@@ -26,6 +49,9 @@ window.RK_CONFIG = {
       {mobile:'7679751521', name:'COB-UTTAMA', branch:'Cooch Behar'},
       {mobile:'7501256248', name:'COB-4', branch:'Cooch Behar'},
       {mobile:'8514002200', name:'COB-BRANCH', branch:'Cooch Behar'},
+      // 🟢🔒 V1377 (১২.০৯.২০২৬, TK-নির্দেশ "RUPAM যা ছিল তাই থাক") — কোচবিহারের
+      // নতুন স্টাফ ARMAN HOQUE। ফোনের StaffDirectory.kt-র হুবহু যমজ।
+      {mobile:'9883884394', name:'COB-ARMAN', branch:'Cooch Behar'},
       {mobile:'9883623823', name:'FLK-1', branch:'Falakata'},
       {mobile:'8514001100', name:'FLK-BRANCH', branch:'Falakata'},
       {mobile:'8538002200', name:'BIR-BRANCH', branch:'Birpara'}
@@ -55,3 +81,18 @@ window.RK_CONFIG = {
   passwords: {master:'admin123', staff:'staff123', doctor:'doctor123', field:'field123'},
   productionCloudAuthoritative: false
 };
+
+/* 🔴🔒 V1143 (০৬.০৯.২০২৬, TK-অনুমোদিত: *"হ্যাঁ পাশ, কাজ শুরু করুন, সাবধানে"*)
+   TK-এর কথা: *"যাতে ডেট সিলেক্ট না করা পর্যন্ত ফর্ম সেভ হবে না, তাহলে আর
+   স্টাফদের ভুল হবে না · অটোমেটিক আজকের ডেট বসে যাবে না"*।
+
+   ⚙️ ভবিষ্যতে নিয়মটা বদলানোর একটাই জায়গা — নিচের এই এক লাইন।
+     true  = তারিখ নিজে বাছতেই হবে, নইলে রেজিস্ট্রেশন সেভ হবে না (এখনকার নিয়ম)
+     false = আগের মতো আজকের তারিখ আপনা-আপনি বসে যাবে
+
+   TK যেদিন বলবেন *"সব ব্যাকডেটেড পেশেন্ট উঠে গেছে"* — সেদিন শুধু false করলেই
+   পুরনো ব্যবহার ফিরে আসবে; app.js-এ এক অক্ষরও ছুঁতে হবে না।
+
+   📱 ফোনেও হুবহু একই সুইচ আছে: native/RegDateRule.kt-এর MUST_PICK —
+      দুটো সবসময় একসাথে বদলাতে হবে, নইলে ফোন ও কম্পিউটারে দুরকম নিয়ম চলবে। */
+window.WLV1_MUST_PICK_REG_DATE = true;

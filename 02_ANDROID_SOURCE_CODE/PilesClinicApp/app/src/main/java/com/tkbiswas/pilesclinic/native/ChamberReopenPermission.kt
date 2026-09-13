@@ -35,8 +35,15 @@ object ChamberReopenPermission {
             val sb = StringBuilder()
             sb.append("Chamber reopen request\n")
             sb.append("Branch : ").append(branch).append("\n")
-            sb.append("Date : ").append(date).append("\n")
+            /* 🔴🔒 V936 — TK-রিপোর্ট (ছবিসহ): এই লাইনটায় কাঁচা `2026-08-31`
+               দেখাত, অথচ প্রজেক্টের বাকি সব জায়গায় `31.08.2026`। এখন দেখার
+               লেখাটা ঠিক, আর নিচের `approveAndReopen()` সেটা `DateUtil.iso()`
+               দিয়ে ফিরিয়ে পড়ে — তাই Approve আগের মতোই কাজ করে। */
+            sb.append("Date : ").append(DateUtil.display(date)).append("\n")
             sb.append("Requested by : ").append(who).append("\n")
+            /* 🔴🔒 V936 — TK: *"তারিখের পাশে সময় থাকা জরুরী"*। অনুরোধটা **কখন**
+               এলো সেটা এই লাইনেই। ⛔ কোনো কোড এই লাইন পড়ে না, তাই ঝুঁকি নেই। */
+            sb.append("Requested at : ").append(DateUtil.displayWithTime(java.util.Date())).append("\n")
             sb.append("\nMaster: অনুমোদন দিলে এই দিনের চেম্বার আবার এডিটযোগ্য হয়ে যাবে।")
             BriefingRepository().post(
                 context,
@@ -65,7 +72,10 @@ object ChamberReopenPermission {
                 return ""
             }
             val branch = field("Branch")
-            val date = field("Date")
+            /* 🔴🔒 V936 — লেখাটা এখন `31.08.2026`, কিন্তু চেম্বার-বন্ধের চাবি
+               `yyyy-MM-dd`। তাই এখানে ফিরিয়ে নেওয়া হয়। পুরনো (কাঁচা ISO লেখা)
+               অনুরোধেও `iso()` সেটাই ফেরত দেয় — কিছুই ভাঙে না। */
+            val date = DateUtil.iso(field("Date"))
             if (branch.isBlank() || date.isBlank()) return "BAD_REQUEST"
             if (ChamberCloseRepository.reopen(context, branch, date)) "OK" else "NETWORK"
         } catch (_: Throwable) { "NETWORK" }

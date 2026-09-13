@@ -96,7 +96,24 @@ data class FollowUpItem(
      * ⛔ ডিফল্ট ফাঁকা — তাই এই ক্লাস তৈরি করা পুরোনো কোনো জায়গা বদলাতে
      *    হয়নি, আর ফাঁকা থাকলে আচরণ **হুবহু আগের মতোই** (মোবাইল ধরে)।
      */
-    val refId: String = ""
+    val refId: String = "",
+    /* 🆕🔒 V850 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "যেগুলো রেজিস্ট্রেশন
+       করা হয়েছে সেখানে লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে
+       রেজিস্ট্রেশন করেছিল"। ⛔ ডিফল্ট ফাঁকা ⇒ যে পর্দা এই দুটো ঘর ভরে না
+       (Follow-up · Trash-প্রিভিউ) সেখানে কার্ড **হুবহু আগের মতোই** থাকে। */
+    val regDate: String = "",
+    val regBy: String = "",
+    /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"বার বার নো মোর কল দাবার পরেও
+       আবার এই পেশেন্টের নাম কেনো শো করছে"*।
+       🔬 **আসল কারণ (কোডে মেপে পাওয়া):** "No more calls" এতদিন শুধু `nextFollow`
+          **ফাঁকা** করত। কিন্তু V1065-এর নিয়ম বলে — কল/রিমার্ক/টাকা বসলেই
+          `nextFollow` ফাঁকা বা পুরনো হলে **আজকের দিন বসিয়ে দাও**। অর্থাৎ
+          "ইচ্ছে করে থামানো" আর "কখনো বসানোই হয়নি" — দুটো **একরকম** ধরা হত,
+          তাই পরের বার টাকা/রিমার্ক বসলেই নামটা আবার আজকের তালিকায় ফিরে আসত।
+       ⇒ এখন থামানোটা আলাদা করে **মনে রাখা হয়** (`noMoreCalls`), তাই কোনো
+         নিয়মই আর নিজে থেকে তারিখ বসাবে না।
+       ⛔ ডিফল্ট false ⇒ পুরোনো সব সারি ও পুরোনো সব কোড হুবহু আগের মতোই। */
+    val noMoreCalls: Boolean = false
 )
 
 object FollowUpModel {
@@ -115,7 +132,31 @@ object FollowUpModel {
         nextFollow = s(row, "nextFollow"),
         recordDate = s(row, "date"),
         createdAt = s(row, "createdAt"),   // 🔒 খাতার সারি B65 — সিরিয়ালের স্থির ক্রম
-        callCount = row.optInt("callCount", 0),
+        /* 📶🔴🔒 V1268 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"কল করেছে তাও ওয়াইফাই
+           সিগনাল কেন ওঠেনি?"* — +918651838395, খাতায় "Enquiry Calls: 2",
+           অথচ কার্ডের সিগন্যাল ফাঁকা)।
+
+           🔬 **আসল কারণ (কোডে মেপে, আন্দাজ নয়):** সিগন্যাল-আইকনটা পড়ে
+              `followups.callCount` ঘরটা, আর ওই ঘরটা **সব সময় বাড়ত না** —
+              · V1149-এর (০৬.০৯.২০২৬) আগে গোনা বাড়ত শুধু কয়েকটা পর্দা থেকে;
+                TK-র নিজের SQL-এ মেপে পাওয়া গিয়েছিল **১৫০২টার মধ্যে ১৩৯৩টা**
+                সারিতে গোনা আর ইতিহাস দুই রকম, প্রায় সবগুলোতেই **গোনা কম**।
+                V1149 নিয়মটা সারিয়েছে, কিন্তু **পুরনো সারিগুলো ০-ই রয়ে গেছে**।
+              · আর এনকোয়ারি থেকে বানানো/মেরামত করা সারিতে `enquiries.callCount`
+                (সব সময় ০) কপি হত ⇒ সেখানেও সিগন্যাল ফাঁকা।
+
+           ⇒ **সমাধান — এই ফাইলেরই প্রমাণিত নিয়মে:** ঠিক নিচেই `lastCallDate`
+             ঘরটা ফাঁকা হলে **ইতিহাস থেকে** নেওয়া হয় (আগের একই ধরনের TK-রিপোর্টে
+             বসানো)। কল-গোনাতেও এখন সেটাই — জমানো সংখ্যা আর **ইতিহাসে গোনা
+             কলের** মধ্যে যেটা **বেশি**, সেটাই দেখানো হয়।
+           ⛔ ডেটাবেসে কিচ্ছু লেখা হয় না — শুধু **দেখানোর** সময় মিলিয়ে নেওয়া
+              (কোনো বাড়তি ক্লাউড-কল নেই, `history` ঘরটা আগে থেকেই আসে)।
+           ⛔ গোনার নিয়ম TK-র নিজের নিয়মেই: **দিনে একটাই** (খাতার সারি B53) ও
+              সর্বোচ্চ ৫ — তাই সংখ্যা কখনো লাইভ নিয়মের চেয়ে বেশি হতে পারে না।
+           ⛔ চিকিৎসার নোট (`src=treat`) ও অ্যাপের নিজের বসানো লেখা কল হিসেবে
+              গোনা হয় না — টাইমলাইনের "Enquiry Calls" গোনার একই দর্শন। */
+        callCount = maxOf(row.optInt("callCount", 0), callsFromHistory(row)).coerceIn(0, 5),
+        noMoreCalls = row.optBoolean("noMoreCalls", false),   // 📵 V1206
         bill = row.optDouble("bill", 0.0),
         paid = row.optDouble("paid", 0.0),
         patientId = s(row, "patientId"),
@@ -142,28 +183,80 @@ object FollowUpModel {
         // ⛔ ডেটাবেসে কিছুই লেখা হয় না — শুধু দেখানোর সময় হিসাব।
         lastCallDate = s(row, "lastCallDate").ifBlank { lastCallDateFromHistory(row) },
         lastCallBy = lastStaffFromHistory(row),
-        lastCallTime = lastCallTimeFromHistory(row),   // 🔵 V543
+        // ⏰🔒 V931 — সময় এখন **ঠিক ওই তারিখের** সারি থেকে (উপরের বড় টীকা দেখুন)
+        lastCallTime = lastCallTimeFromHistory(row, s(row, "lastCallDate").ifBlank { lastCallDateFromHistory(row) }),
         refDoctor = s(row, "refDoctor")
     )
 
     /** `history`-র শেষ এন্ট্রির তারিখ (না পেলে ফাঁকা)। */
     /** 🔵 V543: শেষ কলের সময় — `history`-র সবচেয়ে নতুন সারির `time` থেকে।
      *  ⛔ না পেলে ফাঁকা ⇒ কার্ডে আগের মতোই শুধু তারিখ। */
-    private fun lastCallTimeFromHistory(row: JSONObject): String = try {
+    /* ⏰🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+       TK-এর প্রশ্ন: *"LAST CALL এর তারিখ এবং সময় নেই কেন?"*
+       **আসল কারণ (কোড ধরে যাচাই):** তারিখ আসত `lastCallDate` ঘর থেকে, কিন্তু
+       সময় আসত `history`-র **সবচেয়ে নতুন** সারি থেকে — দুটো আলাদা জায়গা।
+       তাই (ক) ওই তারিখের সারিতে সময় থাকলেও দেখাত না, আর (খ) অন্য দিনের সময়
+       ভুল করে ওই তারিখের পাশে বসে যেত।
+       ⇒ এখন সময়টা **ঠিক ওই তারিখের** সারি থেকেই নেওয়া হয়; কল করার পরে বসা
+         সময়হীন সারি ("Next follow-up date updated") থাকলেও ওই দিনের আসল কলের
+         সময়টা হারায় না।
+       ⛔ ওই দিনে সময় কোথাও জমা না থাকলে ফাঁকা — বানিয়ে কিছু দেখানো হয় না।
+       ⛔ তারিখ ফাঁকা হলে আগের মতোই সবচেয়ে নতুন সারির সময়।
+       ⛔ ওয়েবের `wlv1LastCallTime()`-এর হুবহু যমজ (নিয়ম ৬.৬)। */
+    private fun lastCallTimeFromHistory(row: JSONObject, forDate: String = ""): String = try {
         val arr = row.optJSONArray("history")
         if (arr == null || arr.length() == 0) "" else {
+            val want = forDate.trim().take(10)
             var found = ""
-            for (i in arr.length() - 1 downTo 0) {
-                val entry = arr.optJSONObject(i) ?: continue
-                val d = if (entry.isNull("date")) "" else entry.optString("date", "")
-                if (d.isNotBlank()) {
-                    found = if (entry.isNull("time")) "" else entry.optString("time", "")
-                    break
+            if (want.isNotBlank()) {
+                for (i in arr.length() - 1 downTo 0) {
+                    val entry = arr.optJSONObject(i) ?: continue
+                    val d = if (entry.isNull("date")) "" else entry.optString("date", "")
+                    if (d.trim().take(10) != want) continue
+                    val t = if (entry.isNull("time")) "" else entry.optString("time", "").trim()
+                    if (t.isNotBlank()) { found = t; break }
+                }
+            } else {
+                for (i in arr.length() - 1 downTo 0) {
+                    val entry = arr.optJSONObject(i) ?: continue
+                    val d = if (entry.isNull("date")) "" else entry.optString("date", "")
+                    if (d.isNotBlank()) {
+                        found = if (entry.isNull("time")) "" else entry.optString("time", "")
+                        break
+                    }
                 }
             }
             found
         }
     } catch (e: Exception) { "" }
+
+    /** 📶 V1268 — `history`-তে কতগুলো **আলাদা দিনের** কল/রিমার্ক আছে।
+     *  ⛔ TK-র "দিনে একবার" নিয়ম (B53) এখানেও, তাই এই সংখ্যা কখনো লাইভ
+     *     গোনার চেয়ে বেশি হয় না। ⛔ কিছু গোলমাল হলে ০ ফেরে — তখন আগের
+     *     জমানো সংখ্যাটাই দেখায়, অর্থাৎ আচরণ হুবহু আগের মতো। */
+    private val AUTO_STUB_REMARKS = setOf(
+        "registered patient / visit created",
+        "treatment payment / advance received",
+        "enquiry (syncing…)"
+    )
+
+    private fun callsFromHistory(row: JSONObject): Int = try {
+        val arr = row.optJSONArray("history")
+        if (arr == null || arr.length() == 0) 0 else {
+            val days = HashSet<String>()
+            for (i in 0 until arr.length()) {
+                val e = arr.optJSONObject(i) ?: continue
+                val src = if (e.isNull("src")) "" else e.optString("src", "")
+                if (src.equals("treat", ignoreCase = true)) continue
+                val remark = (if (e.isNull("remark")) "" else e.optString("remark", "")).trim()
+                if (remark.isBlank()) continue
+                if (remark.lowercase() in AUTO_STUB_REMARKS) continue
+                val d = (if (e.isNull("date")) "" else e.optString("date", "")).take(10)
+                if (d.isNotBlank()) days.add(d)
+            }
+            days.size
+        }
+    } catch (_: Throwable) { 0 }
 
     private fun lastCallDateFromHistory(row: JSONObject): String = try {
         val arr = row.optJSONArray("history")
@@ -220,6 +313,26 @@ object FollowUpModel {
 
     fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
+    /* 📞🔒 V1403 (১২.০৯.২০২৬ রাত, TK-নির্দেশ ও অনুমোদন — তালিকা সারি ৫০৮, একই কথা
+       ৮ বার) — **"যে তারিখে কল বাকি, সেই তারিখে বা তার পরে কল হয়ে গেলে সেটা আর
+       বাকি নয়।"** TK-র CSV-তে মাপা: পেন্ডিং ১২টার ১২টাতেই `lastCallDate` ≥
+       `nextFollow` — অর্থাৎ কল হয়ে গেছে, তবু "আজ বাকি"/"বকেয়া" দেখাত (V1065 কলের
+       দিনেই `nextFollow`=আজ বসায়, আর গোনা শুধু তারিখ দেখত, কল হয়েছে কিনা দেখত না)।
+       এখন কল-তালিকা · Home-এর ব্যানার · মনে-করানো নোটিফিকেশন — সবাই এই একটাই
+       নিয়ম ডাকে (ওয়েবে `wlv1AlreadyCalled`, হুবহু যমজ)।
+       ⛔ স্টাফ ভবিষ্যতের তারিখ বাছলে সেটা আগের মতোই আসবে (ওই তারিখে কল হয়নি বলে)।
+       ⛔ `nextFollow` ফাঁকা হলে আগের মতোই গোনা হয় না; `noMoreCalls` আগের মতোই বাদ। */
+    fun alreadyCalled(nextFollow: String, lastCallDate: String): Boolean {
+        val nf = nextFollow.trim().take(10)
+        val lc = lastCallDate.trim().take(10)
+        return nf.isNotBlank() && lc.isNotBlank() && lc >= nf
+    }
+
+    /** আজ/বকেয়া কল সত্যিই বাকি কিনা — সব গোনা ও তালিকার একটাই নিয়ম (V1403)। */
+    fun callPending(item: FollowUpItem, today: String = today()): Boolean =
+        !item.noMoreCalls && item.nextFollow.isNotBlank() && item.nextFollow <= today &&
+            !alreadyCalled(item.nextFollow, item.lastCallDate)
+
     /** Days between nextFollow and today: negative = overdue, 0 = today,
      * positive = days ahead. Null if no next-follow date is set. */
     fun daysUntil(nextFollow: String): Int? {
@@ -236,7 +349,7 @@ object FollowUpModel {
 
     fun displayDate(iso: String): String = try {
         val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso)
-        SimpleDateFormat("dd.MM.yyyy", Locale.US).format(parsed!!)
+        SimpleDateFormat("dd/MM/yyyy", Locale.US).format(parsed!!)
     } catch (e: Exception) { iso }
 
     /** TK-REQUESTED (2026-07-17): the date a remark was written, shown next to
@@ -253,7 +366,7 @@ object FollowUpModel {
         return try {
             val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
             val parsed = fmt.parse(isoDateTime) ?: return ""
-            SimpleDateFormat("dd.MM.yyyy", Locale.US).format(parsed)
+            SimpleDateFormat("dd/MM/yyyy", Locale.US).format(parsed)
         } catch (e: Exception) { "" }
     }
 }

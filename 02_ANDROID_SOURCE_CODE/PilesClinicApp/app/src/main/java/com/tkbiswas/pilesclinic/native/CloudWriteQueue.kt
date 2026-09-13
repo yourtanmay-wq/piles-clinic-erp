@@ -310,6 +310,44 @@ object CloudWriteQueue {
      * JSON-এ `lastError` হিসেবে বসে। ⛔ শুধু **দেখানোর জন্য** — কোনো পাঠানো/
      * retry/tries-গোনার নিয়ম এক লাইনও বদলায়নি, dedup-এর পুরনো আচরণও অক্ষত।
      */
+    /* 📱🔒 V1291 (১০.০৯.২০২৬, তালিকা ৪১১-⑨ খ, TK: *"খ করুন, সাবধানে"*) —
+       **সারি এখনো সার্ভারে পৌঁছয়নি, অথচ তার এডিট এসে গেছে।**
+       ঘটনা: নেট ছাড়া নতুন সারি (UPSERT) এখানে "পাঠানো বাকি"-তে জমা; নেট ফিরলে
+       জমা কাজ পাঠানোর **আগেই** স্টাফ সেই সারি এডিট করলে সরাসরি PATCH যায় → সার্ভারে
+       সারি নেই → B593-নিয়মে (TK-অনুমোদিত) কাজটা চুপচাপ বাদ পড়ত → পরে জমা UPSERT
+       পুরনো কপি বসাত ⇒ এডিট হারাত, স্টাফ "Saved" দেখতেন।
+       এখন: PATCH-এ ০ সারি ফিরলে আগে এখানে ওই টেবিল+id-র জমা UPSERT খোঁজা হয়;
+       থাকলে এডিটের ঘরগুলো তার ভিতরে বসিয়ে দেওয়া হয় (`updatedAt` সহ) — জমা কাজটা
+       গেলে এডিট সমেত যাবে। ⛔ জমা UPSERT না থাকলে (সারি সত্যিই মুছে গেছে/কখনো ছিল না)
+       B593-নিয়ম হুবহু আগের মতোই — কিছু বদলায় না। ⛔ "যায়নি" (failed) ঘর ছোঁয়া হয় না।
+       @return true = জুড়ে দেওয়া গেছে। */
+    fun mergeIntoPendingUpsert(table: String, id: String, fields: JSONObject?): Boolean {
+        val ctx = appContext ?: return false
+        if (table.isBlank() || id.isBlank() || fields == null || fields.length() == 0) return false
+        return try {
+            synchronized(LOCK) {
+                val p = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+                val list = JSONArray(p.getString(KEY, "[]") ?: "[]")
+                var merged = false
+                for (i in 0 until list.length()) {
+                    val e = list.optJSONObject(i) ?: continue
+                    if (e.optString("kind") != "UPSERT" || e.optString("table") != table || e.optString("id") != id) continue
+                    val body = try { JSONObject(e.optString("body", "{}")) } catch (_: Throwable) { continue }
+                    if (body.length() == 0) continue
+                    val keys = fields.keys()
+                    while (keys.hasNext()) { val k = keys.next(); body.put(k, fields.get(k)) }
+                    e.put("body", body.toString())
+                    merged = true
+                }
+                if (merged) {
+                    p.edit().putString(KEY, list.toString()).commit()
+                    hasQueue = true
+                }
+                merged
+            }
+        } catch (_: Throwable) { false }
+    }
+
     fun remember(kind: String, table: String, id: String, payload: JSONObject?, reason: String = "") {
         val ctx = appContext ?: return
         if (table.isBlank()) return
@@ -814,7 +852,20 @@ object CloudWriteQueue {
                 // মতো নয় — এখানে নতুন ID লাগে না, শুধু নিশ্চিত-হওয়া সাফল্য
                 // হিসেবে ধরে সরিয়ে ফেলা (row_not_matched/PGRST204-এর একই
                 // নিরাপদ প্যাটার্ন)।
-                if (le.contains("23505") && le.contains("${table}_pkey") && le.contains("already exists")) {
+                /* 🔴🔒🔒 V903 (৩১.০৮.২০২৬, TK-এর দেখানো লগ থেকে প্রমাণিত) —
+                   Supabase-এর লগে ঘণ্টায় **শত শত** একই ভুল:
+                   `duplicate key value violates unique constraint "payments_pkey"`।
+                   কারণ: নিচের শর্তে **"already exists"** শব্দ দুটোও চাওয়া হতো,
+                   কিন্তু সার্ভার সবসময় ওই বিস্তারিত অংশটা পাঠায় না — শুধু
+                   উপরের বাক্যটা আসে। ⇒ শর্ত মিলত না, সারিটা তালিকা থেকে
+                   **কোনোদিন মুছত না**, আর ফোন চিরকাল একই টাকার সারি আবার
+                   পাঠাত (অকারণ Egress ও ভুলের পাহাড়)।
+                   **এখন:** `23505` + `<টেবিল>_pkey` — এই দুটোই যথেষ্ট। নিজের ওই
+                   একই আইডির সারি ওখানে সত্যিই বসে আছে বলেই তো এই ভুলটা আসে,
+                   তাই "কাজ শেষ" ধরে সরিয়ে দেওয়াই ঠিক।
+                   ⛔ কোনো টাকা মোছা/বদলানো হয় না — শুধু ফোনের অপেক্ষমাণ
+                      তালিকা থেকে ইতিমধ্যে-বসে-যাওয়া সারিটা বাদ যায়। */
+                if (le.contains("23505") && le.contains("${table}_pkey")) {
                     continue
                 }
                 val permanent = permanentHttp

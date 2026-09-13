@@ -50,20 +50,43 @@ object RmpPicker {
         }
     }
 
-    fun cachedRmpChoices(act: android.app.Activity, user: NativeUser): List<RmpChoice> {
+    /**
+     * 🟢🔒 V1132 (০৬.০৯.২০২৬, TK-অনুমোদিত) — TK: *"জলপাইগুড়ির স্টাফ All Branch
+     * Enquiry Form-এ কোচবিহারের RMP বাছতে চাইছে, নাম-নম্বর সম্পূর্ণ দিয়েও
+     * সাজেস্ট করছে না।"*
+     *
+     * 🔴 **কারণ (কোডে মেপে পাওয়া):** তালিকাটা সবসময় **লগ-ইন করা স্টাফের নিজের
+     *    ব্রাঞ্চ** ধরে ছাঁকা হত — ফর্মে যে ব্রাঞ্চ বাছা হয়েছে সেটা ধরে নয়।
+     *
+     * ⇒ এখন ডাকার সময় চাইলে **অন্য একটা ব্রাঞ্চ** পাঠানো যায় (`branchScope`)।
+     * ⛔ কেউ না পাঠালে আচরণ **এক অক্ষরও বদলায় না** — আগের মতোই নিজের ব্রাঞ্চ।
+     * ⛔ Registration-এর নিজের তালিকা এই ফাইলটা ব্যবহারই করে না — সেখানে হাত পড়েনি।
+     */
+    fun cachedRmpChoices(
+        act: android.app.Activity,
+        user: NativeUser,
+        branchScope: String = ""
+    ): List<RmpChoice> {
+        val scope = branchScope.trim().ifBlank { user.branch }
         return try {
             val prefs = act.getSharedPreferences("doctor_visit_cache", android.content.Context.MODE_PRIVATE)
             // Staff/Doctor only ever need their own branch cache. Master may
             // have opened either All or an individual branch, so all existing
             // cache buckets are safely combined without any network request.
-            val keys = if (user.branch.equals("All", ignoreCase = true)) {
+            val keys = if (scope.equals("All", ignoreCase = true)) {
                 listOf("All") + BRANCHES
-            } else listOf(user.branch)
+            } else listOf(scope)
             val combined = org.json.JSONArray()
             for (branch in keys.distinct()) {
                 val raw = prefs.getString("cache_${branch.ifBlank { "All" }}", null) ?: continue
                 val arr = try { org.json.JSONArray(raw) } catch (_: Throwable) { continue }
                 for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { combined.put(it) }
+            }
+            // 🟢🔒 V802 — Doctor Visit পর্দার জমানো ঘরের সঙ্গে RMP-বাছার নিজস্ব
+            // হালকা ঘরটাও যোগ (নিচের `seen` ইতিমধ্যেই ডুপ্লিকেট বাদ দেয়)।
+            run {
+                val extra = RmpDirectory.cachedRows(act, scope)
+                for (i in 0 until extra.length()) extra.optJSONObject(i)?.let { combined.put(it) }
             }
             // Include a doctor/RMP just added on this phone even if its cloud
             // copy has not yet appeared in the saved cache.
@@ -79,8 +102,8 @@ object RmpPicker {
                 val status = row.optString("status").trim()
                 if (name.isBlank()) continue
                 if (status.isNotBlank() && !status.equals("Active", ignoreCase = true)) continue
-                if (!user.branch.equals("All", ignoreCase = true) &&
-                    branch.isNotBlank() && !branch.equals(user.branch, ignoreCase = true)) continue
+                if (!scope.equals("All", ignoreCase = true) &&
+                    branch.isNotBlank() && !branch.equals(scope, ignoreCase = true)) continue
                 if (id.isNotBlank() && try { DeletedGuard.isDeleted("doctor_visits", id, act) } catch (_: Throwable) { false }) continue
                 val unique = id.ifBlank { "$mobile|${name.lowercase(Locale.US)}" }
                 if (!seen.add(unique)) continue
@@ -99,6 +122,30 @@ object RmpPicker {
 
     fun show(act: android.app.Activity, user: NativeUser, onPick: (RmpChoice) -> Unit) {
         val all = cachedRmpChoices(act, user)
+        /* 🟢🔒 V802 (২৮.০৮.২০২৬) — TK: "RMP পাঠিয়েছে, তাহলে এখন কেন দেখাচ্ছে না
+           আরএমপি লিস্ট?" ─ কারণ ছিল: তালিকাটা শুধু `doctor_visit_cache` থেকে পড়ত,
+           আর ওই ঘরটা ভরে **একমাত্র Doctor Visit পর্দা খুললে**। যে ফোনে কেউ ওই
+           পর্দা কখনো খোলেনি, সেখানে তালিকা চিরকাল ফাঁকাই থাকত (পুরনো লেখাতেই
+           ছিল — "No cloud search was made")।
+           এখন ফাঁকা হলে **একবার** হালকা পড়া হয় (৮টা ঘর, ভারী `callHistory` ও
+           `referralPayments` ছাড়া ⇒ কয়েক KB), তারপর ফোনে জমা থাকে — পরের বার
+           এক বাইটও খরচ নেই। নেট না থাকলে আগের মতোই হাতে লেখা যায়। */
+        if (all.isEmpty() && !RmpDirectory.hasDoctorVisitCache(act, user.branch) &&
+            RmpDirectory.cachedRows(act, user.branch).length() == 0) {   // ⛔ একবারই — নামানো হয়ে গেলে আর নয়
+            android.widget.Toast.makeText(act, "Loading saved RMP list…", android.widget.Toast.LENGTH_SHORT).show()
+            Thread {
+                val got = RmpDirectory.refreshFromCloud(act.applicationContext, user.branch)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    if (act.isFinishing || act.isDestroyed) return@post
+                    if (got) show(act, user, onPick) else AlertDialog.Builder(act)
+                        .setCustomTitle(PremiumAlert.header(act, "Saved RMP list not available"))
+                        .setMessage("Could not load the saved RMP list. Check the internet connection and try again, or enter the Doctor / RMP name and mobile manually below.")
+                        .setPositiveButton("OK", null)
+                        .show().also { PremiumAlert.paint(it) }
+                }
+            }.start()
+            return
+        }
         if (all.isEmpty()) {
             AlertDialog.Builder(act)
                 .setCustomTitle(PremiumAlert.header(act, "Saved RMP list not available"))
@@ -183,7 +230,13 @@ object RmpPicker {
                                 orientation = LinearLayout.HORIZONTAL
                                 gravity = android.view.Gravity.CENTER_VERTICAL
                                 addView(TextView(act).apply {
-                                    text = item.name
+                                    // 👁️ V752 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ:
+                                    //    *"একই যায়গায় ২ রকম — সবাই আমরা বিভ্রান্ত হয়ে যাচ্ছি"*)
+                                    //    স্টাফেরা কেউ ছোট হাতে, কেউ বড় হাতে নাম লিখে সেভ
+                                    //    করেছেন ("amit goldar" বনাম "AMIT LAL BARMAN"), তাই এক
+                                    //    তালিকাতেই দু'রকম দেখাত। ⛔ ডেটাবেসের লেখা বদলানো হয়নি —
+                                    //    শুধু **দেখানোর সময়** এক রকম করা হলো।
+                                    text = item.name.trim().uppercase()
                                     textSize = 17f
                                     setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                                     setTextColor(android.graphics.Color.parseColor("#17312A"))
@@ -198,7 +251,8 @@ object RmpPicker {
                                 setPadding(0, pad / 3, 0, 0)
                             })
                             if (item.area.isNotBlank()) addView(TextView(act).apply {
-                                text = item.area
+                                // 👁️ V752 — এলাকার নামও একই কারণে এক রকম।
+                                text = item.area.trim().uppercase()
                                 textSize = 13f
                                 setTextColor(android.graphics.Color.parseColor("#60766D"))
                                 setPadding(0, pad / 5, 0, 0)
@@ -228,5 +282,6 @@ object RmpPicker {
         })
         dialog.setOnShowListener { PremiumAlert.paint(dialog) }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 }

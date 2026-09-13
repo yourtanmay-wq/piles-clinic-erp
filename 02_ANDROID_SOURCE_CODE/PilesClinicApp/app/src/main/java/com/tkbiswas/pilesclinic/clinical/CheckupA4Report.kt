@@ -59,11 +59,19 @@ object CheckupA4Report {
            সেই রেকর্ডে উপরের ঘরগুলো ফাঁকা থাকে আর নিচেরগুলো ভরে — তখন সেকশনটা
            সারি-সারি না হয়ে **এক লাইনে** বসে। কিছু হারায় না, শুধু সাজ আলাদা। */
         val symptomText: String = "", val historyText: String = "",
-        val habitText: String = "", val pictureText: String = ""
+        val habitText: String = "", val pictureText: String = "",
+        /* 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮):
+           TK: *"আমি এখানে এটা লিখলাম … কিন্তু পরের ফটোতে দেখুন এই লেখাটা কোথাও নেই"*।
+           **কারণ (মেপে দেখা):** এই `Fields`-এ `doctorRemark` ঘরটাই ছিল না, আর
+           `parseDetails` কোনোদিন "Doctor Remark" লেবেল খুঁজতই না ⇒ কাগজে কখনো
+           বসেনি। লেখাটা হারায়নি (রেকর্ডে ও Follow-up-এর last remark-এ ছিল)।
+           ⛔ ফাঁকা থাকলে ভাগটাই বসে না — পুরনো কাগজ হুবহু আগের মতোই। */
+        val doctorRemark: String = ""
     )
 
     fun today(): String {
-        val f = java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.US)
+        // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): হাইফেন ছিল, এখন প্রজেক্টের বিন্দু।
+        val f = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
         f.timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
         return f.format(java.util.Date())
     }
@@ -77,7 +85,8 @@ object CheckupA4Report {
     // থাকে (কিছু ভাঙে না)। DoctorCheckupActivity.formatAddressTwoLines-এর
     // হুবহু একই প্রমাণিত নিয়ম, শুধু এখানে HTML `<br>` দিয়ে। সেভ-হওয়া মান
     // বদলায় না — শুধু দেখানোর সময় ভাঙা হয়।
-    private fun addrTwoLines(raw: String): String {
+    private fun addrTwoLines(rawIn: String): String {
+        val raw = rawIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")
         var idx = -1
         for (m in markers) {
@@ -207,7 +216,9 @@ object CheckupA4Report {
             symptomText = field("Patient Reported"),
             historyText = field("History Detail"),
             habitText = field("Habits"),
-            pictureText = field("Disease Picture")
+            pictureText = field("Disease Picture"),
+            // 📝 V1276 — পুরনো এক-লাইনের লেখাতেও লেবেলটা থাকলে তুলে আনা হয়
+            doctorRemark = field("Doctor Remark", "Doctor's Remark")
         )
     }
 
@@ -250,8 +261,14 @@ object CheckupA4Report {
 
         fun t(k: String) = CheckupA4Lang.s(k, lang)
         fun v(x: String) = esc(x.ifBlank { "—" })
+        /* 🔵🔒 V948 (০১.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, ফটো-প্রুফ পাশ) — TK: *"মন্তব্য
+           একটা সোজা লাইনে থাকার দরকার ছিল, উপর-নিচে ভেঙে আসছে"*।
+           কারণ: লম্বা লেখাও অর্ধেক-চওড়া ঘরে বসত, তাই ভেঙে যেত।
+           এখন লেখা লম্বা হলে ঘরটা **নিজে থেকেই** পুরো চওড়া নেয়।
+           ⛔ ছোট লেখা আগের মতোই পাশাপাশি — কোনো তথ্য বাদ যায় না।
+           ⛔ কাগজের প্রতিটা ভাগেই এক নিয়ম (এখানে একটাই জায়গা)। */
         fun cell(k: String, value: String, full: Boolean = false) =
-            """<div class="cell${if (full) " full" else ""}"><span class="k">$k</span><span class="v">${v(value)}</span></div>"""
+            """<div class="cell${if (full || value.trim().length > 42) " full" else ""}"><span class="k">$k</span><span class="v">${v(value)}</span></div>"""
         /** সব ঘর ফাঁকা হলে সেকশনটাই বসে না — নইলে পাতায় শুধু "—" ভরা ঘর পড়ে থাকত। */
         fun sec(title: String, cells: List<String>, one: Boolean = false): String {
             if (cells.isEmpty()) return ""
@@ -321,6 +338,21 @@ object CheckupA4Report {
             right.isBlank() -> left
             else -> """<div class="two"><div>$left</div><div>$right</div></div>"""
         }
+        /* 📝🔒 V1276 — ডাক্তারের মন্তব্য: কাগজের সবার নিচে, দস্তখতের ঠিক আগে,
+           পুরো চওড়ায় — বাকি ভাগগুলোর হুবহু একই সাজ (`sec`)। লেখাটা কয়েক
+           লাইনের হতে পারে, তাই লাইন-ভাঙা রাখা হয়েছে (`<br>`)।
+           ⛔ ফাঁকা হলে একটাও ট্যাগ বসে না ⇒ পুরনো কাগজ এক চুলও বদলায়নি। */
+        val dremSection =
+            if (f.doctorRemark.isBlank()) ""
+            else {
+                /* ⛔ **আগে esc, তারপর লাইন-ভাঙা** — উল্টো করলে `<br>`-ও পালিয়ে
+                   গিয়ে কাগজে হুবহু "&lt;br&gt;" ছাপা হত (`cell()` ভিতরে esc করে,
+                   তাই এখানে ওটা ব্যবহার করা যায়নি — সাজ হুবহু একই রাখা হলো)। */
+                val body = esc(f.doctorRemark.trim())
+                    .replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+                """<div class="sec"><div class="sh">${t("sec9")}</div>""" +
+                """<div class="g one"><div class="cell full"><span class="v">$body</span></div></div></div>"""
+            }
         val midRow = two(sec(t("sec2"), symCells), sec(t("sec4"), habCells))
         val btmRow = when {
             picSection.isBlank() -> rightCol
@@ -332,8 +364,13 @@ object CheckupA4Report {
 
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;}
-body{background:#fff;color:#111;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+body{background:#fff;color:#111;position:relative;min-height:1123px;display:flex;flex-direction:column;}
+/* 🔵🔒 V948 (TK-নির্দেশ) — ক্লিনিকের জল-ছবি, ডায়েট/প্রেসক্রিপশন প্রিন্টের
+   হুবহু একই নিয়ম (`DietChartHtmlPrint.wm`), শুধু TK-এর পাশ-করা মাপ:
+   বড় (দুই পাশ ছোঁয়া) · আরও হালকা (৩%) · একটু উপরে। */
+.wm{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);width:700px;opacity:.03;z-index:0;pointer-events:none;}
+.pi,.wrap,.foot,.fn{position:relative;z-index:1;}
 .gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f);}
 .gbar{height:3px;background:#0f5132;}
 .lh{display:flex;align-items:center;gap:16px;padding:8px 20px 6px;}
@@ -350,7 +387,7 @@ body{background:#fff;color:#111;}
 .pi .c{flex:1;}
 .pi .r{padding:2.5px 0;}
 .pi .r b{color:#0f5132;display:inline-block;min-width:74px;}
-.wrap{padding:6px 20px 10px;font-family:Arial;}
+.wrap{padding:6px 20px 10px;font-family:Arial;flex:1;}
 .two{display:flex;gap:10px;}
 .two>*{flex:1;min-width:0;}
 .two.btm{align-items:stretch;}
@@ -358,29 +395,45 @@ body{background:#fff;color:#111;}
 .sec.tall{display:flex;flex-direction:column;height:100%;}
 .sh{background:#eef5f0;color:#0f5132;font-size:11px;font-weight:800;letter-spacing:1px;padding:5.5px 12px;border-left:4px solid #b8912f;}
 .g{display:flex;flex-wrap:wrap;}
-.cell{width:50%;padding:4.5px 12px;font-size:11.5px;border-bottom:1px solid #f0f3f1;display:flex;gap:6px;line-height:1.35;}
+/* 🔴🔒 V988 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — "Pus / blood / watery discharge"-এর
+   উত্তরটা কেটে গিয়ে শুধু "Y" দেখাচ্ছিল)। **আসল কারণ:** ঘরটা পাতার আধা চওড়ার
+   ভিতরে আবার ৫০%, আর লেখাটা তার চেয়ে লম্বা — উত্তরটা ঘরের বাইরে বেরিয়ে গিয়ে
+   কেটে যেত। ⇒ জায়গায় না ধরলে উত্তরটা এখন নিচের লাইনে নামে, কিছুই কাটে না।
+   ⛔ যেখানে জায়গা আছে সেখানে হুবহু আগের মতোই এক লাইনে বসে। */
+.cell{width:50%;padding:4.5px 12px;font-size:11.5px;border-bottom:1px solid #f0f3f1;display:flex;flex-wrap:wrap;gap:6px;line-height:1.35;}
 .cell.full{width:100%;}
 .cell .k{color:#6b7680;min-width:94px;flex:0 0 auto;}
-.cell .v{color:#111;font-weight:700;}
+.cell .v{color:#111;font-weight:700;min-width:0;overflow-wrap:anywhere;}
 .cell:nth-child(odd){border-right:1px solid #f0f3f1;}
 .one .cell{width:100%;border-right:0;}
 .pic{display:flex;gap:14px;padding:7px 10px 3px;flex:1;}
 .pbox{flex:1;min-height:170px;border:1px solid #d5ddd7;border-radius:4px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .pbox img{max-width:100%;max-height:225px;}
 .mk{padding:4px 12px 8px;font-size:11.5px;line-height:1.7;color:#111;}
-.foot{display:flex;justify-content:space-between;align-items:flex-end;padding:9px 20px 4px;font-family:Arial;}
-.stamp{width:92px;height:92px;border:1.3px dashed #c3ccd6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aeb8c2;font-size:9.5px;}
-.sign{text-align:center;font-size:11px;}
-.sign .ln{width:185px;border-top:1.2px solid #333;margin-bottom:3px;}
-.sign .dn{font-weight:800;color:#0f5132;}
+/* 🔵🔒 V948 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — সই-সারি এখন ডায়েট ও প্রেসক্রিপশন
+   প্রিন্টের **হুবহু একই** ধাঁচে (`DietChartHtmlPrint`-এর `.sign`/`.vfy`):
+   বাঁয়ে TK BISWAS · মাঝে বারকোড · ডানে ডাক্তার, তিনটে দাগ এক সমান্তরাল লাইনে।
+   ⛔ পুরনো গোল "Clinic Stamp" বাদ (TK: আর দরকার নেই)।
+   ⛔ বারকোডের নিচে পেশেন্ট আইডি বসে না — উপরে Rec. No-তে আগে থেকেই আছে। */
+.foot{margin-top:auto;padding:9px 20px 4px;font-family:Arial;}
+.sign{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:22px;}
+.sign .ln{border-top:.9px solid #15231C;text-align:center;padding-top:5px;}
+.sign .ln b{display:block;font-size:11.2px;font-weight:900;color:#15231C;letter-spacing:.2px;}
+.sign .ln small{display:block;font-size:9px;color:#54615A;margin-top:1px;}
+.vfy{text-align:center;border-top:.9px solid #15231C;padding-top:5px;}
+.vfy .bar{height:24px;width:121px;margin:0 auto 1.5px;background:repeating-linear-gradient(90deg,#15231C 0 1.9px,#fff 1.9px 4px);}
+.vfy .vl{margin-top:2px;white-space:nowrap;}
+.vfy b{display:inline;font-size:8.6px;color:#0A5428;}
+.vfy small{display:inline;font-size:8.2px;color:#54615A;}
 .fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial;}
 </style></head><body>
 <div class="gold"></div>
 <div class="lh"><img src="${b.logoAssetPath}">
 <div><div class="cn">${esc(b.clinicName)}</div><div class="tag">Ayurveda &amp; Anorectal Diseases</div>
-<div class="addr"><b>${esc(b.displayName)}:</b> ${esc(b.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(b.phoneLine)}</div></div></div>
+<div class="addr"><b>${esc(b.displayName)}:</b> ${esc(b.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(b.phoneLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE)}</div></div></div>
 <div class="gbar"></div>
 <div class="tb"><span class="t">DOCTOR CHECK-UP RECORD</span><span class="r">Rec. No: $pid &nbsp;&middot;&nbsp; Date: $date</span></div>
+<img class="wm" src="${b.logoAssetPath}">
 <div class="pi">
 $photoCell<div class="c"><div class="r"><b>Name</b> : $name</div><div class="r"><b>Patient ID</b> : $pid</div><div class="r"><b>Age / Sex</b> : $ageSex</div><div class="r"><b>Mobile</b> : $mobile</div></div>
 <div class="c"><div class="r"><b>Disease</b> : $disease</div><div class="r"><b>Branch</b> : ${esc(b.displayName)}</div><div class="r"><b>Visit Date</b> : $date</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">$addr2</span></div></div>
@@ -390,9 +443,14 @@ ${sec(t("sec1"), step1)}
 $midRow
 ${sec(t("sec3"), hisCells, true)}
 $btmRow
+$dremSection
 </div>
-<div class="foot"><div class="stamp">${t("stamp")}</div>
-<div class="sign"><div class="ln"></div><div class="dn">${t("sign")}</div><div style="font-size:8.5px;color:#5a6570;">${esc(b.clinicName)}</div></div></div>
+<div class="foot"><div class="sign">
+<div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>
+<div class="vfy"><div class="bar"></div>
+<div class="vl"><b>Document Digitally Verified</b> &middot; <small>No Physical Signature Required</small></div></div>
+<div class="ln"><b>Dr. K.H MANDAL</b><small>(B.A.M.S) Regd 12386</small></div>
+</div></div>
 <div class="fn">Computer-generated check-up record &middot; ${esc(b.clinicName)} &middot; Ayurveda &amp; Anorectal Diseases</div>
 </body></html>"""
     }

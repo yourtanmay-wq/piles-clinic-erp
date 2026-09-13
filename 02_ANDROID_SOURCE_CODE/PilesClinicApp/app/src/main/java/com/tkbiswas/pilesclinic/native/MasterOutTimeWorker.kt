@@ -48,6 +48,13 @@ class MasterOutTimeWorker(
                     .format(java.util.Date())
                 val missing = pending(ctx, today)
                 if (missing.isNotEmpty()) notify(ctx, missing)
+                // 🚨🔒 V1337 (১১.০৯.২০২৬, TK-নির্দেশ, উদাহরণ KISHAN-10) — আজ যাদের
+                // IN TIME-ও নেই, ছুটির কোনো আবেদনও নেই (pending/confirmed কিছুই
+                // না) — তাঁদের আলাদা "no-show" সতর্কতা, উপরের OUT-TIME-এর
+                // থেকে সম্পূর্ণ আলাদা নোটিফিকেশন আইডিতে, যাতে দুটো একে অপরকে
+                // মুছে না ফেলে।
+                val noShow = noShow(ctx, today)
+                if (noShow.isNotEmpty()) notifyNoShow(ctx, noShow)
             }
         } catch (_: Throwable) {
             // কখনো ক্র্যাশ করবে না
@@ -55,6 +62,77 @@ class MasterOutTimeWorker(
         // ⛔ ফল যাই হোক, কালকের ৯টার স্লট আবার বসিয়ে চেইন চালু রাখা হয়।
         try { MasterOutTimeScheduler.scheduleNext(ctx) } catch (_: Throwable) { }
         return Result.success()
+    }
+
+    /** আজ IN TIME নেই এবং ছুটির কোনো আবেদনও (pending/confirmed) নেই — সত্যিকারের
+     * "no-show"। ⛔ শুধু আসল `staff` রোল (RoleRules.usesAttendance-এর নিয়মে) —
+     * ডাক্তার/ফিল্ড/মাস্টার কখনো ধরা হয় না। বাঁধা তালিকা (StaffDirectory) থেকে
+     * রোস্টার নেওয়া হয় — কাজ ছেড়ে যাওয়া/নতুন স্টাফ সবসময় ওখান থেকেই সঠিক থাকে। */
+    private suspend fun noShow(ctx: Context, today: String): List<String> {
+        return try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val ma = com.tkbiswas.pilesclinic.modules.ModuleAuth
+                if (!ma.isSignedIn) { try { ma.signInCurrentSession(ctx) } catch (_: Throwable) { } }
+                if (!ma.isSignedIn) return@withContext emptyList<String>()
+                val roster = com.tkbiswas.pilesclinic.native.StaffDirectory.allAccounts()
+                    .filter { it.role == "staff" }
+                if (roster.isEmpty()) return@withContext emptyList<String>()
+                val ndRes = ma.getRowsChecked(
+                    "wn", "notebook_days",
+                    "select=staff_code,check_in&work_date=eq.$today&limit=200"
+                )
+                if (!ndRes.ok) return@withContext emptyList<String>()
+                val checkedIn = mutableSetOf<String>()
+                for (i in 0 until ndRes.rows.length()) {
+                    val r = ndRes.rows.optJSONObject(i) ?: continue
+                    val cin = r.optString("check_in", "")
+                    if (cin.isNotBlank() && cin != "null") {
+                        checkedIn.add(r.optString("staff_code", "").trim())
+                    }
+                }
+                val lvRes = ma.getRowsChecked(
+                    "wn", "leave_requests",
+                    "select=staff_code&leave_date=eq.$today&status=in.(confirmed,pending)&limit=200"
+                )
+                if (!lvRes.ok) return@withContext emptyList<String>()
+                val onLeave = mutableSetOf<String>()
+                for (i in 0 until lvRes.rows.length()) {
+                    val r = lvRes.rows.optJSONObject(i) ?: continue
+                    onLeave.add(r.optString("staff_code", "").trim())
+                }
+                roster.filter { it.name !in checkedIn && it.name !in onLeave }
+                    .map { it.name }
+                    .distinct()
+            }
+        } catch (_: Throwable) { emptyList() }
+    }
+
+    private fun notifyNoShow(ctx: Context, codes: List<String>) {
+        try {
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            val channel = NoticeChannels.ensure(
+                ctx, CHANNEL_ID_NOSHOW, "No check-in, no leave",
+                "Tells the Master which staff have neither checked in nor applied for leave today"
+            )
+            val names = codes.joinToString(", ")
+            val intent = Intent(ctx, com.tkbiswas.pilesclinic.modules.StaffProfileActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            val pi = android.app.PendingIntent.getActivity(
+                ctx, 9111, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val n = NotificationCompat.Builder(ctx, channel)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("🚨 No check-in & no leave today (${codes.size})")
+                .setContentText(names)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(names))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .build()
+            nm.notify(9111, n)
+        } catch (_: Throwable) { }
     }
 
     /** আজ IN দিয়েছেন কিন্তু OUT দেননি, ছুটিও নয় — এমন স্টাফের নাম। */
@@ -121,5 +199,6 @@ class MasterOutTimeWorker(
 
     companion object {
         private const val CHANNEL_ID = "master_out_time_missing"
+        private const val CHANNEL_ID_NOSHOW = "master_no_show"
     }
 }

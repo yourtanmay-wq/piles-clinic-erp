@@ -137,6 +137,10 @@ object BottomNav {
             // 🚨🚨 খাতার সারি B170 (TK-এর ৭ নম্বর সন্দেহ): পর্দা খোলার এই দফাতেও
             // Chamber Close-এর অপেক্ষমাণ কাজ পাঠানো হত না — এখন হয়।
             try { ChamberCloseRepository.flushPending(activity) } catch (_: Throwable) { }
+            // 🔴🔒 V1338 (১১.০৯.২০২৬, TK-নির্দেশ, JPE-CRP ১৭-বনাম-৪ কল-গোনার
+            // সমস্যা) — Call বোতাম চাপার সময় ব্যর্থ হয়ে যাওয়া App Call লগ
+            // (call_taps) এখানেও বাকি সবার মতোই আবার চেষ্টা হয়।
+            try { com.tkbiswas.pilesclinic.modules.ModuleAuth.flushPendingCallTaps(activity) } catch (_: Throwable) { }
             } finally {
                 // ⛔ যা-ই ঘটুক দরজা খুলে যাবে (`SyncGate`-এর নিজের `finally`),
                 //    নইলে একবার আটকে গেলে পাঠানো চিরকাল বন্ধ হয়ে যেত।

@@ -78,6 +78,13 @@ alter table if exists payments add column if not exists refundOfPaymentId text; 
 --   এগুলো live-এ চালানোর আগে অবশ্যই একটা backup/branch-এ পরীক্ষা করুন।
 -- =====================================================================
 
+-- B1. ⛔⛔⛔ কখনো চালাবেন না — TK-নির্দেশে স্থায়ীভাবে বাতিল (২৯.০৮.২০২৬)।
+--     কারণ: এটা মোবাইল নম্বরে তালা দেয়। কিন্তু অ্যাপে TK-এর নিজের পাশ করা
+--     "Different Patient — Same Mobile" (V516/V520) আছে — এক পরিবারে স্বামী ও
+--     স্ত্রী দুজনেই রোগী, যোগাযোগের মোবাইল একটাই। এই index বসালে দ্বিতীয়
+--     জনকে আর কোনোদিন রেজিস্টার করা যাবে না, লাইভ ক্লিনিকে সেভ আটকে যাবে।
+--     ⛔ Patient ID-র আসল পাহারা আগে থেকেই আছে ও চলছে:
+--        V224_2026-08-01_official_patient_id_unique.sql (patients_officialid_unique_idx)।
 -- B1. একই স্বাভাবিক-মোবাইলে দ্বিতীয় patients row আটকানো (partial unique index)।
 --     -- create unique index concurrently if not exists patients_mob10_uidx
 --     --   on patients ( (right(regexp_replace(mobile,'\D','','g'),10)) )

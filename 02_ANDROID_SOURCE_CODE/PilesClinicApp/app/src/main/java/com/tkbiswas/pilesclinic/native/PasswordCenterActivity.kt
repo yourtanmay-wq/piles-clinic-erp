@@ -97,7 +97,7 @@ class PasswordCenterActivity : AppCompatActivity() {
                         this@PasswordCenterActivity,
                         if (ok) "Password saved" else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadList()
                 }
             }

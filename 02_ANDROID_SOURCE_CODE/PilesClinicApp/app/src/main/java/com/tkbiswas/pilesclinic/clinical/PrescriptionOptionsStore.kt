@@ -87,12 +87,33 @@ object PrescriptionOptionsStore {
         val needComplaint = blank("complaint")
         if (!needSymptoms && !needSince && !needComplaint) return
         val encodedId = URLEncoder.encode(patientId, "UTF-8")
-        val rows = SupabaseClient.fetchListOrNull(
+        /* ➕🔒 V993 (০২.০৯.২০২৬, TK-এর কাগজসহ — SERINA BIBI):
+           *"টিক দেওয়া সত্ত্বেও CHIEF COMPLAINT · DURATION · SYMPTOMS ফাঁকা ছাপা হলো কেন?"*
+
+           **আসল কারণ (কোড ধরে, আন্দাজ নয়):** CHECK-UP Queue থেকে রোগী খুললে
+           `DoctorQueueActivity` (লাইন 571) `EXTRA_PATIENT_ID`-তে **মানুষ-পড়া-যায়
+           কোডটা** (যেমন "KNE-31082026-001") পাঠায়, raw আইডি ("pat_...") নয়।
+           তাই এখানকার `patients?id=eq.<কোড>` খোঁজায় একটাও সারি পাওয়া যেত না,
+           আর তিনটে ঘরই ফাঁকা ছাপা হত — যদিও রেজিস্ট্রেশনে লেখা আছে।
+
+           **সমাধান:** দুরকম আইডিতেই খোঁজা হয় — ঠিক যেমন `DoctorCheckupActivity.
+           markDoctorComplete()` আগে থেকেই করে। প্রথম খোঁজাতে পেলে দ্বিতীয়টা
+           চলেই না, তাই Supabase-এ বাড়তি চাপ নেই।
+           ⛔ কোনো তথ্য লেখা/মোছা হয় না, নতুন কলাম লাগে না, SQL লাগে না। */
+        var rows = SupabaseClient.fetchListOrNull(
             table = "patients",
             filter = "id=eq.$encodedId",
             limit = 1,
             select = "complaint,sinceWhen"
         ) ?: return
+        if (rows.length() == 0) {
+            rows = SupabaseClient.fetchListOrNull(
+                table = "patients",
+                filter = "patientId=eq.$encodedId",
+                limit = 1,
+                select = "complaint,sinceWhen"
+            ) ?: return
+        }
         if (rows.length() == 0) return
         val row = rows.optJSONObject(0) ?: return
         val complaintRaw = row.optString("complaint").orEmpty().trim()
@@ -138,6 +159,35 @@ object PrescriptionOptionsStore {
             .apply()
     }
 
+    /**
+     * 🖨️🔒 V833 (২৯.০৮.২০২৬, TK-নির্দেশ: *"প্রেসক্রিপশনে diseases · symptom ·
+     * duration · chief complaint আছে, কিন্তু মেডিসিন স্লিপে নেই কেন?"*)
+     *
+     * Medicine Slip-এর জন্য **ঠিক ওই চারটে ঘরই সবসময়** — ডাক্তার
+     * Prescription-এ কোন ঘরগুলো টিক দিয়েছেন তার উপর নির্ভর করে না।
+     * ⛔ তাই দুটো কাগজ একে অপরকে টানে না; Prescription-এর `printLines()`
+     *    এক অক্ষরও বদলায়নি।
+     * ⛔ তথ্য না থাকলে ঘরটা ফাঁকাই যায় — V425-এর নিয়ম (শিরোনাম থাকে,
+     *    নিচে হাতে লেখার জায়গা)।
+     */
+    fun printLinesForSlip(context: Context): List<String> {
+        val prefs = p(context)
+        fun value(field: String): String = when (field) {
+            "disease" -> RoleSession.currentPatientDisease.trim()
+            else -> prefs.getString(key(field), "").orEmpty().trim()
+        }
+        /* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK-এর ঠিক করা ক্রম:
+           Chief Complaint → Duration → Symptoms → Provisional Diagnosis
+           ("DISEASE" নামটা বদলে "PROVISIONAL DIAGNOSIS")।
+           ⛔ কোন ঘর থেকে কোন তথ্য আসে — একটুও বদলায়নি, শুধু ক্রম ও নাম। */
+        return listOf(
+            "CHIEF COMPLAINT" to "complaint",
+            "DURATION" to "since",
+            "SYMPTOMS" to "symptoms",
+            "PROVISIONAL DIAGNOSIS" to "disease"
+        ).map { (label, field) -> "$label\n" + value(field) }
+    }
+
     fun printLines(context: Context): List<String> {
         val prefs = p(context)
         val selected = selectedFields(context)
@@ -145,9 +195,13 @@ object PrescriptionOptionsStore {
             "disease" -> RoleSession.currentPatientDisease.trim()
             else -> prefs.getString(key(field), "").orEmpty().trim()
         }
+        /* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK-এর ঠিক করা ক্রম ও
+           নামকরণ (উপরের `printLinesForSlip`-এর হুবহু একই, যাতে দুই কাগজ এক দেখায়)।
+           ⛔ কোন ঘর বাছা আছে সেই নিয়ম (`selected`) এক অক্ষরও বদলায়নি — শুধু
+              তালিকার ক্রম বদলেছে, তাই বাছাই-পর্দাতেও কিছু ভাঙে না। */
         val labels = linkedMapOf(
-            "disease" to "DISEASE", "symptoms" to "SYMPTOMS",
-            "since" to "DURATION", "complaint" to "CHIEF COMPLAINT",
+            "complaint" to "CHIEF COMPLAINT", "since" to "DURATION",
+            "symptoms" to "SYMPTOMS", "disease" to "PROVISIONAL DIAGNOSIS",
             "previousTreatment" to "PREVIOUS TREATMENT", "previousResult" to "PREVIOUS RESULT",
             "onset" to "ONSET", "treatmentDuration" to "TREATMENT DURATION"
         )

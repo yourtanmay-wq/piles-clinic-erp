@@ -127,6 +127,14 @@ class DraftCardAdapter(
         } else if (e.tab == "unexpected") {
             b.btnRestore.visibility = View.GONE
             b.btnDelete2.visibility = View.GONE
+        } else if (e.tab == "runningtreatment") {
+            // 🟢🔒 V644 (২৫.০৮.২০২৬, TK-নির্দেশ — "কোনো খারাপ কিছু যেন না
+            // হয়") — এই তালিকা শুধু তথ্য দেখানোর জন্য (কে এখন চিকিৎসাধীন),
+            // Restore/Delete কোনো অ্যাকশনই দরকার নেই — তাই দুটোই GONE
+            // (নইলে `DraftRepository.restore()`-এর অচেনা tab-এ চাপলে
+            // "Restore failed" টোস্ট দেখাত, বিভ্রান্তিকর)।
+            b.btnRestore.visibility = View.GONE
+            b.btnDelete2.visibility = View.GONE
         } else if (e.tab == "refunded") {
             // 🔴 TK-নির্দেশ (02.08.2026, B302.1): এখানে Restore সক্রিয় —
             // চাপলে হাতে করে Patient কার্ডে ফিরিয়ে আনে (নতুন টাকা জমা ছাড়াই,
