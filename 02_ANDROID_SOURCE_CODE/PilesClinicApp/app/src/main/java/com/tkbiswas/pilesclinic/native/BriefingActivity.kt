@@ -82,6 +82,8 @@ class BriefingActivity : AppCompatActivity() {
             //    Alert-এ Reply-র বদলে View, আর View চাপলে ওই ব্রাঞ্চের
             //    ৩+ দিন দেরি হওয়া কলগুলোই খোলে।
             onViewOverdue = { item -> openOverdueAlert(item) },
+            // 📋🔒 V1435 (তালিকা ৫৫৪, TK "পাশ") — "Daily/Monthly Report submitted"-এর View।
+            onViewReport = { item -> openReportNotice(item) },
             isMaster = session.role == "master",
             // 🆕 (07.08.2026) — কার্ডে টিক পড়লে/উঠলে নিচের "একসাথে অনুমোদন" বার হালনাগাদ।
             onSelectChanged = { refreshBulkBar() }
@@ -246,6 +248,128 @@ class BriefingActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show().also { PremiumAlert.paint(it) }
         }
+    }
+
+    /**
+     * 📋🔒 V1435 (১৩.০৯.২০২৬, তালিকা ৫৫৪, TK "পাশ", ডেমো পাশ) — **রিপোর্ট-নোটিশের View।**
+     *
+     * TK: *"Daily Report Submit করেছে বেশ ভালো কথা, তাহলে এখানে সেই Report View কেন
+     * করা যাবে না"* — এতদিন রিপোর্ট দেখার কোনো পর্দাই ছিল না (আমার ফাঁক)।
+     *
+     * নোটিশের লেখা (WorkNotebookActivity.submit / notebook.js nbSubmit): "নাম · কোড · ব্রাঞ্চ · key"
+     * → কোড = দ্বিতীয় অংশ, key (2026-09-13 / 2026-09) = শেষ অংশ, ধরন = শিরোনাম।
+     * সার্ভার থেকে ওই স্টাফের ওই দিনের/মাসের **সবচেয়ে নতুন সংস্করণ** পড়া হয়
+     * (RLS: মাস্টার সব পড়তে পারেন, স্টাফ শুধু নিজেরটা)।
+     *  · report_text থাকলে হুবহু সেটাই (V1435-এর পরের রিপোর্ট)।
+     *  · না থাকলে (পুরনো রিপোর্ট) সংখ্যা + সেদিনের খাতা থেকে একই ধাঁচে বানানো
+     *    (ReportTextBuilder) — জমা না-থাকা ঘরে "-"।
+     * বোতাম: ✔ Seen (মাস্টার, একবার — seen_at/seen_by লেখে) · Share · Close।
+     * ⛔ রিপোর্টের কোনো সংখ্যা বদলায় না; শুধু পড়া + Seen-চিহ্ন।
+     */
+    private fun openReportNotice(item: Briefing) {
+        val parts = item.message.split("\u00b7").map { it.trim() }.filter { it.isNotBlank() }
+        val staffCode = parts.getOrNull(1).orEmpty()
+        val key = parts.lastOrNull().orEmpty()
+        val type = if (item.title.contains("Monthly", ignoreCase = true)) "monthly" else "daily"
+        if (staffCode.isBlank() || key.isBlank()) {
+            Toast.makeText(this, "Report details missing in this notice", Toast.LENGTH_SHORT).show(); return
+        }
+        val session = NativeSession.current(this)
+        val isMaster = session?.role == "master"
+        val loading = AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "\uD83D\uDCCB Loading report\u2026"))
+            .setMessage("$staffCode \u00b7 $key")
+            .setCancelable(true)
+            .show().also { PremiumAlert.paint(it) }
+        Thread {
+            fun enc(v: String) = try { java.net.URLEncoder.encode(v, "UTF-8").replace("+", "%20") } catch (_: Throwable) { v }
+            val rows = com.tkbiswas.pilesclinic.modules.ModuleAuth.getRows(
+                "wn", "work_reports",
+                "select=id,branch,auto_stats,manual_summary,report_text,submitted_at,seen_at,version" +
+                    "&staff_code=eq." + enc(staffCode) + "&period_type=eq." + type + "&period_key=eq." + enc(key) +
+                    "&order=version.desc&limit=1"
+            )
+            val r = if (rows.length() > 0) rows.optJSONObject(0) else null
+            fun ns(o: org.json.JSONObject?, k: String): String {
+                if (o == null || o.isNull(k)) return ""
+                val v = o.optString(k, "").trim(); return if (v.equals("null", true)) "" else v
+            }
+            var text = ns(r, "report_text")
+            if (r != null && text.isBlank()) {
+                val stats = r.optJSONObject("auto_stats")
+                text = if (type == "daily") {
+                    val dayRows = com.tkbiswas.pilesclinic.modules.ModuleAuth.getRows(
+                        "wn", "notebook_days",
+                        "select=check_in,check_out,is_leave,leave_reason,day_note,outside_calls_manual" +
+                            "&staff_code=eq." + enc(staffCode) + "&work_date=eq." + enc(key) + "&limit=1"
+                    )
+                    com.tkbiswas.pilesclinic.modules.ReportTextBuilder.daily(
+                        staffCode, key, stats, if (dayRows.length() > 0) dayRows.optJSONObject(0) else null, ns(r, "manual_summary"))
+                } else com.tkbiswas.pilesclinic.modules.ReportTextBuilder.monthly(staffCode, key, stats)
+            }
+            val branch = ns(r, "branch").ifBlank { item.branch }
+            val sentMs = BranchSimHelper.isoToMillis(ns(r, "submitted_at"))
+            val sentTxt = if (sentMs > 0L) BranchSimHelper.whenText(sentMs) else ""
+            val reportId = ns(r, "id")
+            val alreadySeen = ns(r, "seen_at").isNotBlank()
+            runOnUiThread {
+                try { loading.dismiss() } catch (_: Throwable) { }
+                if (r == null) {
+                    Toast.makeText(this, "Report not found on server ($staffCode \u00b7 $key)", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                val d = resources.displayMetrics.density
+                fun dp(v: Int) = (v * d).toInt()
+                val titleTxt = (if (type == "daily") "\uD83D\uDCCB Daily Report \u00b7 " + com.tkbiswas.pilesclinic.modules.ReportTextBuilder.dotDate(key)
+                                else "\uD83D\uDCCA Monthly Report \u00b7 " + key)
+                val sub = listOf(staffCode, branch, if (sentTxt.isNotBlank()) "sent $sentTxt" else "").filter { it.isNotBlank() }.joinToString(" \u00b7 ")
+                val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), dp(4)) }
+                col.addView(TextView(this).apply {
+                    this.text = sub; textSize = 12.5f
+                    setTextColor(android.graphics.Color.parseColor("#5B7089")); setPadding(0, 0, 0, dp(8))
+                })
+                col.addView(TextView(this).apply {
+                    this.text = boldLabels(text)
+                    textSize = 14.5f; setLineSpacing(0f, 1.25f)
+                    setTextColor(android.graphics.Color.parseColor("#0F2438"))
+                    setTextIsSelectable(true)
+                })
+                val sv = ScrollView(this).apply { addView(col) }
+                val b = AlertDialog.Builder(this)
+                    .setCustomTitle(PremiumAlert.header(this, titleTxt))
+                    .setView(sv)
+                    .setNegativeButton("Close", null)
+                    .setNeutralButton("Share") { _, _ ->
+                        try { WhatsAppMessageChooser.sendGeneric(this, text) } catch (_: Throwable) { }
+                    }
+                if (isMaster && reportId.isNotBlank()) {
+                    b.setPositiveButton(if (alreadySeen) "\u2714 Seen" else "\u2714 Mark Seen") { _, _ ->
+                        if (alreadySeen) return@setPositiveButton
+                        Thread {
+                            val patch = org.json.JSONObject()
+                                .put("seen_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                                    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
+                                .put("seen_by", session?.name?.ifBlank { "MASTER" } ?: "MASTER")
+                            val ok = com.tkbiswas.pilesclinic.modules.ModuleAuth.update("wn", "work_reports", "id=eq." + enc(reportId), patch)
+                            runOnUiThread { Toast.makeText(this, if (ok) "Marked as seen" else "Could not mark seen \u2014 try again", Toast.LENGTH_SHORT).show() }
+                        }.start()
+                    }
+                }
+                val dlg = b.show()
+                PremiumAlert.paint(dlg)
+            }
+        }.start()
+    }
+
+    /** 📋 V1435 — রিপোর্টের "লেবেল:" অংশগুলো (IN TIME- · New Enquiry: · Notes:) মোটা ও নীল। */
+    private fun boldLabels(text: String): CharSequence {
+        val sp = android.text.SpannableStringBuilder(text)
+        val re = Regex("(?m)^([A-Za-z][A-Za-z ]{1,24}[:\\-])")
+        for (mt in re.findAll(text)) {
+            sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), mt.range.first, mt.range.last + 1, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#0B3D91")), mt.range.first, mt.range.last + 1, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        return sp
     }
 
     /** 🟢🔒 V692 — ব্রাঞ্চের ছাঁকনি বসিয়ে Follow-up পর্দা খোলা, ৩+ দিন

@@ -1065,7 +1065,16 @@ function nbDoctorVisitCount(dateIso, staffCode){
       // বসত না → Master রিপোর্ট পেত না, চুপচাপ হারিয়ে যেত। এখন {error} থাকলে throw করে
       // নিচের **বিদ্যমান** catch-এ যায় — অর্থাৎ queueWrite-এ রেখে নেট ফিরলে আবার পাঠায়
       // ও সৎ "Saved offline" দেখায়। ⛔ সফল-পথ ও queue এক অক্ষরও বদলায়নি।
+      /* 📋🔒 V1435 (১৩.০৯.২০২৬, তালিকা ৫৫৪) — পাঠানো লেখাটা হুবহু জমা (report_text);
+         মাস্টার Briefing-এর "View"-এ সেটাই দেখবেন। ⛔ সার্ভারে V1435 SQL এখনো না চললে
+         (ঘরটা নেই → PostgREST "column" ভুল) ঘরটা বাদ দিয়ে আগের মতোই পাঠানো হয় — রিপোর্ট
+         কখনো হারায় না। ফোনের হুবহু একই নিয়ম। */
+      row.report_text = String((r && r.text) || '');
       var __ins = await client.schema('wn').from('work_reports').insert(row);
+      if (__ins && __ins.error && /report_text/i.test(String(__ins.error.message || __ins.error.details || ''))) {
+        delete row.report_text;
+        __ins = await client.schema('wn').from('work_reports').insert(row);
+      }
       if (__ins && __ins.error) throw __ins.error;
       if (existing) await client.schema('wn').from('work_reports').update({ superseded_by: row.id }).eq('id', existing.id);
       try { toast('Report submitted to Master'); } catch (e) {}

@@ -481,5 +481,13 @@
     "result": "CSV: SADIKA KHATUN · capped_amount 14997.00 · audit_rows 1",
     "proof": "",
     "what": ""
+  },
+  {
+    "sql_file": "00_SQL/V1435_WORK_REPORTS_REPORT_TEXT_2026-09-13.sql (তালিকা ৫৫৪)",
+    "run_by": "",
+    "when": "১৩.০৯.২০২৬ সন্ধ্যা ৬.৫১",
+    "result": "CSV: report_text | text — ঘর তৈরি",
+    "proof": "",
+    "what": ""
   }
 ]

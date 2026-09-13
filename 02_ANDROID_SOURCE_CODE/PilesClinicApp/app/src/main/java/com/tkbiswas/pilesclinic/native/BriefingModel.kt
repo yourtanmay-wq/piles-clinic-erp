@@ -129,6 +129,13 @@ object BriefingModel {
     fun isOverdueAlert(title: String): Boolean =
         title.contains("Overdue Follow-up Alert", ignoreCase = true)
 
+    /** 📋🔒 V1435 (তালিকা ৫৫৪) — স্টাফের Daily/Monthly Report জমার নোটিশ
+     *  (WorkNotebookActivity.submit / notebook.js nbSubmit যে শিরোনামে পাঠায়)। */
+    fun isReportNotice(title: String): Boolean {
+        val t = title.trim()
+        return t.equals("Daily Report submitted", true) || t.equals("Monthly Report submitted", true)
+    }
+
     /** নোটিশের তারিখ আজ থেকে সর্বোচ্চ [days] দিনের পুরনো কি না। */
     fun withinDays(date: String, days: Int): Boolean {
         return try {

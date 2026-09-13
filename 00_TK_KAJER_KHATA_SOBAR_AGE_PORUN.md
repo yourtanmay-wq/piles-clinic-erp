@@ -26644,3 +26644,10 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > কিছু না থাকলে দুটো খোঁজ শেষে হলুদ "✨ FIRST CALL · no earlier call or record"। V1427-এর ৩-লাইন ইতিহাস + আলাদা "Last remark" লাইন এই বক্সে মিশে গেল।
 > ফাইল: BranchSimHelper.kt (CallHistory.latest, whenText, isoToMillis) · CallOverlay.kt (LastBox, নাম-সারি, বক্স; show()-এর lastRemark/lastCallAt/lastCallBy/history প্যারামিটার বাদ — একমাত্র ডাক CallNotifyManager) · CallNotifyManager.kt (stageLine, shortStaff, buildLastBox, activeLogDone/CloudDone)।
 > ⛔ ওয়েবে কল-ব্যানার নেই — শুধু ফোন। ডেমো: scratchpad banner2.html → CALL_BANNER_V9_*.png।
+
+> V1435 — 📋🔒 **Briefing-এর "Daily/Monthly Report submitted" নোটিশে View → রিপোর্ট দেখা (১৩.০৯.২০২৬ সন্ধ্যা ৭.০০, তালিকা ৫৫৪, TK-পাশ ডেমো):**
+> SQL V1435 (TK চালালেন ৬.৫১): wn.work_reports.report_text (nullable) — পাঠানো লেখা হুবহু জমা।
+> ফোন: modules/ReportTextBuilder.kt (নতুন; পুরনো সারির fallback লেখা) · WorkNotebookActivity.submit → row.report_text (insert ব্যর্থ হলে ঘর বাদ দিয়ে আবার, রিপোর্ট হারায় না) ·
+> BriefingModel.isReportNotice · BriefingAdapter onViewReport/View · BriefingActivity.openReportNotice (ModuleAuth.getRows wn.work_reports সর্বশেষ version → দরকারে notebook_days; PremiumAlert ডায়ালগ; Mark Seen = ModuleAuth.update seen_at/seen_by; Share = WhatsAppMessageChooser.sendGeneric)।
+> ওয়েব: app.js wlv1IsReportNotice/wlv1ReportViewBtn/wlv1ReportView/wlv1ReportSeen/wlv1ReportShare + Rpt* helpers; briefingHome-এর মাস্টার ও স্টাফ দুই তালিকায় বোতাম; notebook.js nbSubmit → report_text (column-ভুলে fallback)। index.html: app.js v1435 · notebook.js v1435।
+> পাহারা: node --check ✅ · web_browser_test PASS ✅ · tk_guard ✅ · kotlin compile — BriefingActivity-তে runOnUiThread (Activity-র inherited, অন্য ৩ ফাইলে আগে থেকেই baseline-এ) → baseline-এ ১ সারি যোগ, তারপর PASS।

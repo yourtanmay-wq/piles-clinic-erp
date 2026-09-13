@@ -4071,10 +4071,16 @@ class WorkNotebookActivity : AppCompatActivity() {
             // সঙ্গে সঙ্গে ৩ বার চেষ্টা (ছোট বিরতিতে) — ক্ষণিক নেট-ঝাঁকুনি নিজে সামলায়।
             // শেষেও ব্যর্থ হলে সৎ, স্পষ্ট বার্তা (মিথ্যা "submitted" নয়)।
             // ⛔ id/version হিসাব আগের মতোই; শুধু ব্যর্থতার পথে বেশিবার চেষ্টা।
+            /* 📋🔒 V1435 (১৩.০৯.২০২৬, তালিকা ৫৫৪) — পাঠানো লেখাটা হুবহু জমা (report_text),
+               মাস্টার Briefing-এর "View"-এ সেটাই দেখবেন। ⛔ সার্ভারে V1435 SQL এখনো না
+               চললে (ঘরটা নেই) প্রথম চেষ্টা ব্যর্থ হবে — তখন ঘরটা বাদ দিয়ে আগের মতোই
+               পাঠানো হয়, রিপোর্ট কখনো হারায় না। */
+            row.put("report_text", summary)
             var ok = false
             var attempt = 0
             while (!ok && attempt < 3) {
                 ok = ModuleAuth.insert("wn", "work_reports", row)
+                if (!ok && row.has("report_text")) { row.remove("report_text"); continue }
                 if (!ok) { attempt++; if (attempt < 3) try { Thread.sleep(1200) } catch (_: Throwable) { } }
             }
             /* 🔔🔒 V1204 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"মান্থলি রিপোর্ট স্টাফ যখন

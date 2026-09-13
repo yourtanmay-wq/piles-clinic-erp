@@ -41,6 +41,9 @@ class BriefingAdapter(
     /* 🟢🔒 V692 (TK, ২৬.০৮.২০২৬) — ⚠️ Overdue Follow-up Alert-এর "View"।
        ডিফল্ট ফাঁকা, তাই এই অ্যাডাপ্টারের পুরনো ব্যবহারকারীরা অক্ষত। */
     private val onViewOverdue: (Briefing) -> Unit = { },
+    /* 📋🔒 V1435 (তালিকা ৫৫৪, TK "পাশ") — "Daily/Monthly Report submitted" নোটিশের
+       "View": রিপোর্টটাই খোলে। ডিফল্ট ফাঁকা, পুরনো caller অক্ষত। */
+    private val onViewReport: (Briefing) -> Unit = { },
     private val isMaster: Boolean = false,
     /** 🆕 TK-নির্দেশ (07.08.2026) — একসাথে অনেক অনুমোদন: কোনো কার্ড বাছাই/
      *  বাছাই-বাতিল হলে Activity-কে জানায় (নিচের "একসাথে অনুমোদন" বার দেখাতে)।
@@ -616,6 +619,10 @@ class BriefingAdapter(
         if (overdueAlert) {
             b.btnViewRecord.visibility = View.VISIBLE
             b.btnViewRecord.setOnClickListener { onViewOverdue(item) }
+        } else if (BriefingModel.isReportNotice(item.title)) {
+            // 📋 V1435 — রিপোর্ট-নোটিশে নম্বর থাকে না; View চাপলে রিপোর্টটা খোলে।
+            b.btnViewRecord.visibility = View.VISIBLE
+            b.btnViewRecord.setOnClickListener { onViewReport(item) }
         } else if (mobileInNotice != null) {
             b.btnViewRecord.visibility = View.VISIBLE
             // 🔴 V511: নোটিশটাও পাঠানো হয় — কারণ গন্তব্য নোটিশের **ধরন**

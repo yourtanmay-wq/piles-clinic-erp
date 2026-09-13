@@ -4522,6 +4522,112 @@ function wlv1OverdueGo(branch){
 }
 window["wlv1OverdueGo"]=wlv1OverdueGo;
 
+/* ══════════════════════════════════════════════════════════════════════════
+   📋🔒 V1435 (১৩.০৯.২০২৬, তালিকা ৫৫৪, TK "পাশ", ডেমো পাশ) — **"Daily/Monthly Report
+   submitted" নোটিশে View → রিপোর্টটাই খোলে।**
+   TK: *"Daily Report Submit করেছে বেশ ভালো কথা, তাহলে এখানে সেই Report View কেন করা
+   যাবে না"* — এতদিন রিপোর্ট দেখার কোনো পাতাই ছিল না (আমার ফাঁক)।
+   নোটিশের লেখা "নাম · কোড · ব্রাঞ্চ · key" → কোড = দ্বিতীয় অংশ, key = শেষ অংশ।
+   · report_text থাকলে হুবহু সেটাই (V1435-এর পরের রিপোর্ট);
+   · না থাকলে (পুরনো) সংখ্যা (auto_stats) + সেদিনের খাতা (notebook_days) থেকে একই
+     ধাঁচে বানানো — জমা না-থাকা ঘরে "-" (আন্দাজ নয়)।
+   ⛔ ফোনের BriefingActivity.openReportNotice / ReportTextBuilder-এর হুবহু যমজ।
+   ══════════════════════════════════════════════════════════════════════════ */
+function wlv1IsReportNotice(b){var t=String((b&&b.title)||'').trim().toLowerCase();return t==='daily report submitted'||t==='monthly report submitted'}
+window["wlv1IsReportNotice"]=wlv1IsReportNotice;
+function wlv1ReportViewBtn(b){
+  if(!wlv1IsReportNotice(b))return '';
+  return `<button onclick="wlv1ReportView('${esc(String(b.id))}')">\u{1F441} View</button>`;
+}
+window["wlv1ReportViewBtn"]=wlv1ReportViewBtn;
+function wlv1RptDot(iso){var p=String(iso||'').split('-');return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):String(iso||'')}
+function wlv1RptT12(hhmm){if(!hhmm)return '';var p=String(hhmm).split(':');if(p.length!==2&&p.length!==3)return hhmm;var h=parseInt(p[0],10);if(isNaN(h))return hhmm;var ap=h<12?'AM':'PM';var h12=h===0?12:(h>12?h-12:h);return h12+'.'+p[1]+' '+ap}
+function wlv1RptNum(o,k){if(!o||o[k]===undefined||o[k]===null)return '-';return String(o[k])}
+function wlv1RptDailyText(code,key,st,day,manual){
+  var t='Daily Report '+wlv1RptDot(key)+'\nStaff: '+code+'\n';
+  if(day&&day.is_leave){t+='\u{1F3D6}️ On Leave: '+String(day.leave_reason||'')+'\n'}
+  else{t+='IN TIME- '+(wlv1RptT12(day&&day.check_in)||'-')+'\n';t+='OUT TIME '+(wlv1RptT12(day&&day.check_out)||'-')+'\n'}
+  var oc=(st&&st.outsideCalls!==undefined&&st.outsideCalls!==null)?String(st.outsideCalls):((day&&day.outside_calls_manual!==undefined&&day.outside_calls_manual!==null)?String(day.outside_calls_manual):'-');
+  t+='\nNew Enquiry: '+wlv1RptNum(st,'enquiries')+'\nRegistration: '+wlv1RptNum(st,'registrations')+'\nToday Patient: '+wlv1RptNum(st,'patients')+'\nApp Calls: '+wlv1RptNum(st,'appCalls')+'\nOutside Calls: '+oc+'\nTotal call : '+wlv1RptNum(st,'totalCalls');
+  var notes=String((day&&day.day_note)||manual||'').trim();
+  if(notes)t+='\n\nNotes: \n'+notes;
+  return t;
+}
+function wlv1RptMonthlyText(code,ym,st){
+  return 'Monthly Report '+ym+'\nStaff: '+code+'\n\nNew Enquiry: '+wlv1RptNum(st,'enquiries')+'\nRegistration: '+wlv1RptNum(st,'registrations')+'\nApp Calls: '+wlv1RptNum(st,'appCalls')+' | Outside Calls: '+wlv1RptNum(st,'outsideCalls')+' | Total: '+wlv1RptNum(st,'totalCalls')+'\nLeave Days: '+wlv1RptNum(st,'leaveDays');
+}
+function wlv1RptWhen(iso){
+  try{
+    if(!iso)return '';
+    var d=new Date(iso);if(isNaN(d.getTime()))return '';
+    var now=new Date();var key=function(x){return x.getFullYear()+'-'+(x.getMonth()+1)+'-'+x.getDate()};
+    var y=new Date(now.getTime()-86400000);
+    var h=d.getHours(),mi=d.getMinutes();var ap=h<12?'AM':'PM';var h12=h===0?12:(h>12?h-12:h);
+    var tm=h12+':'+(mi<10?'0':'')+mi+' '+ap;
+    if(key(d)===key(now))return 'Today '+tm;if(key(d)===key(y))return 'Yesterday '+tm;
+    var dd=d.getDate(),mm=d.getMonth()+1;return (dd<10?'0':'')+dd+'/'+(mm<10?'0':'')+mm+'/'+d.getFullYear()+' '+tm;
+  }catch(e){return ''}
+}
+/* রিপোর্টের "লেবেল:" অংশ (IN TIME- · New Enquiry: · Notes:) মোটা ও নীল — ফোনের boldLabels-এর মতো */
+function wlv1RptHtml(text){
+  return esc(String(text||'')).split('\n').map(function(l){
+    var m=l.match(/^([A-Za-z][A-Za-z ]{1,24}[:\-])(.*)$/);
+    return m?('<b style="color:#0B3D91">'+m[1]+'</b>'+m[2]):l;
+  }).join('<br>');
+}
+async function wlv1ReportView(id){
+  try{
+    var b=briefings().find(function(x){return String(x.id)===String(id)});
+    if(!b)return toast('Notice not found');
+    var parts=String(b.message||'').split('·').map(function(x){return x.trim()}).filter(Boolean);
+    var code=parts[1]||'',key=parts[parts.length-1]||'';
+    var type=/monthly/i.test(String(b.title||''))?'monthly':'daily';
+    if(!code||!key)return toast('Report details missing in this notice');
+    modal('<div class="sectionTitle">\u{1F4CB} Loading report…</div><div class="mut">'+esc(code)+' · '+esc(key)+'</div>');
+    var c=await window.MOD.client();
+    var q=await c.schema('wn').from('work_reports').select('id,branch,auto_stats,manual_summary,report_text,submitted_at,seen_at,version')
+      .eq('staff_code',code).eq('period_type',type).eq('period_key',key).order('version',{ascending:false}).limit(1);
+    var r=(q&&!q.error&&q.data&&q.data[0])?q.data[0]:null;
+    if(!r){closeModal();return toast('Report not found on server ('+code+' · '+key+')')}
+    var text=String(r.report_text||'').trim();
+    if(!text){
+      var st=r.auto_stats||null;
+      if(type==='daily'){
+        var dq=await c.schema('wn').from('notebook_days').select('check_in,check_out,is_leave,leave_reason,day_note,outside_calls_manual').eq('staff_code',code).eq('work_date',key).limit(1);
+        var day=(dq&&!dq.error&&dq.data&&dq.data[0])?dq.data[0]:null;
+        text=wlv1RptDailyText(code,key,st,day,r.manual_summary||'');
+      }else text=wlv1RptMonthlyText(code,key,st);
+    }
+    var branch=String(r.branch||b.branch||'');
+    var sent=wlv1RptWhen(r.submitted_at);
+    var title=type==='daily'?('\u{1F4CB} Daily Report · '+wlv1RptDot(key)):('\u{1F4CA} Monthly Report · '+key);
+    var sub=[code,branch,sent?('sent '+sent):''].filter(Boolean).join(' · ');
+    var seen=!!r.seen_at;
+    window.__wlv1RptText=text;window.__wlv1RptId=String(r.id||'');
+    modal('<div class="sectionTitle">'+esc(title)+'</div><div class="mut" style="margin-bottom:10px">'+esc(sub)+'</div>'
+      +'<div style="line-height:1.6;font-size:15px;color:#0F2438">'+wlv1RptHtml(text)+'</div>'
+      +'<div class="actions">'
+      +(isMaster()&&r.id?('<button onclick="wlv1ReportSeen()" '+(seen?'disabled':'')+'>✔ '+(seen?'Seen':'Mark Seen')+'</button>'):'')
+      +'<button class="ghost" onclick="wlv1ReportShare()">Share</button>'
+      +'<button class="ghost" onclick="closeModal()">Close</button></div>');
+  }catch(e){try{closeModal()}catch(e2){}toast('Could not open report')}
+}
+window["wlv1ReportView"]=wlv1ReportView;
+async function wlv1ReportSeen(){
+  try{
+    var id=window.__wlv1RptId;if(!id)return;
+    var c=await window.MOD.client();
+    var who=String((typeof user!=='undefined'&&user&&user.name)||'MASTER');
+    var u=await c.schema('wn').from('work_reports').update({seen_at:new Date().toISOString(),seen_by:who}).eq('id',id);
+    if(u&&u.error)return toast('Could not mark seen — try again');
+    toast('Marked as seen');closeModal();
+  }catch(e){toast('Could not mark seen — try again')}
+}
+window["wlv1ReportSeen"]=wlv1ReportSeen;
+function wlv1ReportShare(){
+  try{var t=String(window.__wlv1RptText||'');if(!t)return;window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank')}catch(e){}
+}
+window["wlv1ReportShare"]=wlv1ReportShare;
 function wlv1NoticeViewBtn(b){
   if(!isAutoNotice(b))return '';
   var mm=wlv1NoticeMobile(b);
@@ -4873,12 +4979,12 @@ function anBrBriefThreadBtn(b,label){
   return '<button onclick="openBriefThread(\''+b.id+'\')">'+(label||'Open Thread')+'</button>';
 }
 window["anBrBriefThreadBtn"]=anBrBriefThreadBtn;
-function briefingHome(){currentView='briefing';try{wlv1RefreshStaffNames()}catch(e){}   /* 👤 V1169 */if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let __mList=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30);try{wlv1AutoSeenForMaster(__mList)}catch(e){}let list=__mList.map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Briefing'))}</b><br><small>${anBrBriefWhen(b)}</small>${wlv1BriefBody(b)}${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
+function briefingHome(){currentView='briefing';try{wlv1RefreshStaffNames()}catch(e){}   /* 👤 V1169 */if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let __mList=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30);try{wlv1AutoSeenForMaster(__mList)}catch(e){}let list=__mList.map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Briefing'))}</b><br><small>${anBrBriefWhen(b)}</small>${wlv1BriefBody(b)}${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${wlv1ReportViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
    "Briefing / Notice Board" আর খালি-লেখা "No briefing / notice yet"
    (res/layout/activity_briefing.xml:30,148)। ওয়েবে মাস্টারের জন্য আলাদা
    নাম ও ছোট খালি-লেখা ছিল। */
 '<div class="card mut">No briefing / notice yet</div>';page('Briefing / Notice Board',`<div class="card brCompose"><label>Message</label><textarea id="brMsg" placeholder="Today target / notice"></textarea><label>Send To</label><select id="brTarget" class="input" onchange="briefingTargetExtra()"><option value="allStaff">All Staff</option><option value="branch">My Branch Staff</option><option value="role_staff">All Staff Role</option><option value="role_doctor">All Doctors</option><option value="role_field">All Field Officers</option><option value="individual">Individual / Multiple Staff</option></select><div id="brExtra"></div><button onclick="createBriefing()">Send Briefing</button></div><div class="card brPerm"><button class="ghost" style="width:100%;color:#6A5320;border:1px solid #E0CFA0;font-weight:800" onclick="wlv1BpgScreen()">🔑 Backdate Payment Permissions</button></div><div id="wlv1Approvals"></div><div id="finIeApprovals"></div>${list}`);briefingTargetExtra();setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}else{/* 🔵 B618: ব্রাঞ্চ-ডাক্তার পুরনো দিনেরও pending ছুটির অনুরোধ দেখেন (Approve/Reject); দিন পেরোলেও হারায় না। */
-let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,''))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Today Briefing'))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):anBrBriefThreadBtn(b,'Reply'))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
+let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,''))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Today Briefing'))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):(wlv1ReportViewBtn(b)+anBrBriefThreadBtn(b,'Reply')))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
 window["briefingHome"]=briefingHome;
 async function createBriefing(){let msg=($('#brMsg')?.value||'').trim();if(!msg)return toast('Message required');let sel=$('#brTarget')?.value||'allStaff';let targets={};if(sel==='allStaff')targets.allStaff=true;else if(sel==='branch')targets.branches=[user.branch];else if(sel==='role_staff')targets.roles=['staff'];else if(sel==='role_doctor')targets.roles=['doctor'];else if(sel==='role_field')targets.roles=['field'];else if(sel==='individual'){let mobiles=$$('.brUserChk:checked').map(x=>mob(x.value)).filter(Boolean);if(!mobiles.length)return toast('Select at least one person');targets.mobiles=mobiles}let row={id:uid('brief'),date:today(),title:'Today Briefing',message:msg,targets,branch:user.branch,seen:[],replies:[],createdBy:user.mobile,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('briefings',row);let cloudOk=await cloudUpsertBriefing(row);toast(cloudOk?'Briefing sent to staff':'Internet/Supabase not connected. Briefing saved on this device only.');briefingHome()}
 window["createBriefing"]=createBriefing;
