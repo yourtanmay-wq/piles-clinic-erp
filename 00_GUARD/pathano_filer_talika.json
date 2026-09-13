@@ -1,5 +1,28 @@
 [
  {
+  "file": "PILES_CLINIC_APP_V1403_FINAL.zip",
+  "versionCode": 1403,
+  "when": "13.09.2026 (V1402-এর কয়েক ঘণ্টা পরে)",
+  "size_mb": 25.96,
+  "total_files": 1959,
+  "top_folders": {
+   "02_ANDROID_SOURCE_CODE": 825,
+   "(root)": 604,
+   "00_SQL": 148,
+   "04_SUPABASE_DATABASE_SETUP": 131,
+   "00_GUARD": 65,
+   "03_NETLIFY_READY": 59,
+   "08_ASSETS_BACKUP": 39,
+   "07_RELEASE_NOTES_VERSION_HISTORY": 32,
+   "ROLLBACK_V448": 13,
+   "10_FUTURE_PLANS": 13,
+   "00_READ_ME_FIRST": 12,
+   "06_TEST_CHECKLISTS": 3
+  },
+  "excluded": "root-level demo .png/.gif (22, ইচ্ছে করে) + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL — আগের নিয়মেই, verify_zip_contents.py + verify_zip_root_name.py দুটোই PASS",
+  "note": "V1402-এর চেয়ে +5 ফাইল (+0.04 MB) — 00_SQL +5 (V1416–V1420: ভয়েস-প্রশ্নের ১৯টা নতুন রিপোর্ট-ফাংশন)। এই ZIP-এ: ভয়েস-প্রশ্ন ২১/৪৮ চালু (Master-only), Android+Web দুটোতেই; নতুন সময়-শব্দ 'এই মাস' ও 'আগামীকাল'। ⛔ TK-কে Supabase-এ ক্রমে চালাতে হবে: V1416, V1417, V1418, V1419, V1420। Kotlin কম্পাইল/resource/tk_guard/ব্রাউজার-পরীক্ষা সব PASS। গোপন কিছু নেই।"
+ },
+ {
   "file": "PILES_CLINIC_APP_V1402_FINAL.zip",
   "versionCode": 1402,
   "when": "13.09.2026 সকাল",
