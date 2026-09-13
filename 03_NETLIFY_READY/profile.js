@@ -2127,7 +2127,11 @@
 
     var byMonth = {};
     inRange.forEach(function(x){
-      var ym = salYmd(x.paid_on).slice(0,7);
+      /* 🔴🔒 V1432 (১৩.০৯.২০২৬, TK: "২ পর্দায় দুই রকম কেন — LAXMI-র স্যালারি", তালিকা ৫৪৯) — বেতন আগে
+         "যেদিন দেওয়া" সেই মাসে বসত, অথচ Salary History "কোন মাসের বেতন" (for_month) দেখায় ⇒ দুই
+         পর্দায় দুরকম। এখন Statement-ও History-র একই নিয়ম salPayMonth() (for_month, নইলে paid_on-এর মাস);
+         বাড়তি টাকা আগের মতোই যেদিন দেওয়া সেই মাসে (for_month ফাঁকা)। From/To ছাঁকনি paid_on-এ, আগের মতোই। */
+      var ym = salIsExtra(x) ? salYmd(x.paid_on).slice(0,7) : String(salPayMonth(x)||'').slice(0,7);
       var b = byMonth[ym] || (byMonth[ym] = {sal:0, exPaid:0, exDue:0});
       if (salIsExtra(x)) { if (salIsDue(x)) b.exDue += Number(x.amount||0); else b.exPaid += Number(x.amount||0); }
       else b.sal += Number(x.amount||0);

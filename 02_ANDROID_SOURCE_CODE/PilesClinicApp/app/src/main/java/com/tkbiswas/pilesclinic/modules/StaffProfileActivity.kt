@@ -2973,12 +2973,21 @@ class StaffProfileActivity : AppCompatActivity() {
             val d = ns(r, "paid_on").take(10)
             if (d.isBlank()) { noDate++; continue }
             if (d < stFrom || d > stTo) continue
-            val ym = d.take(7)
             val amt = r.optDouble("amount", 0.0)
             if (payKind(r) == "EXTRA") {
+                val ym = d.take(7)   // বাড়তি টাকা = যেদিন দেওয়া সেই মাস (for_month ফাঁকা থাকে)
                 if (payStatus(r) == "DUE") exD[ym] = (exD[ym] ?: 0.0) + amt
                 else exP[ym] = (exP[ym] ?: 0.0) + amt
-            } else sal[ym] = (sal[ym] ?: 0.0) + amt
+            } else {
+                /* 🔴🔒 V1432 (১৩.০৯.২০২৬, TK: "২ পর্দায় দুই রকম কেন — LAXMI-র স্যালারি", তালিকা ৫৪৯) —
+                   আগে এখানে বেতন **যেদিন দেওয়া** সেই মাসে বসত (paid_on), অথচ Salary History
+                   পর্দা **কোন মাসের বেতন** (for_month) দেখায় — তাই জুনের বেতন ৪ জুলাই দিলে
+                   Statement-এ Jul, History-তে June: দুই পর্দায় দুরকম (নিয়ম ৭ক-২)। এখন Statement-ও
+                   History-র হুবহু একই নিয়ম `salaryPayMonth()` (for_month, নইলে paid_on-এর মাস)।
+                   From/To ছাঁকনি আগের মতোই paid_on-এ। */
+                val ym = salaryPayMonth(r).take(7)
+                sal[ym] = (sal[ym] ?: 0.0) + amt
+            }
         }
         val yms = (sal.keys + exP.keys + exD.keys).distinct().sorted()
 

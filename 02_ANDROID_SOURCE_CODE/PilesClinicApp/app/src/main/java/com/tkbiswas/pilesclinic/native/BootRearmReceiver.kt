@@ -45,6 +45,11 @@ class BootRearmReceiver : BroadcastReceiver() {
            MY_PACKAGE_REPLACED থেকে foreground-সেবা চালু করা অনুমোদিত (ব্যাকগ্রাউন্ড-
            বাধার ব্যতিক্রম-তালিকায় আছে)। দিন পেরিয়ে থাকলে resumeIfNeeded নিজেই
            AUTO CLOSED করে। ⛔ হাজিরার (IN/OUT) কোনো লজিক ছোঁয়া হয়নি। */
-        try { FieldVisitControl.resumeIfNeeded(ctx) } catch (_: Throwable) { }
+        /* ⛔🔴 V1432 (১৩.০৯.২০২৬, তালিকা ৫৪৮) — উপরের V1429 ধারণাটা **ভুল ছিল, স্বীকার করছি**:
+           MY_PACKAGE_REPLACED/BOOT থেকে চালু করা মানে ব্যাকগ্রাউন্ড থেকে location-ধরনের foreground
+           service — Android 14 (targetSdk 34) এতে অনুমতি না থাকলে বা ব্যাকগ্রাউন্ড-শুরু হলে
+           SecurityException দেয়; V1405 ইনস্টলের সঙ্গে সঙ্গেই স্টাফের ফোনে অ্যাপ ক্র্যাশ করেছে
+           ("keeps stopping")। তাই এখান থেকে GPS-সেবা আর চালু করা হয় না। সেবা আবার চালু হয়
+           শুধু স্টাফ নিজে অ্যাপের কোনো পর্দা খুললে (V1364, foreground — Android-এর নিয়মে নিরাপদ)। */
     }
 }

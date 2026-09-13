@@ -81,7 +81,17 @@ class FieldVisitService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!FieldVisit.isRunning(this)) { stopSelf(); return START_NOT_STICKY }
-        startForeground(NOTIF_ID, notice())
+        /* 🔴🔒 V1432 (১৩.০৯.২০২৬, স্টাফের ক্র্যাশ-ছবি, তালিকা ৫৪৮) — Android 14-এ location-ধরনের
+           foreground service `startForeground` করার সময় Location অনুমতি না থাকলে (বা ব্যাকগ্রাউন্ড
+           থেকে চালু হলে) SecurityException ছোড়ে — আগে এটা ধরা হতো না ⇒ পুরো অ্যাপ ক্র্যাশ
+           ("keeps stopping")। এখন: অনুমতি নেই ⇒ চুপচাপ নিজেই বন্ধ; তবু কোনো কারণে ছুড়লে ধরে
+           নিজেই বন্ধ — অ্যাপ কখনো ক্র্যাশ করবে না, হাজিরা (IN/OUT) অটুট, শুধু কিমি গোনা হবে না। */
+        if (!hasPermission()) { stopSelf(); return START_NOT_STICKY }
+        try {
+            startForeground(NOTIF_ID, notice())
+        } catch (_: Throwable) {
+            stopSelf(); return START_NOT_STICKY
+        }
         startUpdates()
         handler.removeCallbacks(tick)
         handler.post(tick)
@@ -235,6 +245,9 @@ object FieldVisitControl {
     }
 
     private fun tryStart(context: Context): Boolean {
+        // 🔴 V1432 — Location অনুমতি ছাড়া সেবা চালুই করা হবে না (Android 14-এ startForeground ছোড়ে)।
+        // অনুমতি পেলে WorkNotebookActivity-র permission-callback নিজেই start() ডাকে (আগের নিয়ম)।
+        if (!FieldVisit.hasLocationPermission(context)) return false
         return try {
             val i = Intent(context, FieldVisitService::class.java)
             if (android.os.Build.VERSION.SDK_INT >= 26)

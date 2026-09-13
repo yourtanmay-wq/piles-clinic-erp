@@ -26605,3 +26605,21 @@ auto-sync); theme hook নেই (হাতে-লেখা রং ফোনে 
 session-নিয়মের তিন সত্য (ওয়েব ১৫ মিনিট · ফোন ৩০ মিনিট মৃত · ফোন ৭ দিন); verified identity শুধু মডিউল-JWT-র auth.uid → preference টেবিল `hr.user_settings(uid)`
 প্রস্তাব; `public` টেবিল RLS-বন্ধ তাই ওখানে নয়; `reports` exposure ও hr-এ anon grant — Runtime Test। কোনো কোড/DB/ডিজাইন বদল হয়নি (Gate 1 অনুমোদনের অপেক্ষা)।
 
+## ১৩.০৯.২০২৬ বিকেল — V1432 হটফিক্স: V14.05 ইনস্টলের পরে স্টাফ-ফোনে ক্র্যাশ (তালিকা ৫৪৮) + Statement/History-র বেতন-মাস অমিল (৫৪৯)
+
+**(ক) ক্র্যাশ — আমার দোষ (V1429):** `BootRearmReceiver`-এ MY_PACKAGE_REPLACED/BOOT থেকে `FieldVisitControl.resumeIfNeeded` বসিয়েছিলাম ⇒ ব্যাকগ্রাউন্ড
+থেকে location-ধরনের foreground service ⇒ Android 14/targetSdk 34-এ `startForeground` SecurityException ("requires ACCESS_*_LOCATION … eligible state");
+সেবার ভিতরে ধরা হতো না ⇒ অ্যাপ "keeps stopping" (স্টাফের ছবি, 14:33)। তার উপর সেবা কোনোদিনই অনুমতি যাচাই করত না — অনুমতি-না-দেওয়া ফোনে
+IN চাপলে / পর্দা খুললে (V1364) একই ক্র্যাশ সম্ভব ছিল।
+**সমাধান:** ① `FieldVisitService.onStartCommand`: অনুমতি নেই ⇒ `stopSelf`; `startForeground` try/catch ⇒ কখনো ক্র্যাশ নয়; ② `FieldVisitControl.tryStart`:
+অনুমতি ছাড়া সেবা চালুই নয় (অনুমতি পেলে WorkNotebook-এর callback নিজে start করে, আগের নিয়ম); ③ রিসিভার থেকে GPS-resume **তুলে দেওয়া** (V1429-এর
+ওই অংশ বাতিল, স্বীকারোক্তিসহ মন্তব্যে); V1364 (পর্দা খুললে, foreground) থাকল।
+**আজকের ফোনগুলোর জন্য (নতুন বিল্ডের আগে):** যে ফোনে ক্র্যাশ হচ্ছে — Settings → Apps → TK Biswas Piles Clinic → Permissions → Location → "While using"
+দিলে সেবা ঠিকমতো চালু হবে, ক্র্যাশ থামবে; নইলে রাত ১২টায় দিন শেষ হলে (isRunning মুছলে) থামবে।
+
+**(খ) Statement বনাম Salary History (ফোন `StaffProfileActivity.statement()` + ওয়েব `profile.js profStatement`):** Statement বেতন paid_on-এর মাসে
+বসাত, History `for_month`-এ ⇒ জুনের বেতন ৪ জুলাই দিলে Statement-এ Jul, History-তে June; জানুয়ারির বেতন ফেব্রুয়ারিতে ⇒ Jan ₹0 (LAXMI-র ছবিতে ঠিক
+তাই)। এখন Statement-ও `salaryPayMonth()`/`salPayMonth()` (for_month, নইলে paid_on-এর মাস) — দুই পর্দা এক (নিয়ম ৭ক-২); বাড়তি টাকা আগের মতোই যেদিন
+দেওয়া সেই মাসে; From/To ছাঁকনি paid_on-এ অপরিবর্তিত। index.html profile.js?v=v1432।
+**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test — নিচে · Kotlin compile — নিচে। ভার্সন নম্বর বাড়েনি (৩খ)।
+
