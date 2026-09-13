@@ -4893,13 +4893,33 @@ class DoctorVisitActivity : AppCompatActivity() {
             addView(cell("Paid", 1f, "#FFFFFF", 10.5f, true, true))
             addView(cell("Due", 0.9f, "#FFFFFF", 10.5f, true, true))
         })
-        if (rows.isEmpty()) {
+        /* 💰🔒 V1437 (১৩.০৯.২০২৬ সন্ধ্যা, TK-রিপোর্ট, তালিকা ৫৫৮): *"Earned · Paid · Due
+           যেখানেই চাপ দেওয়া হয় একই রকম স্ক্রিন আসে"* — সত্যি ছিল: শুধু শিরোনাম বদলাত।
+           এখন যে বাক্সে চাপ, সেই হিসাবের রোগীরাই: Paid → যাদের টাকা দেওয়া হয়েছে
+           (Paid ক্রমে) · Due → যাদের বাকি আছে (Due ক্রমে) · Earned → সব কমিশন-রোগী
+           (Earned ক্রমে)। নিচের Total আগের মতোই RMP-র পুরো হিসাব (৪ বাক্সের সাথে এক)।
+           ⛔ সংখ্যা/সার্ভার-নিয়ম ছোঁয়া হয়নি — শুধু কোন সারি দেখাবে ও কোন ক্রমে। */
+        val shown = when (title) {
+            "Paid" -> rows.filter { it.paid > 0.5 }
+            "Due" -> rows.filter { it.due > 0.5 }
+            else -> rows.filter { it.earned > 0.5 || it.paid > 0.5 || it.due > 0.5 }
+        }
+        if (shown.isEmpty()) {
             body.addView(TextView(this).apply {
-                text = "No commission patient yet"; textSize = 12.5f
+                text = when (title) {
+                    "Paid" -> "No payment made to this RMP yet"
+                    "Due" -> "No due — everything is paid"
+                    else -> "No commission patient yet"
+                }
+                textSize = 12.5f
                 setTextColor(android.graphics.Color.parseColor("#8A97A8")); setPadding(dp(8), dp(16), dp(8), dp(16))
             })
         }
-        val sorted = rows.sortedWith(compareByDescending<RmpCommissionRepository.PatientBreakdownRow> { it.due }.thenByDescending { it.earned })
+        val sorted = when (title) {
+            "Paid" -> shown.sortedWith(compareByDescending<RmpCommissionRepository.PatientBreakdownRow> { it.paid }.thenByDescending { it.earned })
+            "Due" -> shown.sortedWith(compareByDescending<RmpCommissionRepository.PatientBreakdownRow> { it.due }.thenByDescending { it.earned })
+            else -> shown.sortedWith(compareByDescending<RmpCommissionRepository.PatientBreakdownRow> { it.earned }.thenByDescending { it.due })
+        }
         for (b in sorted) {
             val mob10 = b.mobile.filter { it.isDigit() }.takeLast(10)
             val sub = when {

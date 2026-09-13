@@ -19391,14 +19391,19 @@ async function wlv1RmpBreakdownWeb(id,title){
  let got=window.__wlv1RmpBd[id];if(!got||Date.now()-got.at>60000){toast('Loading…');got=await wlv1RmpBdFetch(id)}
  if(!got){return toast('Could not verify commission summary')}
  if(!got.rows){if(title==='Paid')return webRmpDirectPaymentForm(id);return webRmpSummary(id)}
- let sum=got.summary,rows=[...got.rows].sort((a,b)=>(Number(b.due||0)-Number(a.due||0))||(Number(b.earned||0)-Number(a.earned||0)));
+ /* 💰🔒 V1437 (TK-রিপোর্ট, তালিকা ৫৫৮): Earned/Paid/Due — যে বাক্সে চাপ সেই হিসাবের রোগীরাই,
+    সেই ক্রমে (ফোনের showRmpPatientBreakdown-এর হুবহু একই নিয়ম)। Total অপরিবর্তিত। */
+ let n=v=>Number(v||0);
+ let sum=got.summary,rows=[...got.rows].filter(b=>title==='Paid'?n(b.paid)>0.5:(title==='Due'?n(b.due)>0.5:(n(b.earned)>0.5||n(b.paid)>0.5||n(b.due)>0.5)))
+   .sort((a,b)=>title==='Paid'?((n(b.paid)-n(a.paid))||(n(b.earned)-n(a.earned))):(title==='Due'?((n(b.due)-n(a.due))||(n(b.earned)-n(a.earned))):((n(b.earned)-n(a.earned))||(n(b.due)-n(a.due)))));
+ let emptyMsg=title==='Paid'?'No payment made to this RMP yet':(title==='Due'?'No due — everything is paid':'No commission patient yet');
  let master=isMaster();
  let body=rows.map((b,i)=>{let m=mob(b.patient_mobile||''),due=Number(b.due||0),h=wlv1RmpBdHandGroup(x,b);
    let amtAttr=master?` style="cursor:pointer" onclick="wlv1RmpCapWeb('${esc(id)}',${i},'${esc(title)}')"`:'';
    return `<tr><td><b style="${m.length===10?'cursor:pointer;color:#1457B8':''}"${m.length===10?` onclick="wlv1ReportCard('${m}')"`:''}>${esc(b.patient_name||m||'-')}${m.length===10?' ›':''}</b><br><span class="tiny">${esc(wlv1RmpBdSub(b))}${b.set_on?' · '+esc(fmtDate(String(b.set_on).slice(0,10))):''}</span>${h?`<br><span class="tiny" style="cursor:pointer;color:#7A3FF2;font-weight:700" onclick="showReferralBreakdownWeb('${esc(id)}',${h.gi})">✎ hand entries (${h.g.entries.length})</span>`:''}</td>`
      +`<td class="r"${amtAttr}>${money(b.earned)}</td><td class="r"${amtAttr}>${money(b.paid)}</td><td class="r"${amtAttr} style="color:${due>0.5?'#B42318':'#0C8F3A'};font-weight:700${master?';cursor:pointer':''}">${money(due)}</td></tr>`}).join('');
  window.__wlv1RmpBdRows=rows;
- modal(`<h2>${esc(title)} — ${esc(x.name||'')} (patient wise)</h2><div class="card" style="padding:0;overflow:auto"><table class="wlv1RmpBdTable"><thead><tr><th>Patient</th><th class="r">Earned</th><th class="r">Paid</th><th class="r">Due</th></tr></thead><tbody>${body||'<tr><td colspan="4" class="mut">No commission patient yet</td></tr>'}</tbody></table></div>`
+ modal(`<h2>${esc(title)} — ${esc(x.name||'')} (patient wise)</h2><div class="card" style="padding:0;overflow:auto"><table class="wlv1RmpBdTable"><thead><tr><th>Patient</th><th class="r">Earned</th><th class="r">Paid</th><th class="r">Due</th></tr></thead><tbody>${body||('<tr><td colspan="4" class="mut">'+esc(emptyMsg)+'</td></tr>')}</tbody></table></div>`
   +`<div class="card mut"><b>Total — Earned ${money(sum.earned)} · Paid ${money(sum.paid_to_this_rmp)} · <span style="color:${Number(sum.due||0)>0.5?'#B42318':'#0C8F3A'}">Due ${money(sum.due)}</span></b>${master?'<br><span class="tiny">Master: click a patient\'s amount to stop or resume their commission</span>':''}</div>`
   +`<div class="actions"><button class="ghost" onclick="viewDoctorVisit('${esc(id)}')">Close</button><button onclick="webRmpDirectPaymentForm('${esc(id)}')">Pay RMP</button></div>`);
 }
