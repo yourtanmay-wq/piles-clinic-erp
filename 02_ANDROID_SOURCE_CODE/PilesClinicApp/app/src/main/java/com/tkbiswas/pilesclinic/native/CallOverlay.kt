@@ -121,25 +121,32 @@ object CallOverlay {
      * কার্ডটা দেখানো (বা আগেরটা থাকলে নতুন তথ্যে বদলে দেওয়া)।
      * ⛔ সবসময় মূল থ্রেড থেকে ডাকতে হবে — WindowManager-এর নিয়ম।
      */
+    /** ☎️ V1434 — "LAST CALL" বক্সের তথ্য। type: INCOMING · OUTGOING · MISSED;
+     *  whenTxt: "Today 10:15 AM" ইত্যাদি; staff: কে কথা বলেছিল (রেকর্ড থাকলে);
+     *  remark: শেষ রিমার্ক; first = true হলে বাকি সব উপেক্ষা করে "FIRST CALL"। */
+    data class LastBox(
+        val type: String = "",
+        val whenTxt: String = "",
+        val staff: String = "",
+        val remark: String = "",
+        val first: Boolean = false
+    )
+
     fun show(
         ctx: Context,
         number: String,
         name: String,
         lines: List<String>,
-        lastRemark: String,
         saved: Boolean,
-        /* 🆕🔒 V856 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — ডিফল্ট মান দেওয়া
-           আছে, তাই পুরনো কোনো ডাক ভাঙে না। */
-        callType: String = "INCOMING",       // INCOMING · OUTGOING · MISSED
-        lastCallAt: String = "",             // শেষ কলের সময় (ISO)
-        lastCallBy: String = "",             // কে করেছিল
+        callType: String = "INCOMING",       // INCOMING · OUTGOING · MISSED (🆕 V856)
         autoHide: Boolean = false,           // Missed হলে ৬০ সেকেন্ড পরে নিজে সরে যায়
-        /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Truecaller-এর মতো
-           এই নম্বরের শেষ Missed · Outgoing · Incoming কখন ("10 min ago" ·
-           "1 day ago" · তারিখ) — (লেবেল, কখন) জোড়া, সবচেয়ে নতুনটা আগে।
-           ফোনের নিজের Call Log থেকে (BranchSimHelper.lastCallsByType)।
-           ফাঁকা হলে কোনো লাইনই বসে না। ডিফল্ট ফাঁকা — পুরনো ডাক ভাঙে না। */
-        history: List<Pair<String, String>> = emptyList(),
+        /* ☎️🔒 V1434 (১৩.০৯.২০২৬, TK-নির্দেশ, ডেমো V9 পাশ) — Follow-up-এর "LAST CALL"
+           বক্সের মতো **একটাই** বক্স: শেষ কল কী ছিল (Incoming/Outgoing/Missed) · কখন
+           (Today/Yesterday/তারিখ + সময়) · কে কথা বলেছিল (রেকর্ড থাকলে) · নিচে শেষ রিমার্ক।
+           রেকর্ড/কল কিছুই না থাকলে (first = true) হলুদ "FIRST CALL" বক্স।
+           V1427-এর তিন লাইনের ইতিহাস ও "Last remark" লাইন — এই বক্সেই মিশে গেল
+           (TK: *"টাইম ২ বার কেন?"*)। null হলে বক্স বসে না (তথ্য এখনো আসেনি)। */
+        box: LastBox? = null,
         onOpen: () -> Unit,
         onRemark: () -> Unit
     ) {
@@ -198,22 +205,33 @@ object CallOverlay {
             })
             root.addView(topRow)
 
-            root.addView(TextView(ctx).apply {
-                text = name.ifBlank { number }
-                textSize = 16f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(Color.parseColor("#1A1A1A"))
+            /* ☎️🔒 V1434 — TK: *"নাম এবং মোবাইল নম্বর পাশাপাশি রাখুন"* — এক সারিতে
+               নাম (কালো, মোটা) + নম্বর (নীল); নাম না থাকলে শুধু নম্বর। */
+            val nameRow = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, dp(ctx, 6), 0, 0)
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            })
-            root.addView(TextView(ctx).apply {
+            }
+            if (name.isNotBlank()) {
+                nameRow.addView(TextView(ctx).apply {
+                    text = name
+                    textSize = 16f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(Color.parseColor("#1A1A1A"))
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                        .apply { marginEnd = dp(ctx, 8) }
+                })
+            }
+            nameRow.addView(TextView(ctx).apply {
                 text = number
-                textSize = 14f
+                textSize = if (name.isNotBlank()) 14f else 16f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(Color.parseColor("#1167D8"))
-                setPadding(0, dp(ctx, 2), 0, 0)
+                setTextColor(Color.parseColor(if (name.isNotBlank()) "#1167D8" else "#1A1A1A"))
+                maxLines = 1
             })
+            root.addView(nameRow)
             for (ln in lines) {
                 if (ln.isBlank()) continue
                 root.addView(TextView(ctx).apply {
@@ -223,74 +241,63 @@ object CallOverlay {
                     setPadding(0, dp(ctx, 3), 0, 0)
                 })
             }
-            /* 🆕🔒 V856 — TK: *"LAST CALL-এর তারিখ এবং সময় লাগবে"*।
-               ⚠️ TK-কে জানানো ও তিনি মেনেছেন: এটা **শেষ যে কলে রিমার্ক লেখা
-                  হয়েছিল** সেটার সময় (`call_remarks`)। রিমার্ক ছাড়া কল হলে
-                  ধরা পড়বে না — প্রিমিয়াম প্ল্যান নিলে TK এটা বদলাতে বলবেন।
-               ⛔ না থাকলে লাইনটাই বসে না (ফাঁকা লেখা কখনো দেখাবে না)। */
-            /* ☎️🔒 V1427 — আগের কলের ইতিহাস (Truecaller-এর মতো ৩ লাইন)। আগের
-               "LAST CALL …" লাইনটা (শুধু রিমার্ক-লেখা কলের সময় দেখাত) এখন নিচের
-               "Last remark (কে, কবে)" লাইনে মিশে গেছে — TK-পাশ ছবি অনুযায়ী। */
-            if (history.isNotEmpty()) {
-                root.addView(View(ctx).apply {
-                    setBackgroundColor(Color.parseColor("#EEF2F6"))
+            /* ☎️🔒 V1434 — "LAST CALL" বক্স (Follow-up পর্দার ড্যাশ-সবুজ বক্সের মতো)। */
+            if (box != null) {
+                val first = box.first
+                val boxView = LinearLayout(ctx).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(ctx, 10), dp(ctx, 7), dp(ctx, 10), dp(ctx, 7))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(ctx, 10).toFloat()
+                        setColor(Color.parseColor(if (first) "#FFF8E6" else "#EEF8F2"))
+                        setStroke(dp(ctx, 1), Color.parseColor(if (first) "#E0B04A" else "#5FB08A"),
+                            dp(ctx, 5).toFloat(), dp(ctx, 4).toFloat())
+                    }
                     layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, dp(ctx, 1)
-                    ).apply { topMargin = dp(ctx, 7); bottomMargin = dp(ctx, 4) }
-                })
-                for ((label, whenTxt) in history) {
-                    val color = when (label) {
-                        "Missed" -> "#E5484D"
-                        "Outgoing" -> "#1167D8"
-                        else -> "#0C9E33"
-                    }
-                    val arrow = if (label == "Outgoing") "↗ " else "↙ "
-                    val rowH = LinearLayout(ctx).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        setPadding(0, dp(ctx, 2), 0, dp(ctx, 2))
-                    }
-                    rowH.addView(TextView(ctx).apply {
-                        text = arrow + label
-                        textSize = 12f
-                        setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(Color.parseColor(color))
-                    })
-                    rowH.addView(TextView(ctx).apply {
-                        text = whenTxt
-                        textSize = 12f
-                        gravity = Gravity.END
-                        setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(Color.parseColor("#5B7089"))
-                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    })
-                    root.addView(rowH)
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = dp(ctx, 9) }
                 }
-            }
-            if (lastRemark.isNotBlank()) {
-                root.addView(TextView(ctx).apply {
-                    /* ☎️ V1427 — "Last remark (কে, কবে) — লেখা"; কে/কবে না থাকলে শুধু "Last remark — লেখা"। */
-                    text = run {
-                        val by = lastCallBy.trim()
-                        val on = if (lastCallAt.isNotBlank()) DateUtil.display(lastCallAt) else ""
-                        val who = listOf(by, on).filter { it.isNotBlank() }.joinToString(", ")
-                        "Last remark" + (if (who.isNotBlank()) " ($who)" else "") + " — " + lastRemark
+                boxView.addView(TextView(ctx).apply {
+                    text = if (first) "✨ FIRST CALL · no earlier call or record" else run {
+                        val color = when (box.type) {
+                            "MISSED" -> "#E5484D"
+                            "OUTGOING" -> "#1167D8"
+                            else -> "#0C9E33"
+                        }
+                        val arrow = if (box.type == "OUTGOING") "↗ " else "↙ "
+                        val sp = android.text.SpannableStringBuilder()
+                        val head = arrow + box.type + " CALL"
+                        sp.append(head)
+                        sp.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor(color)), 0, head.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, head.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        sp.append(" " + box.whenTxt)
+                        if (box.staff.isNotBlank()) {
+                            val st = sp.length
+                            sp.append(" (" + box.staff + ")")
+                            sp.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor("#B07A10")), st, sp.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        }
+                        sp
                     }
                     textSize = 11.5f
-                    setTextColor(Color.parseColor("#0B2545"))
-                    setPadding(dp(ctx, 9), dp(ctx, 7), dp(ctx, 9), dp(ctx, 7))
-                    background = GradientDrawable().apply {
-                        cornerRadius = dp(ctx, 9).toFloat()
-                        setColor(Color.parseColor("#F2F6FA"))
-                        setStroke(dp(ctx, 1), Color.parseColor("#DCE4EC"))
-                    }
+                    setTextColor(Color.parseColor("#1A2A3A"))
                     maxLines = 2
-                    ellipsize = android.text.TextUtils.TruncateAt.END
-                    (layoutParams as? LinearLayout.LayoutParams ?: LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    )).also { it.topMargin = dp(ctx, 8); layoutParams = it }
                 })
+                if (!first && box.remark.isNotBlank()) {
+                    boxView.addView(View(ctx).apply {
+                        setBackgroundColor(Color.parseColor("#CFE6D8"))
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, dp(ctx, 1)
+                        ).apply { topMargin = dp(ctx, 5); bottomMargin = dp(ctx, 5) }
+                    })
+                    boxView.addView(TextView(ctx).apply {
+                        text = box.remark
+                        textSize = 13f
+                        setTextColor(Color.parseColor("#0F2438"))
+                        maxLines = 2
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    })
+                }
+                root.addView(boxView)
             }
 
             fun pill(label: String, bg: String, fg: String, w: Float, click: () -> Unit) =

@@ -77,6 +77,10 @@ object CallNotifyManager {
        Missed · Outgoing · Incoming (ফোনের নিজের Call Log থেকে, ব্যাকগ্রাউন্ডে
        একবার পড়া) — ব্যানার ও নোটিফিকেশন দুটোতেই দেখানো হয়। */
     @Volatile private var activeHistory: BranchSimHelper.CallHistory = BranchSimHelper.CallHistory()
+    /* ☎️🔒 V1434 — দুটো খোঁজ (ফোনের কল-লগ · ক্লাউডের call_remarks) শেষ হয়েছে কি না।
+       দুটোই শেষ, তবু কিছু নেই ⇒ তবেই "FIRST CALL" বক্স (আগে-ভাগে ভুল "FIRST CALL" নয়)। */
+    @Volatile private var activeLogDone: Boolean = false
+    @Volatile private var activeCloudDone: Boolean = false
 
     private fun isoNow(): String =
         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
@@ -143,15 +147,17 @@ object CallNotifyManager {
         activeMissed = false
         activeEnded = false   // 🔴 V896 — নতুন কল, নম্বর জানা
         activeHistory = BranchSimHelper.CallHistory()   // ☎️ V1427
+        activeLogDone = false; activeCloudDone = false   // ☎️ V1434
         post(ctx, ringing = true, ended = false)
         // পিছনে গিয়ে মেলানো — পাওয়া গেলে নোটিফিকেশন আপডেট হবে।
         Thread {
             try {
                 // ☎️ V1427 — আগে ফোনের নিজের কল-লগ (ক্লাউড নয়, তাই দ্রুত), তারপর ক্লাউড-মেলানো।
                 val hist = try { BranchSimHelper.lastCallsByType(ctx, digits) } catch (_: Throwable) { BranchSimHelper.CallHistory() }
-                if (activeNumber == digits && (hist.missedMs > 0L || hist.outgoingMs > 0L || hist.incomingMs > 0L)) {
+                if (activeNumber == digits) {
                     activeHistory = hist
-                    post(ctx, ringing = true, ended = false)
+                    activeLogDone = true   // ☎️ V1434
+                    if (hist.missedMs > 0L || hist.outgoingMs > 0L || hist.incomingMs > 0L) post(ctx, ringing = true, ended = false)
                 }
                 val m = DialerRepository.matchNumbersBatch(listOf(digits))[digits]
                 // 🟢🔒🔒 V637 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ) — আসল কারণ: এই
@@ -166,9 +172,13 @@ object CallNotifyManager {
                 if (activeNumber == digits) {
                     activeMatch = m; activeExistingRemark = info.remark
                     activeLastCall = info
+                    activeCloudDone = true   // ☎️ V1434
                     post(ctx, ringing = true, ended = false)
                 }
-            } catch (_: Throwable) { }
+            } catch (_: Throwable) {
+                // ☎️ V1434 — খোঁজ ভেঙে গেলেও "শেষ" ধরা হয়, নইলে বক্স কখনো আসত না।
+                if (activeNumber == digits) { activeLogDone = true; activeCloudDone = true; post(ctx, ringing = true, ended = false) }
+            }
         }.start()
     }
 
@@ -223,20 +233,75 @@ object CallNotifyManager {
         activeMissed = false
         activeEnded = false   // 🔴 V896 — নতুন কল, নম্বর জানা
         activeHistory = BranchSimHelper.CallHistory()   // ☎️ V1427
+        activeLogDone = false; activeCloudDone = false   // ☎️ V1434
         post(ctx, ringing = false, ended = false)
         // 🟢🔒 V637 — outgoing কলেও আগের রিমার্কস আনা হয় (incoming-এর
         // `onRinging()`-এর হুবহু একই প্যাটার্ন)।
         Thread {
             try {
                 val hist = try { BranchSimHelper.lastCallsByType(ctx, digits) } catch (_: Throwable) { BranchSimHelper.CallHistory() }   // ☎️ V1427
-                val info = DialerRepository.fetchLatestCallInfo(digits)   // 🆕 V856
+                val info = try { DialerRepository.fetchLatestCallInfo(digits) } catch (_: Throwable) { DialerRepository.LastCallInfo() }   // 🆕 V856
                 if (activeNumber == digits) {
                     activeHistory = hist
                     activeExistingRemark = info.remark; activeLastCall = info
+                    activeLogDone = true; activeCloudDone = true   // ☎️ V1434
                     post(ctx, ringing = false, ended = false)
                 }
-            } catch (_: Throwable) { }
+            } catch (_: Throwable) {
+                if (activeNumber == digits) { activeLogDone = true; activeCloudDone = true; post(ctx, ringing = false, ended = false) }
+            }
         }.start()
+    }
+
+    /** ☎️ V1434 — কল-ব্যানারে "কে" লাইনটা (TK-র কথা, গ্রামার ঠিক করে)। */
+    private fun stageLine(m: DialerRepository.MatchedContact): String {
+        fun cln(v: String?): String {
+            val t = v?.trim().orEmpty()
+            return if (t.equals("null", true) || t.equals("undefined", true)) "" else t
+        }
+        val br = cln(m.branch).let { if (it.isNotBlank()) "$it Branch" else "" }
+        val dis = cln(m.disease)
+        if (m.isRmp) return "🩺 RMP" + (if (br.isNotBlank()) " of $br" else "")
+        return when (cln(m.stage)) {
+            "Inquiry" -> "❓ " + (if (dis.isNotBlank()) "$dis " else "") + "Enquiry" + (if (br.isNotBlank()) " for $br" else "")
+            "Patient" -> "🏥 Visited" + (if (br.isNotBlank()) " $br" else "") + (if (dis.isNotBlank()) " for $dis" else "")
+            "Treatment" -> "💊 " + (if (dis.isNotBlank()) "$dis " else "") + "Patient" + (if (br.isNotBlank()) " of $br" else "")
+            else -> "👤 " + listOf(dis, br).filter { it.isNotBlank() }.joinToString(" \u00b7 ").ifBlank { "Saved in the app" }
+        }
+    }
+
+    /** ☎️ V1434 — স্টাফ-কোড "KNE-LAXMI" → "LAXMI" (TK: *"সহজ সরল করুন"*)। */
+    private fun shortStaff(raw: String): String {
+        val t = raw.trim()
+        val m = Regex("^[A-Za-z]{2,4}-(.+)$").find(t)
+        return (m?.groupValues?.get(1) ?: t).trim()
+    }
+
+    /** ☎️🔒 V1434 — "LAST CALL" বক্সের তথ্য। নিয়ম (ডেমো পাশ):
+     *  · রেকর্ড (call_remarks) ও ফোনের কল-লগ — যেটা **নতুন**, সেটাই "শেষ কল" (ধরন + কখন);
+     *    রেকর্ডটা নতুন হলে সাথে কে কথা বলেছিল। শেষ রিমার্ক থাকলে নিচে।
+     *  · কিছুই না থাকলে, দুটো খোঁজ শেষ হওয়ার পরেই "FIRST CALL"; তার আগে null (বক্স নেই)। */
+    private fun buildLastBox(): CallOverlay.LastBox? {
+        val info = activeLastCall
+        val log = activeHistory.latest()
+        val recMs = BranchSimHelper.isoToMillis(info.calledAt)
+        val logMs = log?.second ?: 0L
+        val remark = info.remark.trim().let { if (it.equals("null", true)) "" else it }
+        return when {
+            recMs > 0L && recMs >= logMs -> CallOverlay.LastBox(
+                type = if (info.direction.trim().equals("outgoing", true)) "OUTGOING" else "INCOMING",
+                whenTxt = BranchSimHelper.whenText(recMs),
+                staff = shortStaff(info.staffName),
+                remark = remark
+            )
+            log != null -> CallOverlay.LastBox(
+                type = log.first.uppercase(java.util.Locale.US),
+                whenTxt = BranchSimHelper.whenText(logMs),
+                remark = remark
+            )
+            activeLogDone && activeCloudDone -> CallOverlay.LastBox(first = true)
+            else -> null
+        }
     }
 
     private fun post(ctx: Context, ringing: Boolean, ended: Boolean) {
@@ -261,33 +326,31 @@ object CallNotifyManager {
                 val t = v?.trim().orEmpty()
                 return if (t.equals("null", ignoreCase = true) || t.equals("undefined", ignoreCase = true)) "" else t
             }
-            val title = when {
-                ringing -> "📞 Incoming: " + (cln(match?.name).ifBlank { number })
-                direction == "outgoing" -> "📞 Calling: " + (cln(match?.name).ifBlank { number })
-                else -> "📞 " + (cln(match?.name).ifBlank { number })
-            }
-            val lines = ArrayList<String>()
+            /* ☎️🔒 V1434 (১৩.০৯.২০২৬, TK-নির্দেশ, ডেমো V9 পাশ) — নাম ও নম্বর পাশাপাশি;
+               ধরন-ভেদে আইকন ও কথা: 🩺 RMP of X Branch · ❓ Piles Enquiry for X Branch ·
+               🏥 Visited X Branch for Piles · 💊 Piles Patient of X Branch; তারপর ঠিকানা।
+               সেভ না থাকলে "🆕 New number · not saved in the app"। নিচে একটাই
+               "LAST CALL" তথ্য (buildLastBox) — V1427-এর তিন লাইন ও আলাদা রিমার্ক-লাইন বাদ। */
+            val nm = cln(match?.name)
+            val title = "📞 " + (if (nm.isNotBlank()) "$nm · $number" else number)
+            val infoLines = ArrayList<String>()
             if (match != null) {
-                // 🟢🔒 V632 (২৪.০৮.২০২৬) — RMP মিললে স্পষ্ট "🩺 RMP" ট্যাগ +
-                // এলাকা (area), যাতে রোগীর সারির সাথে গুলিয়ে না যায়।
-                if (match.isRmp) {
-                    lines.add(listOfNotNull("🩺 RMP", cln(match.branch).ifBlank { null }).joinToString(" · "))
-                    if (cln(match.address).isNotBlank()) lines.add(cln(match.address))
-                } else {
-                    // ⛔ V812 — দুটো ঘরই ফাঁকা হলে যেন **খালি লাইন** না বসে।
-                    val idBr = listOfNotNull(cln(match.patientId).ifBlank { null }, cln(match.branch).ifBlank { null }).joinToString(" · ")
-                    if (idBr.isNotBlank()) lines.add(idBr)
-                    if (cln(match.disease).isNotBlank()) lines.add(cln(match.disease))
-                    if (cln(match.address).isNotBlank()) lines.add(cln(match.address))
-                }
+                infoLines.add(stageLine(match))
+                if (cln(match.address).isNotBlank()) infoLines.add(cln(match.address))
             } else {
-                lines.add("Not saved anywhere in the app")
+                infoLines.add("🆕 New number · not saved in the app")
             }
-            // ☎️ V1427 — আগের কলের ইতিহাস (নোটিফিকেশনেও, ব্যানারের মতোই)।
-            val historyRows = activeHistory.rows()
-            for ((label, whenTxt) in historyRows) {
-                lines.add((if (label == "Outgoing") "↗ " else "↙ ") + label + " · " + whenTxt)
+            val box = buildLastBox()
+            val boxLines = ArrayList<String>()
+            if (box != null) {
+                if (box.first) boxLines.add("✨ FIRST CALL · no earlier call or record")
+                else {
+                    boxLines.add((if (box.type == "OUTGOING") "↗ " else "↙ ") + box.type + " CALL " + box.whenTxt +
+                        (if (box.staff.isNotBlank()) " (" + box.staff + ")" else ""))
+                    if (box.remark.isNotBlank()) boxLines.add("📝 " + box.remark)
+                }
             }
+            val lines = ArrayList<String>(infoLines + boxLines)
             if (ended) lines.add(0, "Call ended")
 
             val style = NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n"))
@@ -411,10 +474,9 @@ object CallNotifyManager {
                 } else if (CallOverlay.allowed(ctx)) {
                     val ovNumber = number
                     val ovName = cln(match?.name)
-                    // ☎️ V1427 — কার্ডে ইতিহাস আলাদা সারিতে যায় (নিচে `history`), তাই এখান থেকে বাদ।
-                    val ovLines = if (match != null) lines.filter { ln -> !ln.startsWith("↙ ") && !ln.startsWith("↗ ") }
-                                  else listOf("Not saved anywhere in the app")
-                    val ovHistory = historyRows
+                    // ☎️ V1434 — কার্ডে LAST CALL আলাদা বক্সে (নিচে `box`), তাই শুধু পরিচয়-লাইনগুলো।
+                    val ovLines = infoLines
+                    val ovBox = box
                     val ovRemark = existingRemark
                     val ovSaved = match != null
                     val ovIsRmp = match?.isRmp == true
@@ -426,7 +488,6 @@ object CallNotifyManager {
                         direction == "outgoing" -> "OUTGOING"
                         else -> "INCOMING"
                     }
-                    val ovLast = activeLastCall
                     val ovAutoHide = activeMissed
                     val app = ctx.applicationContext
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -435,13 +496,10 @@ object CallNotifyManager {
                             number = ovNumber,
                             name = ovName,
                             lines = ovLines,
-                            lastRemark = ovRemark,
                             saved = ovSaved,
                             callType = ovType,               // 🆕 V856
-                            lastCallAt = ovLast.calledAt,
-                            lastCallBy = ovLast.staffName,
                             autoHide = ovAutoHide,
-                            history = ovHistory,             // ☎️ V1427
+                            box = ovBox,                     // ☎️ V1434
                             onOpen = {
                                 /* ⛔ V844-এর হুবহু একই গন্তব্য — নতুন নিয়ম নয়। */
                                 val i = when {

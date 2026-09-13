@@ -26635,3 +26635,12 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > V1433 → 0 / 599 / 1599, সব পূর্ণ সংখ্যা; V1409 চালালে SADIKA due 4→0 ✅।
 > SADIKA ₹4: সার্ভারে V1409 চালানোই হয়নি (লেবেল "40% of ₹30,002" রয়ে গেছে, run_log-এ নেই) → আবার দেওয়া।
 > "40% of ₹30,002 = ₹15,001": দোষ নয় — V941 (TK, ০১.০৯) হার-বদল: আগের জমায় ৫০%, পরের জমায় ৪০%। লেবেল বদল শুধু TK বললে।
+
+> V1434 — ☎️🔒 **কল-ব্যানার/নোটিফিকেশন নতুন চেহারা (১৩.০৯.২০২৬ সন্ধ্যা ৭.২০, তালিকা ৫৫৩, TK-পাশ ডেমো V9):**
+> নাম · নম্বর এক সারিতে; "🩺 RMP of X Branch" / "❓ Piles Enquiry for X Branch" / "🏥 Visited X Branch for Piles" /
+> "💊 Piles Patient of X Branch" (followups.stage: Inquiry/Patient/Treatment), তারপর ঠিকানা; সেভ না থাকলে "🆕 New number · not saved in the app"।
+> একটাই "LAST CALL" বক্স (Follow-up-এর ড্যাশ-সবুজ বক্সের মতো): "↙ INCOMING CALL Yesterday 11:40 AM (LAXMI)" + নিচে শেষ রিমার্ক;
+> সময় লেখা: Today/Yesterday/dd/MM/yyyy + h:mm a (BranchSimHelper.whenText)। রেকর্ড (call_remarks) বনাম ফোনের কল-লগ — যেটা নতুন সেটাই;
+> কিছু না থাকলে দুটো খোঁজ শেষে হলুদ "✨ FIRST CALL · no earlier call or record"। V1427-এর ৩-লাইন ইতিহাস + আলাদা "Last remark" লাইন এই বক্সে মিশে গেল।
+> ফাইল: BranchSimHelper.kt (CallHistory.latest, whenText, isoToMillis) · CallOverlay.kt (LastBox, নাম-সারি, বক্স; show()-এর lastRemark/lastCallAt/lastCallBy/history প্যারামিটার বাদ — একমাত্র ডাক CallNotifyManager) · CallNotifyManager.kt (stageLine, shortStaff, buildLastBox, activeLogDone/CloudDone)।
+> ⛔ ওয়েবে কল-ব্যানার নেই — শুধু ফোন। ডেমো: scratchpad banner2.html → CALL_BANNER_V9_*.png।

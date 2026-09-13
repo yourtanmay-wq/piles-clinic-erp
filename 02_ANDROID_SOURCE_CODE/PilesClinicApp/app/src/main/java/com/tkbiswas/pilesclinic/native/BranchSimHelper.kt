@@ -359,6 +359,50 @@ object BranchSimHelper {
                 .filter { it.second > 0L }
                 .sortedByDescending { it.second }
                 .map { it.first to agoText(it.second, now) }
+
+        /** ☎️🔒 V1434 (১৩.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ) — **শুধু শেষ কলটা**
+         *  (যে ধরনেরই হোক): (লেবেল, কখন-ms); কিছু না থাকলে null। */
+        fun latest(): Pair<String, Long>? =
+            listOf("Missed" to missedMs, "Outgoing" to outgoingMs, "Incoming" to incomingMs)
+                .filter { it.second > 0L }
+                .maxByOrNull { it.second }
+    }
+
+    /** ☎️🔒 V1434 — TK-নির্দেশ: *"আজকে হলে Today তার পাশে সময়, গতকাল হলে
+     *  Yesterday তার পাশে সময়, গতকালের আগে হলে তারিখ এবং সময়"*।
+     *  → "Today 10:15 AM" · "Yesterday 4:32 PM" · "27/08/2026 6:05 PM"। */
+    fun whenText(ms: Long, now: Long = System.currentTimeMillis()): String {
+        val tf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
+        val time = tf.format(java.util.Date(ms))
+        val dayKey = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
+        val d = dayKey.format(java.util.Date(ms))
+        val today = dayKey.format(java.util.Date(now))
+        val yesterday = dayKey.format(java.util.Date(now - 24L * 3_600_000L))
+        return when (d) {
+            today -> "Today $time"
+            yesterday -> "Yesterday $time"
+            else -> java.text.SimpleDateFormat(DateUtil.DISPLAY_DATE, java.util.Locale.US).format(java.util.Date(ms)) + " " + time
+        }
+    }
+
+    /** ☎️ V1434 — ISO লেখা (call_remarks.calledAt, UTC 'Z' বা টাইমজোন-ছাড়া) → ms; না পারলে 0। */
+    fun isoToMillis(iso: String): Long {
+        val raw = iso.trim()
+        if (raw.isBlank()) return 0L
+        val fmts = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" to true, "yyyy-MM-dd'T'HH:mm:ss'Z'" to true,
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX" to false, "yyyy-MM-dd'T'HH:mm:ssXXX" to false,
+            "yyyy-MM-dd'T'HH:mm:ss" to false, "yyyy-MM-dd HH:mm:ss" to false
+        )
+        for ((pat, utc) in fmts) {
+            try {
+                val f = java.text.SimpleDateFormat(pat, java.util.Locale.US)
+                if (utc) f.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val t = f.parse(raw)?.time ?: continue
+                if (t > 0L) return t
+            } catch (_: Throwable) { }
+        }
+        return 0L
     }
 
     fun lastCallsByType(context: Context, mobile: String): CallHistory {
