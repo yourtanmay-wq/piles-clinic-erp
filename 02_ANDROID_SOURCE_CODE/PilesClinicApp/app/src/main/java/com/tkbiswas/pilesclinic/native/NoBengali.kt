@@ -605,6 +605,18 @@ object NoBengali {
         "ফিস্টুলা" to "Fistula",
         "হাইড্রোসিল" to "Hydrocele",
         "গুপ্ত" to "Gupt",
+        // 🎤 V1428 — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম · RMP-কে দেওয়া কমিশন · IN-বাদ (প্রশ্ন-ছাঁচ)
+        "কোন ব্রাঞ্চ" to "which branch",
+        "কোন শাখা" to "which branch",
+        "সবচেয়ে" to "most",
+        "সবচেয়ে কম" to "least",
+        "দেওয়া" to "given",
+        "দেয়া" to "given",
+        "দিয়েছি" to "gave",
+        "পেয়েছে" to "received",
+        "পেল" to "got",
+        "ইন টাইম" to "IN time",
+        "ইন-টাইম" to "IN time",
 
         // 🟢🔒 V629 (২৪.০৮.২০২৬) — Statement (স্টেটমেন্ট) পর্দার নতুন লেখা।
         "স্টেটমেন্ট" to "Statement",

@@ -23790,7 +23790,14 @@ function wlv1VoiceDateRange(q){
   if(q.includes('এই মাস')||q.includes('this month')){ const f=new Date(kolkataNow); f.setDate(1); return {from:wlv1VoiceIsoDate(f),to:day(0),label:'This month'}; }
   return null;
 }
-function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির'); }
+function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির')||q.includes('সবচেয়ে')||q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('কমিশন'); }   // V1428
+/* 🎤 V1428 (তালিকা ৫৩৮) — নাম ধরে প্রশ্ন (ফোনের VoiceReportModel.findNameTokens/nameMatch-এর হুবহু নিয়ম):
+   প্রশ্নে ইংরেজি অক্ষরের শব্দ (JPE-CRP, JAKIR HOSSAIN) = ছাঁকনি; প্রশ্ন-চেনার ইংরেজি শব্দ ও ব্রাঞ্চের নাম বাদ।
+   ⚠️ সৎ সীমা: বাংলায় বলা নাম ইংরেজি নামের সাথে মেলে না — নামটা ইংরেজি অক্ষরেই লিখতে/বলতে হবে। */
+const WLV1_VOICE_NAME_STOP=new Set(['RMP','PRESENT','REMINDER','REMINDERS','HOUR','HOURS','OUT','WFH','FIELD','KM','IN','TIME','PAID','COMPARE','REQUEST','REQUESTS','REFERRAL','APPOINTMENT','APPOINTMENTS','LEAVE','DOCTOR','WHATSAPP','SMS','DUPLICATE','NOSHOW','NO','SHOW','ADVANCE','CLOSE','MOST','WHICH','BRANCH','YESTERDAY','TODAY','TOMORROW','LAST','DAYS','DAY','WEEK','MONTH','THIS','DIN','MASH','OPEN','STAFF','COMMISSION','HOW','MANY','MUCH','WAS','WERE','THE','FOR','AND','GIVEN','CALL','CALLS','WORK','FROM','HOME','ATTENDANCE','STILL','NOT','MARKED','PATIENT','PATIENTS','CAME','COLLECTION','PILES','FISSURE','FISTULA','HYDROCELE','GUPT','ROG','OTHER','LIST','TOTAL','WHO','WHOM','TO','IS','ARE','KISHANGANJ','JALPAIGURI','COOCH','BEHAR','COOCHBEHAR','FALAKATA','BIRPARA']);
+const WLV1_VOICE_NAME_METRICS=['RMP_PAID','STAFF_PRESENT','STAFF_HOURS','STAFF_REMINDER_OPEN','OUT_MISSING','IN_MISSING'];
+function wlv1VoiceNameTokens(q){ const out=[]; for(const m of (q.match(/[A-Za-z][A-Za-z\-]{2,}/g)||[])){ const u=m.toUpperCase().replace(/-+$/,''); if(u.length>=3&&!WLV1_VOICE_NAME_STOP.has(u)&&!out.includes(u)) out.push(u); } return out.join(' '); }
+function wlv1VoiceNameMatch(extra,...fields){ if(!extra) return true; const hay=fields.join(' ').toUpperCase(); return extra.split(' ').filter(Boolean).every(t=>hay.includes(t)); }
 // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসের বানান (ফোনের VoiceReportModel.DISEASE_MAP-এর হুবহু)
 const wlv1VoiceDiseaseMap=[['পাইলস','Piles'],['অর্শ','Piles'],['piles','Piles'],['ফিশার','Fissure'],['ফিসার','Fissure'],['fissure','Fissure'],
   ['ফিস্টুলা','Fistula'],['ভগন্দর','Fistula'],['fistula','Fistula'],['হাইড্রোসিল','Hydrocele'],['একশিরা','Hydrocele'],['hydrocele','Hydrocele'],['গুপ্ত','Gupt Rog'],['gupt','Gupt Rog']];
@@ -23864,8 +23871,13 @@ function wlv1VoiceParse(q){
   const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
   // 📊 V1426 (TK: "হ্যাঁ") — "এই মাসে গত মাসের তুলনায়/চেয়ে কত বেশি/কম" — দুই মাসের তুলনা
   const hasCompare = q.includes('তুলনা')||q.includes('চেয়ে')||lower.includes('compare');
+  // 🎤 V1428 — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম · RMP-কে কমিশন দেওয়া · IN-বাদ
+  const hasBranchTop = q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('সবচেয়ে')||lower.includes('which branch')||lower.includes('most ');
+  const hasRmpPaid = q.includes('কমিশন') && !hasDueWord && (q.includes('দেওয়া')||q.includes('দেয়া')||q.includes('দিয়েছি')||q.includes('পেয়েছে')||q.includes('পেল')||lower.includes('paid'));
+  const hasInMissing = !hasOutMissing && (q.includes('ইন টাইম')||q.includes('ইন-টাইম')||lower.includes('in time')||/\bin\b/.test(lower)) && (q.includes('হয়নি')||q.includes('দেয়নি')||q.includes('দেননি')||lower.includes('missing')||lower.includes('not given'));
   // ⛔ ক্রমটা ফোনের VoiceReportModel.findMetric()-এর সাথে হুবহু এক (নিয়ম ৮)
-  const picks=[[hasCompare&&hasMoney,'MONTH_COMPARE_COLLECTION'],[hasCompare,'MONTH_COMPARE_PATIENTS'],
+  const picks=[[hasBranchTop&&(hasMoney||hasRmpPaid),'BRANCH_TOP_COLLECTION'],[hasBranchTop,'BRANCH_TOP_PATIENTS'],[hasInMissing,'IN_MISSING'],
+    [hasCompare&&hasMoney,'MONTH_COMPARE_COLLECTION'],[hasCompare,'MONTH_COMPARE_PATIENTS'],
     [hasSale&&hasMedicine,'MEDICINE_SALE'],[hasSale&&hasSaline,'SALINE_SALE'],
     [hasNoShow,'NO_SHOW'],[hasChamberUnclosed,'CHAMBER_UNCLOSED'],[hasOutMissing,'OUT_MISSING'],[hasWfh,'WFH_COUNT'],
     [hasDuplicate,'DUPLICATE_PATIENTS'],[hasCallsPending,'CALLS_PENDING'],[hasFuCallsDone,'FOLLOWUP_CALLS_DONE'],[hasMessages,'MESSAGES_SENT'],[hasFeeUnpaid,'FEE_UNPAID'],
@@ -23874,12 +23886,14 @@ function wlv1VoiceParse(q){
     [hasHandoverPending,'HANDOVER_PENDING'],[hasHandover,'CASH_HANDOVER'],[hasAppointment,'APPOINTMENT_COUNT'],
     [hasExpected,'EXPECTED_COUNT'],[hasLeave,'LEAVE_COUNT'],[hasDoctorReminder,'DOCTOR_REMINDER'],[hasReminder,'STAFF_REMINDER_OPEN'],
     [hasFieldVisit,'FIELD_VISIT'],[hasStaffHours,'STAFF_HOURS'],[hasStaffPresent,'STAFF_PRESENT'],[hasRmpCallDue,'RMP_CALL_DUE'],[hasRmpCalled,'RMP_CALLED'],
-    [hasNewPatients,'NEW_PATIENTS'],[hasDisease,'DISEASE_COUNT'],
+    [hasNewPatients,'NEW_PATIENTS'],[hasDisease,'DISEASE_COUNT'],[hasRmpPaid,'RMP_PAID'],
     [hasAdvance,'RMP_ADVANCE'],[hasRmpDue,'RMP_DUE'],[hasTrash,'TRASH_COUNT'],[hasCall,'CALL_COUNT'],[hasRefund,'REFUND'],
     [hasEnquiry,'ENQUIRY_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'REGISTRATION_COUNT']];
   const hit = picks.find(p=>p[0]); const metric = hit?hit[1]:null;
   if(!metric) return null;
-  const extra = metric==='DISEASE_COUNT' ? (wlv1VoiceDisease(q)||'') : '';
+  const extra = metric==='DISEASE_COUNT' ? (wlv1VoiceDisease(q)||'')
+    : WLV1_VOICE_NAME_METRICS.includes(metric) ? wlv1VoiceNameTokens(q)   // V1428 — নাম-ছাঁকনি (ফাঁকা = সবাই)
+    : (metric==='BRANCH_TOP_COLLECTION'||metric==='BRANCH_TOP_PATIENTS') ? ((q.includes('সবচেয়ে কম')||lower.includes('least')||lower.includes('lowest'))?'min':'') : '';
   // 🔒 V1418/V1419/V1420 — "এখন পর্যন্ত মোট" প্রশ্নগুলো সময়-সীমা নেয় না, তারিখ-ছাঁচ মেলা লাগে না
   const WLV1_VOICE_SNAPSHOT=['RMP_DUE','MEDICINE_DUE','HANDOVER_PENDING','PAYMENT_REQUESTS','REFERRAL_REQUESTS','STAFF_REMINDER_OPEN','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING'];
   const branchLabel = branch==='ALL' ? 'All branches' : branch;
@@ -23913,11 +23927,24 @@ async function wlv1ShowVoiceAnswer(q){
   const c = wlv1VoiceRpcClient(await wlv1ReportsClient());
   if(!c){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Could not verify login'; return; }
   // V1420 — নতুন প্রশ্নগুলোর জন্য ছোট্ট সাহায্যকারী (আগেরগুলো যেমন ছিল তেমনই)
-  const vOk=(num,sub,m)=>{ $('#wlv1VoiceAnswerNum').textContent=num; $('#wlv1VoiceAnswerSub').textContent=sub+' • tap to see list ›'; $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail(m,parsed.branch,parsed.from,parsed.to,title); };
+  const vOk=(num,sub,m)=>{ $('#wlv1VoiceAnswerNum').textContent=num; $('#wlv1VoiceAnswerSub').textContent=sub+' • tap to see list ›'; $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail(m,parsed.branch,parsed.from,parsed.to,title,parsed.extra||''); };   // V1428 — extra-ও যায় (রোগের নাম / নাম-ছাঁকনি / min)
   const vBad=()=>{ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; };
   const vFirst=async(fn,a)=>{ const r=await c.rpc(fn,a); return (r.error||!Array.isArray(r.data)||!r.data.length)?null:r.data[0]; };
   const rangeArgs={p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to}, oneArg={p_branch:parsed.branch};
-  if(parsed.metric==='MONTH_COMPARE_PATIENTS'||parsed.metric==='MONTH_COMPARE_COLLECTION'){
+  const vList=async(fn,a)=>{ const r=await c.rpc(fn,a); return (r.error||!Array.isArray(r.data))?null:r.data; };   // V1428
+  if(parsed.metric==='BRANCH_TOP_COLLECTION'||parsed.metric==='BRANCH_TOP_PATIENTS'){
+    // 🎤 V1428 (আইটেম ২০) — পাঁচ ব্রাঞ্চের একই ফাংশন পাঁচবার, সাজিয়ে (ফোনের branchRank*-এর হুবহু নিয়ম)
+    const isMoney=parsed.metric==='BRANCH_TOP_COLLECTION', lowest=parsed.extra==='min';
+    const rows=await wlv1VoiceBranchRank(c,isMoney,parsed.from,parsed.to,lowest); if(!rows) return vBad();
+    const f=r=>isMoney?money(r.value):`${r.patients} patients`;
+    vOk(rows[0].branch,`${lowest?'lowest':'highest'}: ${f(rows[0])} · then ${rows.slice(1).map(r=>`${r.branch} ${f(r)}`).join(' · ')}`,parsed.metric);
+  } else if(parsed.metric==='RMP_PAID'){
+    if(parsed.extra){ const rows=await vList('rmp_paid_list',rangeArgs); if(!rows) return vBad(); const f=rows.filter(p=>wlv1VoiceNameMatch(parsed.extra,p.rmp_name||'')); vOk(money(f.reduce((a,p)=>a+Number(p.amount||0),0)),`paid to ${parsed.extra} · ${f.length} payments`,'RMP_PAID'); }
+    else { const s=await vFirst('rmp_paid_summary',rangeArgs); if(!s) return vBad(); vOk(money(s.total),`paid to ${s.rmp_count} RMPs · ${s.payment_count} payments`,'RMP_PAID'); }
+  } else if(parsed.metric==='IN_MISSING'){
+    if(parsed.extra){ const rows=await vList('in_missing_list',rangeArgs); if(!rows) return vBad(); const f=rows.filter(p=>wlv1VoiceNameMatch(parsed.extra,p.staff_code||'',p.staff_name||'')); vOk(String(f.length),`days IN time not given · ${parsed.extra}`,'IN_MISSING'); }
+    else { const s=await vFirst('in_missing_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.total),`days IN time not given · ${s.staff_count} staff`,'IN_MISSING'); }
+  } else if(parsed.metric==='MONTH_COMPARE_PATIENTS'||parsed.metric==='MONTH_COMPARE_COLLECTION'){
     // V1426 — দুই মাসের একই কটা দিনের তুলনা
     const isMoney=parsed.metric==='MONTH_COMPARE_COLLECTION'; const [lf,lt]=String(parsed.extra||'').split('|');
     const lastArgs={p_branch:parsed.branch,p_from:lf,p_to:lt};
@@ -23942,6 +23969,7 @@ async function wlv1ShowVoiceAnswer(q){
   } else if(parsed.metric==='DOCTOR_REMINDER'){
     const s=await vFirst('doctor_reminder_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.total),`doctor reminders sent · ${s.not_accepted} not accepted yet`,'DOCTOR_REMINDER');
   } else if(parsed.metric==='STAFF_REMINDER_OPEN'){
+    if(parsed.extra){ const rows=await vList('staff_reminder_open_list',oneArg); if(!rows) return vBad(); const f=rows.filter(p=>wlv1VoiceNameMatch(parsed.extra,p.to_name||'',p.to_code||'')); vOk(String(f.length),`open reminders for ${parsed.extra}`,'STAFF_REMINDER_OPEN'); return; }   // V1428 — নাম ধরে (আইটেম ৪৮)
     const s=await vFirst('staff_reminder_open_summary',oneArg); if(!s) return vBad(); vOk(String(s.total),'staff reminders still open','STAFF_REMINDER_OPEN');
   } else if(parsed.metric==='FEE_RETURN'){
     const s=await vFirst('fee_return_summary',rangeArgs); if(!s) return vBad(); vOk(money(s.total),`${s.patient_count} patients' visit fee returned`,'FEE_RETURN');
@@ -23951,6 +23979,7 @@ async function wlv1ShowVoiceAnswer(q){
   } else if(parsed.metric==='NO_SHOW'){
     const s=await vFirst('no_show_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.no_show),`did not come · ${s.arrived} came · ${s.expected_total} were expected`,'NO_SHOW');
   } else if(parsed.metric==='OUT_MISSING'){
+    if(parsed.extra){ const rows=await vList('out_missing_list',rangeArgs); if(!rows) return vBad(); const f=rows.filter(p=>wlv1VoiceNameMatch(parsed.extra,p.staff_code||'')); vOk(String(f.length),`days OUT time not given · ${parsed.extra}`,'OUT_MISSING'); return; }   // V1428
     const s=await vFirst('out_missing_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.total),`days OUT time not given · ${s.staff_count} staff`,'OUT_MISSING');
   } else if(parsed.metric==='WFH_COUNT'){
     const s=await vFirst('wfh_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.total),`WFH applications: ${s.approved} approved · ${s.pending} pending · ${s.rejected} rejected`,'WFH_COUNT');
@@ -23976,8 +24005,10 @@ async function wlv1ShowVoiceAnswer(q){
   } else if(parsed.metric==='FIELD_VISIT'){
     const s=await vFirst('field_visit_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.visits),`visits marked · ${Number(s.km||0).toFixed(1)} km · ${s.staff_count} field staff`,'FIELD_VISIT');
   } else if(parsed.metric==='STAFF_HOURS'){
+    if(parsed.extra){ const rows=await vList('staff_hours_list',rangeArgs); if(!rows) return vBad(); const f=rows.filter(p=>wlv1VoiceNameMatch(parsed.extra,p.staff_code||'')); vOk(`${f.reduce((a,p)=>a+Number(p.hours||0),0).toFixed(1)} h`,`hours · ${parsed.extra} · ${f.reduce((a,p)=>a+Number(p.days||0),0)} days`,'STAFF_HOURS'); return; }   // V1428
     const s=await vFirst('staff_hours_summary',rangeArgs); if(!s) return vBad(); vOk(`${Number(s.total_hours||0).toFixed(1)} h`,`total hours · ${s.staff_count} staff`,'STAFF_HOURS');
   } else if(parsed.metric==='STAFF_PRESENT'){
+    if(parsed.extra){ const rows=await vList('staff_present_list',rangeArgs); if(!rows) return vBad(); const f=rows.filter(p=>wlv1VoiceNameMatch(parsed.extra,p.staff_code||'')); vOk(String(f.length),`attendance days · ${parsed.extra}`,'STAFF_PRESENT'); return; }   // V1428 — নাম ধরে (আইটেম ১৬)
     const s=await vFirst('staff_present_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.staff_count),`staff present · ${s.total} attendance days`,'STAFF_PRESENT');
   } else if(parsed.metric==='REGISTRATION_COUNT'){
     const r = await c.rpc('patients_registered_count',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
@@ -24058,10 +24089,51 @@ async function wlv1ShowVoiceAnswer(q){
 window["wlv1ShowVoiceAnswer"]=wlv1ShowVoiceAnswer;
 /* চাপ দিলে যে পাতা খোলে — ফোনের VoiceReportDetailActivity-র ওয়েব-যমজ। রোগীর
    নামে চাপলে সেই রোগীর Full Journey-তেই যায় (TK: "সেই পেজে রিডাইরেক্ট হয়")। */
-async function wlv1VoiceReportDetail(metric,branch,from,to,title){
+/* 🎤 V1428 — পাঁচ ব্রাঞ্চের সংখ্যা সাজানো (একটা ব্রাঞ্চে ভুল ⇒ পুরোটা null)। */
+async function wlv1VoiceBranchRank(c,isMoney,from,to,lowest){
+  const out=[];
+  for(const b of WLV1_VOICE_BRANCHES){
+    const a={p_branch:b,p_from:from,p_to:to};
+    if(isMoney){ const r=await c.rpc('collection_summary',a); if(r.error||!Array.isArray(r.data)||!r.data.length) return null; out.push({branch:b,value:Number(r.data[0].total||0),patients:Number(r.data[0].patient_count||0)}); }
+    else { const r=await c.rpc('patients_registered_count',a); if(r.error||r.data==null) return null; out.push({branch:b,value:Number(r.data),patients:Number(r.data)}); }
+  }
+  out.sort((x,y)=>lowest?(x.value-y.value):(y.value-x.value)); return out;
+}
+async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
+  /* 🔴 V1428 — সৎ স্বীকার: V1422-এ রোগ-ভিত্তিক পাতা `extra` পড়ত, অথচ এই ফাংশনে সেটা আসতই না
+     (ReferenceError — ওয়েবে "Fistula রোগী" প্রশ্নের তালিকা-পাতা খুলত না)। এখন extra প্যারামিটার। */
+  extra = extra||'';
   page(title, `<div id="wlv1VoiceDetailSummary" class="card mut">Loading…</div><div id="wlv1VoiceDetailRows"></div>`, true);
   const c = wlv1VoiceRpcClient(await wlv1ReportsClient());
   if(!c){ $('#wlv1VoiceDetailSummary').textContent='Could not verify login'; return; }
+  if(metric==='RMP_PAID'||metric==='IN_MISSING'||metric==='BRANCH_TOP_COLLECTION'||metric==='BRANCH_TOP_PATIENTS'){
+    // 🎤 V1428 (তালিকা ৫৩৮) — RMP-কে দেওয়া কমিশন · IN-বাদ · কোন ব্রাঞ্চে সবচেয়ে বেশি/কম
+    const rangeArgs={p_branch:branch,p_from:from,p_to:to};
+    const listOf=async(fn,a)=>{ const r=await c.rpc(fn,a); if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return null; } return r.data||[]; };
+    const first=async(fn,a)=>{ const r=await c.rpc(fn,a); return (!r.error&&Array.isArray(r.data)&&r.data.length)?r.data[0]:null; };
+    const card=(title2,sub,right,color,onclick)=>`<div class="card" ${onclick?`style="cursor:pointer" onclick="${onclick}"`:''}><b style="${onclick?'color:#1457B8':''}">${esc(title2)}${onclick?' ›':''}</b><br><span class="tiny">${esc(sub)}</span>${right?`<span style="float:right;font-weight:700;color:${color||'#0C8F3A'}">${right}</span>`:''}</div>`;
+    const render=(rows,emptyMsg,f)=>{ $('#wlv1VoiceDetailRows').innerHTML = rows.map(f).join('') || `<div class="card mut">${emptyMsg}</div>`; };
+    if(metric==='RMP_PAID'){
+      const all=await listOf('rmp_paid_list',rangeArgs); if(!all) return; const s=await first('rmp_paid_summary',rangeArgs);
+      const rows=all.filter(p=>wlv1VoiceNameMatch(extra,p.rmp_name||''));
+      $('#wlv1VoiceDetailSummary').textContent = extra ? `Paid to ${extra}: ${money(rows.reduce((a,p)=>a+Number(p.amount||0),0))} · ${rows.length} payments`
+        : (s?`Paid: ${money(s.total)} · ${s.rmp_count} RMPs · ${s.payment_count} payments (same as RMP Commission Sheet)`:'Total: —');
+      render(rows,'No RMP commission paid in this period.',p=>card(p.rmp_name||p.rmp_id||'',`${p.kind==='advance'?'Advance':'For '+(p.patient_name||'patient')} · ${p.mode||''} · ${fmtDate(p.paid_on||'')}`,money(p.amount),'#0C8F3A',''));
+    } else if(metric==='IN_MISSING'){
+      const all=await listOf('in_missing_list',rangeArgs); if(!all) return; const s=await first('in_missing_summary',rangeArgs);
+      const rows=all.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'',p.staff_name||''));
+      $('#wlv1VoiceDetailSummary').textContent = extra ? `IN time not given · ${extra}: ${rows.length} days` : (s?`IN time not given: ${s.total} days · ${s.staff_count} staff (only days the notebook was opened)`:'Total: —');
+      render(rows,'No missing IN time in this period.',p=>card(p.staff_name||p.staff_code||'',`${p.staff_code||''} · ${fmtDate(p.work_date||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'IN —','#B42318',''));
+    } else {
+      const isMoney=metric==='BRANCH_TOP_COLLECTION', lowest=extra==='min';
+      const rows=await wlv1VoiceBranchRank(c,isMoney,from,to,lowest); if(!rows){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+      const grand=isMoney?money(rows.reduce((a,r)=>a+r.value,0)):`${rows.reduce((a,r)=>a+r.patients,0)} patients`;
+      $('#wlv1VoiceDetailSummary').textContent=`All branches: ${grand} · ${lowest?'lowest':'highest'} first · tap a branch for its list`;
+      window.wlv1VoiceBranchOpen=(b)=>wlv1VoiceReportDetail(isMoney?'COLLECTION':'REGISTRATION_COUNT',b,from,to,String(title).replace('All branches',b),'');
+      render(rows,'No data.',(r,i)=>card(`${i+1}. ${r.branch}`,isMoney?`${r.patients} patients`:'',isMoney?money(r.value):String(r.patients),i===0?'#0C8F3A':'#334155',`wlv1VoiceBranchOpen('${esc(r.branch)}')`));
+    }
+    return;
+  }
   if(metric==='REGISTRATION_COUNT'){
     const r = await c.rpc('patients_registered_list',{p_branch:branch,p_from:from,p_to:to});
     if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
@@ -24219,7 +24291,8 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title){
     } else if(metric==='STAFF_REMINDER_OPEN'){
       const rows=await listOf('staff_reminder_open_list',oneArg); if(!rows) return; const s=await first('staff_reminder_open_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Open: ${s.total}`:'Total: —';
-      render(rows,'No open staff reminders.',p=>card(p.to_name||p.to_code||'',`${p.reminder_type||''} · ${fmtDate(p.remind_on||'')}`,esc(p.status||''),'#B45309',''));
+      const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.to_name||'',p.to_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`Open for ${extra}: ${fr.length}`;   // V1428 — নাম ধরে
+      render(fr,'No open staff reminders.',p=>card(p.to_name||p.to_code||'',`${p.reminder_type||''} · ${fmtDate(p.remind_on||'')}`,esc(p.status||''),'#B45309',''));
     } else {
       const rows=await listOf('fee_return_list',rangeArgs); if(!rows) return; const s=await first('fee_return_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Visit fee returned: ${money(s.total)} · ${s.patient_count} patients`:'Total: —';
@@ -24243,7 +24316,8 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title){
     } else if(metric==='OUT_MISSING'){
       const rows=await listOf('out_missing_list',rangeArgs); if(!rows) return; const s=await first('out_missing_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`OUT time not given: ${s.total} days · ${s.staff_count} staff`:'Total: —';
-      render(rows,'No missing OUT time in this period.',p=>card(p.staff_code||'',`IN ${esc(p.check_in||'')} · ${fmtDate(p.work_date||'')}`,'OUT —','#B42318',''));
+      const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`OUT time not given · ${extra}: ${fr.length} days`;   // V1428
+      render(fr,'No missing OUT time in this period.',p=>card(p.staff_code||'',`IN ${esc(p.check_in||'')} · ${fmtDate(p.work_date||'')}`,'OUT —','#B42318',''));
     } else if(metric==='WFH_COUNT'){
       const rows=await listOf('wfh_list',rangeArgs); if(!rows) return; const s=await first('wfh_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`WFH applications: ${s.total} · ${s.approved} approved · ${s.pending} pending · ${s.rejected} rejected`:'Total: —';
@@ -24297,11 +24371,13 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title){
     } else if(metric==='STAFF_HOURS'){
       const rows=await listOf('staff_hours_list',rangeArgs); if(!rows) return; const s=await first('staff_hours_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Total ${Number(s.total_hours||0).toFixed(1)} h · ${s.staff_count} staff (leave/WFH/other-branch = 7 h, OUT missing = 7 h)`:'Total: —';
-      render(rows,'No attendance in this period.',p=>card(p.staff_code||'',`${p.days} days · ${p.leave_days} leave · ${p.out_missing_days} OUT missing`,`${Number(p.hours||0).toFixed(1)} h`,'#0C8F3A',''));
+      const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`Hours · ${extra}: ${fr.reduce((a,p)=>a+Number(p.hours||0),0).toFixed(1)} h`;   // V1428
+      render(fr,'No attendance in this period.',p=>card(p.staff_code||'',`${p.days} days · ${p.leave_days} leave · ${p.out_missing_days} OUT missing`,`${Number(p.hours||0).toFixed(1)} h`,'#0C8F3A',''));
     } else {
       const rows=await listOf('staff_present_list',rangeArgs); if(!rows) return; const s=await first('staff_present_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Present: ${s.staff_count} staff · ${s.total} attendance days`:'Total: —';
-      render(rows,'Nobody marked IN in this period.',p=>card(p.staff_code||'',fmtDate(p.work_date||''),`IN ${esc(p.check_in||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'#0C8F3A',''));
+      const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`Present · ${extra}: ${fr.length} attendance days`;   // V1428
+      render(fr,'Nobody marked IN in this period.',p=>card(p.staff_code||'',fmtDate(p.work_date||''),`IN ${esc(p.check_in||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'#0C8F3A',''));
     }
   } else {
     const r = await c.rpc('collection_list',{p_branch:branch,p_from:from,p_to:to});

@@ -124,6 +124,12 @@ object VoiceReportRepository {
     data class FieldVisitRow(val staffCode: String, val workDate: String, val visits: Int, val km: Double)
     data class StaffHoursSummary(val totalHours: Double, val staffCount: Int)
     data class StaffHoursRow(val staffCode: String, val hours: Double, val days: Int, val leaveDays: Int, val outMissingDays: Int)
+    // 🎤 V1428 — RMP-কে দেওয়া কমিশন · IN-বাদ · ব্রাঞ্চ-তুলনা
+    data class RmpPaidSummary(val total: Double, val rmpCount: Int, val paymentCount: Int)
+    data class RmpPaidRow(val paymentId: String, val rmpId: String, val rmpName: String, val paidOn: String, val amount: Double, val kind: String, val patientName: String, val mode: String)
+    data class InMissingSummary(val total: Int, val staffCount: Int)
+    data class InMissingRow(val staffCode: String, val staffName: String, val workDate: String, val checkOut: String)
+    data class BranchRank(val branch: String, val value: Double, val patients: Int)
     data class StaffPresentSummary(val total: Int, val staffCount: Int)
     data class StaffPresentRow(val staffCode: String, val workDate: String, val checkIn: String, val checkOut: String)
 
@@ -282,6 +288,36 @@ object VoiceReportRepository {
         StaffPresentSummary(it.optInt("total", 0), it.optInt("staff_count", 0)) }
     fun staffPresentList(b: String, f: String, t: String): RepoResult<List<StaffPresentRow>> = rowList("staff_present_list", args(b, f, t)).mapRows {
         StaffPresentRow(it.optString("staff_code"), it.optString("work_date"), it.optString("check_in"), it.optString("check_out")) }
+
+    fun rmpPaidSummary(b: String, f: String, t: String): RepoResult<RmpPaidSummary> = firstRow("rmp_paid_summary", args(b, f, t)).mapRow {
+        RmpPaidSummary(it.optDouble("total", 0.0), it.optInt("rmp_count", 0), it.optInt("payment_count", 0)) }
+    fun rmpPaidList(b: String, f: String, t: String): RepoResult<List<RmpPaidRow>> = rowList("rmp_paid_list", args(b, f, t)).mapRows {
+        RmpPaidRow(it.optString("payment_id"), it.optString("rmp_id"), it.optString("rmp_name"), it.optString("paid_on"), it.optDouble("amount", 0.0), it.optString("kind"), it.optString("patient_name"), it.optString("mode")) }
+    fun inMissingSummary(b: String, f: String, t: String): RepoResult<InMissingSummary> = firstRow("in_missing_summary", args(b, f, t)).mapRow {
+        InMissingSummary(it.optInt("total", 0), it.optInt("staff_count", 0)) }
+    fun inMissingList(b: String, f: String, t: String): RepoResult<List<InMissingRow>> = rowList("in_missing_list", args(b, f, t)).mapRows {
+        InMissingRow(it.optString("staff_code"), it.optString("staff_name"), it.optString("work_date"), it.optString("check_out")) }
+
+    /* 🎤 V1428 (আইটেম ২০) — "কোন ব্রাঞ্চে সবচেয়ে বেশি/কম": পাঁচ ব্রাঞ্চের **একই** ফাংশন পাঁচবার
+       (নতুন SQL নেই), ফল সাজিয়ে ফেরত — বেশি→কম, "min" হলে কম→বেশি। একটা ব্রাঞ্চে ভুল হলে পুরোটা ভুল। */
+    fun branchRankCollection(f: String, t: String, lowestFirst: Boolean): RepoResult<List<BranchRank>> {
+        val out = ArrayList<BranchRank>()
+        for (b in ALL_BRANCHES) {
+            val r = collectionSummary(b, f, t)
+            val v = r.value ?: return RepoResult(false, message = r.message)
+            out.add(BranchRank(b, v.total, v.patientCount))
+        }
+        return RepoResult(true, if (lowestFirst) out.sortedBy { it.value } else out.sortedByDescending { it.value })
+    }
+    fun branchRankPatients(f: String, t: String, lowestFirst: Boolean): RepoResult<List<BranchRank>> {
+        val out = ArrayList<BranchRank>()
+        for (b in ALL_BRANCHES) {
+            val r = patientsRegisteredCount(b, f, t)
+            val v = r.value ?: return RepoResult(false, message = r.message)
+            out.add(BranchRank(b, v.toDouble(), v))
+        }
+        return RepoResult(true, if (lowestFirst) out.sortedBy { it.value } else out.sortedByDescending { it.value })
+    }
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
         val rpc = reportsRpc("patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))

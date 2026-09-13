@@ -549,8 +549,13 @@ class GlobalSearchActivity : AppCompatActivity() {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.doctorReminderSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(got.value.total.toString(), "doctor reminders sent · ${got.value.notAccepted} not accepted yet") else showFail(got.message) } }
             VoiceReportModel.Metric.STAFF_REMINDER_OPEN -> { openDetail("STAFF_REMINDER_OPEN"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম ধরে (আইটেম ৪৮)
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffReminderOpenList(parsed.branch) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.toName, it.toCode) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "open reminders for ${parsed.extra}") else showFail(got.message)
+                } else {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffReminderOpenSummary(parsed.branch) }
-                if (got.ok && got.value != null) show(got.value.toString(), "staff reminders still open") else showFail(got.message) } }
+                if (got.ok && got.value != null) show(got.value.toString(), "staff reminders still open") else showFail(got.message) } } }
             VoiceReportModel.Metric.FEE_RETURN -> { openDetail("FEE_RETURN"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.feeReturnSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(rs(got.value.total), "${got.value.patientCount} patients' visit fee returned") else showFail(got.message) } }
@@ -562,8 +567,13 @@ class GlobalSearchActivity : AppCompatActivity() {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.noShowSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(got.value.noShow.toString(), "did not come · ${got.value.arrived} came · ${got.value.expectedTotal} were expected") else showFail(got.message) } }
             VoiceReportModel.Metric.OUT_MISSING -> { openDetail("OUT_MISSING"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম/কোড ধরে
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.outMissingList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "days OUT time not given · ${parsed.extra}") else showFail(got.message)
+                } else {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.outMissingSummary(parsed.branch, parsed.from, parsed.to) }
-                if (got.ok && got.value != null) show(got.value.total.toString(), "days OUT time not given · ${got.value.staffCount} staff") else showFail(got.message) } }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "days OUT time not given · ${got.value.staffCount} staff") else showFail(got.message) } } }
             VoiceReportModel.Metric.WFH_COUNT -> { openDetail("WFH_COUNT"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.wfhSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(got.value.total.toString(), "WFH applications: ${got.value.approved} approved · ${got.value.pending} pending · ${got.value.rejected} rejected") else showFail(got.message) } }
@@ -623,12 +633,53 @@ class GlobalSearchActivity : AppCompatActivity() {
             VoiceReportModel.Metric.FIELD_VISIT -> { openDetail("FIELD_VISIT"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.fieldVisitSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(got.value.visits.toString(), "visits marked · ${"%.1f".format(got.value.km)} km · ${got.value.staffCount} field staff") else showFail(got.message) } }
+            // 🎤 V1428 (তালিকা ৫৩৮) — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম · RMP-কে দেওয়া কমিশন · IN-বাদ · নাম ধরে হাজিরা/ঘণ্টা
+            VoiceReportModel.Metric.BRANCH_TOP_COLLECTION, VoiceReportModel.Metric.BRANCH_TOP_PATIENTS -> {
+                val money = parsed.metric == VoiceReportModel.Metric.BRANCH_TOP_COLLECTION
+                val lowest = parsed.extra == "min"
+                openDetail(if (money) "BRANCH_TOP_COLLECTION" else "BRANCH_TOP_PATIENTS")
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { if (money) VoiceReportRepository.branchRankCollection(parsed.from, parsed.to, lowest) else VoiceReportRepository.branchRankPatients(parsed.from, parsed.to, lowest) }
+                    val rows = got.value
+                    if (got.ok && rows != null && rows.isNotEmpty()) {
+                        fun fmt(r: VoiceReportRepository.BranchRank) = if (money) rs(r.value) else "${r.patients} patients"
+                        val rest = rows.drop(1).joinToString(" · ") { "${it.branch} ${fmt(it)}" }
+                        show(rows[0].branch, "${if (lowest) "lowest" else "highest"}: ${fmt(rows[0])} · then $rest")
+                    } else showFail(got.message)
+                }
+            }
+            VoiceReportModel.Metric.RMP_PAID -> { openDetail("RMP_PAID"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // নাম ধরে (আইটেম ১৭) — তালিকা ছেঁকে যোগ
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpPaidList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.rmpName) }
+                    if (got.ok && rows != null) show(rs(rows.sumOf { it.amount }), "paid to ${parsed.extra} · ${rows.size} payments") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpPaidSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(rs(got.value.total), "paid to ${got.value.rmpCount} RMPs · ${got.value.paymentCount} payments") else showFail(got.message) } } }
+            VoiceReportModel.Metric.IN_MISSING -> { openDetail("IN_MISSING"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.inMissingList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode, it.staffName) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "days IN time not given · ${parsed.extra}") else showFail(got.message)
+                } else {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.inMissingSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "days IN time not given · ${got.value.staffCount} staff") else showFail(got.message) } } }
             VoiceReportModel.Metric.STAFF_HOURS -> { openDetail("STAFF_HOURS"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম/কোড ধরে
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode) }
+                    if (got.ok && rows != null) show("${"%.1f".format(rows.sumOf { it.hours })} h", "hours · ${parsed.extra} · ${rows.sumOf { it.days }} days") else showFail(got.message)
+                } else {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursSummary(parsed.branch, parsed.from, parsed.to) }
-                if (got.ok && got.value != null) show("${"%.1f".format(got.value.totalHours)} h", "total hours · ${got.value.staffCount} staff") else showFail(got.message) } }
+                if (got.ok && got.value != null) show("${"%.1f".format(got.value.totalHours)} h", "total hours · ${got.value.staffCount} staff") else showFail(got.message) } } }
             VoiceReportModel.Metric.STAFF_PRESENT -> { openDetail("STAFF_PRESENT"); lifecycleScope.launch {
+                if (parsed.extra.isNotBlank()) {   // 🎤 V1428 — নাম/কোড ধরে (আইটেম ১৬)
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffPresentList(parsed.branch, parsed.from, parsed.to) }
+                    val rows = got.value?.filter { VoiceReportModel.nameMatch(parsed.extra, it.staffCode) }
+                    if (got.ok && rows != null) show(rows.size.toString(), "attendance days · ${parsed.extra}") else showFail(got.message)
+                } else {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffPresentSummary(parsed.branch, parsed.from, parsed.to) }
-                if (got.ok && got.value != null) show(got.value.staffCount.toString(), "staff present · ${got.value.total} attendance days") else showFail(got.message) } }
+                if (got.ok && got.value != null) show(got.value.staffCount.toString(), "staff present · ${got.value.total} attendance days") else showFail(got.message) } } }
             VoiceReportModel.Metric.REGISTRATION_COUNT -> {
                 box.setOnClickListener {
                     startActivity(Intent(this, VoiceReportDetailActivity::class.java)

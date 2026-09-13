@@ -24,6 +24,8 @@ object VoiceReportModel {
         DOCTOR_REMINDER, STAFF_REMINDER_OPEN, FEE_RETURN,
         CHAMBER_UNCLOSED, NO_SHOW, OUT_MISSING, WFH_COUNT, DUPLICATE_PATIENTS, FEE_UNPAID, CALLS_PENDING, MESSAGES_SENT,
         NEW_PATIENTS, FOLLOWUP_CALLS_DONE, DISEASE_COUNT, RMP_CALLED, RMP_CALL_DUE, FIELD_VISIT, STAFF_HOURS, STAFF_PRESENT,
+        // 🎤 V1428 — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম (কালেকশন · রোগী) · RMP-কে দেওয়া কমিশন · IN-বাদ
+        BRANCH_TOP_COLLECTION, BRANCH_TOP_PATIENTS, RMP_PAID, IN_MISSING,
         MONTH_COMPARE_PATIENTS, MONTH_COMPARE_COLLECTION
     }
 
@@ -68,6 +70,35 @@ object VoiceReportModel {
 
     private fun today(): LocalDate = LocalDate.now(ZoneId.of("Asia/Kolkata"))
     private fun iso(d: LocalDate): String = d.toString()
+
+    /* 🎤 V1428 (তালিকা ৫৩৮) — **নাম ধরে** প্রশ্ন (আইটেম ১৬ · ১৭ · ৪৮): প্রশ্নে ইংরেজি অক্ষরের
+       শব্দ (যেমন "JPE-CRP", "JAKIR HOSSAIN") থাকলে সেগুলো ছাঁকনি — তালিকার যে সারির নাম/কোডে
+       **সবগুলো** শব্দ আছে শুধু সেটাই। ⚠️ সৎ সীমা: নামটা অ্যাপে যেমন ইংরেজিতে জমা, তেমন
+       ইংরেজি অক্ষরেই বলতে/লিখতে হবে — বাংলায় বলা নাম ("জাকির হোসেন") ইংরেজি নামের সাথে
+       মেলানোর নির্ভরযোগ্য উপায় নেই (আন্দাজে মেলানো নিষেধ, নিয়ম ৫)। প্রশ্ন-চেনার ইংরেজি
+       শব্দগুলো (present, hour, reminder…) ও ব্রাঞ্চের নাম ছাঁকনিতে যায় না। */
+    private val NAME_STOP = setOf(
+        "RMP", "PRESENT", "REMINDER", "REMINDERS", "HOUR", "HOURS", "OUT", "WFH", "FIELD", "KM", "IN", "TIME",
+        "PAID", "COMPARE", "REQUEST", "REQUESTS", "REFERRAL", "APPOINTMENT", "APPOINTMENTS", "LEAVE", "DOCTOR",
+        "WHATSAPP", "SMS", "DUPLICATE", "NOSHOW", "NO", "SHOW", "ADVANCE", "CLOSE", "MOST", "WHICH", "BRANCH",
+        "YESTERDAY", "TODAY", "TOMORROW", "LAST", "DAYS", "DAY", "WEEK", "MONTH", "THIS", "DIN", "MASH", "OPEN",
+        "STAFF", "COMMISSION", "HOW", "MANY", "MUCH", "WAS", "WERE", "THE", "FOR", "AND", "GIVEN", "CALL", "CALLS",
+        "WORK", "FROM", "HOME", "ATTENDANCE", "STILL", "NOT", "MARKED", "PATIENT", "PATIENTS", "CAME", "COLLECTION",
+        "PILES", "FISSURE", "FISTULA", "HYDROCELE", "GUPT", "ROG", "OTHER", "LIST", "TOTAL", "WHO", "WHOM", "TO", "IS", "ARE",
+        "KISHANGANJ", "JALPAIGURI", "COOCH", "BEHAR", "COOCHBEHAR", "FALAKATA", "BIRPARA"
+    )
+    val NAME_METRICS = setOf(Metric.RMP_PAID, Metric.STAFF_PRESENT, Metric.STAFF_HOURS, Metric.STAFF_REMINDER_OPEN, Metric.OUT_MISSING, Metric.IN_MISSING)
+
+    fun findNameTokens(q: String): String =
+        Regex("[A-Za-z][A-Za-z\\-]{2,}").findAll(q).map { it.value.uppercase().trimEnd('-') }
+            .filter { it.length >= 3 && it !in NAME_STOP }.distinct().joinToString(" ")
+
+    /** সারিটা নাম-ছাঁকনিতে মেলে কিনা — `extra`-র প্রতিটা শব্দ নাম/কোডের ভিতরে থাকতে হবে। */
+    fun nameMatch(extra: String, vararg fields: String): Boolean {
+        if (extra.isBlank()) return true
+        val hay = fields.joinToString(" ").uppercase()
+        return extra.split(" ").filter { it.isNotBlank() }.all { hay.contains(it) }
+    }
 
     private fun findBranch(q: String): Pair<String, String>? {
         val lower = q.lowercase()
@@ -157,8 +188,17 @@ object VoiceReportModel {
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
         // 📊 V1426 (TK: "হ্যাঁ") — "এই মাসে গত মাসের তুলনায়/চেয়ে কত বেশি/কম" — দুই মাসের তুলনা
         val hasCompare = q.contains("তুলনা") || q.contains("চেয়ে") || lower.contains("compare")
+        // 🎤 V1428 — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম · RMP-কে কমিশন দেওয়া · IN-বাদ
+        val hasBranchTop = q.contains("কোন ব্রাঞ্চ") || q.contains("কোন শাখা") || q.contains("সবচেয়ে") || lower.contains("which branch") || lower.contains("most ")
+        val hasRmpPaid = q.contains("কমিশন") && !hasDueWord &&
+            (q.contains("দেওয়া") || q.contains("দেয়া") || q.contains("দিয়েছি") || q.contains("পেয়েছে") || q.contains("পেল") || lower.contains("paid"))
+        val hasInMissing = !hasOutMissing && (q.contains("ইন টাইম") || q.contains("ইন-টাইম") || lower.contains("in time") || Regex("\\bin\\b").containsMatchIn(lower)) &&
+            (q.contains("হয়নি") || q.contains("দেয়নি") || q.contains("দেননি") || lower.contains("missing") || lower.contains("not given"))
         // ⛔ ক্রমটা ওয়েবের wlv1VoiceParse-এর সাথে হুবহু এক রাখতে হবে (নিয়ম ৮)
         return when {
+            hasBranchTop && (hasMoney || hasRmpPaid) -> Metric.BRANCH_TOP_COLLECTION
+            hasBranchTop -> Metric.BRANCH_TOP_PATIENTS
+            hasInMissing -> Metric.IN_MISSING
             hasCompare && hasMoney -> Metric.MONTH_COMPARE_COLLECTION
             hasCompare -> Metric.MONTH_COMPARE_PATIENTS
             hasSale && hasMedicine -> Metric.MEDICINE_SALE
@@ -190,6 +230,7 @@ object VoiceReportModel {
             hasRmpCalled -> Metric.RMP_CALLED
             hasNewPatients -> Metric.NEW_PATIENTS
             hasDisease -> Metric.DISEASE_COUNT
+            hasRmpPaid -> Metric.RMP_PAID
             hasAdvance -> Metric.RMP_ADVANCE
             hasRmpDue -> Metric.RMP_DUE
             hasTrash -> Metric.TRASH_COUNT
@@ -205,13 +246,20 @@ object VoiceReportModel {
     /** এই লেখাটা প্রশ্নের মতো মনে হচ্ছে কিনা — এটাই দেখা হয় সাধারণ নাম/নম্বর
      *  খোঁজার (ভারী ক্লাউড-পড়া) আগে, যাতে সাধারণ Search কখনো আটকে না যায়। */
     fun isQuestionLike(q: String): Boolean =
-        q.contains("কত") || q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির")
+        q.contains("কত") || q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির") ||
+            q.contains("সবচেয়ে") || q.contains("কোন ব্রাঞ্চ") || q.contains("কোন শাখা") || q.contains("কমিশন")   // V1428
 
     fun parse(q: String): Parsed? {
         // 🌐 V1423 (TK: "সব ব্রাঞ্চ মিলিয়ে মোট দেখান") — ব্রাঞ্চের নাম না বললে সব ব্রাঞ্চ মিলিয়ে
         val (branch, branchLabel) = findBranch(q) ?: (VoiceReportRepository.ALL to "All branches")
         val metric = findMetric(q) ?: return null
-        val extra = if (metric == Metric.DISEASE_COUNT) (findDisease(q) ?: "") else ""   // V1422 — রোগের নাম
+        val extra = when {
+            metric == Metric.DISEASE_COUNT -> findDisease(q) ?: ""   // V1422 — রোগের নাম
+            metric in NAME_METRICS -> findNameTokens(q)              // V1428 — নাম-ছাঁকনি (ফাঁকা = সবাই)
+            metric == Metric.BRANCH_TOP_COLLECTION || metric == Metric.BRANCH_TOP_PATIENTS ->
+                if (q.contains("সবচেয়ে কম") || q.lowercase().contains("least") || q.lowercase().contains("lowest")) "min" else ""   // V1428
+            else -> ""
+        }
         // 📊 V1426 — মাস-তুলনা: এই মাসের ১ থেকে আজ, বনাম গত মাসের ১ থেকে একই তারিখ (ন্যায্য তুলনা);
         // from/to = এই মাস, extra = "গতমাস-শুরু|গতমাস-শেষ" (তারিখ-শব্দ লাগে না)
         if (metric == Metric.MONTH_COMPARE_PATIENTS || metric == Metric.MONTH_COMPARE_COLLECTION) {
