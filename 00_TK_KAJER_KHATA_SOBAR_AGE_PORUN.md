@@ -26598,3 +26598,10 @@ PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসা
 ## ১৩.০৯.২০২৬ দুপুর ২.১০ — V1405 ZIP পাঠানো (TK: "ফাইল পাঠান")
 PILES_CLINIC_APP_V1405_FINAL.zip — 25.93 MB · 1874 ফাইল (হিসাব `pathano_filer_talika.json`-এ)। ভার্সন ১৪০৪→১৪০৫ (build.gradle.kts ২ লাইন · version.json · index.html app.js/profile.js ?v=v1405)। ভিতরে V1427–V1431। নতুন SQL বাকি নেই (V1422/V1428/V1430 TK চালিয়েছেন)। বিল্ডের পরে: স্টাফ-ফোনে More → Call ID Banner → ON। সব পাহারা PASS।
 
+## ১৩.০৯.২০২৬ বিকেল — Settings Blueprint · Gate 0 Audit (শুধু-পড়া) — তালিকা ৫৪৭
+TK-র docx ব্লুপ্রিন্ট (কপি `10_FUTURE_PLANS/SETTINGS_BLUEPRINT_TK_2026-09-13.txt`)। তিনজন স্বাধীন যাচাইকারী (Android · Web · auth/Supabase) → রিপোর্ট
+`10_FUTURE_PLANS/SETTINGS_GATE0_AUDIT_REPORT_2026-09-13.md` (+ PDF TK-কে)। মূল ফল: ফোনের "Backup" = App Settings পর্দা, ২ control মৃত (session timeout,
+auto-sync); theme hook নেই (হাতে-লেখা রং ফোনে ১,৫৮৯+৪৪৪, ওয়েবে ~৫,৭০০), dark mode TK-নিষিদ্ধ; dashboard/menu hard-coded + মোবাইল-ভিত্তিক ব্যক্তিগত নিয়ম;
+session-নিয়মের তিন সত্য (ওয়েব ১৫ মিনিট · ফোন ৩০ মিনিট মৃত · ফোন ৭ দিন); verified identity শুধু মডিউল-JWT-র auth.uid → preference টেবিল `hr.user_settings(uid)`
+প্রস্তাব; `public` টেবিল RLS-বন্ধ তাই ওখানে নয়; `reports` exposure ও hr-এ anon grant — Runtime Test। কোনো কোড/DB/ডিজাইন বদল হয়নি (Gate 1 অনুমোদনের অপেক্ষা)।
+
