@@ -1,5 +1,34 @@
 [
  {
+  "file": "PILES_CLINIC_APP_V1402_FINAL.zip",
+  "versionCode": 1402,
+  "when": "13.09.2026 সকাল",
+  "size_mb": 25.92,
+  "total_files": 1954,
+  "top_folders": {
+   "02_ANDROID_SOURCE_CODE": 825,
+   "(root)": 604,
+   "00_SQL": 143,
+   "04_SUPABASE_DATABASE_SETUP": 131,
+   "00_GUARD": 65,
+   "03_NETLIFY_READY": 59,
+   "08_ASSETS_BACKUP": 39,
+   "07_RELEASE_NOTES_VERSION_HISTORY": 32,
+   "ROLLBACK_V448": 13,
+   "10_FUTURE_PLANS": 13,
+   "00_READ_ME_FIRST": 12,
+   "06_TEST_CHECKLISTS": 3,
+   ".github": 3,
+   "11_V223_TESTS": 3,
+   "05_APK_AAB_BUILD_NOTES": 2,
+   "03_SUPABASE_SQL": 2,
+   "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 2,
+   ".claude": 2
+  },
+  "excluded": "root-level demo .png/.gif (22, ইচ্ছে করে) + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL — আগের নিয়মেই, উভয় পাহারা (verify_zip_contents.py + verify_zip_root_name.py) PASS",
+  "note": "V1400-এর চেয়ে +116 ফাইল (+0.13 MB) — 00_SQL +15 (V1406-V1415: RMP one-ledger CTE-পুনর্লিখন, ৭টা TK-অনুমোদিত ব্রাঞ্চ-অডিট ফিক্স, ভয়েস-রিপোর্ট reports স্কিমা), Android/Web-এ ভয়েস-প্রশ্ন ফিচার-ফাইল (VoiceReportModel/Repository/DetailActivity + layout + app.js যোগ), Add Referral Income লক-করা ফিল্ড ফিক্স (V1414)। কম্পাইল-পাহারা, রিসোর্স-পাহারা, tk_guard — সব PASS। গোপন কিছু নেই।"
+ },
+ {
   "file": "PILES_CLINIC_APP_V1400_FINAL.zip",
   "versionCode": 1400,
   "when": "12.09.2026 01.30 pm",
