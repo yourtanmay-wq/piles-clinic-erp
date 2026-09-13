@@ -302,6 +302,91 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, FollowUpModel.displayDate(p.returnedOn), "₹${"%,.0f".format(p.amount)}", "#B42318", onTap))
                     }
                 }
+                // ── V1421 ──
+                "CHAMBER_UNCLOSED" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.chamberUnclosedList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Not closed: ${rows.size} days (today not counted)"
+                    if (rows.isEmpty()) empty("Every active day was closed.")
+                    rows.forEach { p -> binding.rowsHost.addView(row(FollowUpModel.displayDate(p.chamberDate), "${p.arrived} patients had activity", "₹${"%,.0f".format(p.money)}", "#B45309", null)) }
+                }
+                "NO_SHOW" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.noShowSummary(branch, from, to) to VoiceReportRepository.noShowList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Did not come: ${s.noShow} · came: ${s.arrived} · expected: ${s.expectedTotal}" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("Nobody was marked expected for this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · expected ${FollowUpModel.displayDate(p.expectedOn)}", if (p.arrived) "came" else "no-show", if (p.arrived) "#0C8F3A" else "#B42318", onTap))
+                    }
+                }
+                "OUT_MISSING" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.outMissingSummary(branch, from, to) to VoiceReportRepository.outMissingList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "OUT time not given: ${s.total} days · ${s.staffCount} staff" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No missing OUT time in this period.")
+                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, "IN ${p.checkIn} · ${FollowUpModel.displayDate(p.workDate)}", "OUT —", "#B42318", null)) }
+                }
+                "WFH_COUNT" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.wfhSummary(branch, from, to) to VoiceReportRepository.wfhList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "WFH applications: ${s.total} · ${s.approved} approved · ${s.pending} pending · ${s.rejected} rejected" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No WFH applications in this period.")
+                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffName.ifBlank { p.staffCode }, "WFH ${FollowUpModel.displayDate(p.workDate)} · applied ${FollowUpModel.displayDate(p.requestedOn)}", p.status, if (p.status == "approved") "#0C8F3A" else if (p.status == "rejected") "#B42318" else "#B45309", null)) }
+                }
+                "DUPLICATE_PATIENTS" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.duplicateSummary(branch) to VoiceReportRepository.duplicateList(branch) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "${s.mobileGroups} same mobile · ${s.nameGroups} same name · ${s.paymentGroups} same payment (list shows same-mobile groups)" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No same-mobile duplicate groups.")
+                    rows.forEach { p ->
+                        val onTap: () -> Unit = { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) }
+                        binding.rowsHost.addView(row(p.mobile, p.names, "${p.rowCount} records", "#B45309", onTap))
+                    }
+                }
+                "FEE_UNPAID" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.feeUnpaidSummary(branch) to VoiceReportRepository.feeUnpaidList(branch) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    binding.tvSummary.text = "Visit fee not received: ${sum.value ?: 0} patients (registered from 05/09/2026)"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("Everyone's visit fee is recorded.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.patientCode} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                    }
+                }
+                "CALLS_PENDING" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.callsPendingSummary(branch) to VoiceReportRepository.callsPendingList(branch) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    binding.tvSummary.text = "Pending follow-up calls today: ${sum.value ?: 0}"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No pending follow-up calls today.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.stage} · due ${FollowUpModel.displayDate(p.nextFollow)}", "›", "#94A3B8", onTap))
+                    }
+                }
+                "MESSAGES_SENT" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.messagesSummary(branch, from, to) to VoiceReportRepository.messagesList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Messages opened to send: ${s.total} · ${s.whatsapp} WhatsApp · ${s.sms} SMS" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No messages in this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.kind} · ${FollowUpModel.displayDate(p.sentOn)}", p.channel, "#0C8F3A", onTap))
+                    }
+                }
                 else -> fail("Unknown report")
             }
             binding.progressLoad.visibility = android.view.View.GONE

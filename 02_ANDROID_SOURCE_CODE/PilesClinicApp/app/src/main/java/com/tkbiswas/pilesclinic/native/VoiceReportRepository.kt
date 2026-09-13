@@ -48,6 +48,20 @@ object VoiceReportRepository {
     data class StaffReminderRow(val reminderId: String, val toName: String, val toCode: String, val reminderType: String, val remindOn: String, val status: String)
     data class FeeReturnSummary(val total: Double, val patientCount: Int)
     data class FeeReturnRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val returnedOn: String)
+    // V1421
+    data class UnclosedRow(val chamberDate: String, val arrived: Int, val money: Double)
+    data class NoShowSummary(val noShow: Int, val arrived: Int, val expectedTotal: Int)
+    data class NoShowRow(val name: String, val mobile: String, val expectedOn: String, val arrived: Boolean)
+    data class OutMissingSummary(val total: Int, val staffCount: Int)
+    data class OutMissingRow(val staffCode: String, val workDate: String, val checkIn: String)
+    data class WfhSummary(val total: Int, val approved: Int, val pending: Int, val rejected: Int)
+    data class WfhRow(val staffName: String, val staffCode: String, val workDate: String, val status: String, val requestedOn: String)
+    data class DuplicateSummary(val mobileGroups: Int, val nameGroups: Int, val paymentGroups: Int)
+    data class DuplicateRow(val mobile: String, val rowCount: Int, val names: String)
+    data class FeeUnpaidRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String)
+    data class CallPendingRow(val followupId: String, val name: String, val mobile: String, val stage: String, val nextFollow: String)
+    data class MessagesSummary(val total: Int, val whatsapp: Int, val sms: Int)
+    data class MessageRow(val name: String, val mobile: String, val kind: String, val channel: String, val sentOn: String)
 
     private fun args(branch: String, from: String, to: String): JSONObject = JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to)
     private fun args(branch: String): JSONObject = JSONObject().put("p_branch", branch)
@@ -129,6 +143,44 @@ object VoiceReportRepository {
         FeeReturnSummary(it.optDouble("total", 0.0), it.optInt("patient_count", 0)) }
     fun feeReturnList(b: String, f: String, t: String): RepoResult<List<FeeReturnRow>> = rowList("fee_return_list", args(b, f, t)).mapRows {
         FeeReturnRow(it.optString("payment_id"), it.optString("patient_row_id"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("returned_on")) }
+
+    // ── V1421 ──
+    fun chamberUnclosedSummary(b: String, f: String, t: String): RepoResult<Int> = firstRow("chamber_unclosed_summary", args(b, f, t)).mapRow { it.optInt("day_count", 0) }
+    fun chamberUnclosedList(b: String, f: String, t: String): RepoResult<List<UnclosedRow>> = rowList("chamber_unclosed_list", args(b, f, t)).mapRows {
+        UnclosedRow(it.optString("chamber_date"), it.optInt("arrived", 0), it.optDouble("money", 0.0)) }
+
+    fun noShowSummary(b: String, f: String, t: String): RepoResult<NoShowSummary> = firstRow("no_show_summary", args(b, f, t)).mapRow {
+        NoShowSummary(it.optInt("no_show", 0), it.optInt("arrived", 0), it.optInt("expected_total", 0)) }
+    fun noShowList(b: String, f: String, t: String): RepoResult<List<NoShowRow>> = rowList("no_show_list", args(b, f, t)).mapRows {
+        NoShowRow(it.optString("name"), it.optString("mobile"), it.optString("expected_on"), it.optBoolean("arrived", false)) }
+
+    fun outMissingSummary(b: String, f: String, t: String): RepoResult<OutMissingSummary> = firstRow("out_missing_summary", args(b, f, t)).mapRow {
+        OutMissingSummary(it.optInt("total", 0), it.optInt("staff_count", 0)) }
+    fun outMissingList(b: String, f: String, t: String): RepoResult<List<OutMissingRow>> = rowList("out_missing_list", args(b, f, t)).mapRows {
+        OutMissingRow(it.optString("staff_code"), it.optString("work_date"), it.optString("check_in")) }
+
+    fun wfhSummary(b: String, f: String, t: String): RepoResult<WfhSummary> = firstRow("wfh_summary", args(b, f, t)).mapRow {
+        WfhSummary(it.optInt("total", 0), it.optInt("approved", 0), it.optInt("pending", 0), it.optInt("rejected", 0)) }
+    fun wfhList(b: String, f: String, t: String): RepoResult<List<WfhRow>> = rowList("wfh_list", args(b, f, t)).mapRows {
+        WfhRow(it.optString("staff_name"), it.optString("staff_code"), it.optString("work_date"), it.optString("status"), it.optString("requested_on")) }
+
+    fun duplicateSummary(b: String): RepoResult<DuplicateSummary> = firstRow("duplicate_summary", args(b)).mapRow {
+        DuplicateSummary(it.optInt("mobile_groups", 0), it.optInt("name_groups", 0), it.optInt("payment_groups", 0)) }
+    fun duplicateList(b: String): RepoResult<List<DuplicateRow>> = rowList("duplicate_list", args(b)).mapRows {
+        DuplicateRow(it.optString("mobile"), it.optInt("row_count", 0), it.optString("names")) }
+
+    fun feeUnpaidSummary(b: String): RepoResult<Int> = firstRow("fee_unpaid_summary", args(b)).mapRow { it.optInt("total", 0) }
+    fun feeUnpaidList(b: String): RepoResult<List<FeeUnpaidRow>> = rowList("fee_unpaid_list", args(b)).mapRows {
+        FeeUnpaidRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("registration_date")) }
+
+    fun callsPendingSummary(b: String): RepoResult<Int> = firstRow("calls_pending_summary", args(b)).mapRow { it.optInt("total", 0) }
+    fun callsPendingList(b: String): RepoResult<List<CallPendingRow>> = rowList("calls_pending_list", args(b)).mapRows {
+        CallPendingRow(it.optString("followup_id"), it.optString("name"), it.optString("mobile"), it.optString("stage"), it.optString("next_follow")) }
+
+    fun messagesSummary(b: String, f: String, t: String): RepoResult<MessagesSummary> = firstRow("messages_summary", args(b, f, t)).mapRow {
+        MessagesSummary(it.optInt("total", 0), it.optInt("whatsapp", 0), it.optInt("sms", 0)) }
+    fun messagesList(b: String, f: String, t: String): RepoResult<List<MessageRow>> = rowList("messages_list", args(b, f, t)).mapRows {
+        MessageRow(it.optString("name"), it.optString("mobile"), it.optString("kind"), it.optString("channel"), it.optString("sent_on")) }
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
         val rpc = ModuleAuth.rpc("reports", "patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))

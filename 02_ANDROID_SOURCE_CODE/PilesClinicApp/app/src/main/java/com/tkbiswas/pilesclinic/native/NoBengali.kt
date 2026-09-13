@@ -568,6 +568,22 @@ object NoBengali {
         "ফেরত" to "return",
         "ভিজিট" to "visit",
         "ফি" to "fee",
+        // 🎤🔒 V1421 (১৩.০৯.২০২৬) — চেম্বার-বন্ধ-হয়নি · no-show · OUT-বাদ · WFH · ডুপ্লিকেট · ফি-জমা-পড়েনি · কল-বাকি · বার্তা
+        "সপ্তাহ" to "week",
+        "চেম্বার" to "chamber",
+        "বন্ধ" to "closed",
+        "আসেননি" to "did not come",
+        "আসেনি" to "did not come",
+        "আউট" to "out",
+        "দেয়নি" to "not given",
+        "দেননি" to "not given",
+        "বাড়ি থেকে" to "from home",
+        "ডুপ্লিকেট" to "duplicate",
+        "জমা পড়েনি" to "not received",
+        "জমা হয়নি" to "not received",
+        "বার্তা" to "message",
+        "মেসেজ" to "message",
+        "হোয়াটসঅ্যাপ" to "WhatsApp",
 
         // 🟢🔒 V629 (২৪.০৮.২০২৬) — Statement (স্টেটমেন্ট) পর্দার নতুন লেখা।
         "স্টেটমেন্ট" to "Statement",

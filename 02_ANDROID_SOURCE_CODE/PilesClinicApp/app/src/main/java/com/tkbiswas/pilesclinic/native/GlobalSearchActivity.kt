@@ -553,6 +553,31 @@ class GlobalSearchActivity : AppCompatActivity() {
             VoiceReportModel.Metric.FEE_RETURN -> { openDetail("FEE_RETURN"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.feeReturnSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(rs(got.value.total), "${got.value.patientCount} patients' visit fee returned") else showFail(got.message) } }
+            // ── V1421 ──
+            VoiceReportModel.Metric.CHAMBER_UNCLOSED -> { openDetail("CHAMBER_UNCLOSED"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.chamberUnclosedSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "days chamber not closed (today not counted)") else showFail(got.message) } }
+            VoiceReportModel.Metric.NO_SHOW -> { openDetail("NO_SHOW"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.noShowSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.noShow.toString(), "did not come · ${got.value.arrived} came · ${got.value.expectedTotal} were expected") else showFail(got.message) } }
+            VoiceReportModel.Metric.OUT_MISSING -> { openDetail("OUT_MISSING"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.outMissingSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "days OUT time not given · ${got.value.staffCount} staff") else showFail(got.message) } }
+            VoiceReportModel.Metric.WFH_COUNT -> { openDetail("WFH_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.wfhSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "WFH applications: ${got.value.approved} approved · ${got.value.pending} pending · ${got.value.rejected} rejected") else showFail(got.message) } }
+            VoiceReportModel.Metric.DUPLICATE_PATIENTS -> { openDetail("DUPLICATE_PATIENTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.duplicateSummary(parsed.branch) }
+                if (got.ok && got.value != null) show((got.value.mobileGroups + got.value.nameGroups + got.value.paymentGroups).toString(), "${got.value.mobileGroups} same mobile · ${got.value.nameGroups} same name · ${got.value.paymentGroups} same payment") else showFail(got.message) } }
+            VoiceReportModel.Metric.FEE_UNPAID -> { openDetail("FEE_UNPAID"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.feeUnpaidSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.toString(), "patients' visit fee not received (registered from 05/09/2026)") else showFail(got.message) } }
+            VoiceReportModel.Metric.CALLS_PENDING -> { openDetail("CALLS_PENDING"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.callsPendingSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.toString(), "follow-up calls still pending today") else showFail(got.message) } }
+            VoiceReportModel.Metric.MESSAGES_SENT -> { openDetail("MESSAGES_SENT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.messagesSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "messages opened to send: ${got.value.whatsapp} WhatsApp · ${got.value.sms} SMS") else showFail(got.message) } }
             VoiceReportModel.Metric.REGISTRATION_COUNT -> {
                 box.setOnClickListener {
                     startActivity(Intent(this, VoiceReportDetailActivity::class.java)

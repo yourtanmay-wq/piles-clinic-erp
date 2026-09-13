@@ -21,12 +21,14 @@ object VoiceReportModel {
         REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND, CASH_HANDOVER, RMP_DUE,
         MEDICINE_DUE, CALL_COUNT, TRASH_COUNT, RMP_ADVANCE,
         APPOINTMENT_COUNT, EXPECTED_COUNT, HANDOVER_PENDING, PAYMENT_REQUESTS, REFERRAL_REQUESTS, LEAVE_COUNT,
-        DOCTOR_REMINDER, STAFF_REMINDER_OPEN, FEE_RETURN
+        DOCTOR_REMINDER, STAFF_REMINDER_OPEN, FEE_RETURN,
+        CHAMBER_UNCLOSED, NO_SHOW, OUT_MISSING, WFH_COUNT, DUPLICATE_PATIENTS, FEE_UNPAID, CALLS_PENDING, MESSAGES_SENT
     }
 
-    /** যে প্রশ্নগুলো "এখন পর্যন্ত মোট" — কোনো তারিখ/সময়-সীমা লাগে না (V1418/V1419/V1420)। */
+    /** যে প্রশ্নগুলো "এখন পর্যন্ত মোট" — কোনো তারিখ/সময়-সীমা লাগে না (V1418–V1421)। */
     private val SNAPSHOT = setOf(Metric.RMP_DUE, Metric.MEDICINE_DUE, Metric.HANDOVER_PENDING,
-        Metric.PAYMENT_REQUESTS, Metric.REFERRAL_REQUESTS, Metric.STAFF_REMINDER_OPEN)
+        Metric.PAYMENT_REQUESTS, Metric.REFERRAL_REQUESTS, Metric.STAFF_REMINDER_OPEN,
+        Metric.DUPLICATE_PATIENTS, Metric.FEE_UNPAID, Metric.CALLS_PENDING)
 
     data class Parsed(
         val metric: Metric,
@@ -70,7 +72,7 @@ object VoiceReportModel {
             q.contains("আগামীকাল") || q.contains("tomorrow") -> Range(iso(t.plusDays(1)), iso(t.plusDays(1)), "Tomorrow")
             q.contains("গতকাল") -> Range(iso(t.minusDays(1)), iso(t.minusDays(1)), "Yesterday")
             q.contains("আজ") -> Range(iso(t), iso(t), "Today")
-            q.contains("সাত দিন") || q.contains("7 din") || q.contains("last 7") ->
+            q.contains("সাত দিন") || q.contains("7 din") || q.contains("last 7") || q.contains("সপ্তাহ") || q.contains("week") ->
                 Range(iso(t.minusDays(6)), iso(t), "Last 7 days")
             q.contains("এক মাস") || q.contains("1 mash") ->
                 Range(iso(t.minusMonths(1).plusDays(1)), iso(t), "Last 1 month")
@@ -113,6 +115,16 @@ object VoiceReportModel {
         val hasLeave = q.contains("ছুটি") || lower.contains("leave")
         val hasReminder = q.contains("রিমাইন্ডার") || lower.contains("reminder")
         val hasDoctorReminder = hasReminder && (q.contains("ডাক্তার") || lower.contains("doctor"))
+        // 🎤 V1421 — চেম্বার-বন্ধ-হয়নি · no-show · OUT-বাদ · WFH · ডুপ্লিকেট · ফি-জমা-পড়েনি · ফলো-আপ-কল-বাকি · বার্তা
+        val hasNoShow = q.contains("আসেননি") || q.contains("আসেনি") || lower.contains("no show") || lower.contains("no-show") || lower.contains("noshow")
+        val hasChamberUnclosed = q.contains("চেম্বার") && (q.contains("বন্ধ") || lower.contains("close"))
+        val hasOutMissing = (lower.contains("out") || q.contains("আউট")) && (q.contains("হয়নি") || q.contains("দেয়নি"))
+        val hasWfh = lower.contains("wfh") || lower.contains("work from home") || q.contains("বাড়ি থেকে")
+        val hasDuplicate = q.contains("ডুপ্লিকেট") || lower.contains("duplicate")
+        val hasCallsPending = q.contains("ফলো") && q.contains("কল") && (hasDueWord || q.contains("হয়নি"))
+        val hasMessages = q.contains("বার্তা") || q.contains("মেসেজ") || q.contains("হোয়াটসঅ্যাপ") || lower.contains("whatsapp") || lower.contains("sms")
+        val hasFeeUnpaid = (q.contains("ভিজিট") || q.contains("ফি")) &&
+            (q.contains("জমা পড়েনি") || q.contains("জমা হয়নি") || q.contains("দেয়নি") || q.contains("দেননি") || hasDueWord)
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
@@ -120,6 +132,14 @@ object VoiceReportModel {
         return when {
             hasSale && hasMedicine -> Metric.MEDICINE_SALE
             hasSale && hasSaline -> Metric.SALINE_SALE
+            hasNoShow -> Metric.NO_SHOW
+            hasChamberUnclosed -> Metric.CHAMBER_UNCLOSED
+            hasOutMissing -> Metric.OUT_MISSING
+            hasWfh -> Metric.WFH_COUNT
+            hasDuplicate -> Metric.DUPLICATE_PATIENTS
+            hasCallsPending -> Metric.CALLS_PENDING
+            hasMessages -> Metric.MESSAGES_SENT
+            hasFeeUnpaid -> Metric.FEE_UNPAID
             hasFeeReturn -> Metric.FEE_RETURN
             hasReferralReq -> Metric.REFERRAL_REQUESTS
             hasPayReq -> Metric.PAYMENT_REQUESTS
