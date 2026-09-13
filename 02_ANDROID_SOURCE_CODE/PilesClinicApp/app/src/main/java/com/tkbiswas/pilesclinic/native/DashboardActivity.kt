@@ -1549,21 +1549,39 @@ class DashboardActivity : AppCompatActivity() {
         return cached?.takeIf { it.isNotBlank() } ?: user.name
     }
 
-    /** TK-অনুমোদিত "ক": উপরে ছোট করে `Welcome,`, নিচের লাইনে বড় করে পুরো নাম। */
+    /** TK-অনুমোদিত "ক": উপরে ছোট করে `Welcome,`, নিচের লাইনে বড় করে পুরো নাম।
+     *  👤🔒 V1426 (১৩.০৯.২০২৬, TK: *"এক লাইনে হবে যত বড় নামই হোক না কেন"*, তালিকা ৫২৮) —
+     *  নাম জায়গায় না আঁটলে (যেমন CHANDANA ROY PR…) "…" নয়: নামের অক্ষর ঠিক ততটুকু
+     *  ছোট হয় যাতে পুরো নাম এক লাইনে আঁটে। ছোট নামে কিছুই বদলায় না। */
     private fun renderWelcome(fullName: String) {
         val head = "Welcome,\n"
-        val sp = android.text.SpannableStringBuilder(head + fullName)
-        /* উপরের লাইন — ছোট, হালকা রং, মোটা নয় (XML-এ পুরোটা bold, তাই খোলা হয়)। */
-        sp.setSpan(android.text.style.RelativeSizeSpan(11f / 14f), 0, head.length,
-            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#CFE8D8")),
-            0, head.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), 0, head.length,
-            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        /* নিচের লাইন — নামটাই বড়, সাদা ও মোটা। */
-        sp.setSpan(android.text.style.RelativeSizeSpan(15f / 14f), head.length, sp.length,
-            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        binding.tvWelcome.text = sp
+        fun build(nameScale: Float): android.text.SpannableStringBuilder {
+            val sp = android.text.SpannableStringBuilder(head + fullName)
+            /* উপরের লাইন — ছোট, হালকা রং, মোটা নয় (XML-এ পুরোটা bold, তাই খোলা হয়)। */
+            sp.setSpan(android.text.style.RelativeSizeSpan(11f / 14f), 0, head.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#CFE8D8")),
+                0, head.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), 0, head.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            /* নিচের লাইন — নামটাই বড়, সাদা ও মোটা। */
+            sp.setSpan(android.text.style.RelativeSizeSpan(nameScale), head.length, sp.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+        val normalScale = 15f / 14f
+        binding.tvWelcome.text = build(normalScale)
+        binding.tvWelcome.post {
+            val avail = binding.tvWelcome.width - binding.tvWelcome.paddingLeft - binding.tvWelcome.paddingRight
+            if (avail <= 0 || fullName.isBlank()) return@post
+            val paint = android.text.TextPaint(binding.tvWelcome.paint)
+            paint.textSize = binding.tvWelcome.textSize * normalScale
+            val needed = paint.measureText(fullName)
+            if (needed > avail) {
+                val shrunk = (normalScale * avail / needed) * 0.97f
+                binding.tvWelcome.text = build(shrunk.coerceAtLeast(8f / 14f))
+            }
+        }
     }
 
     private fun confirmLogout() {

@@ -599,6 +599,9 @@ object NoBengali {
         "উপস্থিত" to "present",
         "পাইলস" to "Piles",
         "ফিসার" to "Fissure",
+        // 📊 V1426 — মাস-তুলনার প্রশ্ন-ছাঁচ
+        "তুলনা" to "compare",
+        "চেয়ে" to "than",
         "ফিস্টুলা" to "Fistula",
         "হাইড্রোসিল" to "Hydrocele",
         "গুপ্ত" to "Gupt",

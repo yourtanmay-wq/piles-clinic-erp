@@ -23862,8 +23862,11 @@ function wlv1VoiceParse(q){
   const hasDisease = wlv1VoiceDisease(q)!==null && (q.includes('রোগী')||q.includes('পেশেন্ট')||q.includes('কতজন'));
   const hasMoney = q.includes('কালেকশন')||q.includes('জমা')||(q.includes('টাকা')&&!q.includes('পেশেন্ট'));
   const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
+  // 📊 V1426 (TK: "হ্যাঁ") — "এই মাসে গত মাসের তুলনায়/চেয়ে কত বেশি/কম" — দুই মাসের তুলনা
+  const hasCompare = q.includes('তুলনা')||q.includes('চেয়ে')||lower.includes('compare');
   // ⛔ ক্রমটা ফোনের VoiceReportModel.findMetric()-এর সাথে হুবহু এক (নিয়ম ৮)
-  const picks=[[hasSale&&hasMedicine,'MEDICINE_SALE'],[hasSale&&hasSaline,'SALINE_SALE'],
+  const picks=[[hasCompare&&hasMoney,'MONTH_COMPARE_COLLECTION'],[hasCompare,'MONTH_COMPARE_PATIENTS'],
+    [hasSale&&hasMedicine,'MEDICINE_SALE'],[hasSale&&hasSaline,'SALINE_SALE'],
     [hasNoShow,'NO_SHOW'],[hasChamberUnclosed,'CHAMBER_UNCLOSED'],[hasOutMissing,'OUT_MISSING'],[hasWfh,'WFH_COUNT'],
     [hasDuplicate,'DUPLICATE_PATIENTS'],[hasCallsPending,'CALLS_PENDING'],[hasFuCallsDone,'FOLLOWUP_CALLS_DONE'],[hasMessages,'MESSAGES_SENT'],[hasFeeUnpaid,'FEE_UNPAID'],
     [hasFeeReturn,'FEE_RETURN'],
@@ -23880,6 +23883,15 @@ function wlv1VoiceParse(q){
   // 🔒 V1418/V1419/V1420 — "এখন পর্যন্ত মোট" প্রশ্নগুলো সময়-সীমা নেয় না, তারিখ-ছাঁচ মেলা লাগে না
   const WLV1_VOICE_SNAPSHOT=['RMP_DUE','MEDICINE_DUE','HANDOVER_PENDING','PAYMENT_REQUESTS','REFERRAL_REQUESTS','STAFF_REMINDER_OPEN','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING'];
   const branchLabel = branch==='ALL' ? 'All branches' : branch;
+  // 📊 V1426 — মাস-তুলনা: এই মাসের ১ থেকে আজ, বনাম গত মাসের ১ থেকে একই তারিখ (ফোনের VoiceReportModel-এর হুবহু নিয়ম)
+  if(metric==='MONTH_COMPARE_PATIENTS'||metric==='MONTH_COMPARE_COLLECTION'){
+    const t=new Date(); const now=new Date(t.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+    const thisFrom=new Date(now); thisFrom.setDate(1);
+    const lastEnd=new Date(thisFrom); lastEnd.setDate(0);
+    const lastFrom=new Date(lastEnd); lastFrom.setDate(1);
+    const lastTo=new Date(lastEnd); lastTo.setDate(Math.min(now.getDate(), lastEnd.getDate()));
+    return {metric,branch,branchLabel,from:wlv1VoiceIsoDate(thisFrom),to:wlv1VoiceIsoDate(now),periodLabel:`This month vs last month, days 1–${now.getDate()}`,extra:wlv1VoiceIsoDate(lastFrom)+'|'+wlv1VoiceIsoDate(lastTo)};
+  }
   if(WLV1_VOICE_SNAPSHOT.includes(metric)) return {metric,branch,branchLabel,from:'',to:'',periodLabel:'Right now',extra};
   const range=wlv1VoiceDateRange(q); if(!range) return null;
   return {metric,branch,branchLabel,from:range.from,to:range.to,periodLabel:range.label,extra};
@@ -23905,7 +23917,17 @@ async function wlv1ShowVoiceAnswer(q){
   const vBad=()=>{ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; };
   const vFirst=async(fn,a)=>{ const r=await c.rpc(fn,a); return (r.error||!Array.isArray(r.data)||!r.data.length)?null:r.data[0]; };
   const rangeArgs={p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to}, oneArg={p_branch:parsed.branch};
-  if(parsed.metric==='APPOINTMENT_COUNT'){
+  if(parsed.metric==='MONTH_COMPARE_PATIENTS'||parsed.metric==='MONTH_COMPARE_COLLECTION'){
+    // V1426 — দুই মাসের একই কটা দিনের তুলনা
+    const isMoney=parsed.metric==='MONTH_COMPARE_COLLECTION'; const [lf,lt]=String(parsed.extra||'').split('|');
+    const lastArgs={p_branch:parsed.branch,p_from:lf,p_to:lt};
+    let a=null,b=null;
+    if(isMoney){ const s1=await vFirst('collection_summary',rangeArgs), s2=await vFirst('collection_summary',lastArgs); a=s1?Number(s1.total):null; b=s2?Number(s2.total):null; }
+    else { const r1=await c.rpc('patients_registered_count',rangeArgs), r2=await c.rpc('patients_registered_count',lastArgs); a=(r1.error||r1.data==null)?null:Number(r1.data); b=(r2.error||r2.data==null)?null:Number(r2.data); }
+    if(a===null||b===null) return vBad();
+    const f=v=>isMoney?money(v):String(Math.round(v)); const d=a-b;
+    vOk((d>=0?'+':'−')+f(Math.abs(d)),`this month ${f(a)} · last month (same days) ${f(b)}${isMoney?'':' patients'}`,isMoney?'COLLECTION':'REGISTRATION_COUNT');
+  } else if(parsed.metric==='APPOINTMENT_COUNT'){
     const r=await c.rpc('appointment_count',rangeArgs); if(r.error||r.data==null) return vBad(); vOk(String(r.data),'appointments','APPOINTMENT_COUNT');
   } else if(parsed.metric==='EXPECTED_COUNT'){
     const r=await c.rpc('expected_count',rangeArgs); if(r.error||r.data==null) return vBad(); vOk(String(r.data),'patients marked expected','EXPECTED_COUNT');

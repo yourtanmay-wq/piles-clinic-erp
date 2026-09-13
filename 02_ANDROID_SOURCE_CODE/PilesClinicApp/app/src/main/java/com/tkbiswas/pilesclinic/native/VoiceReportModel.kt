@@ -23,7 +23,8 @@ object VoiceReportModel {
         APPOINTMENT_COUNT, EXPECTED_COUNT, HANDOVER_PENDING, PAYMENT_REQUESTS, REFERRAL_REQUESTS, LEAVE_COUNT,
         DOCTOR_REMINDER, STAFF_REMINDER_OPEN, FEE_RETURN,
         CHAMBER_UNCLOSED, NO_SHOW, OUT_MISSING, WFH_COUNT, DUPLICATE_PATIENTS, FEE_UNPAID, CALLS_PENDING, MESSAGES_SENT,
-        NEW_PATIENTS, FOLLOWUP_CALLS_DONE, DISEASE_COUNT, RMP_CALLED, RMP_CALL_DUE, FIELD_VISIT, STAFF_HOURS, STAFF_PRESENT
+        NEW_PATIENTS, FOLLOWUP_CALLS_DONE, DISEASE_COUNT, RMP_CALLED, RMP_CALL_DUE, FIELD_VISIT, STAFF_HOURS, STAFF_PRESENT,
+        MONTH_COMPARE_PATIENTS, MONTH_COMPARE_COLLECTION
     }
 
     // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
@@ -154,8 +155,12 @@ object VoiceReportModel {
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
+        // 📊 V1426 (TK: "হ্যাঁ") — "এই মাসে গত মাসের তুলনায়/চেয়ে কত বেশি/কম" — দুই মাসের তুলনা
+        val hasCompare = q.contains("তুলনা") || q.contains("চেয়ে") || lower.contains("compare")
         // ⛔ ক্রমটা ওয়েবের wlv1VoiceParse-এর সাথে হুবহু এক রাখতে হবে (নিয়ম ৮)
         return when {
+            hasCompare && hasMoney -> Metric.MONTH_COMPARE_COLLECTION
+            hasCompare -> Metric.MONTH_COMPARE_PATIENTS
             hasSale && hasMedicine -> Metric.MEDICINE_SALE
             hasSale && hasSaline -> Metric.SALINE_SALE
             hasNoShow -> Metric.NO_SHOW
@@ -207,6 +212,14 @@ object VoiceReportModel {
         val (branch, branchLabel) = findBranch(q) ?: (VoiceReportRepository.ALL to "All branches")
         val metric = findMetric(q) ?: return null
         val extra = if (metric == Metric.DISEASE_COUNT) (findDisease(q) ?: "") else ""   // V1422 — রোগের নাম
+        // 📊 V1426 — মাস-তুলনা: এই মাসের ১ থেকে আজ, বনাম গত মাসের ১ থেকে একই তারিখ (ন্যায্য তুলনা);
+        // from/to = এই মাস, extra = "গতমাস-শুরু|গতমাস-শেষ" (তারিখ-শব্দ লাগে না)
+        if (metric == Metric.MONTH_COMPARE_PATIENTS || metric == Metric.MONTH_COMPARE_COLLECTION) {
+            val t = today(); val thisFrom = t.withDayOfMonth(1); val lastEnd = thisFrom.minusDays(1)
+            val lastFrom = lastEnd.withDayOfMonth(1)
+            val lastTo = lastEnd.withDayOfMonth(minOf(t.dayOfMonth, lastEnd.lengthOfMonth()))
+            return Parsed(metric, branch, iso(thisFrom), iso(t), branchLabel, "This month vs last month, days 1–${t.dayOfMonth}", iso(lastFrom) + "|" + iso(lastTo))
+        }
         // 🔒 V1418 (১৩.০৯.২০২৬) — RMP-বাকি কোনো সময়-সীমার প্রশ্ন নয় (fin.rmp_branch_due
         // "এখন পর্যন্ত মোট বাকি" দেখায়, তারিখ নেয় না), তাই এখানেই একমাত্র ব্যতিক্রম —
         // "গতকাল/আজ/সাত দিন/এক মাস" কিছু না বললেও চলবে।

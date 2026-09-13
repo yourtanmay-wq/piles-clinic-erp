@@ -579,6 +579,31 @@ class GlobalSearchActivity : AppCompatActivity() {
             VoiceReportModel.Metric.MESSAGES_SENT -> { openDetail("MESSAGES_SENT"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.messagesSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(got.value.total.toString(), "messages opened to send: ${got.value.whatsapp} WhatsApp · ${got.value.sms} SMS") else showFail(got.message) } }
+            // ── V1426 — মাস-তুলনা (এই মাস বনাম গত মাসের একই কটা দিন) ──
+            VoiceReportModel.Metric.MONTH_COMPARE_PATIENTS, VoiceReportModel.Metric.MONTH_COMPARE_COLLECTION -> {
+                val money = parsed.metric == VoiceReportModel.Metric.MONTH_COMPARE_COLLECTION
+                val parts = parsed.extra.split("|")
+                val lf = parts.getOrElse(0) { "" }; val lt = parts.getOrElse(1) { "" }
+                openDetail(if (money) "COLLECTION" else "REGISTRATION_COUNT")
+                lifecycleScope.launch {
+                    val pair: Pair<Double?, Double?> = withContext(Dispatchers.IO) {
+                        if (money) {
+                            val a = VoiceReportRepository.collectionSummary(parsed.branch, parsed.from, parsed.to)
+                            val b = VoiceReportRepository.collectionSummary(parsed.branch, lf, lt)
+                            Pair(a.value?.total, b.value?.total)
+                        } else {
+                            val a = VoiceReportRepository.patientsRegisteredCount(parsed.branch, parsed.from, parsed.to)
+                            val b = VoiceReportRepository.patientsRegisteredCount(parsed.branch, lf, lt)
+                            Pair(a.value?.toDouble(), b.value?.toDouble())
+                        }
+                    }
+                    val a = pair.first; val b = pair.second
+                    if (a == null || b == null) { showFail("Could not verify"); return@launch }
+                    val diff = a - b
+                    val f: (Double) -> String = if (money) { v -> rs(v) } else { v -> "%.0f".format(v) }
+                    show((if (diff >= 0) "+" else "−") + f(kotlin.math.abs(diff)), "this month ${f(a)} · last month (same days) ${f(b)}" + (if (money) "" else " patients"))
+                }
+            }
             // ── V1422 ──
             VoiceReportModel.Metric.NEW_PATIENTS -> { openDetail("NEW_PATIENTS"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.newPatientsCount(parsed.branch, parsed.from, parsed.to) }
