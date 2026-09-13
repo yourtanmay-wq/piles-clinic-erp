@@ -465,5 +465,21 @@
     "result": "CSV bc01af9d — total_hand_extra: COB-UTTAMA 47,500 · JPE-CRP 33,900 · KNE-LAXMI 24,410",
     "proof": "CSV",
     "what": "নতুন ২৮ সারি বসেছে (UTTAMA 47,100 · CRP 26,300 · LAXMI 24,410 — LAXMI হুবহু মিলেছে)। UTTAMA-র মোটে +400 ও CRP-র মোটে +7,600 = আগে থেকেই থাকা হাতে-লেখা Extra সারি (UTTAMA-র ₹400 = V1093-এর Treatment · COB-21082026-004 DUE সারি; CRP-র ৭,৬০০ আগের হাতে-এন্ট্রি) — যোগফল-প্রশ্নটা সব হাতে-লেখা EXTRA সারি (PAID+DUE) গোনে।"
+  },
+  {
+    "sql_file": "00_SQL/V1433_RMP_WHOLE_RUPEE_PAID_POOL_2026-09-13.sql (তালিকা ৫৫২)",
+    "run_by": "",
+    "when": "১৩.০৯.২০২৬ বিকেল ৫.৪৯ (ফোনের ছবি)",
+    "result": "Success. No rows returned — fin.rmp_patient_breakdown / rmp_rmp_summary পুরো-টাকা নিয়মে",
+    "proof": "",
+    "what": ""
+  },
+  {
+    "sql_file": "00_SQL/V1409_PK_SADIKA_KHATUN_STOP_COMMISSION_2026-09-12.sql (তালিকা ৫১৪/৫৫২, আবার দেওয়া)",
+    "run_by": "",
+    "when": "১৩.০৯.২০২৬ বিকেল ৫.৪৯",
+    "result": "CSV: SADIKA KHATUN · capped_amount 14997.00 · audit_rows 1",
+    "proof": "",
+    "what": ""
   }
 ]
