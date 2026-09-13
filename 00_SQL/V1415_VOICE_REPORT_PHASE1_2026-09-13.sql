@@ -13,13 +13,18 @@ begin;
 
 create schema if not exists reports;
 
+-- 🔒 TK-নির্দেশ (১৩.০৯.২০২৬): "ভয়েস কমান্ড আপাতত শুধু মাস্টারের জন্য থাকবে —
+-- ভবিষ্যতে অন্যদের জন্য চালু করতে চাইলে তখন চালু হবে।" তাই এখন শুধু Master;
+-- নিজের ব্রাঞ্চের স্টাফকেও দেখানো হলে ভবিষ্যতে নিচের `or exists(...)` অংশটা
+-- আনকমেন্ট করলেই যথেষ্ট — বাকি কোনো ফাংশন/অ্যাপ-কোড বদলাতে হবে না।
 create or replace function reports.can_access_branch(p_branch text) returns boolean
 language sql stable security definer set search_path = hr, public as $$
-  select hr.is_master() or exists(
-    select 1 from hr.staff_profiles s
-     where s.person_code = hr.my_code() and s.active is not false
-       and lower(trim(coalesce(s.branch,''))) = lower(trim(coalesce(p_branch,'')))
-  )
+  select hr.is_master()
+  -- or exists(
+  --   select 1 from hr.staff_profiles s
+  --    where s.person_code = hr.my_code() and s.active is not false
+  --      and lower(trim(coalesce(s.branch,''))) = lower(trim(coalesce(p_branch,'')))
+  -- )
 $$;
 revoke all on function reports.can_access_branch(text) from public, anon;
 grant execute on function reports.can_access_branch(text) to authenticated;

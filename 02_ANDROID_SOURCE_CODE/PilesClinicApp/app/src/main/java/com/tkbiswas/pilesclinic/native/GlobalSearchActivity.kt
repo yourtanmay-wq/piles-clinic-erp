@@ -123,10 +123,15 @@ class GlobalSearchActivity : AppCompatActivity() {
                 val q = s.toString().trim()
                 searchJob?.cancel()
                 if (q.length < 2) { results.clear(); adapter.notifyDataSetChanged(); tvEmpty.visibility = View.VISIBLE; tvEmpty.text = "Type a name or mobile number to search."; voiceAnswerHost.removeAllViews(); voiceAnswerHost.visibility = View.GONE; return }
-                /* 🎤🔒 V1415 — প্রশ্নের মতো লেখা হলে (কতজন/কালেকশন/বিক্রি) ভারী
+                /* 🎤🔒 V1415 (আপডেট ১৩.০৯.২০২৬, TK-নির্দেশ: "আপাতত শুধু মাস্টারের
+                   জন্য") — প্রশ্নের মতো লেখা হলে (কতজন/কালেকশন/বিক্রি) ভারী
                    নাম-খোঁজার ক্লাউড-পড়া এড়িয়ে সরাসরি রিপোর্ট-উত্তর দেখানো হয়।
-                   ⛔ সাধারণ নাম/নম্বর খোঁজায় এই পথ কখনো ছোঁয়া হয় না। */
-                if (VoiceReportModel.isQuestionLike(q)) {
+                   ⛔ শুধু Master; স্টাফ/ডাক্তারের জন্য এই লেখাটাও সাধারণ
+                   নাম/নম্বর খোঁজা হিসেবেই চলে (আচরণ আগের মতোই)।
+                   ⛔ ভবিষ্যতে বাকিদের জন্য চালু করতে হলে শুধু এই একটা শর্ত
+                   (`isMaster`) সরালেই হবে — বাকি কোড অপরিবর্তিত থাকবে। */
+                val isMaster = NativeSession.current(this)?.role == "master"
+                if (isMaster && VoiceReportModel.isQuestionLike(q)) {
                     results.clear(); adapter.notifyDataSetChanged(); recycler.visibility = View.GONE
                     tvEmpty.visibility = View.GONE
                     showVoiceAnswer(q)

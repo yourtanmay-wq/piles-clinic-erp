@@ -23870,8 +23870,10 @@ function wlv1SearchRun(q){
   const voiceHost = $('#wlv1VoiceAnswer');
   q = String(q||'').trim();
   if(q.length < 2){ box.innerHTML = '<div class="card mut">Type a name or mobile number to search.</div>'; if(voiceHost) voiceHost.innerHTML=''; return; }
-  /* 🎤🔒 V1415 — প্রশ্নের মতো লেখা হলে ভারী নাম-খোঁজা এড়িয়ে রিপোর্ট-উত্তর। */
-  if(wlv1VoiceIsQuestionLike(q)){
+  /* 🎤🔒 V1415 (আপডেট ১৩.০৯.২০২৬, TK-নির্দেশ: "আপাতত শুধু মাস্টারের জন্য") —
+     প্রশ্নের মতো লেখা হলে ভারী নাম-খোঁজা এড়িয়ে রিপোর্ট-উত্তর — শুধু Master;
+     স্টাফ/ডাক্তারের এই লেখাও সাধারণ নাম-খোঁজা হিসেবেই চলবে। */
+  if(isMaster()&&wlv1VoiceIsQuestionLike(q)){
     box.innerHTML='';
     if(voiceHost){ voiceHost.style.display='block'; wlv1ShowVoiceAnswer(q); }
     return;
