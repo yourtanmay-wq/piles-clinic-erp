@@ -23777,12 +23777,13 @@ const wlv1VoiceBranchMap=[['কিশানগঞ্জ','Kishanganj'],['kishang
   ['ফালাকাটা','Falakata'],['falakata','Falakata'],['বীরপাড়া','Birpara'],['birpara','Birpara']];
 function wlv1VoiceIsoDate(dt){return dt.toISOString().slice(0,10)}
 function wlv1VoiceDateRange(q){
+  // 🇬🇧 নিয়ম ৯ — label সবসময় ইংরেজি (ফোনের VoiceReportModel.kt-এর হুবহু নিয়ম)।
   const t=new Date(); const kolkataNow=new Date(t.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
   const day=d=>{const x=new Date(kolkataNow); x.setDate(x.getDate()+d); return wlv1VoiceIsoDate(x)};
-  if(q.includes('গতকাল')) return {from:day(-1),to:day(-1),label:'গতকাল'};
-  if(q.includes('আজ')) return {from:day(0),to:day(0),label:'আজ'};
-  if(q.includes('৭ দিন')||q.includes('সাত দিন')||q.includes('7 din')||q.includes('last 7')) return {from:day(-6),to:day(0),label:'গত ৭ দিন'};
-  if(q.includes('এক মাস')||q.includes('১ মাস')||q.includes('1 mash')) return {from:day(-30),to:day(0),label:'গত এক মাস'};
+  if(q.includes('গতকাল')) return {from:day(-1),to:day(-1),label:'Yesterday'};
+  if(q.includes('আজ')) return {from:day(0),to:day(0),label:'Today'};
+  if(q.includes('সাত দিন')||q.includes('7 din')||q.includes('last 7')) return {from:day(-6),to:day(0),label:'Last 7 days'};
+  if(q.includes('এক মাস')||q.includes('1 mash')) return {from:day(-30),to:day(0),label:'Last 1 month'};
   return null;
 }
 function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কালেকশন')||q.includes('বিক্রি'); }
@@ -23803,7 +23804,7 @@ async function wlv1ShowVoiceAnswer(q){
   const parsed=wlv1VoiceParse(q);
   if(!parsed){
     host.innerHTML = `<div class="card" style="background:#FDEEEE;border-color:#F5D6D2"><b style="color:#B42318">Not understood</b>`
-      + `<div class="tiny" style="color:#7A8699;margin-top:4px">Try like: "গতকাল জলপাইগুড়িতে কতজন পেশেন্ট এসেছিল" or "গত ৭ দিনে কোচবিহারে কত কালেকশন হয়েছে"</div></div>`;
+      + `<div class="tiny" style="color:#7A8699;margin-top:4px">Try like: "Yesterday how many patients came in Jalpaiguri" or "last 7 days collection in Cooch Behar"</div></div>`;
     return;
   }
   const title = `${parsed.branch} — ${wlv1VoicePeriodText(parsed.from,parsed.to,parsed.periodLabel)}`;

@@ -49,15 +49,20 @@ object VoiceReportModel {
 
     private data class Range(val from: String, val to: String, val label: String)
 
+    /* 🇬🇧 নিয়ম ৯ (স্টাফের পর্দায় সব লেখা ইংরেজি): এখানে .contains() শর্তে বাংলা
+       শব্দ থাকে (ব্যবহারকারীর বাংলায় লেখা/বলা প্রশ্ন চেনার জন্য — অপরিহার্য),
+       কিন্তু ফেরত-আসা `label`-টা সবসময় **ইংরেজি**, কারণ সেটাই পর্দায় দেখানো
+       হয়। এই সব বাংলা মিলানো-শব্দ `NoBengali.kt`-এর MAP-এও যোগ করা আছে
+       (পাহারা ৯.১৪ ধরে, তাই বাদ দেওয়ার সুযোগ নেই)। */
     private fun findDateRange(q: String): Range? {
         val t = today()
         return when {
-            q.contains("গতকাল") -> Range(iso(t.minusDays(1)), iso(t.minusDays(1)), "গতকাল")
-            q.contains("আজ") -> Range(iso(t), iso(t), "আজ")
-            q.contains("৭ দিন") || q.contains("সাত দিন") || q.contains("7 din") || q.contains("last 7") ->
-                Range(iso(t.minusDays(6)), iso(t), "গত ৭ দিন")
-            q.contains("এক মাস") || q.contains("১ মাস") || q.contains("1 mash") ->
-                Range(iso(t.minusMonths(1).plusDays(1)), iso(t), "গত এক মাস")
+            q.contains("গতকাল") -> Range(iso(t.minusDays(1)), iso(t.minusDays(1)), "Yesterday")
+            q.contains("আজ") -> Range(iso(t), iso(t), "Today")
+            q.contains("সাত দিন") || q.contains("7 din") || q.contains("last 7") ->
+                Range(iso(t.minusDays(6)), iso(t), "Last 7 days")
+            q.contains("এক মাস") || q.contains("1 mash") ->
+                Range(iso(t.minusMonths(1).plusDays(1)), iso(t), "Last 1 month")
             else -> null
         }
     }

@@ -80,8 +80,7 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Total: ${rows.size} patients"
                     if (rows.isEmpty()) empty("No patients found for this period.")
                     rows.forEach { p ->
-                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10)
-                            { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
                     }
                 }
@@ -95,8 +94,7 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No payments found for this period.")
                     rows.forEach { p ->
-                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10)
-                            { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.payType} · ${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", if (p.payType.equals("refund", true)) "#B42318" else "#0C8F3A", onTap))
                     }
                 }

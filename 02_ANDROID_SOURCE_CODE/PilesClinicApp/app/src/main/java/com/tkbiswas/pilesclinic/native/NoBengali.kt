@@ -510,6 +510,31 @@ object NoBengali {
      *     এখানে তার ইংরেজিও যোগ করতে হবে (পাহারাদারের যাচাই ৯.১৪ ধরবে)। */
     private val MAP: Map<String, String> = mapOf(
 
+        // 🎤🔒 V1415 (১৩.০৯.২০২৬) — Search-এর ভয়েস/টাইপ-প্রশ্ন চেনার শব্দ-ছাঁচ
+        // (VoiceReportModel.kt)। এগুলো পর্দায় দেখানো হয় না (ফেরত-আসা label
+        // সবসময় ইংরেজি) — শুধু ব্যবহারকারীর বাংলা-লেখা প্রশ্নের সাথে মেলানোর
+        // জন্য .contains()-এ থাকে, তাই পাহারা ৯.১৪ ধরে; এখানেও যোগ করা হলো।
+        "কিশানগঞ্জ" to "Kishanganj",
+        "জলপাইগুড়ি" to "Jalpaiguri",
+        "কোচবিহার" to "Cooch Behar",
+        "কুচবিহার" to "Cooch Behar",
+        "ফালাকাটা" to "Falakata",
+        "বীরপাড়া" to "Birpara",
+        "গতকাল" to "Yesterday",
+        "আজ" to "Today",
+        "সাত দিন" to "seven days",
+        "এক মাস" to "one month",
+        "পেশেন্ট" to "patient",
+        "রোগী" to "patient",
+        "কালেকশন" to "collection",
+        "জমা" to "deposit",
+        "টাকা" to "money",
+        "কতজন" to "how many",
+        "এসেছিল" to "came",
+        "এসেছে" to "has come",
+        "কত" to "how much",
+        "বিক্রি" to "sale",
+
         // 🟢🔒 V629 (২৪.০৮.২০২৬) — Statement (স্টেটমেন্ট) পর্দার নতুন লেখা।
         "স্টেটমেন্ট" to "Statement",
         "\"From\" তারিখ \"To\"-এর পরে হতে পারে না।" to "\"From\" date cannot be after \"To\" date.",
