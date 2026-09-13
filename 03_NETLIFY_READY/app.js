@@ -23763,10 +23763,119 @@ function wlv1SearchCard(r){
 }
 window["wlv1SearchCard"]=wlv1SearchCard;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   🎤🔒 V1415 (১৩.০৯.২০২৬, TK-নির্দেশ "কাজ শুরু করে দিন", তালিকা ৫২০) —
+   Search-এর ঘরে প্রশ্নের মতো লেখা (যেমন "গতকাল কোচবিহারে কতজন পেশেন্ট
+   এসেছিল") হলে ভারী নাম-খোঁজা এড়িয়ে সরাসরি রিপোর্ট-উত্তর — ফোনের
+   GlobalSearchActivity/VoiceReportModel.kt-এর হুবহু ওয়েব-যমজ। ৪৮টা সম্ভাব্য
+   প্রশ্নের পুরো তালিকা `10_FUTURE_PLANS/VOICE_QUERY_PLAN_2026-09-13.md`-এ।
+   ⛔ AI নয় — নির্দিষ্ট শব্দ-ছাঁচ; না মিললে সৎভাবে "বুঝিনি"। ⛔ বাল্ক-ডাউনলোড
+   নয় — সার্ভারের ছোট্ট `reports.*` ফাংশন থেকে শুধু সংখ্যা/অল্প সারি আসে। */
+async function wlv1ReportsClient(){ try{ if(!window.MOD) return null; await MOD.autoSignIn(); var c=await MOD.client(); return c?c.schema('reports'):null }catch(e){ return null } }
+const wlv1VoiceBranchMap=[['কিশানগঞ্জ','Kishanganj'],['kishanganj','Kishanganj'],['জলপাইগুড়ি','Jalpaiguri'],['jalpaiguri','Jalpaiguri'],
+  ['কোচবিহার','Cooch Behar'],['কুচবিহার','Cooch Behar'],['cooch behar','Cooch Behar'],['coochbehar','Cooch Behar'],
+  ['ফালাকাটা','Falakata'],['falakata','Falakata'],['বীরপাড়া','Birpara'],['birpara','Birpara']];
+function wlv1VoiceIsoDate(dt){return dt.toISOString().slice(0,10)}
+function wlv1VoiceDateRange(q){
+  const t=new Date(); const kolkataNow=new Date(t.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+  const day=d=>{const x=new Date(kolkataNow); x.setDate(x.getDate()+d); return wlv1VoiceIsoDate(x)};
+  if(q.includes('গতকাল')) return {from:day(-1),to:day(-1),label:'গতকাল'};
+  if(q.includes('আজ')) return {from:day(0),to:day(0),label:'আজ'};
+  if(q.includes('৭ দিন')||q.includes('সাত দিন')||q.includes('7 din')||q.includes('last 7')) return {from:day(-6),to:day(0),label:'গত ৭ দিন'};
+  if(q.includes('এক মাস')||q.includes('১ মাস')||q.includes('1 mash')) return {from:day(-30),to:day(0),label:'গত এক মাস'};
+  return null;
+}
+function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কালেকশন')||q.includes('বিক্রি'); }
+function wlv1VoiceParse(q){
+  let branch=null; const lower=q.toLowerCase();
+  for(const [k,v] of wlv1VoiceBranchMap) if(lower.includes(k.toLowerCase())){branch=v;break}
+  if(!branch) return null;
+  const range=wlv1VoiceDateRange(q); if(!range) return null;
+  const hasMoney = q.includes('কালেকশন')||q.includes('জমা')||(q.includes('টাকা')&&!q.includes('পেশেন্ট'));
+  const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
+  const metric = hasMoney?'COLLECTION':(hasPatientCount?'REGISTRATION_COUNT':null);
+  if(!metric) return null;
+  return {metric,branch,from:range.from,to:range.to,periodLabel:range.label};
+}
+function wlv1VoicePeriodText(from,to,label){ return from===to ? `${fmtDate(from)} (${label})` : `${fmtDate(from)} – ${fmtDate(to)} (${label})`; }
+async function wlv1ShowVoiceAnswer(q){
+  const host=$('#wlv1VoiceAnswer'); if(!host) return;
+  const parsed=wlv1VoiceParse(q);
+  if(!parsed){
+    host.innerHTML = `<div class="card" style="background:#FDEEEE;border-color:#F5D6D2"><b style="color:#B42318">Not understood</b>`
+      + `<div class="tiny" style="color:#7A8699;margin-top:4px">Try like: "গতকাল জলপাইগুড়িতে কতজন পেশেন্ট এসেছিল" or "গত ৭ দিনে কোচবিহারে কত কালেকশন হয়েছে"</div></div>`;
+    return;
+  }
+  const title = `${parsed.branch} — ${wlv1VoicePeriodText(parsed.from,parsed.to,parsed.periodLabel)}`;
+  host.innerHTML = `<div class="card" id="wlv1VoiceAnswerCard" style="background:#EAF6EE;border-color:#CBEBD6;cursor:pointer">`
+    + `<div class="tiny" style="color:#5A6474">${esc(title)}</div>`
+    + `<div id="wlv1VoiceAnswerNum" style="font-size:26px;font-weight:800;color:#0B8A3E">…</div>`
+    + `<div id="wlv1VoiceAnswerSub" class="tiny" style="color:#5A6474"></div></div>`;
+  const c = await wlv1ReportsClient();
+  if(!c){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Could not verify login'; return; }
+  if(parsed.metric==='REGISTRATION_COUNT'){
+    const r = await c.rpc('patients_registered_count',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||r.data==null){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    $('#wlv1VoiceAnswerNum').textContent = String(r.data);
+    $('#wlv1VoiceAnswerSub').textContent = 'patients registered • tap to see list ›';
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('REGISTRATION_COUNT',parsed.branch,parsed.from,parsed.to,title);
+  } else {
+    const r = await c.rpc('collection_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    const s=r.data[0];
+    $('#wlv1VoiceAnswerNum').textContent = money(s.total);
+    $('#wlv1VoiceAnswerSub').textContent = `${s.patient_count} patients • tap to see list ›`;
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('COLLECTION',parsed.branch,parsed.from,parsed.to,title);
+  }
+}
+window["wlv1ShowVoiceAnswer"]=wlv1ShowVoiceAnswer;
+/* চাপ দিলে যে পাতা খোলে — ফোনের VoiceReportDetailActivity-র ওয়েব-যমজ। রোগীর
+   নামে চাপলে সেই রোগীর Full Journey-তেই যায় (TK: "সেই পেজে রিডাইরেক্ট হয়")। */
+async function wlv1VoiceReportDetail(metric,branch,from,to,title){
+  page(title, `<div id="wlv1VoiceDetailSummary" class="card mut">Loading…</div><div id="wlv1VoiceDetailRows"></div>`, true);
+  const c = await wlv1ReportsClient();
+  if(!c){ $('#wlv1VoiceDetailSummary').textContent='Could not verify login'; return; }
+  if(metric==='REGISTRATION_COUNT'){
+    const r = await c.rpc('patients_registered_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} patients`;
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile);
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(p.mobile||'')} · ${esc(fmtDate(p.registration_date||''))}</span></div>`;
+    }).join('') || '<div class="card mut">No patients found for this period.</div>';
+  } else {
+    const r = await c.rpc('collection_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    const sr = await c.rpc('collection_summary',{p_branch:branch,p_from:from,p_to:to});
+    const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
+    $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.patient_count} patients · ${s.payment_count} payments` : 'Total: —';
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile), isRefund=String(p.pay_type||'').toLowerCase()==='refund';
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(p.pay_type||'')} · ${esc(p.mode||'')} · ${esc(fmtDate(p.paid_on||''))}</span>`
+        + `<span style="float:right;font-weight:700;color:${isRefund?'#B42318':'#0C8F3A'}">${money(p.amount)}</span></div>`;
+    }).join('') || '<div class="card mut">No payments found for this period.</div>';
+  }
+}
+window["wlv1VoiceReportDetail"]=wlv1VoiceReportDetail;
+
 function wlv1SearchRun(q){
   const box = $('#wlv1SResults'); if(!box) return;
+  const voiceHost = $('#wlv1VoiceAnswer');
   q = String(q||'').trim();
-  if(q.length < 2){ box.innerHTML = '<div class="card mut">Type a name or mobile number to search.</div>'; return; }
+  if(q.length < 2){ box.innerHTML = '<div class="card mut">Type a name or mobile number to search.</div>'; if(voiceHost) voiceHost.innerHTML=''; return; }
+  /* 🎤🔒 V1415 — প্রশ্নের মতো লেখা হলে ভারী নাম-খোঁজা এড়িয়ে রিপোর্ট-উত্তর। */
+  if(wlv1VoiceIsQuestionLike(q)){
+    box.innerHTML='';
+    if(voiceHost){ voiceHost.style.display='block'; wlv1ShowVoiceAnswer(q); }
+    return;
+  }
+  if(voiceHost){ voiceHost.style.display='none'; voiceHost.innerHTML=''; }
   const qd = q.replace(/\D/g,'');
   const isHit = row => {
     const d = mob(row.mobile); if(!d) return false;
@@ -23814,6 +23923,7 @@ function globalSearchScreen(){
   page('Search', `<div class="wlv1Search">
     <input id="wlv1SQuery" class="input" placeholder="Search by name or mobile"
       autocomplete="off" data-nocaps="1" oninput="wlv1SearchRun(this.value)">
+    <div id="wlv1VoiceAnswer" style="display:none;margin-bottom:8px"></div>
     <div id="wlv1SResults"><div class="card mut">Type a name or mobile number to search.</div></div>
   </div>`, true);
   setTimeout(()=>{ const el=$('#wlv1SQuery'); if(el) el.focus(); }, 60);

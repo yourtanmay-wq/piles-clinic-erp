@@ -1,0 +1,92 @@
+package com.tkbiswas.pilesclinic.native
+
+import java.time.LocalDate
+import java.time.ZoneId
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🎤🔒 V1415 (১৩.০৯.২০২৬, TK-নির্দেশ "কাজ শুরু করে দিন", তালিকা ৫২০) —
+   Search-এর ঘরে ভয়েসে/টাইপ করে প্রশ্ন করলে (যেমন "গতকাল কোচবিহারে কতজন
+   পেশেন্ট এসেছিল") রিপোর্ট-উত্তর দেখানোর প্রথম ধাপ — এখন দুটো বিষয়:
+   পেশেন্ট-রেজিস্ট্রেশন সংখ্যা ও টাকার কালেকশন। ৪৮টা সম্ভাব্য প্রশ্নের
+   পুরো তালিকা `10_FUTURE_PLANS/VOICE_QUERY_PLAN_2026-09-13.md`-এ লেখা আছে —
+   বাকিগুলো TK পরে বেছে দিলে এই একই ছাঁচে যোগ হবে।
+
+   ⛔ এটা AI নয় — নির্দিষ্ট কয়েকটা শব্দ-ছাঁচ চেনে। ব্রাঞ্চ + সময় + বিষয়
+   তিনটেই না মিললে `parse()` null দেয়; তখন "বুঝিনি" দেখানো হয়, ভুল সংখ্যা
+   কখনো বানানো হয় না (TK-র সততার নিয়ম, ৫)।
+   ═══════════════════════════════════════════════════════════════════════ */
+object VoiceReportModel {
+
+    enum class Metric { REGISTRATION_COUNT, COLLECTION }
+
+    data class Parsed(
+        val metric: Metric,
+        val branch: String,
+        val from: String,   // yyyy-MM-dd
+        val to: String,     // yyyy-MM-dd
+        val branchLabel: String,
+        val periodLabel: String
+    )
+
+    // ব্রাঞ্চের বাংলা/ইংরেজি বানান — ডেটাবেসে যে বানানে আছে সেটাই ডানদিকে।
+    private val BRANCH_MAP = linkedMapOf(
+        "কিশানগঞ্জ" to "Kishanganj", "kishanganj" to "Kishanganj",
+        "জলপাইগুড়ি" to "Jalpaiguri", "jalpaiguri" to "Jalpaiguri",
+        "কোচবিহার" to "Cooch Behar", "কুচবিহার" to "Cooch Behar",
+        "cooch behar" to "Cooch Behar", "coochbehar" to "Cooch Behar",
+        "ফালাকাটা" to "Falakata", "falakata" to "Falakata",
+        "বীরপাড়া" to "Birpara", "birpara" to "Birpara"
+    )
+
+    private fun today(): LocalDate = LocalDate.now(ZoneId.of("Asia/Kolkata"))
+    private fun iso(d: LocalDate): String = d.toString()
+
+    private fun findBranch(q: String): Pair<String, String>? {
+        val lower = q.lowercase()
+        for ((k, v) in BRANCH_MAP) if (lower.contains(k.lowercase())) return v to v
+        return null
+    }
+
+    private data class Range(val from: String, val to: String, val label: String)
+
+    private fun findDateRange(q: String): Range? {
+        val t = today()
+        return when {
+            q.contains("গতকাল") -> Range(iso(t.minusDays(1)), iso(t.minusDays(1)), "গতকাল")
+            q.contains("আজ") -> Range(iso(t), iso(t), "আজ")
+            q.contains("৭ দিন") || q.contains("সাত দিন") || q.contains("7 din") || q.contains("last 7") ->
+                Range(iso(t.minusDays(6)), iso(t), "গত ৭ দিন")
+            q.contains("এক মাস") || q.contains("১ মাস") || q.contains("1 mash") ->
+                Range(iso(t.minusMonths(1).plusDays(1)), iso(t), "গত এক মাস")
+            else -> null
+        }
+    }
+
+    /** স্ক্রিনে দেখানোর জন্য বাংলা তারিখ-লেবেল (দুটো ভিন্ন হলে "থেকে" দিয়ে)। */
+    fun displayPeriod(from: String, to: String, label: String): String =
+        if (from == to) "${FollowUpModel.displayDate(from)} ($label)"
+        else "${FollowUpModel.displayDate(from)} – ${FollowUpModel.displayDate(to)} ($label)"
+
+    private fun findMetric(q: String): Metric? {
+        val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
+        val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
+            (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
+        return when {
+            hasMoney -> Metric.COLLECTION
+            hasPatientCount -> Metric.REGISTRATION_COUNT
+            else -> null
+        }
+    }
+
+    /** এই লেখাটা প্রশ্নের মতো মনে হচ্ছে কিনা — এটাই দেখা হয় সাধারণ নাম/নম্বর
+     *  খোঁজার (ভারী ক্লাউড-পড়া) আগে, যাতে সাধারণ Search কখনো আটকে না যায়। */
+    fun isQuestionLike(q: String): Boolean =
+        q.contains("কত") || q.contains("কালেকশন") || q.contains("বিক্রি")
+
+    fun parse(q: String): Parsed? {
+        val (branch, branchLabel) = findBranch(q) ?: return null
+        val range = findDateRange(q) ?: return null
+        val metric = findMetric(q) ?: return null
+        return Parsed(metric, branch, range.from, range.to, branchLabel, range.label)
+    }
+}

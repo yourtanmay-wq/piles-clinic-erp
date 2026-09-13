@@ -241,6 +241,14 @@
             android:label="Search"
             android:theme="@style/Theme.PilesClinic" />
 
+        <!-- 🎤 V1415 (১৩.০৯.২০২৬) — ভয়েস/টাইপ প্রশ্নের উত্তরে চাপ দিলে যে তালিকা খোলে। -->
+        <activity
+            android:screenOrientation="portrait"
+            android:name=".native.VoiceReportDetailActivity"
+            android:exported="false"
+            android:label="Report"
+            android:theme="@style/Theme.PilesClinic" />
+
         <!-- 🆕 B464 (05.08.2026, TK-নির্দেশ) — নতুন Dialer স্ক্রিন -->
         <activity
             android:screenOrientation="portrait"

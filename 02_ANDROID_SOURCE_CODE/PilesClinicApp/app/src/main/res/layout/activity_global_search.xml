@@ -30,6 +30,15 @@
         android:hint="Search by name or mobile"
         android:inputType="text" />
 
+    <!-- 🎤🔒 V1415 (১৩.০৯.২০২৬, TK-নির্দেশ) — প্রশ্ন-ধরনের লেখায় (ভয়েস/টাইপ)
+         রিপোর্ট-উত্তর এখানে বসে; খালি থাকলে/সাধারণ নাম-খোঁজায় কিছু দেখায় না। -->
+    <FrameLayout
+        android:id="@+id/voiceAnswerHost"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp" />
+
     <ProgressBar
         android:id="@+id/progressLoad"
         android:layout_width="wrap_content"

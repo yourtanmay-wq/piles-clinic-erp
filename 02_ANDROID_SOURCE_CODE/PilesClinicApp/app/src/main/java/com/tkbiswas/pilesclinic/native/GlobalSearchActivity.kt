@@ -45,6 +45,7 @@ class GlobalSearchActivity : AppCompatActivity() {
     private lateinit var recycler: RecyclerView
     private val results = mutableListOf<SearchHit>()
     private lateinit var adapter: SearchAdapter
+    private lateinit var voiceAnswerHost: android.widget.FrameLayout   // 🎤 V1415
 
     /* 💊 V985 — মোবাইল → মেডিসিনের বাকি (এই পর্দার নিজের ছোট তালিকা)। */
     private val medDue = HashMap<String, Double>()
@@ -88,6 +89,7 @@ class GlobalSearchActivity : AppCompatActivity() {
 
         progressLoad = findViewById(R.id.progressLoad)
         tvEmpty = findViewById(R.id.tvEmpty)
+        voiceAnswerHost = findViewById(R.id.voiceAnswerHost)   // 🎤 V1415
         recycler = findViewById(R.id.recyclerView)
         recycler.layoutManager = LinearLayoutManager(this)
         adapter = SearchAdapter(
@@ -120,7 +122,18 @@ class GlobalSearchActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable) {
                 val q = s.toString().trim()
                 searchJob?.cancel()
-                if (q.length < 2) { results.clear(); adapter.notifyDataSetChanged(); tvEmpty.visibility = View.VISIBLE; tvEmpty.text = "Type a name or mobile number to search."; return }
+                if (q.length < 2) { results.clear(); adapter.notifyDataSetChanged(); tvEmpty.visibility = View.VISIBLE; tvEmpty.text = "Type a name or mobile number to search."; voiceAnswerHost.removeAllViews(); voiceAnswerHost.visibility = View.GONE; return }
+                /* 🎤🔒 V1415 — প্রশ্নের মতো লেখা হলে (কতজন/কালেকশন/বিক্রি) ভারী
+                   নাম-খোঁজার ক্লাউড-পড়া এড়িয়ে সরাসরি রিপোর্ট-উত্তর দেখানো হয়।
+                   ⛔ সাধারণ নাম/নম্বর খোঁজায় এই পথ কখনো ছোঁয়া হয় না। */
+                if (VoiceReportModel.isQuestionLike(q)) {
+                    results.clear(); adapter.notifyDataSetChanged(); recycler.visibility = View.GONE
+                    tvEmpty.visibility = View.GONE
+                    showVoiceAnswer(q)
+                    return
+                }
+                recycler.visibility = View.VISIBLE
+                voiceAnswerHost.removeAllViews(); voiceAnswerHost.visibility = View.GONE
                 searchJob = lifecycleScope.launch {
                     delay(250)
                     runSearch(q)
@@ -444,6 +457,84 @@ class GlobalSearchActivity : AppCompatActivity() {
             out[k] = label to flag
         }
         return out
+    }
+
+    /* 🎤🔒 V1415 (১৩.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ) — প্রশ্নের মতো লেখায় এই
+       কার্ডটা বসে। চেনা প্যাটার্ন মিললে সংখ্যা দেখায়, চাপ দিলে
+       `VoiceReportDetailActivity`-তে (আসল তালিকায়) যায়। না মিললে সৎভাবে
+       "বুঝতে পারিনি" — কখনো ভুল সংখ্যা বানানো হয় না। */
+    private fun showVoiceAnswer(q: String) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        voiceAnswerHost.removeAllViews()
+        val parsed = VoiceReportModel.parse(q)
+        if (parsed == null) {
+            val box = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#FDEEEE")); cornerRadius = dp(12).toFloat()
+                    setStroke(dp(1), android.graphics.Color.parseColor("#F5D6D2"))
+                }
+            }
+            box.addView(TextView(this).apply { text = "Not understood"; textSize = 13.5f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.parseColor("#B42318")) })
+            box.addView(TextView(this).apply {
+                text = "Try like: “Yesterday how many patients came in Jalpaiguri” or “last 7 days collection in Cooch Behar”"
+                textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7A8699")); setPadding(0, dp(4), 0, 0)
+            })
+            voiceAnswerHost.addView(box)
+            voiceAnswerHost.visibility = View.VISIBLE
+            return
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            isClickable = true; isFocusable = true
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#EAF6EE")); cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), android.graphics.Color.parseColor("#CBEBD6"))
+            }
+        }
+        box.addView(TextView(this).apply {
+            text = "${parsed.branchLabel} · ${VoiceReportModel.displayPeriod(parsed.from, parsed.to, parsed.periodLabel)}"
+            textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5A6474"))
+        })
+        val numView = TextView(this).apply {
+            text = "…"; textSize = 22f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.parseColor("#0B8A3E"))
+        }
+        box.addView(numView)
+        val subView = TextView(this).apply { textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5A6474")) }
+        box.addView(subView)
+        voiceAnswerHost.addView(box)
+        voiceAnswerHost.visibility = View.VISIBLE
+
+        val title = "${parsed.branchLabel} — ${VoiceReportModel.displayPeriod(parsed.from, parsed.to, parsed.periodLabel)}"
+        when (parsed.metric) {
+            VoiceReportModel.Metric.REGISTRATION_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "REGISTRATION_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.patientsRegisteredCount(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "patients registered • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.COLLECTION -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "COLLECTION").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.collectionSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.patientCount} patients • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+        }
     }
 
     /**
