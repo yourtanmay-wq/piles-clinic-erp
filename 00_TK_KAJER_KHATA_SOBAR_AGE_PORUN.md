@@ -26595,3 +26595,6 @@ PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসা
 অবস্থান আছে অথচ দূরত্ব ০ ⇒ "No accurate GPS fix (indoors?) - distance not counted" (আগে ভুল করে "permission may have been off" বলত)। index.html profile.js?v=v1431।
 **পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ · Kotlin compile ✅ (নতুন ভুল নেই)। ভার্সন নম্বর বাড়েনি (৩খ)।
 
+## ১৩.০৯.২০২৬ দুপুর ২.১০ — V1405 ZIP পাঠানো (TK: "ফাইল পাঠান")
+PILES_CLINIC_APP_V1405_FINAL.zip — 25.93 MB · 1874 ফাইল (হিসাব `pathano_filer_talika.json`-এ)। ভার্সন ১৪০৪→১৪০৫ (build.gradle.kts ২ লাইন · version.json · index.html app.js/profile.js ?v=v1405)। ভিতরে V1427–V1431। নতুন SQL বাকি নেই (V1422/V1428/V1430 TK চালিয়েছেন)। বিল্ডের পরে: স্টাফ-ফোনে More → Call ID Banner → ON। সব পাহারা PASS।
+

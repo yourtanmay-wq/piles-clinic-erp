@@ -1,5 +1,24 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1405_FINAL.zip",
+    "versionCode": 1405,
+    "when": "১৩.০৯.২০২৬ দুপুর ২.১০",
+    "size_mb": 25.93,
+    "total_files": 1874,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 776,
+      "(root)": 604,
+      "00_SQL": 155,
+      "04_SUPABASE_DATABASE_SETUP": 130,
+      "00_GUARD": 58,
+      "03_NETLIFY_READY": 53,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31
+    },
+    "excluded": "root-level demo .png + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL — ইচ্ছে করে, জায়গা বাঁচাতে; .git/node_modules/build/.gradle/.idea/.kotlinc/apk/zip/local.properties সবসময়ই বাদ",
+    "note": "V1404-এর চেয়ে +3 ফাইল (+0.02 MB): 00_SQL +3 (V1428 · V1429 · V1430)। ভিতরে V1427 (More মেনুতে Call ID Banner সেটআপ + ব্যানারে আগের কলের ইতিহাস) · V1428 (ভয়েস-প্রশ্ন ৪৪/৪৮) · V1429 (ইনস্টল/রিস্টার্টে GPS-সেবা নিজে চালু + যাচাইয়ে ধরা ৬ ভুল) · V1431 (ঘরের ভিতরে approx. Last seen)। ভার্সন ১৪০৪→১৪০৫; index.html app.js/profile.js ?v=v1405। SQL সব আগেই TK চালিয়েছেন (V1422 · V1428 · V1430)। Kotlin compile/resources/tk_guard --release/ব্রাউজার-পরীক্ষা/ZIP-নাম/ZIP-ভিতর সব PASS।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1404_FINAL.zip",
     "versionCode": 1404,
     "when": "১৩.০৯.২০২৬ সন্ধ্যা",
