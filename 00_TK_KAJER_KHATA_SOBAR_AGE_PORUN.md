@@ -26655,3 +26655,5 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > V1436 — 🔕 **IN TIME ও Daily Report-এর অ্যাপ-নোটিশ বন্ধ (১৩.০৯.২০২৬ সন্ধ্যা ৭.১৫, TK-নির্দেশ, তালিকা ৫৫৬):**
 > WorkNotebookActivity: afterInTimeMarked-এর BriefingRepository.post("Staff IN TIME") বাদ (msg রাখা, এক লাইনে ফেরানো যায়); submit() → নোটিশ শুধু type=="monthly"।
 > notebook.js nbSubmit → নোটিশ শুধু monthly। index.html notebook.js v1436। WhatsApp · হাজিরা · wn.work_reports সেভ অটুট।
+
+> 📦 **V1406 ফাইল পাঠানো (১৩.০৯.২০২৬ সন্ধ্যা ৭.৪২, তালিকা ৫৬০):** PILES_CLINIC_APP_V1406_FINAL.zip — 25.98 MB · 1879 ফাইল। ভিতরে V1432–V1437। ভার্সন তিন জায়গায় ১৪০৬। পাহারা সব PASS।
