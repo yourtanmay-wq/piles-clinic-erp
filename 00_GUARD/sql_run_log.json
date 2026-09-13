@@ -449,5 +449,13 @@
     "result": "Success. No rows returned",
     "proof": "ছবি b15400d6 — লাইন ৩১৫-৩১৮ (staff_present_summary grant · notify · commit)",
     "what": "ভয়েস-প্রশ্নের ৮টা ফাংশন-জোড়া (নতুন রোগী · ফলো-আপ কল · রোগ-ভিত্তিক · RMP কল/কল-বাকি · ফিল্ড · ঘণ্টা · হাজিরা) বসল। এখন V1415–V1422 + V1428 সব সার্ভারে আছে।"
+  },
+  {
+    "sql_file": "00_SQL/V1429_FIELD_VISIT_TODAY_PING_CHECK_READ_ONLY_2026-09-13.sql (তালিকা ৫৪২)",
+    "run_by": "TK",
+    "when": "১৩.০৯.২০২৬ দুপুর ১.৪১",
+    "result": "CSV ab9ff0ae — ৯ সারি",
+    "proof": "CSV",
+    "what": "আজ: COB-4 (ping 13:40, 9.3 km) · UTTAMA (ping 12:02) · JPE-CRP (ping 10:51) · KISHAN10 (ping 10:40) — চারজনেরই LOCATION OK; JPE-RUPAM — সেবা 10:18 পর্যন্ত ping দিয়েছে কিন্তু একটাও GPS-অবস্থান নেই (ফোনে Location/Precise বন্ধ); কাল ARMAN — IN 16:10, একটাই ping 16:13, তারপর সেবা মরে গেছে। ⚠️ ছক: CRP/KISHAN10/RUPAM-এর ping IN-এর ~১ ঘণ্টা পরে (10:18–10:51) একসাথে থেমেছে, UTTAMA 12:02 — নতুন ফাইল ইনস্টলের সময়ের সাথে মেলে (ইনস্টলে সেবা বন্ধ, V1429-এ সারানো ফাঁক); কাল পুরনো বিল্ডে RUPAM/LAXMI/JALPAI-13 OUT পর্যন্ত ping দিয়েছে।"
   }
 ]
