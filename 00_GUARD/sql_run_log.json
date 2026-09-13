@@ -425,5 +425,13 @@
   "result": "Success. No rows returned — reports স্কিমার সব ভয়েস-রিপোর্ট ফাংশন (২৯টা প্রশ্ন) বসেছে",
   "proof": "ফটো b18d6b7e (Supabase-এ 'Grace period is over' billing-সতর্কতাও দেখা গেছে — TK-কে জানানো)",
   "what": "ভয়েস-প্রশ্নের V1415-V1421 সব ফাংশন, শুধু পড়া"
+ },
+ {
+  "sql_file": "00_SQL/V1424_JAKIR_HOSSAIN_PAID_TRACE_READ_ONLY_2026-09-13.sql (তালিকা ৫৩৪)",
+  "run_by": "TK",
+  "when": "১৩.০৯.২০২৬ সকাল ১১.৩১",
+  "result": "CSV: HAND-WRITTEN একটাই (TOTA MIYA ₹5,000 Paid, 2026-08-10) + ADVANCE ₹3,000 (2026-09-07) — মোট ₹8,000 = বাস্তব; ডেটাবেসে ভুল নেই",
+  "proof": "CSV 63820f0d",
+  "what": "শুধু পড়া — JAKIR HOSSAIN-এর Ref. Paid কোথা থেকে আসছে; ₹13,000 পুরনো V1400 অ্যাপের নিজের যোগ (V1406-এর পরে দ্বিগুণ), নতুন বিল্ডে ঠিক"
  }
 ]
