@@ -457,5 +457,13 @@
     "result": "CSV ab9ff0ae — ৯ সারি",
     "proof": "CSV",
     "what": "আজ: COB-4 (ping 13:40, 9.3 km) · UTTAMA (ping 12:02) · JPE-CRP (ping 10:51) · KISHAN10 (ping 10:40) — চারজনেরই LOCATION OK; JPE-RUPAM — সেবা 10:18 পর্যন্ত ping দিয়েছে কিন্তু একটাও GPS-অবস্থান নেই (ফোনে Location/Precise বন্ধ); কাল ARMAN — IN 16:10, একটাই ping 16:13, তারপর সেবা মরে গেছে। ⚠️ ছক: CRP/KISHAN10/RUPAM-এর ping IN-এর ~১ ঘণ্টা পরে (10:18–10:51) একসাথে থেমেছে, UTTAMA 12:02 — নতুন ফাইল ইনস্টলের সময়ের সাথে মেলে (ইনস্টলে সেবা বন্ধ, V1429-এ সারানো ফাঁক); কাল পুরনো বিল্ডে RUPAM/LAXMI/JALPAI-13 OUT পর্যন্ত ping দিয়েছে।"
+  },
+  {
+    "sql_file": "00_SQL/V1430_EXTRA_INCOME_UTTAMA_LAXMI_HAND_ENTRY_2026-09-13.sql (তালিকা ৫৪৪/৫৪৬)",
+    "run_by": "TK",
+    "when": "১৩.০৯.২০২৬ দুপুর ১.৫৮",
+    "result": "CSV bc01af9d — total_hand_extra: COB-UTTAMA 47,500 · JPE-CRP 33,900 · KNE-LAXMI 24,410",
+    "proof": "CSV",
+    "what": "নতুন ২৮ সারি বসেছে (UTTAMA 47,100 · CRP 26,300 · LAXMI 24,410 — LAXMI হুবহু মিলেছে)। UTTAMA-র মোটে +400 ও CRP-র মোটে +7,600 = আগে থেকেই থাকা হাতে-লেখা Extra সারি (UTTAMA-র ₹400 = V1093-এর Treatment · COB-21082026-004 DUE সারি; CRP-র ৭,৬০০ আগের হাতে-এন্ট্রি) — যোগফল-প্রশ্নটা সব হাতে-লেখা EXTRA সারি (PAID+DUE) গোনে।"
   }
 ]
