@@ -8,8 +8,8 @@
     "sha": "97abe4e629f1ead006bd6820359d2758d2f420d137af252ef3378940d37d0c5b"
   },
   "app.js": {
-    "v": "v1405",
-    "sha": "bde420319e9a0b27407b24006a24bede229da06252d41c41dac017e86e107547"
+    "v": "v1435",
+    "sha": "c45593d54e8f9e651bab8e023dbb2f00a4bc26efdaaf9595d7305bd26d90ec41"
   },
   "module_core.js": {
     "v": "v1338",
@@ -24,8 +24,8 @@
     "sha": "412d8a924b37f1b4944b3357f964b273af71e3fedd9cc4e94b8b81dcfa938ba5"
   },
   "notebook.js": {
-    "v": "v1287",
-    "sha": "f78ec70e7edc8c136619026ada9947aa211ac8536f98500ac5bc191927ecbb7f"
+    "v": "v1435",
+    "sha": "f7c631eb7e14f904d32a6fc48825a2e6d39ea6edf1cfca6b79fad5c8929882b3"
   },
   "finance.js": {
     "v": "v1322",
