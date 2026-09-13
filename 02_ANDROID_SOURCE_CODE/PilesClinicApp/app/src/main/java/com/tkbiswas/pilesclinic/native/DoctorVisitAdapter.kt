@@ -104,11 +104,21 @@ class DoctorVisitAdapter(
         // plain line). Shown in UPPERCASE per TK. Area tag hides itself when
         // there's no area, so a doctor with no area doesn't get an empty tag.
         b.tvBranch.text = item.branch.ifBlank { "-" }.uppercase()
-        if (item.area.isBlank()) {
+        /* 🚓🔒 V1034 (০৪.০৯.২০২৬, TK-নির্দেশ) — ঠিকানার সঙ্গেই থানাটাও, একই
+           ট্যাগে (`PS ·` লিখে), তাই কার্ডে নতুন কোনো সারি বাড়ে না।
+           ⛔ থানা না লেখা থাকলে ট্যাগটা হুবহু আগের মতোই — শুধু ঠিকানা।
+           ⛔ ঠিকানা না থাকলেও থানাটা থাকলে ট্যাগটা দেখায়, নইলে আগের মতোই লুকায়। */
+        val psTxt = item.policeStation.trim()
+        val areaTxt = item.area.trim()
+        if (areaTxt.isBlank() && psTxt.isBlank()) {
             b.tvAreaTag.visibility = android.view.View.GONE
         } else {
             b.tvAreaTag.visibility = android.view.View.VISIBLE
-            b.tvAreaTag.text = "📍 ${item.area.uppercase()}"
+            b.tvAreaTag.text = when {
+                areaTxt.isBlank() -> "📍 PS · ${psTxt.uppercase()}"
+                psTxt.isBlank() -> "📍 ${areaTxt.uppercase()}"
+                else -> "📍 ${areaTxt.uppercase()}  ·  PS · ${psTxt.uppercase()}"
+            }
         }
         // TK-APPROVED (2026-07-25, via photo proof): "LAST REMARK:" label
         // removed -- the box's own light-green color (bg_remark_dashed)
@@ -161,7 +171,7 @@ class DoctorVisitAdapter(
                   অ্যাপের বাকি সব জায়গার সাথে এক থাকে।
                ⛔ সময় না থাকলে (পুরোনো কল) লাইনটা **হুবহু আগের মতোই**। */
             val lastWhen = if (item.lastCallTime.isNotBlank())
-                "$lastCallText : " + PaymentModel.displayTime12(item.lastCallTime)
+                "$lastCallText : " + PaymentModel.displayTime12Dot(item.lastCallTime)   /* ⏰ V835 — 3.15 PM */
             else lastCallText
             val lastText = if (item.lastCallDate.isNotBlank()) {
                 if (whoRaw.isNotBlank()) "LAST CALL $lastWhen ($whoRaw)" else "LAST CALL $lastWhen"
@@ -294,14 +304,12 @@ class DoctorVisitAdapter(
         // TK-REQUESTED (2026-07-18): long-press to copy, matching the same
         // pattern already used on the Follow-up card's mobile field.
         b.tvName.setOnLongClickListener {
-            val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("name", item.name))
+            com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "name", item.name)   // 🤫 V772
             android.widget.Toast.makeText(it.context, "Name copied", android.widget.Toast.LENGTH_SHORT).show()
             true
         }
         b.tvMeta.setOnLongClickListener {
-            val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", item.mobile))
+            com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "mobile", item.mobile)   // 🤫 V772
             android.widget.Toast.makeText(it.context, "Mobile copied", android.widget.Toast.LENGTH_SHORT).show()
             true
         }

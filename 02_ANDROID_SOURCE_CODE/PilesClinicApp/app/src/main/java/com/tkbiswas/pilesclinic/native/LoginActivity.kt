@@ -128,12 +128,42 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
-        val account = StaffDirectory.findAccount(mobile)
-        if (account == null) {
-            showError("Mobile number not found")
+        /* 👥🔒 V746 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **অ্যাপ থেকে যোগ করা লোকজন**।
+           ⚠️ **পুরনো পথে এক অক্ষরও হাত পড়েনি।** বাঁধা তালিকাটা (২৩ জন) আগের
+              মতোই **প্রথমে** দেখা হয়; পেলে নিচের সব কিছু হুবহু আগের মতোই চলে —
+              কোনো বাড়তি নেট-কল নেই, এক মুহূর্তও দেরি নেই।
+           ⇒ মেঘ তখনই দেখা হয় যখন তালিকায় নম্বরটা **নেই** — অর্থাৎ আজ যেখানে
+             লগইন এমনিতেই "Mobile number not found" বলে থেমে যেত।
+           ⇒ তাই **আজকের চেয়ে খারাপ হওয়ার কোনো পথ নেই।**
+           ⛔ 🧵 মেঘে যাওয়া আলাদা থ্রেডে — মূল থ্রেডে নয়, নইলে অ্যাপ থামত। */
+        /* ⛔🔒 V890 (৩০.০৮.২০২৬, TK-নির্দেশ) — বাদ দেওয়া স্টাফ কোনোভাবেই
+           ঢুকতে পারবেন না। তালিকা: `BlockedStaff`। এটা **সবার আগে** বসে,
+           তাই কোড-তালিকা বা ক্লাউড — কোনো পথেই ফাঁক থাকে না। */
+        if (BlockedStaff.isBlockedMobile(mobile)) { showError("Mobile number not found"); return }
+        val builtIn = StaffDirectory.findAccount(mobile)
+        if (builtIn == null) {
+            setLoading(true)
+            lifecycleScope.launch {
+                val fromCloud = withContext(Dispatchers.IO) {
+                    try { CloudStaffDirectory.findAccount(applicationContext, mobile) }
+                    catch (_: Throwable) { null }
+                }
+                setLoading(false)
+                if (fromCloud == null) {
+                    showError("Mobile number not found")
+                } else {
+                    continueLogin(fromCloud, mobile, password)
+                }
+            }
             return
         }
+        continueLogin(builtIn, mobile, password)
+    }
 
+    /** 🔒 V746 — পাসওয়ার্ড যাচাই থেকে পর্দা খোলা পর্যন্ত **পুরনো কোডটাই**,
+     *  হুবহু, এক অক্ষরও না বদলে — শুধু আলাদা ফাংশনে সরানো হয়েছে যাতে
+     *  বাঁধা-তালিকা ও মেঘ — দুই পথেই ঠিক একই যাচাই হয়। */
+    private fun continueLogin(account: StaffAccount, mobile: String, password: String) {
         setLoading(true)
         lifecycleScope.launch {
             // TK-REQUESTED SECURITY FIX (2026-07-23): three clearly-separated

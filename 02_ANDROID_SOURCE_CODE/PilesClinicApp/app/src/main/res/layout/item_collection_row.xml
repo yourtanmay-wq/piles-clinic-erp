@@ -42,6 +42,21 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
+                    <!-- 🟢🔒 V640 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — নামের
+                         ঠিক আগে ছোট গোল সিরিয়াল নম্বর (ওই দিনের তালিকায় কততম)
+                         CollectionAdapter-এ position+1 বসে। -->
+                    <TextView
+                        android:id="@+id/tvSerial"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_marginEnd="9dp"
+                        android:background="@drawable/bg_serial_badge"
+                        android:gravity="center"
+                        android:text="1"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="#FFFFFF" />
+
                     <TextView
                         android:id="@+id/tvName"
                         android:layout_width="wrap_content"

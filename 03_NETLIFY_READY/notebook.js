@@ -33,7 +33,8 @@
 (function () {
   function sb() { return window.MOD.client(); }
   function appUser() { try { return window.user || JSON.parse(localStorage.getItem('rk_session') || '{}'); } catch (e) { return {}; } }
-  function rawLoad(t) { try { return JSON.parse(localStorage.getItem('rk_' + t) || '[]'); } catch (e) { return []; } }
+  /* V1287: টেবিল এখন IndexedDB-তে (app.js) — localStorage নয়; app.js না থাকলে পুরনো পথ। */
+  function rawLoad(t) { try { if (window.wlv1TableRows) return window.wlv1TableRows(t) || []; return JSON.parse(localStorage.getItem('rk_' + t) || '[]'); } catch (e) { return []; } }
   function mobEq(a, b) { return String(a || '').replace(/\D/g, '').slice(-10) === String(b || '').replace(/\D/g, '').slice(-10); }
   function onDate(x, date) {
     var c = String(x.createdAt || '').slice(0, 10);
@@ -44,11 +45,14 @@
     return c === ym || String(x.date || '').slice(0, 7) === ym;
   }
   // "YYYY-MM-DD" -> "DD.MM.YYYY" (প্রজেক্টের DOT-তারিখ নিয়ম, ফোনের dotDate()-এর হুবহু একই লজিক)
-  function dotDate(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? (p[2] + '.' + p[1] + '.' + p[0]) : iso; }
+  function dotDate(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : iso; }
   // "HH:mm" (২৪-ঘণ্টা) -> "h.mm AM/PM" — ফোনের displayTime12()-এর হুবহু একই লজিক
   function displayTime12(hhmm) {
     if (!hhmm) return '';
-    var p = String(hhmm).split(':'); if (p.length !== 2) return hhmm;
+    /* 🔴🔒 V1162 (০৭.০৯.২০২৬, TK-নির্দেশ · ফোনের হুবহু যমজ) — "Fix Attendance"
+       দিয়ে সময় শুধরালে ঘরে বসে `HH:mm:ss` (তিন টুকরো), অথচ শর্ত ছিল ঠিক দুই
+       টুকরো ⇒ ওই সারিগুলো কাঁচা **09:15:00** হয়ে দেখাত। এখন দুটোই চেনে। */
+    var p = String(hhmm).split(':'); if (p.length !== 2 && p.length !== 3) return hhmm;
     var h24 = parseInt(p[0], 10); if (isNaN(h24)) return hhmm;
     var ampm = h24 < 12 ? 'AM' : 'PM';
     var h12 = h24 === 0 ? 12 : (h24 > 12 ? h24 - 12 : h24);
@@ -58,9 +62,11 @@
   function shareTimeLabel() {
     var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     var h24 = d.getHours(), mm = d.getMinutes();
-    var ampm = h24 < 12 ? 'am' : 'pm';
+    /* 🔴 V1158 — TK-এর লক করা নিয়ম: AM/PM বড় হাতে, অঙ্কের পরে একটা ফাঁক।
+       ⛔ ফোনের `shareTimeLabel()`-এও হুবহু একই বদল, তাই দুই জায়গা এক থাকে। */
+    var ampm = h24 < 12 ? 'AM' : 'PM';
     var h12 = h24 === 0 ? 12 : (h24 > 12 ? h24 - 12 : h24);
-    return h12 + '.' + String(mm).padStart(2, '0') + ampm;
+    return h12 + '.' + String(mm).padStart(2, '0') + ' ' + ampm;
   }
 
   // ---- automatic statistics (read-only) ----
@@ -269,6 +275,42 @@
     return arr.map(function (e) { return '• ' + (e.time || '') + ' ' + (e.text || '') + ' [' + (e.status || 'pending') + ']'; }).join('\n');
   }
 
+/* 👨‍⚕️🔒 V1032 — ওই দিনে ওই স্টাফ কতজন **আলাদা** ডাক্তারের কাছে গেছেন।
+   নিয়মটা ফোনের `DoctorVisitDayCount`-এর হুবহু: প্রতিটা ডাক্তারের
+   `callHistory`-তে কল/ভিজিট লেখার সময় **তারিখ** ও **কে** বসে; সেটাই গোনা হয়।
+   ⛔ কোথাও কিছু লেখা হয় না — শুধু জমা তালিকা থেকে পড়া। */
+function nbDoctorVisitCount(dateIso, staffCode){
+  try{
+    var day = String(dateIso || '').slice(0, 10);
+    if (day.length !== 10) return 0;
+    var me = '';
+    try{
+      var acc = (typeof allUsers === 'function' ? allUsers() : []) || [];
+      for (var i = 0; i < acc.length; i++){
+        if (String(acc[i].name || '').toUpperCase() === String(staffCode || '').toUpperCase()){
+          me = String(acc[i].mobile || '').replace(/\D/g, '').slice(-10); break;
+        }
+      }
+    }catch(e){}
+    if (!me) me = String((typeof user !== 'undefined' && user && user.mobile) || '').replace(/\D/g, '').slice(-10);
+    if (me.length !== 10) return 0;
+    var rows = (typeof load === 'function' ? load('doctor_visits') : []) || [];
+    var seen = {}, n = 0;
+    for (var r = 0; r < rows.length; r++){
+      var d = rows[r]; if (!d || !d.id || seen[d.id]) continue;
+      var hist = d.callHistory;
+      if (typeof hist === 'string'){ try{ hist = JSON.parse(hist); }catch(e){ hist = null; } }
+      if (!hist || !hist.length) continue;
+      for (var h = 0; h < hist.length; h++){
+        var e2 = hist[h]; if (!e2) continue;
+        if (String(e2.date || '').slice(0, 10) !== day) continue;
+        if (String(e2.by || '').replace(/\D/g, '').slice(-10) !== me) continue;
+        seen[d.id] = 1; n++; break;
+      }
+    }
+    return n;
+  }catch(e){ return 0; }
+}
   async function renderToday() {
     var m = window.MOD, code = (m.session() || {}).code, date = m.todayIST();
     var loadedDay = await loadDay(date);
@@ -293,9 +335,18 @@
     /* 🔴 V430 — ঐচ্ছিক `id` যোগ করা হলো, যাতে "Total call (auto)" ঘরটা
        বাইরের কল লেখার সঙ্গে সঙ্গে বদলে যেতে পারে (ফোনে ঠিক তাই হয় —
        WorkNotebookActivity.kt:1411 refreshTotal)। */
+    /* 🔆🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"যেখানে সংখ্যা আছে সেগুলোর
+       উজ্জ্বলতা বেশি হতে হবে — আজকের কল ০ হলে কম, আজকের পেশেন্ট ২ হলে বেশি"*।
+       ⇒ ০ / ফাঁকা / "…" হলে ফিকে ধূসর, ০-র বেশি হলে গাঢ় ও বোল্ড। ফোনের যমজ। */
+    function nbNumStyle(val) {
+      var bright = (Number(String(val).replace(/,/g, '')) || 0) > 0;
+      return bright
+        ? 'color:#0B2B59;font-weight:700'
+        : 'color:#B9C0C8;font-style:italic';
+    }
     function autoRow(label, val, id) {
       return '<div class="nbRow" style="display:flex;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #F5F6F8;font-size:13.5px">' +
-        '<span style="color:#667085">' + label + '</span><span' + (id ? ' id="' + id + '"' : '') + ' style="color:#98A2B3;font-style:italic">' + val + '</span></div>';
+        '<span style="color:#667085">' + label + '</span><span' + (id ? ' id="' + id + '"' : '') + ' style="' + nbNumStyle(val) + '">' + val + '</span></div>';
     }
     function editRow(id, label, val, placeholder) {
       return '<div class="nbRow nbEdit" style="padding:11px 20px;border-bottom:1px solid #F5F6F8">' +
@@ -319,7 +370,15 @@
       // নোটিশ; শুধু Mark as Leave থাকে। ⛔ ১২টার আগে সবসময় খোলা (সকালে-আসা কেউ
       // যেন আটকে না যায়)। OUT অপরিবর্তিত। সেভ-লজিক এক অক্ষরও বদলায়নি।
       var nbHourIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getHours();
-      var nbWindowOpen = nbHourIST < 12;
+      /* 🔴🔒 V1179 (০৭.০৯.২০২৬) — ফোনে TK-এর V508 নিয়মে (*"যখন খুশি আসুক। ১১টার
+         পরে আর ৪টার আগে চলে গেলে Late কাউন্ট হবে"*) দুপুর ১২টার বাধা **তুলে
+         দেওয়া হয়েছিল**, কিন্তু কম্পিউটারে সেটা রয়ে গিয়েছিল — অর্থাৎ একই স্টাফ
+         ফোনে IN TIME দিতে পারতেন, কম্পিউটারে পারতেন না। অন্য ব্রাঞ্চে গিয়ে
+         ডিউটির কাজ করতে গিয়ে এটা ধরা পড়ল (দুই পর্দায় দুরকম উত্তর = দোষ)।
+         ⇒ এখন কম্পিউটারেও দিনের যেকোনো সময় IN TIME দেওয়া যায়।
+         ⛔ `nbHourIST` মোছা হয়নি (প্রকল্প-নিয়ম) — Late-এর হিসাব ও সেভ-লজিক
+            এক অক্ষরও বদলায়নি। */
+      var nbWindowOpen = true;
       // 🔴🔒 B536 (08.08.2026, TK-নির্দেশ — "একবার IN TIME হয়ে গেলে সেই দিন
       // আর দরকার নেই, একবার OUT TIME হয়ে গেলে আর দরকার নেই") — আগে বোতাম দুটো
       // মার্ক হওয়ার পরেও চাপা যেত, ভুল করে আবার চাপলে আগের সময় মুছে নতুন
@@ -345,6 +404,9 @@
         ((inSet && !nbWaSent('in')) ? '<button class="nbResendBtn" onclick="nbResendInTime()">&#128228; Send IN TIME to WhatsApp again</button>' : '') +
         ((outSet && !nbWaSent('out')) ? '<button class="nbResendBtn" onclick="nbResendDaily()">&#128228; Send the report to WhatsApp again</button>' : '') +
         '<span onclick="nbApplyLeave()" style="font-size:12.5px;color:#98A2B3;text-decoration:underline;cursor:pointer">🏖️ Mark as Leave</span>' +
+        /* 📌 V1200 (TK-নির্দেশ) — ⋮-এর ভিতরে "Plan My Day" (ফোনের হুবহু যমজ)। */
+        '<span onclick="nbPlanMenu()" style="font-size:18px;font-weight:800;color:#0B4F2A;cursor:pointer;padding:0 6px">&#8942;</span>' +
+        nbPlanStripHtml() +
         ((!inSet && !nbWindowOpen) ? '<div style="flex-basis:100%;font-size:12.5px;color:#B42318;margin-top:2px">⏰ আজকের IN TIME-এর সময় শেষ, না এলে ছুটি দিন</div>' : '') +
         /* 🔴🔒 V512 — এখন যা দেখছেন সেটা এই ফোনে জমানো কপি (ক্লাউড থেকে আসেনি)।
            ফোনের অ্যাপে ঠিক এই একই কথা দেখানো হয়। ⛔ IN/OUT TIME অক্ষত থাকে। */
@@ -390,8 +452,7 @@
       '</div></div>' +
 
       '<div style="margin-top:22px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">' +
-      '<button class="ghost" onclick="nbMonthly()">📊 Monthly Report</button>' +
-      '<button class="ghost" onclick="nbHistory()">🗂️ My Reports</button>' +
+      /* ⋮ V1204 — দুটোই এখন উপরের ⋮ মেনুতে (TK-নির্দেশ)। */
       /* 🔴 V430 (TK-সিদ্ধান্ত ১৮.০৮.২০২৬: "তুলে দিন — ফোনের মতো") — ফোনে আলাদা
          Submit বোতাম নেই; **OUT TIME দিলেই** দিনের রিপোর্ট Master-এর কাছে
          চলে যায় (WorkNotebookActivity.kt:817, 1264 — TK-এর নিজেরই নিয়ম)।
@@ -410,11 +471,113 @@
       if (__oc && __tc) {
         var __app = Number(apc || 0);
         __oc.addEventListener('input', function () {
-          __tc.textContent = String(__app + (parseInt(__oc.value, 10) || 0));
+          var __n = __app + (parseInt(__oc.value, 10) || 0);
+          __tc.textContent = String(__n);
+          /* 🔆 V1204 — সংখ্যা বদলালে উজ্জ্বলতাও সঙ্গে সঙ্গে বদলায়। */
+          __tc.setAttribute('style', __n > 0 ? 'color:#0B2B59;font-weight:700' : 'color:#B9C0C8;font-style:italic');
         });
       }
     } catch (e) {}
+    /* ⏰🔒 V1166 — OUT TIME না চাপলে জোর করে জিজ্ঞাসা (ফোনের যমজ)। */
+    try { nbMaybeAskOutTime(day, code); } catch (e) {}
   }
+
+  /* ⏰🔒 V1166 (০৭.০৯.২০২৬) — **OUT TIME না চাপলে জোর করে জিজ্ঞাসা** —
+     ফোনের `native/OutTimePrompt.kt`-এর হুবহু যমজ।
+     TK-নির্দেশ (খাতার সারি ২৭০): সন্ধ্যা **৭.৩০ PM** পার হলেও OUT TIME না
+     থাকলে পপ-আপ — **আর কতক্ষণ থাকবেন (সময়)** ও **কারণ** দুটোই লিখতেই হবে;
+     বসানো সময় পেরিয়ে গেলে **আবার একই পপ-আপ**।
+     ⛔ বাতিল করা যায় না (বাইরে চাপলেও বন্ধ হয় না) — TK: *"জোর করে"*।
+     ⛔ হাজিরার কোনো ঘর এখান থেকে লেখা হয় না — IN/OUT TIME-এর নিয়ম অটুট।
+     ⛔ শুধু আজ যিনি IN দিয়েছেন কিন্তু OUT দেননি — ছুটির দিনে কখনো ওঠে না।
+     ⚠️ ফোনে ৭.৩০-এর নোটিফিকেশনও ডাকে; ব্রাউজারে পর্দা বন্ধ থাকলে কিছু চলে
+        না, তাই এখানে **পর্দা খোলার সময়** পপ-আপটা ওঠে — TK-কে জানানো হয়েছে। */
+  var NB_OUT_ASK_MINUTES = 19 * 60 + 30;      /* TK-নির্দেশ: সন্ধ্যা ৭.৩০ PM */
+  var NB_OUT_PREF = 'rk_out_time_prompt';
+  function nbOutNowMinutes(){
+    var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    return d.getHours() * 60 + d.getMinutes();
+  }
+  /* স্টাফ যে সময় পর্যন্ত থাকবেন বলেছেন (মিনিটে); বলা না থাকলে -1। */
+  function nbOutStayUntil(){
+    try{
+      var raw = JSON.parse(localStorage.getItem(NB_OUT_PREF) || '{}');
+      if(String(raw.date||'') !== window.MOD.todayIST()) return -1;
+      var u = parseInt(raw.until, 10);
+      return isNaN(u) ? -1 : u;
+    }catch(e){ return -1 }
+  }
+  function nbOutClock(mins){
+    var h = Math.floor(mins/60), mm = mins%60, ap = h < 12 ? 'AM' : 'PM';
+    var h12 = (h === 0) ? 12 : (h > 12 ? h - 12 : h);
+    return h12 + '.' + (mm<10?'0'+mm:''+mm) + ' ' + ap;
+  }
+  function nbShouldAskOutTime(day){
+    if(!day || day.is_leave) return false;
+    if(!day.check_in || day.check_out) return false;
+    var now = nbOutNowMinutes();
+    if(now < NB_OUT_ASK_MINUTES) return false;
+    var until = nbOutStayUntil();
+    /* এখনো কিছু বলেননি ⇒ জিজ্ঞাসা। বলা সময় পেরিয়ে গেছে ⇒ আবার জিজ্ঞাসা। */
+    return (until < 0 || now >= until);
+  }
+  function nbMaybeAskOutTime(day, code){
+    if(!nbShouldAskOutTime(day)) return;
+    if(document.getElementById('nbOutAskBack')) return;   /* একবারেই একটা */
+    var m = window.MOD;
+    var br = '';
+    /* ⛔ প্রকল্পের নিজের `appUser()` — `window.user` সব সময় থাকে না। */
+    try{ br = String((appUser() || {}).branch || ''); }catch(e){}
+    var back = document.createElement('div');
+    back.id = 'nbOutAskBack';
+    /* ⛔ বাইরে চাপলে বন্ধ হয় না — কোনো onclick বসানো হয়নি। */
+    back.style.cssText = 'position:fixed;inset:0;background:rgba(16,24,40,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px';
+    back.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;overflow:hidden;box-shadow:0 12px 34px rgba(16,24,40,.28)">' +
+      '<div style="background:#145A32;color:#fff;padding:13px 18px;font-weight:800;font-size:15px">Still at the chamber?</div>' +
+      '<div style="padding:16px 18px 6px">' +
+        '<div style="font-size:13.5px;color:#33404F">OUT TIME is not marked yet.</div>' +
+        '<label style="display:block;font-size:11px;color:#667085;margin:12px 0 5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">How long will you stay?</label>' +
+        '<input id="nbOutAskTime" class="input" type="time" style="margin:0;padding:10px 12px;font-size:14px;border-radius:8px">' +
+        '<label style="display:block;font-size:11px;color:#667085;margin:12px 0 5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Why are you still here?</label>' +
+        '<textarea id="nbOutAskWhy" class="input" rows="2" style="margin:0;padding:10px 12px;font-size:14px;border-radius:8px"></textarea>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;padding:14px 18px 18px">' +
+        '<button class="ghost" style="flex:1;margin:0" onclick="nbOutAskMarkOut()">OUT TIME now</button>' +
+        '<button style="flex:1;margin:0" onclick="nbOutAskSave(\'' + m.esc(code) + '\',\'' + m.esc(br) + '\')">Save</button>' +
+      '</div></div>';
+    document.body.appendChild(back);
+  }
+  function nbOutAskClose(){
+    try{ var b = document.getElementById('nbOutAskBack'); if(b) b.remove(); }catch(e){}
+  }
+  function nbOutAskMarkOut(){
+    nbOutAskClose();
+    try{ nbCheck('out'); }catch(e){}
+  }
+  async function nbOutAskSave(code, branch){
+    var m = window.MOD;
+    var t = String((document.getElementById('nbOutAskTime') || {}).value || '').trim();
+    var why = String((document.getElementById('nbOutAskWhy') || {}).value || '').trim();
+    var p = t.split(':'), h = parseInt(p[0],10), mi = parseInt(p[1],10);
+    if(!t || isNaN(h) || isNaN(mi)){ try{ toast('Pick the time first'); }catch(e){} return; }
+    if(!why){ try{ toast('Write the reason'); }catch(e){} return; }
+    var until = h*60 + mi;
+    try{ localStorage.setItem(NB_OUT_PREF, JSON.stringify({ date: m.todayIST(), until: until })); }catch(e){}
+    /* মাস্টার যেন জানতে পারেন — আগে থেকেই থাকা নোটিশ-বোর্ডেই।
+       ⛔ ব্যর্থ হলে নিঃশব্দে বাদ; স্টাফের কাজ এর জন্য আটকায় না। */
+    try{
+      var mob = ''; try{ mob = String((appUser() || {}).mobile || ''); }catch(_e){}
+      /* ⛔ প্রকল্পের নিজের `nbPostBriefing` দিয়েই — নতুন কোনো পথ বানানো হয়নি। */
+      await nbPostBriefing('Staff still at chamber',
+        '\ud83d\udc64 Staff : ' + code + '\n\ud83c\udfe5 Branch : ' + branch +
+          '\n\u23f0 Staying until : ' + nbOutClock(until) + '\nReason : ' + why,
+        { roles: ['master'] }, branch, mob);
+    }catch(e){}
+    nbOutAskClose();
+    try{ toast('OK - we will ask again at ' + nbOutClock(until)); }catch(e){}
+  }
+  window.nbOutAskSave = nbOutAskSave;
+  window.nbOutAskMarkOut = nbOutAskMarkOut;
 
   // ⛔ পুরনো, নতুন পর্দা থেকে আর ডাকা হয় না — মোছা হয়নি (Work Entries লিস্ট)
   function drawEntries() {
@@ -442,6 +605,134 @@
      ওপেন হয়, কিন্তু একবার ব্যাকে আসলে তারপর আর পাঠানোর ব্যবস্থা নেই"*) —
      IN TIME-এর বার্তাটা **একটাই জায়গায়** বানানো হয়, তাই আবার পাঠালেও লেখা
      হুবহু একই থাকে। ফোনের WorkNotebookActivity.afterInTimeMarked-এর একই লেখা। */
+  /* ═══════════════════════════════════════════════════════════════════
+     📌🔒 V1200 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **PLAN MY DAY**
+     (ফোনের `WorkNotebookActivity.planMyDayFlow()`-এর যমজ)।
+     · 🏠 Work From Home — মাস্টারের অনুমতি লাগে
+     · 🚌 অন্য ব্রাঞ্চে ডিউটি — শুধু জানানো (TK-সিদ্ধান্ত), দুটোতেই ৭ ঘণ্টা
+     ⛔ একই `wfh_requests` টেবিল; নতুন ঘর `kind` ও `toBranch`।
+     ═══════════════════════════════════════════════════════════════════ */
+  var NB_PLAN = null, NB_PLAN_LOADED = false;
+
+  async function nbLoadPlan(){
+    if (NB_PLAN_LOADED) return;
+    NB_PLAN_LOADED = true;
+    try{
+      var ok = await initCloudClientOnly(); if(!ok||!sb) return;
+      var mm = String((user&&user.mobile)||'').replace(/\D/g,'').slice(-10);
+      var d = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+      var today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      var r = await sb.from('wfh_requests').select('*').eq('staffMobile', mm).eq('workDate', today)
+        .order('requestedAt', {ascending:false}).limit(1);
+      var rows = (r && r.data) || [];
+      if (rows.length){ NB_PLAN = rows[0]; try{ renderToday(); }catch(e){} }
+    }catch(e){}
+  }
+
+  function nbPlanStripHtml(){
+    try{ nbLoadPlan(); }catch(e){}
+    var p = NB_PLAN; if (!p) return '';
+    var st = String(p.status||'');
+    if (st === 'rejected') return '';
+    var isBranch = String(p.kind||'wfh') === 'branch';
+    var approved = (st === 'approved');
+    var fill = isBranch ? '#E8F6ED' : '#FFF6E6';
+    var strk = isBranch ? '#BFE3CD' : '#F0DCA8';
+    var ink  = isBranch ? '#0A5C33' : '#8A5A00';
+    var title = isBranch ? ('Today\'s plan — Duty at ' + String(p.toBranch||'').toUpperCase())
+                         : 'Today\'s plan — Work From Home';
+    var sub = isBranch ? 'You told this in advance · counted as 7 hours'
+                       : (approved ? 'Approved by Master · counted as 7 hours' : 'Waiting for Master\'s approval');
+    return '<div style="flex-basis:100%;display:flex;align-items:center;gap:12px;background:'+fill
+      + ';border:1px solid '+strk+';border-radius:12px;padding:12px 14px;margin-top:8px">'
+      + '<span style="font-size:18px">'+(isBranch?'🚌':'🏠')+'</span>'
+      + '<div style="flex:1"><div style="font-weight:800;font-size:13.5px;color:'+ink+'">'+esc(title)+'</div>'
+      + '<div style="font-size:11.5px;color:'+ink+';margin-top:2px">'+esc(sub)+'</div></div>'
+      + '<span style="background:'+(isBranch?'#0A7C3F':'#B45309')+';color:#fff;border-radius:10px;font-size:10.5px;font-weight:800;padding:5px 11px">'
+      + ((isBranch||approved)?'PLANNED':'WAITING')+'</span></div>';
+  }
+
+  /* ⋮🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ): *"monthly report · my reports — উপরে ডান
+     সাইডে এলজি থ্রি ডটের মধ্যে থাকবে"*। ফোনের ⋮ মেনুর হুবহু যমজ। */
+  function nbPlanMenu(){
+    try{ modal('<h2>Today Work</h2><div class="grid menuGrid">'
+      + '<button class="menuBtn" onclick="closeModal();nbPlanMyDay()"><b>📌 Plan My Day</b></button>'
+      + '<button class="menuBtn" onclick="closeModal();nbMonthly()"><b>📊 Monthly Report</b></button>'
+      + '<button class="menuBtn" onclick="closeModal();nbHistory()"><b>🗂️ My Reports</b></button></div>'); }
+    catch(e){ nbPlanMyDay(); }
+  }
+
+  function nbPlanMyDay(){
+    var d = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+    var today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var brs = [];
+    try{ brs = (C.branches||[]).map(function(b){ return String(b.name||''); }).filter(Boolean); }catch(e){ brs = []; }
+    var opts = brs.map(function(b){ return '<option>'+esc(b)+'</option>'; }).join('');
+    modal('<h2>📌 Plan My Day</h2><div class="card">'
+      + '<label>Which day</label><input id="nbPlanDate" class="input" type="date" min="'+today+'" value="'+today+'">'
+      + '<label>What</label><select id="nbPlanKind" class="input" onchange="nbPlanKindChanged()">'
+      +   '<option value="wfh">🏠 Work From Home</option>'
+      +   '<option value="branch">🚌 Duty at another branch</option></select>'
+      + '<div id="nbPlanBranchBox" style="display:none"><label>Which branch</label>'
+      +   '<select id="nbPlanBranch" class="input">'+opts+'</select></div>'
+      + '<div class="tiny mut" style="margin-top:10px">Work From Home — master\'s approval needed.<br>'
+      +   'Duty at another branch — no approval, master is only informed.<br>Both days are counted as 7 hours.</div>'
+      + '</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
+      + '<button onclick="nbPlanSend()">Send</button></div>');
+  }
+  function nbPlanKindChanged(){
+    try{
+      var k = document.getElementById('nbPlanKind').value;
+      document.getElementById('nbPlanBranchBox').style.display = (k === 'branch') ? '' : 'none';
+    }catch(e){}
+  }
+
+  async function nbPlanSend(){
+    var m = window.MOD;
+    var date = String((document.getElementById('nbPlanDate')||{}).value||'').slice(0,10);
+    var kind = String((document.getElementById('nbPlanKind')||{}).value||'wfh');
+    var toBr = kind === 'branch' ? String((document.getElementById('nbPlanBranch')||{}).value||'') : '';
+    if (!date) return toast('Choose the day');
+    if (kind === 'branch' && !toBr) return toast('Choose the branch');
+    try{
+      var ok = await initCloudClientOnly(); if(!ok||!sb) return toast('No internet connection');
+      var mm = String((user&&user.mobile)||'').replace(/\D/g,'').slice(-10);
+      var ex = await sb.from('wfh_requests').select('id,status').eq('staffMobile', mm).eq('workDate', date).limit(1);
+      if (ex && ex.data && ex.data.length) { closeModal(); return toast('Already planned for this day.'); }
+      var row = {
+        id: 'wfh_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+        staffMobile: mm, staffCode: String((typeof codeName==='function' ? (codeName(user&&user.mobile)||'') : '') || (user&&user.mobile) || ''),
+        staffName: String((typeof codeName==='function' ? (codeName(user&&user.mobile)||'') : '') || (user&&user.name) || ''),
+        branch: String((user&&user.branch)||''), workDate: date,
+        reason: (kind === 'branch' ? ('Duty at ' + toBr) : 'Work from home'),
+        status: (kind === 'branch' ? 'approved' : 'pending'),
+        kind: kind, toBranch: toBr,
+        requestedAt: new Date().toISOString()
+      };
+      var w = await sb.from('wfh_requests').upsert(row);
+      if (w && w.error) return toast('Failed - check your network');
+      /* 🔔 মাস্টারের নোটিশ — প্রকল্পের প্রমাণিত briefings পথেই। */
+      try{
+        var req = { id: uid('brief'), date: today(),
+          title: (kind === 'branch' ? '🚌 Duty at another branch — ' : '🏠 Work From Home request — ') + row.staffName,
+          message: 'Staff : ' + row.staffCode + '\nBranch : ' + row.branch + '\nDate : ' + date
+            + '\nReason : ' + row.reason + (toBr ? ('\nTo branch : ' + toBr) : '')
+            + '\nRequest ID : ' + row.id,
+          targets: { roles: ['master'] }, branch: row.branch, seen: [], replies: [],
+          createdBy: (user&&user.mobile)||'', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        add('briefings', req); try{ cloudUpsertBriefing(req) }catch(_e){}
+      }catch(e){}
+      closeModal();
+      toast(kind === 'branch' ? 'Planned — the Master has been informed' : 'Request sent to Master');
+      NB_PLAN_LOADED = false; NB_PLAN = null;
+      try{ nbLoadPlan(); }catch(e){}
+      try{ renderToday(); }catch(e){}
+    }catch(e){ toast('Failed - check your network'); }
+  }
+
+  window.nbPlanMenu = nbPlanMenu; window.nbPlanMyDay = nbPlanMyDay;
+  window.nbPlanKindChanged = nbPlanKindChanged; window.nbPlanSend = nbPlanSend;
+
   function nbInTimeText() {
     var m = window.MOD, d = window._nbDay || {};
     return 'IN TIME- ' + (d.check_in || '-') +
@@ -503,10 +794,8 @@
     // 🔵 B608 parity (Android-এর মতো): IN TIME না হলে OUT TIME মার্ক করা যাবে না।
     if (which === 'out' && !d.check_in) { try { toast('আগে IN TIME দিন'); } catch (e) {} return; }
     // 🔵 B615 parity: দুপুর ১২টা পার হলে IN TIME দেওয়া যাবে না (ডিউটি সকালের)।
-    if (which === 'in') {
-      var h = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getHours();
-      if (h >= 12) { try { toast('আজকের IN TIME-এর সময় শেষ'); } catch (e) {} return; }
-    }
+    /* 🔴🔒 V1179 — ফোনের V508 নিয়মের সঙ্গে মিলিয়ে দুপুর ১২টার বাধা তুলে
+       দেওয়া হলো (উপরে কারণ লেখা)। ⛔ সেভ-লজিক অপরিবর্তিত। */
     if (which === 'in') d.check_in = t; else d.check_out = t;
     /* 🔴 V430 (TK-সিদ্ধান্ত ১৮.০৮.২০২৬) — ফোনে OUT TIME চাপলেই দিনের সব লেখা
        (Today Patient · বাইরের কল · Notes) সেভ হয়ে **রিপোর্টটাও চুপচাপ
@@ -610,11 +899,11 @@
         await client.schema('wn').from('notebook_days').upsert(nd, { onConflict: 'staff_code,work_date' });
       } catch (e) {}
       if (date === m.todayIST() && window._nbDay) { window._nbDay.is_leave = true; window._nbDay.leave_reason = reason; }
-      nbPostBriefing('Staff Leave', '👤 Staff : ' + (code || mobile) + '\n🏥 Branch : ' + branch + '\n🏖️ Leave : ' + date + '\nReason : ' + reason, { branches: [branch] }, branch, mobile);
+      nbPostBriefing('Staff Leave', '👤 Staff : ' + (code || mobile) + '\n🏥 Branch : ' + branch + '\n🏖️ Leave : ' + (window.wlv1Dot ? window.wlv1Dot(date) : date) + '\nReason : ' + reason   /* 🔴🔒 V936 — এক ফরম্যাট */, { branches: [branch] }, branch, mobile);
       try { m.whatsapp('🏖️ Leave\nStaff: ' + code + '\nBranch: ' + branch + '\nDate: ' + date + '\nReason: ' + reason); } catch (e) {}
     } else {
       // ⚠️ ওয়েব approval bell (wlv1NoticeField) ছোট-হাতের "key :" খোঁজে — তাই emoji ছাড়া পরিষ্কার লাইন রাখি।
-      nbPostBriefing('Leave request', 'Staff : ' + (code || mobile) + '\nBranch : ' + branch + '\nLeave date : ' + date + '\nReason : ' + reason + '\nNeed : ' + needReason, { branches: [branch], roles: ['master'] }, branch, mobile);
+      nbPostBriefing('Leave request', 'Staff : ' + (code || mobile) + '\nBranch : ' + branch + '\nLeave date : ' + (window.wlv1Dot ? window.wlv1Dot(date) : date) + '\nReason : '   /* 🔴🔒 V936 — Approve `wlv1IsoDate()` দিয়ে ফিরিয়ে পড়ে */ + reason + '\nNeed : ' + needReason, { branches: [branch], roles: ['master'] }, branch, mobile);
       nbAddPendingLeave(date);
       try { toast('ছুটির অনুরোধ পাঠানো হয়েছে — Pending'); } catch (e) {}
     }
@@ -700,6 +989,15 @@
     }
     text += '\nNew Enquiry: ' + st.enquiries + '\nRegistration: ' + st.registrations +
       '\nToday Patient: ' + patientsVal + '\nApp Calls: ' + callTxt(apc) + '\nOutside Calls: ' + occ + '\nTotal call : ' + callTxt(callSum(apc, occ));
+    /* 👨‍⚕️🔒 V1032 (TK-নির্দেশ: *"কতজন ডাক্তারের কাছে ভিজিট করেছে তাকে ম্যানুয়ালি
+       এন্ট্রি করতে হয়েছে"*) — ফোনের হুবহু একই লাইন, একই নিয়ম।
+       ⚡ কম্পিউটারে **একটাও ক্লাউড-অনুরোধ যায় না** — ডাক্তারের তালিকা এমনিতেই
+          এখানে জমা থাকে, সেখান থেকেই গোনা হয়।
+       ⛔ শূন্য হলে লাইনটা ওঠে না — পুরনো রিপোর্ট হুবহু আগের মতোই। */
+    try {
+      var __dv = nbDoctorVisitCount(date, d.staff_code || code);
+      if (__dv > 0) text += '\nDoctor Visit: ' + __dv;
+    } catch (e) {}
     var notesTxt = (d.day_note || '').trim();
     if (notesTxt) text += '\n\nNotes: \n' + notesTxt;
     /* 🔴 V593 — না পড়তে পারলে `null`ই জমা হোক; `apc + occ` করলে JS-এ null যোগ
@@ -771,6 +1069,27 @@
       if (__ins && __ins.error) throw __ins.error;
       if (existing) await client.schema('wn').from('work_reports').update({ superseded_by: row.id }).eq('id', existing.id);
       try { toast('Report submitted to Master'); } catch (e) {}
+      /* 🔔💬🔒 V1204 (০৮.০৯.২০২৬, TK-রিপোর্ট): *"স্টাফকে দেখাচ্ছে সাবমিট সাকসেসফুল,
+         কিন্তু মাস্টারের কাছে তো আসেই না — না হোয়াটসঅ্যাপে, না অ্যাপের নোটিফিকেশন"*।
+         🔬 মেপে দেখা: এতদিন শুধু `wn.work_reports`-এ সারিটা বসত, আর কিছুই না।
+         ⇒ TK-র সিদ্ধান্ত *"দুটোই চাই"*: (১) মাস্টারের ঘন্টায় নোটিশ (Money Handover-এর
+           হুবহু প্রমাণিত পথ), (২) সাবমিটের পরেই WhatsApp নিজে থেকে খোলে।
+         ⛔ সেভ ব্যর্থ হলে (নিচের catch) কোনোটাই হয় না — মিথ্যা "পাঠানো হয়েছে" নয়। */
+      try {
+        var __who = ((appUser() || {}).name) || code;
+        var __br = (appUser() || {}).branch || '';
+        var __n = { id: uid('brief'), date: today(),
+          title: (type === 'daily' ? 'Daily Report submitted' : 'Monthly Report submitted'),
+          message: __who + ' · ' + code + (__br ? ' · ' + __br : '') + ' · ' + key,
+          targets: { roles: ['master'] }, branch: __br, seen: [], replies: [],
+          createdBy: ((appUser() || {}).mobile) || '',
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        add('briefings', __n); try { cloudUpsertBriefing(__n); } catch (e3) {}
+      } catch (e3) {}
+      try {
+        var __txt = String((r && (r.text || r.manual_summary)) || '') || ('Monthly Report ' + key + '\nStaff: ' + code);
+        window.open('https://wa.me/?text=' + encodeURIComponent(__txt), '_blank');
+      } catch (e4) {}
     } catch (e) { m.queueWrite('wn', 'work_reports', row); try { toast('Saved offline — will submit when online'); } catch (e2) {} }
     if (!silentReturn) workNotebook();
   }

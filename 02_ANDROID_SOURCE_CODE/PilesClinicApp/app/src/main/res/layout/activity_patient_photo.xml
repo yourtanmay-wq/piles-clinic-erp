@@ -52,7 +52,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Find Patient" />
+            android:text="Find Patient"
+            android:textAllCaps="false" />
 
         <!-- ⛔ মোছা হয়নি — পুরনো এক-লাইনের লেখাটা কোডে এখনো ভরা হয়, শুধু
              পর্দায় দেখানো হয় না। নিচের নতুন কার্ডটাই TK-অনুমোদিত চেহারা। -->
@@ -247,7 +248,8 @@
             android:layout_marginTop="8dp"
             android:text="Pick Photo from Gallery"
             android:visibility="gone"
-            android:enabled="false" />
+            android:enabled="false"
+            android:textAllCaps="false" />
 
         <!-- নতুন ছবি তোলার আগে দেখানোই হয় না (খাতার সারি B47)। -->
         <Button
@@ -257,7 +259,8 @@
             android:layout_marginTop="10dp"
             android:text="Save Photo"
             android:visibility="gone"
-            android:enabled="false" />
+            android:enabled="false"
+            android:textAllCaps="false" />
 
         <ProgressBar
             android:id="@+id/progressLoad"

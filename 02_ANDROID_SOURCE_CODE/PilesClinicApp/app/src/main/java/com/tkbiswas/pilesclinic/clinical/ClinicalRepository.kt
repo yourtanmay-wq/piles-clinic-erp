@@ -125,7 +125,50 @@ object ClinicalRepository {
     fun rememberRxDose(name: String, dose: String) {
         val key = name.trim()
         if (key.isEmpty() || dose.isBlank()) return
-        dosePrefs?.edit()?.putString(key, dose)?.apply()
+        // 🟢 V956: the dose also goes into its own box, so the When box beside it
+        // is never wiped by a dose edit (see rxDoseWhenFor below).
+        dosePrefs?.edit()?.putString(key, dose)?.putString("dose_$key", dose.trim())?.apply()
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       🍯🔒 V956 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"অনেক সময় কোন মেডিসিন মধু দিয়ে
+       খেতে বলতে হয়, মাখন দিয়ে খেতে বলতে হয় … একবার সেট করে থাকলে সারা জীবন
+       যেন একই রকম থাকে যতক্ষণ না ভবিষ্যতে আমি পরিবর্তন না করি"*।
+
+       ─── আসল কারণ (কোডে মেপে দেখা, আন্দাজ নয়) ──────────────────────────────
+       ওষুধের ডোজ ও When **একটাই লেখায়** জমা হত ("2-0-2 After Food")। ফেরত
+       পড়ার সময় `splitDoseAndFrequency` শুধু হুবহু "After Food"/"Before Food"
+       চিনত। তাই ডাক্তার "After Food with Honey" লিখলে পরের বার সেটা ভেঙে
+       পড়ত না — পুরো লেখাটা Dose-এর ঘরে ঢুকে যেত আর When আবার "After Food"
+       হয়ে ফিরে আসত। অর্থাৎ মধু/মাখনের কথা **কখনোই টিকত না**।
+
+       ─── স্থায়ী সমাধান ────────────────────────────────────────────────────
+       Dose ও When এখন **নিজের নিজের আলাদা ঘরে** জমা থাকে (`dose_<নাম>` ও
+       `when_<নাম>`)। যা খুশি লেখা যায় — "After Food with Honey", "With Butter",
+       "খালি পেটে" — হুবহু সেটাই ফিরে আসে, TK না বদলানো পর্যন্ত।
+       ⛔ পুরোনো জোড়া-লেখা ঘরটা অক্ষত রাখা হয়েছে; নতুন ঘর ফাঁকা থাকলে আগের
+          নিয়মেই কাজ চলে — তাই এখনকার কোনো ডিফল্ট নষ্ট হয় না।
+       ☁️ ক্লাউডের `medicine_defaults` টেবিলে `whenText` কলামটা **আগে থেকেই**
+          আলাদা ছিল, তাই নতুন কোনো টেবিল/কলাম লাগেনি।
+       ══════════════════════════════════════════════════════════════════════ */
+    fun rememberRxWhen(name: String, whenText: String) {
+        val key = name.trim()
+        if (key.isEmpty() || whenText.isBlank()) return
+        dosePrefs?.edit()?.putString("when_$key", whenText.trim())?.apply()
+    }
+
+    /** V956: the medicine's remembered Dose + When, each from its own box.
+     *  Falls back to the old glued-together value (and then to the project's
+     *  own list) whenever the new boxes are still empty. */
+    fun rxDoseWhenFor(name: String): Pair<String, String> {
+        val key = name.trim()
+        val savedDose = dosePrefs?.getString("dose_$key", null).orEmpty().trim()
+        val savedWhen = dosePrefs?.getString("when_$key", null).orEmpty().trim()
+        val fallback = splitDoseAndFrequency(rxDoseFor(key))
+        return Pair(
+            savedDose.ifBlank { fallback.first },
+            savedWhen.ifBlank { fallback.second.ifBlank { rxWhenFor(key) } }
+        )
     }
 
     /** TK APPROVED (2026-07-15): medicine "Type" (Tab/Cap/Syp/Oint/Inj/Other) shown
@@ -208,15 +251,22 @@ object ClinicalRepository {
         val before = listOf(
             prefs.getString("type_$key", "").orEmpty(),
             prefs.getString(key, "").orEmpty(),
-            prefs.getString("days_$key", "").orEmpty()
+            prefs.getString("days_$key", "").orEmpty(),
+            prefs.getString("when_$key", "").orEmpty()   // 🟢 V956
         )
         val editor = prefs.edit()
         if (type.isNotBlank()) editor.putString("type_$key", type.trim())
         if (combinedDose.isNotBlank()) editor.putString(key, combinedDose)
+        // 🟢 V956: Dose ও When আলাদা ঘরেও বসে — তাই "with Honey"-এর মতো লেখা টেকে।
+        if (dose.isNotBlank()) editor.putString("dose_$key", dose.trim())
+        if (whenText.isNotBlank()) editor.putString("when_$key", whenText.trim())
         if (days.isNotBlank()) editor.putString("days_$key", days.trim())
         if (updatedAt.isNotBlank()) editor.putString(stampKey, updatedAt)
         editor.apply()
-        val after = listOf(rxTypeFor(key), rxDoseFor(key), rxDaysFor(key))
+        val after = listOf(
+            rxTypeFor(key), rxDoseFor(key), rxDaysFor(key),
+            prefs.getString("when_$key", "").orEmpty()   // 🟢 V956
+        )
         return before != after
     }
 

@@ -3,7 +3,7 @@
 Clinic management system for TK Biswas Piles Clinic — Android app + web app (PWA)
 on a shared Supabase backend.
 
-Current version: **V512 / versionName 5.12** (imported from `PILES_CLINIC_APP_V512_FINAL.zip`).
+Current version: **V690 / versionName 6.90** (imported from `PILES_CLINIC_APP_V690_FINAL_2.zip`).
 
 ## Read these first
 

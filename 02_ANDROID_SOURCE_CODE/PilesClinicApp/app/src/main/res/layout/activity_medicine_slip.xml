@@ -168,7 +168,7 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_btn_navy" app:backgroundTint="@null"
             android:textColor="@color/white"
-            android:text="Share as Text" />
+            android:text="📤 Share PDF" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPrint"

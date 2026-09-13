@@ -63,7 +63,15 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         // patient physically come to chamber" (a real running count, correct
         // for every OTHER row) with "why was this ₹ collected". For the fee
         // row, show the payment MODE (CASH/UPI) it was collected in instead.
-        val feesMode: String = ""
+        val feesMode: String = "",
+        // 🟢🔒 V612 (২৪.০৮.২০২৬, TK-নির্দেশ, "খুব নিরাপদে") — Fees-এর
+        // cash/online আলাদা (আগে শুধু মিলিত `fees` ছিল), আর ওষুধের
+        // cash/online আলাদা। ⛔ পুরনো `fees`/`cash`/`online` এক অক্ষরও
+        // বদলায়নি — এই তিনটে বাড়তি, শুধু সারাংশ-লাইনে ভাগ করে দেখানোর জন্য।
+        val feesCash: Double = 0.0,
+        val feesOnline: Double = 0.0,
+        val medicineCash: Double = 0.0,
+        val medicineOnline: Double = 0.0
     )
 
     companion object {
@@ -94,9 +102,31 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
      *  is self-contained. */
     /** @param rmpCommission 🔴 V426 (TK-নির্দেশ): ওই দিনের RMP কমিশন।
      *  @param rmpPaidToday  🔴 V427: আজ RMP-দের হাতে দেওয়া টাকা (শুধু দেখানোর জন্য)।
-     *  ⛔ দুটোই ঐচ্ছিক — ০ দিলে (বা না দিলে) কাগজ **হুবহু আগের মতোই** ছাপে,
+     *  @param rmpByName 🔴 V685 (TK-নির্দেশ — "প্রিন্টে RMP কমিশন লাল রঙে, কোন
+     *     RMP-র কত কমিশন সহ"): প্রতিটা RMP-র নাম + সেদিনের কমিশন, আলাদা আলাদা।
+     *  ⛔ তিনটাই ঐচ্ছিক — ফাঁকা/০ দিলে কাগজ **হুবহু আগের মতোই** ছাপে,
      *     তাই পুরনো কোনো ডাক বদলাতে হয়নি। */
-    fun build(branch: BranchInfo, dateLabel: String, dayLabel: String, rows: List<RegisterRow>, outputFile: File, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0): File {
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত) — TK-নির্দেশ: *"মেডিসিনের টাকা কত,
+       স্যালাইনের টাকা কত … আলাদাভাবে মেনশন থাকে"*, আর *"আলাদা লাইনে শুধু
+       দেখানো হবে"* (GRAND TOTAL-এ যোগ হবে না — TK নিজে বলেছেন)।
+       ─── এই টাকা কোথা থেকে আসে ───────────────────────────────────────────
+       ওষুধ/স্যালাইন বিক্রি জমা হয় **`products`** টেবিলে, আর চেম্বার রেজিস্টার
+       পড়ে **`payments`** টেবিল — দুটো আলাদা জায়গা। তাই এখানে দিনের মোটটা
+       আলাদা করে হিসাব করে পাঠানো হয় (`ChamberAttendanceRepository.saleTotals`)।
+       ⛔ **আগের কোনো অঙ্কে হাত পড়েনি** — FEES / TREATMENT / GRAND TOTAL হুবহু
+          আগের সূত্রেই থাকে; এই দুটো নিছক **দেখানোর** লাইন। */
+    data class SaleTotals(
+        val medicineCash: Double = 0.0,
+        val medicineOnline: Double = 0.0,
+        val salineCash: Double = 0.0,
+        val salineOnline: Double = 0.0
+    ) {
+        fun hasMedicine() = medicineCash > 0.0 || medicineOnline > 0.0
+        fun hasSaline() = salineCash > 0.0 || salineOnline > 0.0
+        fun lineCount() = (if (hasMedicine()) 1 else 0) + (if (hasSaline()) 1 else 0)
+    }
+
+    fun build(branch: BranchInfo, dateLabel: String, dayLabel: String, rows: List<RegisterRow>, outputFile: File, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals(), handoverLine: String = ""): File {
         val doc = PdfDocument()
         val logo = loadAssetBitmap(branch.logoAssetPath)
         val pages = if (rows.isEmpty()) listOf(emptyList()) else rows.chunked(ROWS_PER_PAGE)
@@ -115,7 +145,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
             val rowH = ((ROWS_BOTTOM_LIMIT - usableTop) / count).coerceIn(MIN_ROW_HEIGHT, MAX_ROW_HEIGHT)
             drawTable(canvas, pageRows, rowH)
             if (pageNum == pages.size) {
-                drawTotals(canvas, rows, usableTop + pageRows.size * rowH + 12f, rmpCommission, rmpPaidToday)
+                drawTotals(canvas, rows, usableTop + pageRows.size * rowH + 12f, rmpCommission, rmpPaidToday, rmpByName, saleTotals, handoverLine)
             }
             doc.finishPage(page)
         }
@@ -156,7 +186,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         // clinic name above it (same centerX) -- it never shifts left for
         // anything else. Date + Day sit small, on their own, in the
         // top-right corner of the page, well clear of this centered block.
-        val oneLine = "${branch.addressLine}   |   Mob: ${branch.phoneLine}"
+        val oneLine = "${branch.addressLine}   |   Mob: ${branch.phoneLine}   |   Helpline: ${BranchCatalog.HELPLINE}"
         canvas.drawText(fitText(oneLine, detail, headerRight - logoRight - 20f), centerX, 38f, detail)
 
         val dateDayText = "$dateLabel  ($dayLabel)"
@@ -280,7 +310,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         canvas.drawText(text, colLeft + colWidth - 6f - paint.measureText(text), baselineY, paint)
     }
 
-    private fun drawTotals(canvas: Canvas, rows: List<RegisterRow>, y: Float, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0) {
+    private fun drawTotals(canvas: Canvas, rows: List<RegisterRow>, y: Float, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals(), handoverLine: String = "") {
         val colVisit = MARGIN + 20f + 148f + 150f
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true }
         val value = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true }
@@ -298,6 +328,29 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         // already shows under those same three columns. Removed; the TOTAL
         // row's Fees/Cash/Online numbers are now the only place this lives.
 
+        // 🟢🔒 V612 (২৪.০৮.২০২৬, TK-নির্দেশ, "খুব নিরাপদে") — TK-এর স্পষ্ট
+        // চাওয়া: Fees-এর Cash/Online আলাদা, তারপর Total Cash/Total Online
+        // (Fees+Treatment মিলিয়ে), আর Medicine বিক্রি হলে সেটারও Cash/Online
+        // আলাদা লাইনে। ⛔ উপরের TOTAL টেবিল-সারি (Fees|Cash|Online কলাম)
+        // অক্ষত — এটা শুধু নিচের সারাংশ-লাইন নতুন করে সাজানো।
+        val totalFeesCash = rows.sumOf { it.feesCash }
+        val totalFeesOnline = rows.sumOf { it.feesOnline }
+        val totalMedicineCash = rows.sumOf { it.medicineCash }
+        val totalMedicineOnline = rows.sumOf { it.medicineOnline }
+        // 🟢🔒 V614 (২৪.০৮.২০২৬, TK-প্রশ্ন — "Treatment cost কোথায় গেল?") —
+        // আগে Treatment-এর টাকা নিজের কোনো লেবেল ছাড়াই GRAND TOTAL-এর
+        // ভিতরে চাপা পড়ে যাচ্ছিল। এখন আলাদা করে বার করা হলো: totalCash/
+        // totalOnline-এর ভিতরে Medicine-ও ধরা আছে, তাই Medicine বাদ দিলেই
+        // "শুধু Treatment"-এর আসল অংশ পাওয়া যায় — Fees + Treatment +
+        // Medicine = GRAND TOTAL, কোথাও দ্বিগুণ গোনা বা হারানো নেই।
+        val totalTreatmentCash = totalCash - totalMedicineCash
+        val totalTreatmentOnline = totalOnline - totalMedicineOnline
+        // ⛔ Medicine-এর টাকা ইতিমধ্যেই totalCash/totalOnline-এর ভিতরে আছে
+        //    (আলাদা করে যোগ করলে দ্বিগুণ গোনা হয়ে যাবে) — তাই Total Cash/
+        //    Total Online = Fees + (Treatment, যার ভিতরেই Medicine ধরা আছে)।
+        val totalCashCombined = totalFeesCash + totalCash
+        val totalOnlineCombined = totalFeesOnline + totalOnline
+
         // 🔴🔒 V426 (TK-নির্দেশ ১৭.০৮.২০২৬) — *"প্রিন্ট আউট হয়ে যাওয়ার পরে একদম
         //    নিচে থাকবে · সব গুলি একলাইনে থাকতে হবে"* ⇒ কাগজের একদম নিচে
         //    **একটাই লাইনে** পুরো হিসাব। TOTAL = Fees + Cash + Online
@@ -305,29 +358,103 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         //    এটা শুধু নিচে একটা বাড়তি সারাংশ লাইন।
         val grand = totalFees + totalCash + totalOnline
         fun rs(v: Double) = "₹" + "%,.0f".format(v)
-        // 🔴 V426: RMP কমিশন থাকলে সেটাও একই লাইনে, আর TOTAL থেকে বাদ দিয়ে NET।
-        val headPart = "Fees " + rs(totalFees) + "   ·   Cash " + rs(totalCash) +
-            "   ·   Online " + rs(totalOnline) + "   ·   TOTAL " + rs(grand)
-        /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): *"আপাতত কমিশনটা লাল কালারের আলাদা জায়গায়
-           রাখুন · যদি আমরা দিয়ে থাকি তবেই আমরা আমাদের মতন মাইনাস করে নেব"*
-           ⇒ আগে TOTAL থেকে কমিশন বাদ দিয়ে NET ছাপা হত। কিন্তু ওটা **দিতে হবে**
-           এমন টাকা, দেওয়া টাকা নয় — তাই আজকের আয় থেকে বাদ যাওয়া ভুল ছিল।
-           এখন TOTAL হুবহু আয়, আর কমিশন নিচে **আলাদা লাল লাইনে**। */
-        val oneLine = headPart + "/-"
+
+        // 🟢🔒 V613 (২৪.০৮.২০২৬, TK-নির্দেশ — "আরো প্রফেশনাল করুন, কোনটা
+        // কিসের কালেকশন বুঝতে পারছি না") — আগের এক-লাইনের ঘন লেখার বদলে
+        // এখন প্রতিটা সারির **নিজস্ব স্পষ্ট লেবেল**, আর Cash/Online দুটো
+        // সংখ্যাই সবসময় **একই উল্লম্ব কলামে** বসে (প্রকৃত ছোট্ট টেবিলের
+        // মতো) — তাই এক নজরেই বোঝা যায় কোন সারি কীসের।
+        val sumLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true
+        }
         val sum = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(GREEN); textSize = 9f; isFakeBoldText = true
+            color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true
         }
-        // 🔴 V427: "আজ RMP-দের হাতে কত গেল" — একই লাইনের শেষে, ⛔ কোনো মোট থেকে
-        //    বাদ যায় না (TK-নির্দেশ: শুধু জানার জন্য)। ০ হলে লেখাই হয় না।
-        val fullLine = if (rmpPaidToday > 0.0) {
-            oneLine + "   ·   Paid to RMP today " + rs(rmpPaidToday)
-        } else {
-            oneLine
+        val colCashLbl = MARGIN + 190f
+        val colOnlineLbl = MARGIN + 340f
+        fun summaryRow(rowLabel: String, cashV: Double, onlineV: Double, rowY: Float, boldExtra: String = "") {
+            canvas.drawText(rowLabel, MARGIN + 20f, rowY, sumLabel)
+            canvas.drawText("Cash " + rs(cashV), colCashLbl, rowY, sum)
+            canvas.drawText("Online " + rs(onlineV), colOnlineLbl, rowY, sum)
+            if (boldExtra.isNotBlank()) canvas.drawText(boldExtra, colOnlineLbl + 150f, rowY, sum)
         }
-        canvas.drawText(fullLine, MARGIN + 20f, (PAGE_HEIGHT - 24).toFloat(), sum)
+
+        // কতগুলো সারি লাগবে হিসাব করে, উপর থেকে বসানো হয় (নিচেই থাকে,
+        // RMP Commission-এর লাল লাইনের (PAGE_HEIGHT-12) উপরে কখনো ওঠে না)।
+        // 🟢🔒 V614 (TK-প্রশ্ন — "Treatment cost কোথায় গেল?") — এখন সবসময়
+        // ৩টা (Medicine না থাকলে) বা ৪টা (থাকলে) সারি: FEES → TREATMENT →
+        // [MEDICINE] → GRAND TOTAL। তিনটে (বা প্রথম দুটো+GRAND) যোগ করলে
+        // ঠিক GRAND TOTAL-ই পাওয়া যায় — কোথাও কিছু হারায় না, দ্বিগুণও হয় না।
+        /* 🆕🔒 V805 — `products` থেকে আসা দিনের ওষুধ ও স্যালাইনের টাকা।
+           ⛔ পুরনো `totalMedicineCash` (payments-ভিত্তিক) **ছোঁয়া হয়নি**, তাই
+              উপরের TREATMENT COST-এর সূত্র এক অক্ষরও বদলায়নি। */
+        val hasMedicine = saleTotals.hasMedicine()
+        val hasSaline = saleTotals.hasSaline()
+        // 🔴🔒 V685 (২৫.০৮.২০২৬) — প্রতিটা RMP-র নিজের লাইনের জন্য বাড়তি জায়গা।
+        // 🔴🔒 V688 (নিজের যাচাইয়ে ধরা পড়া বাগ, তক্ষুনি ঠিক করা হলো — V685-এর
+        // আগের হিসাবে TOTAL RMP লাইনটা সবসময় পাতার একদম শেষ কানায় (PAGE_HEIGHT-2)
+        // গিয়ে বসত, RMP সংখ্যা যা-ই হোক না কেন — কাগজের কিনারা ঘেঁষে কাটা
+        // পড়ার ঝুঁকি ছিল। এখন TOTAL লাইন সবসময় আগের নিরাপদ জায়গাতেই
+        // (PAGE_HEIGHT-12, একটা RMP থাকলে যেখানে ছিল) — RMP-র সারিগুলো তার
+        // **উপরে** সাজে, প্রতিটা রঙের/অবস্থানের হিসাব নতুন করে ঠিক করা হলো।
+        val rmpLineCount = if (rmpByName.isNotEmpty()) rmpByName.size + 1 else 0  // +1 = TOTAL লাইন
+        val rmpLinesExtra = if (rmpLineCount > 0) (rmpLineCount - 1) * 10f else 0f
+        // 🆕 V805 — যত সারি বসবে, তত উপর থেকে শুরু (কাগজের কিনারা ঘেঁষে যেন না যায়)
+        var rowY = ((PAGE_HEIGHT - 48) - saleTotals.lineCount() * 12 - rmpLinesExtra).toFloat()
+        summaryRow("FEES COLLECTED", totalFeesCash, totalFeesOnline, rowY)
+        rowY += 12f
+        summaryRow("TREATMENT COST", totalTreatmentCash, totalTreatmentOnline, rowY)
+        rowY += 12f
+        /* 🆕🔒 V805 — TK-নির্দেশ: মেডিসিন ও স্যালাইনের টাকা **আলাদা লাইনে শুধু
+           দেখানো** হবে (GRAND TOTAL-এ যোগ হবে না — TK নিজে ঠিক করেছেন)।
+           ⛔ টাকা না থাকলে লাইনটাই ছাপা হয় না, তাই খালি দিনে কাগজ আগের মতোই। */
+        if (hasMedicine) {
+            summaryRow("MEDICINE SALES", saleTotals.medicineCash, saleTotals.medicineOnline, rowY)
+            rowY += 12f
+        }
+        if (hasSaline) {
+            summaryRow("SALINE CHARGE", saleTotals.salineCash, saleTotals.salineOnline, rowY)
+            rowY += 12f
+        }
+        // 🔴 V427: "আজ RMP-দের হাতে কত গেল" — এখন GRAND TOTAL সারির শেষে, ⛔
+        //    কোনো মোট থেকে বাদ যায় না (TK-নির্দেশ: শুধু জানার জন্য)। ০ হলে লেখা হয় না।
+        val rmpNote = if (rmpPaidToday > 0.0) "  ·  Paid to RMP today " + rs(rmpPaidToday) else ""
+        canvas.drawText("GRAND TOTAL", MARGIN + 20f, rowY, sumLabel)
+        canvas.drawText("Cash " + rs(totalCashCombined), colCashLbl, rowY, sum)
+        canvas.drawText("Online " + rs(totalOnlineCombined), colOnlineLbl, rowY, sum)
+        canvas.drawText("= " + rs(grand) + "/-" + rmpNote, colOnlineLbl + 150f, rowY, sum)
+        /* 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ: *"টাকা হ্যান্ডওভার করেছে তার প্রমাণ
+           স্টাফ পাবে কি করে"*) — কে বুঝে নিলেন সেই লাইনটা কাগজেও ছাপে, তাই
+           WhatsApp-এ পাঠানো কপিতেও প্রমাণ থাকে।
+           ⛔ লাইনটা না থাকলে (এখনো বুঝিয়ে দেওয়া হয়নি) কাগজ হুবহু আগের মতোই। */
+        if (handoverLine.isNotBlank()) {
+            rowY += 12f
+            canvas.drawText(handoverLine, MARGIN + 20f, rowY, sum)
+        }
         // 🔴 V562: RMP-কে দিতে হবে এমন টাকা — লাল রঙে, আলাদা লাইনে, কোনো
         //    মোট থেকে বাদ যায় না। ০ হলে লাইনটাই ছাপা হয় না।
-        if (rmpCommission > 0.0) {
+        // 🔴🔒 V685 (২৫.০৮.২০২৬, TK-নির্দেশ — "প্রিন্টে RMP কমিশন লাল রঙে,
+        //    কোন RMP-র কত কমিশন সহ") — এখন প্রতিটা RMP-র নাম + তার নিজের
+        //    কমিশন আলাদা লাইনে (আগে শুধু একটাই মোট সংখ্যা যেত)। মোট লাইনটা
+        //    (rmpCommission) সবার শেষে, যোগফল-হিসেবে থাকছেই — কিছু হারায় না।
+        if (rmpByName.isNotEmpty()) {
+            val red = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#B42318"); textSize = 9f; isFakeBoldText = true
+            }
+            // 🔴🔒 V688 — TOTAL লাইন সবসময় নিরাপদ PAGE_HEIGHT-12-তে; প্রতিটা
+            // RMP-র সারি তার ঠিক উপরে, একটার পর একটা।
+            val totalLineY = (PAGE_HEIGHT - 12).toFloat()
+            var rmpY = totalLineY - rmpByName.size * 10f
+            for ((name, amt) in rmpByName) {
+                canvas.drawText("RMP Commission — $name : " + rs(amt), MARGIN + 20f, rmpY, red)
+                rmpY += 10f
+            }
+            canvas.drawText(
+                "TOTAL RMP Commission (দিতে হবে) " + rs(rmpCommission) +
+                    "   —   আজকের মোট থেকে বাদ যায়নি",
+                MARGIN + 20f, totalLineY, red
+            )
+        } else if (rmpCommission > 0.0) {
             val red = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#B42318"); textSize = 9f; isFakeBoldText = true
             }

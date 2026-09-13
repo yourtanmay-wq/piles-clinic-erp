@@ -93,10 +93,18 @@
       var p = patients().find(function (x) { return String(x.id) === String(patientId); }); if (!p) return;
       var refMob = String(p.refDoctorMobile || '').replace(/\D/g, '').slice(-10), refName = String(p.refDoctor || '').trim().toLowerCase();
       if (!refMob && !refName) return;
-      var d = doctors().find(function (x) {
+      // 🔴🔒 V1395 (১২.০৯.২০২৬, TK-রিপোর্ট) — একই মোবাইল/নাম একাধিক ব্রাঞ্চে
+      // থাকলে (যেমন একজন RMP-র দুই ব্রাঞ্চে রেকর্ড) আগে .find()-এর প্রথম
+      // মিলটাই বেছে নিত, ব্রাঞ্চ না মিললেও — ভুল ব্রাঞ্চের RMP-তে কমিশন
+      // বসে যেত। এখন রোগীর নিজের ব্রাঞ্চের সাথে মেলা রেকর্ডটাই আগে খোঁজা
+      // হয়, না পেলে তবেই আগের মতো প্রথম মিল।
+      var patBranch = String(p.branch || '').trim().toLowerCase();
+      var candidates = doctors().filter(function (x) {
         return (refMob && String(x.mobile || '').replace(/\D/g, '').slice(-10) === refMob) ||
           (refName && String(x.name || '').trim().toLowerCase() === refName);
-      }); if (!d) return;
+      });
+      if (!candidates.length) return;
+      var d = (patBranch && candidates.find(function (x) { return String(x.branch || '').trim().toLowerCase() === patBranch; })) || candidates[0];
       var c = await fin(); if (!c) return;
       var current = await c.from('rmp_patient_commissions').select('id').eq('patient_row_id', p.id).limit(1).maybeSingle();
       if (current && current.data) return;
@@ -114,6 +122,8 @@
     var d = doctor(docId); if (!d) return toast('RMP not found');
     if (user && user.role === 'field') { closeModal(); return viewDoctorVisit(docId); }
     var c = await fin(); if (!c) return toast('Could not verify login — try again');
+    // 🔴 V1161 — পর্দা খোলার সঙ্গে সঙ্গেই বাঁধা-না-থাকা রোগীদের জুড়ে দেওয়া।
+    try { await window.wlv1RmpAutolinkOnce(d.branch || (typeof wlv1RmpBranch==='function'?wlv1RmpBranch():'')); } catch (_) {}
     modal('<h2 class="anRmp">Referral Income — ' + esc(d.name || '') + '</h2><div class="card">' +
       '<button onclick="webRmpDefaultForm(\'' + esc(docId) + '\')">RMP Default Commission</button>' +
       '<button onclick="webRmpPatientForm(\'' + esc(docId) + '\')">Patient Commission / Payment</button>' +
@@ -126,12 +136,25 @@
 
   async function webRmpSummary(docId) {
     var d = doctor(docId), c = await fin(); if (!d || !c) return toast('Could not verify login');
+    // 🔴 V1161 — হিসাব দেখানোর ঠিক আগেও একবার (এক ব্রাঞ্চে একবারই চলে)।
+    try { await window.wlv1RmpAutolinkOnce(d.branch || (typeof wlv1RmpBranch==='function'?wlv1RmpBranch():'')); } catch (_) {}
     var r = await c.rpc('rmp_rmp_summary', { p_rmp_id: docId });
     if (r.error || !r.data || !r.data.length) return toast('Could not verify commission summary');
     var a = await c.from('rmp_advance_payments').select('amount,allocated_amount,legacy_covered_amount').eq('rmp_id', docId);
     if (a.error) return toast('Could not verify RMP advance');
-    var s = r.data[0], advanceAvailable = (a.data || []).reduce(function(n,x){return n+Number(x.amount||0)-Number(x.allocated_amount||0);},0);
+    var s = r.data[0];
     var paidIncludingAdvance = Number(s.paid_to_this_rmp || 0);
+    /* 📒🔒 V1404 (TK: "এ গুলি কি হচ্ছে?" — ডেমো পাশ): "Unallocated Advance" লাইন বাদ —
+       বিভ্রান্ত করত। এক লাইনে: Paid-এর ভিতরে কত সরাসরি RMP-কে, কত হাতে-লেখা। ফোনের যমজ। */
+    var directTotal = (a.data || []).reduce(function(n,x){return n+Number(x.amount||0);},0);
+    var bd = await c.rpc('rmp_patient_breakdown', { p_rmp_id: docId });
+    var handRows = (!bd.error && Array.isArray(bd.data)) ? bd.data.filter(function(x){return Number(x.legacy_paid||0)>0.5;}) : [];
+    var handTotal = handRows.reduce(function(n,x){return n+Number(x.legacy_paid||0);},0);
+    var handNames = []; handRows.forEach(function(x){var nm=String(x.patient_name||x.patient_mobile||'').trim(); if(nm && handNames.indexOf(nm)<0) handNames.push(nm);});
+    var composition = '';
+    if (directTotal > 0.5) composition += 'Paid includes ' + money(directTotal) + ' given directly to the RMP (not tied to one patient)';
+    if (handTotal > 0.5) { composition += (composition ? ' and ' : 'Paid includes ') + money(handTotal) + ' entered by hand' + (handNames.length ? ' for ' + esc(handNames.slice(0,3).join(', ')) + (handNames.length>3?' …':'') : ''); }
+    if (composition) composition += '.';
     /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — দুটো বদল:
        ১) সারির **ক্রম** ফোনের মতোই (DoctorVisitActivity.kt:4022-4027):
           Patients → Commission Earned → Paid to this RMP → [Unallocated Advance]
@@ -141,21 +164,62 @@
           হিসাব হয় বলে পয়সা সত্যিই আসে; ওয়েবে গোল করে দেখাত, তাই ফোনের
           সঙ্গে অঙ্ক মিলছে না মনে হত। ⛔ হিসাব বদলায়নি, শুধু দেখানো। */
     modal('<h2 class="anRmp">Referral Income — ' + esc(d.name || '') + '</h2><div class="card"><b>Patients: ' + Number(s.patient_count || 0) + '</b><br>' +
-      'Commission Earned: <b>' + rmpMoney(s.earned || 0) + '</b><br>Paid to this RMP: <b>' + rmpMoney(paidIncludingAdvance) + '</b>' +
-      (advanceAvailable > 0 ? '<br>Unallocated Advance: <b>' + rmpMoney(advanceAvailable) + '</b>' : '') +
+      'Earned: <b>' + rmpMoney(s.earned || 0) + '</b><br>Paid: <b>' + rmpMoney(paidIncludingAdvance) + '</b>' +
       '<br>Due: <b>' + rmpMoney(s.due || 0) + '</b>' +
       (Number(s.previous_rmp_paid) > 0 ? '<br>Previous RMP Paid: <b>' + rmpMoney(s.previous_rmp_paid) + '</b>' : '') +
-      (Number(s.overpaid) > 0 ? '<br><b style="color:#b42318">More Paid: ' + rmpMoney(s.overpaid) + '</b>' : '') + '</div>');
+      (Number(s.overpaid) > 0 ? '<br><b style="color:#b42318">More Paid: ' + rmpMoney(s.overpaid) + '</b>' : '') +
+      (composition ? '<br><span class="tiny">' + composition + '</span>' : '') + '</div>');
   }
 
+  /* 🔴🔒 V1085 (০৫.০৯.২০২৬, TK: *"অ্যান্ড্রয়েডে কাজ হচ্ছে কিন্তু কম্পিউটারে
+     হচ্ছে না"*) — কম্পিউটারে RMP-র **ব্রাঞ্চ-ভিত্তিক হার** (V470) কাজ করত না,
+     আর হার বসানো না থাকলে ফোনে V488-এর স্বয়ংক্রিয় ১০% ধরত কিন্তু এখানে ফাঁকা
+     দেখাত ⇒ একই রোগীতে দুই পর্দায় দুরকম টাকা বসতে পারত।
+     ⇒ এখন ফোনের হুবহু একই সার্ভার-ফাংশন ডাকা হয়, তাই অগ্রাধিকারও এক:
+        ব্রাঞ্চ-নির্দিষ্ট → বৈশ্বিক → স্বয়ংক্রিয় ১০%।
+     ⛔ বৈশ্বিক Default বসানোর পুরনো পথটা এক অক্ষরও বদলায়নি। */
   async function webRmpDefaultForm(docId) {
     var d = doctor(docId), c = await fin(); if (!d || !c) return toast('Could not open');
     var r = await c.from('rmp_commission_defaults').select('commission_mode,commission_value').eq('rmp_id', docId).limit(1).maybeSingle();
     var old = r && r.data || {};
+    var br = String((d && d.branch) || '').trim();
+    var eff = null;
+    try {
+      var g = await c.rpc('rmp_get_branch_default', { p_rmp_id: docId, p_branch: br });
+      if (g && !g.error && g.data && g.data.length) eff = g.data[0];
+    } catch (_e) { }
+    var effLine = '';
+    if (br) {
+      effLine = eff
+        ? (eff.is_branch_specific
+            ? '<div class="tiny" style="color:#0A5C33">' + esc(br) + ' — using its own rate: ' +
+              esc(eff.commission_mode) + ' ' + esc(String(eff.commission_value)) + '</div>'
+            : '<div class="tiny mut">' + esc(br) + ' — currently using the general Default above (' +
+              esc(String(eff.commission_value)) + ')</div>')
+        : '';
+    }
     modal('<h2 class="anRmp">RMP Default Commission</h2><div class="card"><b>' + esc(d.name || '') + '</b>' +
       '<label>Commission Type</label><select id="rmpDefMode" class="input"><option value="PERCENT"' + (old.commission_mode === 'AMOUNT' ? '' : ' selected') + '>Percent (%)</option><option value="AMOUNT"' + (old.commission_mode === 'AMOUNT' ? ' selected' : '') + '>Fixed Amount (₹)</option></select>' +
       '<label>Default Value</label><input id="rmpDefValue" class="input" inputmode="decimal" value="' + esc(old.commission_value == null ? '' : old.commission_value) + '">' +
-      '<button onclick="webRmpSaveDefault(\'' + esc(docId) + '\')">Save Default</button><button class="ghost" onclick="openWebRmpCommission(\'' + esc(docId) + '\')">Back</button></div>');
+      (br ? '<label>Branch-specific % (optional)</label>' + effLine +
+            '<input id="rmpDefBrValue" class="input" inputmode="decimal" placeholder="Leave blank to use the Default above">' : '') +
+      '<div class="actions"><button onclick="webRmpSaveDefault(\'' + esc(docId) + '\')">Save Default</button>' +
+      (br ? '<button onclick="webRmpSaveBranchDefault(\'' + esc(docId) + '\')">Save for ' + esc(br) + ' only</button>' : '') +
+      '<button class="ghost" onclick="openWebRmpCommission(\'' + esc(docId) + '\')">Back</button></div></div>');
+  }
+
+  /* 🔴 V1085 — ফোনের `setBranchDefault()`-এর হুবহু একই ডাক ও একই যাচাই। */
+  async function webRmpSaveBranchDefault(docId) {
+    var d = doctor(docId); if (!d) return toast('RMP not found');
+    var br = String((d && d.branch) || '').trim(); if (!br) return toast('This RMP has no branch');
+    var mode = document.getElementById('rmpDefMode').value;
+    var value = Number(document.getElementById('rmpDefBrValue').value);
+    if (!isFinite(value) || value < 0 || (mode === 'PERCENT' && value > 100)) return toast('Enter a valid value');
+    var c = await fin(); if (!c) return toast('Could not verify login');
+    var r = await c.rpc('rmp_set_branch_default', { p_rmp_id: docId, p_rmp_name: d.name || '',
+      p_rmp_mobile: d.mobile || '', p_branch: br, p_mode: mode, p_value: value });
+    if (r.error) return toast(errText(r.error));
+    toast('Saved for ' + br + ' only'); closeModal();
   }
 
   async function webRmpSaveDefault(docId) {
@@ -199,9 +263,20 @@
     else if (current && current.data && String(current.data.set_on || '') < today() && !isMaster()) {
       var requestedMode = mode, requestedValue = value;
       if (mode === 'DEFAULT') {
-        var def = await c.from('rmp_commission_defaults').select('commission_mode,commission_value').eq('rmp_id', docId).limit(1).maybeSingle();
-        if (!def || def.error || !def.data) return toast('RMP Default is not set');
-        requestedMode = def.data.commission_mode; requestedValue = Number(def.data.commission_value || 0);
+        /* 🔴 V1085 — আগে এখানে সরাসরি **বৈশ্বিক** Default পড়া হত, তাই
+           ব্রাঞ্চ-নির্দিষ্ট হার থাকলেও ভুল অঙ্ক অনুরোধে যেত, আর হার বসানো না
+           থাকলে "RMP Default is not set" বলে আটকে যেত (ফোনে ১০% ধরত)।
+           এখন সার্ভারের সেই একই ফাংশন — অগ্রাধিকার হুবহু ফোনের মতো। */
+        var g2 = await c.rpc('rmp_get_branch_default',
+          { p_rmp_id: docId, p_branch: String((p && p.branch) || '').trim() });
+        if (g2 && !g2.error && g2.data && g2.data.length) {
+          requestedMode = g2.data[0].commission_mode;
+          requestedValue = Number(g2.data[0].commission_value || 0);
+        } else {
+          var def = await c.from('rmp_commission_defaults').select('commission_mode,commission_value').eq('rmp_id', docId).limit(1).maybeSingle();
+          if (!def || def.error || !def.data) return toast('RMP Default is not set');
+          requestedMode = def.data.commission_mode; requestedValue = Number(def.data.commission_value || 0);
+        }
       }
       r = await c.rpc('rmp_request_approval', { p_request_type: 'PAST_COMMISSION_CHANGE', p_patient_row_id: p.id,
         p_payload: { rmp_id: docId, mode: requestedMode, value: requestedValue, set_on: current.data.set_on,
@@ -356,6 +431,31 @@
     try { return (await smallRpc('rmp_day_commission', { p_branch: branch, p_date: date })) || []; }
     catch (_) { return []; }
   };
+  /* 🔴🔒 V1078 (০৪.০৯.২০২৬, TK: *"হ্যাঁ করুন, তবে সাবধানে"*) — রোগীর ঘরে RMP-র
+     নাম লেখা আছে অথচ কমিশন বাঁধা নেই, তাদের **নিজে থেকে** ওই RMP-র বাঁধা হারে
+     জুড়ে দেওয়া। সব হিসাব সার্ভারেই (`fin.rmp_autolink_refdoctor`), তাই ফোনের
+     সঙ্গে হুবহু এক নিয়ম, আর আগে থেকে বাঁধা কমিশন কখনো বদলায় না।
+     ⛔ ব্যর্থ হলে খালি তালিকা — Review আগের মতোই চলে, কিছু ভাঙে না। */
+  window.wlv1RmpAutolink = async function (branch) {
+    try { return (await smallRpc('rmp_autolink_refdoctor', { p_branch: branch, p_dry_run: false })) || []; }
+    catch (_) { return []; }
+  };
+  /* 🔴🔒 V1161 (০৭.০৯.২০২৬, TK: *"এদের তো ডিফল্ট কমিশন ৪০%, তাহলে আবার রোগী
+     প্রতি কেন কমিশন বসাতে হবে"* — TK ঠিকই বলেছেন)। **কারণ:** উপরের জোড়া
+     লাগানোটা চলত শুধু চেম্বার বন্ধ করার Review পর্দায়; যে রোগী ওই ধাপে পড়েনি
+     তার কমিশন বসেই থাকত না ⇒ পর্দায় ০ ⇒ সারিটা লুকিয়ে যেত।
+     ⇒ এখন **RMP-র পর্দা খুললেই** একই কাজ চলে, এক ব্রাঞ্চে **একবারই**।
+     ⛔ আগে থেকে বাঁধা কমিশন কখনো বদলায় না · ⛔ ব্যর্থ হলে নিঃশব্দে বাদ।
+     ⛔ ফোনের `DoctorVisitActivity`-তে হুবহু একই জায়গা ও একই নিয়ম। */
+  var wlv1RmpAutoDone = {};
+  window.wlv1RmpAutolinkOnce = async function (branch) {
+    try {
+      var br = String(branch || '').trim();
+      if (!br || br === 'All' || wlv1RmpAutoDone[br]) return [];
+      wlv1RmpAutoDone[br] = 1;
+      return await window.wlv1RmpAutolink(br);
+    } catch (_) { return []; }
+  };
   window.wlv1RmpDayPaid = async function (branch, date) {
     try { return (await smallRpc('rmp_day_paid', { p_branch: branch, p_date: date })) || []; }
     catch (_) { return []; }
@@ -462,9 +562,19 @@
   async function webRmpDecide(id, approve) { var c = await fin(); if (!c) return toast('Could not verify login'); var r = await c.rpc('rmp_decide_request', { p_request_id: id, p_approve: !!approve }); if (r.error) return toast(errText(r.error)); toast(approve ? 'Approved' : 'Rejected'); webRmpPending(); }
 
   Object.assign(window, { webRmpActivateAfterPayment: webRmpActivateAfterPayment, openWebRmpCommission: openWebRmpCommission, webRmpSummary: webRmpSummary, webRmpDefaultForm: webRmpDefaultForm,
-    webRmpSaveDefault: webRmpSaveDefault, webRmpPatientForm: webRmpPatientForm, webRmpSavePatient: webRmpSavePatient,
+    webRmpSaveDefault: webRmpSaveDefault,
+    // 🔴 V1085 — নইলে বোতামটা চাপলে কিছুই হত না (onclick বাইরে থেকে ডাকে)।
+    webRmpSaveBranchDefault: webRmpSaveBranchDefault,
+    webRmpPatientForm: webRmpPatientForm, webRmpSavePatient: webRmpSavePatient,
     webRmpPayForm: webRmpPayForm, webRmpSavePayment: webRmpSavePayment, webRmpPaymentHistory: webRmpPaymentHistory,
     webRmpEditPaymentForm: webRmpEditPaymentForm, webRmpSavePaymentEdit: webRmpSavePaymentEdit,
+    /* 🔴🔒 V1223 (০৮.০৯.২০২৬, TK: *"ওয়েবে অনেক বোতাম কোন কাজ করছে না"*) —
+       যন্ত্র দিয়ে ওয়েবের **প্রতিটা** বোতাম মিলিয়ে দেখতে গিয়ে ধরা পড়ল: পেমেন্ট
+       এডিট পর্দার **Delete** বোতামটা এই তালিকায় ছিল না। ফাইলটা IIFE-এ মোড়া,
+       তাই তালিকায় না থাকলে বাইরের `onclick` ফাংশনটাকে খুঁজেই পেত না —
+       বোতাম চাপলে **কিচ্ছু হত না** (V1085-এ ঠিক এই একই দোষ ধরা পড়েছিল)।
+       ⛔ ফাংশনটা আগে থেকেই আছে ও ঠিক আছে — শুধু বাইরে থেকে ডাকার পথটা ছিল না। */
+    webRmpDeletePayment: webRmpDeletePayment,
     webRmpPending: webRmpPending, webRmpDecide: webRmpDecide, webRmpPatientStatus: webRmpPatientStatus,
     webRmpAdvance: webRmpAdvance, webRmpAdvanceAdjustForm: webRmpAdvanceAdjustForm, webRmpAdvanceAdjustSave: webRmpAdvanceAdjustSave,
     webRmpCardCounts: webRmpCardCounts, webRmpViewAll: webRmpViewAll, webRmpPerformance: webRmpPerformance });

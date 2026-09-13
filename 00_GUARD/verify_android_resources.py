@@ -19,7 +19,7 @@ Studio-তে বিল্ড **তখনই ভাঙে** ("Unresolved referen
 
 চালানো:  python3 00_GUARD/verify_android_resources.py
 """
-import io, os, re, sys, collections
+import io, os, re, sys, glob, collections
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP  = os.path.join(ROOT, '02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main')
@@ -63,6 +63,11 @@ for p in walk(RES, ('.xml',)):
         have['drawable'].add(stem)
     if kind == 'mipmap':
         have['mipmap'].add(stem)
+    # 🔵🔒 V946 (০১.০৯.২০২৬ — নিজের অডিটে ধরা): `res/color/xxx.xml` (রং-সিলেক্টর)
+    #    গোনা হত না, তাই `R.color.chip_bg_selector` "নেই" বলে ভুল FAIL দিত।
+    #    Android-এ এগুলো সম্পূর্ণ বৈধ রং-রিসোর্স। ⛔ শুধু যোগ, কিছু বাদ যায়নি।
+    if kind == 'color':
+        have['color'].add(stem)
     txt = read(p)
     # layout/menu-র ভিতরের সব `@+id/...`
     for m in re.finditer(r'@\+id/([A-Za-z_][A-Za-z0-9_]*)', txt):
@@ -85,12 +90,54 @@ for p in walk(RES, ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.9.png', '.mp3', 
     have[kind].add(stem)
 
 # ── কোড যা চায় ─────────────────────────────────────────────────────────
+def strip_comments_keep_lines(src):
+    """কমেন্ট মুছে দেয়, কিন্তু **লাইন-সংখ্যা অটুট রাখে** (নিউলাইন রেখে দেয়),
+    যাতে ভুল ধরা পড়লে লাইন নম্বরটা সত্যি থাকে।
+
+    🔴 কেন দরকার (২৭.০৮.২০২৬-এ ধরা): `DoctorCheckupActivity.kt`-এ V600-এর
+    ব্যাখ্যা-কমেন্টে `R.id.etHistoryNote` লেখা ছিল — আসল কোডে নয়। এই যন্ত্র
+    কমেন্টও পড়ত, তাই **সবসময় FAIL** দেখাত ⇒ যন্ত্রটাই অকেজো হয়ে পড়েছিল,
+    আর সত্যিকারের কোনো ভুল ধরা পড়লেও আলাদা করা যেত না।
+    ⛔ স্ট্রিং-এর ভিতরের `//` যেন কমেন্ট না ধরা হয়, সেটাও দেখা হয়।
+    """
+    out = []
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if c == '"':                      # স্ট্রিং — হুবহু রেখে দিই
+            out.append(c); i += 1
+            while i < n:
+                if src[i] == '\\' and i + 1 < n:
+                    out.append(src[i]); out.append(src[i + 1]); i += 2; continue
+                out.append(src[i])
+                if src[i] == '"' or src[i] == '\n':
+                    i += 1; break
+                i += 1
+            continue
+        if c == '/' and i + 1 < n and src[i + 1] == '/':
+            while i < n and src[i] != '\n':
+                i += 1
+            continue
+        if c == '/' and i + 1 < n and src[i + 1] == '*':
+            i += 2
+            while i + 1 < n and not (src[i] == '*' and src[i + 1] == '/'):
+                if src[i] == '\n':
+                    out.append('\n')
+                i += 1
+            i += 2
+            continue
+        out.append(c); i += 1
+    return ''.join(out)
+
+
 BAD = []
 KINDS = ('id', 'layout', 'drawable', 'mipmap', 'menu', 'string', 'color',
          'style', 'dimen', 'array', 'raw', 'anim', 'font', 'integer', 'bool')
 
 for p in walk(SRC, ('.kt', '.java')):
-    txt = read(p)
+    # ⛔ কমেন্ট বাদ দিয়ে তবেই খোঁজা — নইলে ব্যাখ্যা-কমেন্টে লেখা `R.id.…`-ও
+    #    ভুল বলে ধরা পড়ত (আসল ঘটনা: V600-এর কমেন্ট, ২২.০৮.২০২৬ থেকে)।
+    txt = strip_comments_keep_lines(read(p))
     # `android.R.id.x` বাদ — ওটা সিস্টেমের
     for m in re.finditer(r'(?<![\w.])(android\.)?R\.(\w+)\.([A-Za-z_][A-Za-z0-9_]*)', txt):
         if m.group(1):        # android.R.* — সিস্টেমের, বাদ
@@ -119,6 +166,43 @@ for p in walk(RES, ('.xml',)):
                 continue
             line = txt[:m.start()].count('\n') + 1
             BAD.append('%s:%d — @%s/%s নেই res-এ' % (os.path.relpath(p, ROOT), line, kind, name))
+
+# ── 🐞🔒 V1240 (০৮.০৯.২০২৬) — layout XML-এর ভাঁজ ঠিক আছে তো? ──────────
+#
+# TK ভিডিও পাঠিয়ে দেখালেন: ডাক্তারের ফোনে ☰ চাপলেই অ্যাপ বন্ধ হয়ে হোম
+# স্ক্রিনে ফিরে আসে। **আসল কারণ (আমারই ভুল, V1212):** একটা নতুন সারি
+# বসানোর সময় বন্ধ-ট্যাগ ভুল জায়গায় পড়ায় `ScrollView`-এর ভিতরে **দুটো
+# সরাসরি ঘর** হয়ে গিয়েছিল। Android-এ ScrollView-এ একটাই ঘর থাকতে পারে —
+# তাই পর্দা তৈরি হওয়ার মুহূর্তেই অ্যাপ ভেঙে পড়ত।
+#
+# ⚠️ এই দোষ **কোনো পাহারাতেই ধরা পড়েনি** — XML ভাঙা ছিল না (ট্যাগ মিলে
+#    যাচ্ছিল), রিসোর্সও সব ঠিক ছিল। তাই এখন থেকে এই দুটোও দেখা হবে:
+#      ① প্রতিটা layout ফাইল সত্যিই পড়া যায় কিনা (ট্যাগের ভাঁজ ঠিক আছে কিনা)
+#      ② ScrollView / HorizontalScrollView / NestedScrollView-এর ভিতরে
+#         একটাই সরাসরি ঘর আছে কিনা
+# ⛔ শুধু পড়া — কোনো ফাইল বদলায় না।
+try:
+    import xml.etree.ElementTree as _ET
+    _SINGLE = ('ScrollView', 'HorizontalScrollView', 'NestedScrollView')
+    for _p in sorted(glob.glob(os.path.join(RES, 'layout*', '*.xml'))):
+        _rel = os.path.relpath(_p, ROOT)
+        try:
+            _root = _ET.parse(_p).getroot()
+        except Exception as _e:
+            BAD.append('%s — XML-এর ভাঁজ ভাঙা: %s' % (_rel, _e))
+            continue
+        _stack = [_root]
+        while _stack:
+            _n = _stack.pop()
+            _t = _n.tag.split('.')[-1]
+            _kids = list(_n)
+            if _t in _SINGLE and len(_kids) > 1:
+                BAD.append('%s — %s-এর ভিতরে %d টা সরাসরি ঘর; Android-এ একটাই '
+                           'থাকতে পারে (পর্দা খুললেই অ্যাপ ভাঙবে)'
+                           % (_rel, _t, len(_kids)))
+            _stack.extend(_kids)
+except Exception:
+    pass
 
 # ── ছাপা ───────────────────────────────────────────────────────────────
 print('=' * 66)

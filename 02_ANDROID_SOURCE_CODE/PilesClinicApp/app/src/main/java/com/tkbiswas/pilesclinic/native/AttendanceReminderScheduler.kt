@@ -25,7 +25,12 @@ object AttendanceReminderScheduler {
     const val KIND_OUT = "out"
     const val MAX_ATTEMPTS = 3
     private const val REPEAT_GAP_MINUTES = 10L
-    private val START_HOUR = mapOf(KIND_IN to 10, KIND_OUT to 18) // 10 AM, 6 PM
+    /* ⏰🔒 V1166 (০৭.০৯.২০২৬, TK-নির্দেশ) — OUT TIME মনে করানো **৬টা → ৭.৩০ PM**।
+       TK: *"রাত ৯টা অবদি কেউ কাজ করে না; বিগত ২ বছরে সর্বোচ্চ ৭.৩০ PM"* ⇒ যখন
+       সবাই সত্যিই বেরোনোর মুখে, তখনই মনে করানো — আগে বাজলে অকারণ বিরক্তি।
+       ⛔ IN TIME-এর ১০টা এক অক্ষরও বদলায়নি। */
+    private val START_HOUR = mapOf(KIND_IN to 10, KIND_OUT to 19)   // 10 AM, 7.30 PM
+    private val START_MINUTE = mapOf(KIND_IN to 0, KIND_OUT to 30)
 
     // 🔴 B403 (04.08.2026, TK-রিপোর্ট, Laxmi/Kishanganj — "সঠিক সময়ে এসেও
     // নোটিফিকেশন আসেনি"): আসল কারণ ধরা পড়েছে — আগে `scheduleFreshDay()`
@@ -57,12 +62,12 @@ object AttendanceReminderScheduler {
         val alreadyMarkedToday = prefs.getString(prefKey, "") == todayIso()
         if (alreadyMarkedToday) {
             // আজ ইতিমধ্যেই মার্ক করা — আগের নিয়মেই কালকের স্লটে বসুক
-            enqueue(context, kind, 1, millisUntilNextHour(startHour))
+            enqueue(context, kind, 1, millisUntilNextHour(startHour, START_MINUTE[kind] ?: 0))
             return
         }
         val now = Calendar.getInstance()
         val slot = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, startHour); set(Calendar.MINUTE, 0)
+            set(Calendar.HOUR_OF_DAY, startHour); set(Calendar.MINUTE, START_MINUTE[kind] ?: 0)
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }
         val delay = if (slot.timeInMillis > now.timeInMillis) slot.timeInMillis - now.timeInMillis
@@ -76,7 +81,7 @@ object AttendanceReminderScheduler {
 
     fun scheduleTomorrowFirstAttempt(context: Context, kind: String) {
         val startHour = START_HOUR[kind] ?: return
-        enqueue(context, kind, 1, millisUntilNextHour(startHour))
+        enqueue(context, kind, 1, millisUntilNextHour(startHour, START_MINUTE[kind] ?: 0))
     }
 
     // 🔴🆕🔒 B438 (05.08.2026, TK-নির্দেশ — "নির্ধারিত সময়ে মনে করানোর
@@ -108,11 +113,11 @@ object AttendanceReminderScheduler {
         )
     }
 
-    private fun millisUntilNextHour(hour: Int): Long {
+    private fun millisUntilNextHour(hour: Int, minute: Int = 0): Long {
         val now = Calendar.getInstance()
         val slot = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, 0)
+            set(Calendar.MINUTE, minute)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }

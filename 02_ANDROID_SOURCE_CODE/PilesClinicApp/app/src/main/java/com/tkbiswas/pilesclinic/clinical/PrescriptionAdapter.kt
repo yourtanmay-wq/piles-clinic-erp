@@ -68,7 +68,9 @@ class PrescriptionAdapter(
 
         holder.etName.addSimpleWatcher { entry.name = it }
         holder.etDosage.addSimpleWatcher { entry.dosage = it; ClinicalRepository.rememberRxDose(entry.name, it) }
-        holder.etFrequency.addSimpleWatcher { entry.frequency = it }
+        // 🍯 V956 (TK-নির্দেশ ০১.০৯.২০২৬): এই ঘরে "After Food with Honey" লিখলে
+        //   সেটাই ওই ওষুধের চিরস্থায়ী When হয়ে যায় — Dose/Type/Days-এর মতোই।
+        holder.etFrequency.addSimpleWatcher { entry.frequency = it; ClinicalRepository.rememberRxWhen(entry.name, it) }
         holder.etDuration.addSimpleWatcher { entry.duration = it }
         holder.etInstructions.addSimpleWatcher { entry.instructions = it }
 

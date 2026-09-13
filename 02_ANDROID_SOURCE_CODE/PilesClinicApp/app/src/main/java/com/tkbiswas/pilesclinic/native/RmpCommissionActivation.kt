@@ -30,13 +30,16 @@ object RmpCommissionActivation {
             if (existing.value != null) return ActivationResult(State.ALREADY_SET, existing.value.rmpName)
 
             val patients = SupabaseClient.fetchList("patients", "id=eq.${java.net.URLEncoder.encode(patientRowId, "UTF-8")}",
-                1, select = "id,refDoctor,refDoctorMobile")
+                1, select = "id,branch,refDoctor,refDoctorMobile")
             if (patients.length() == 0) return ActivationResult(State.CHECK_FAILED)
             val p = patients.getJSONObject(0)
             val refName = p.optString("refDoctor", "").trim()
             val refMobile = p.optString("refDoctorMobile", "").trim()
             if (refName.isBlank() && refMobile.isBlank()) return ActivationResult(State.NO_RMP)
-            val rmp = DoctorVisitRepository().findReferringDoctor(refName, refMobile)
+            // 🔴🔒 V1395 — নিজের ব্রাঞ্চ দেওয়া হলো, নইলে একই মোবাইল/নাম
+            // একাধিক ব্রাঞ্চে থাকলে ভুল ব্রাঞ্চের RMP বেছে নেওয়ার ঝুঁকি (দেখুন
+            // DoctorVisitRepository.findReferringDoctor-এর মন্তব্য)।
+            val rmp = DoctorVisitRepository().findReferringDoctor(refName, refMobile, p.optString("branch", "").trim())
                 ?: return ActivationResult(State.CHECK_FAILED, refName)
 
             val default = RmpCommissionRepository.getDefault(rmp.optString("id"))

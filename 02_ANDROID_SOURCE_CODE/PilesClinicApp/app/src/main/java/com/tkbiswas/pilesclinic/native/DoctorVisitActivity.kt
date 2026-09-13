@@ -57,6 +57,11 @@ import java.util.Locale
 class DoctorVisitActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDoctorvisitBinding
+    // 🔒🔒 V1381 (১২.০৯.২০২৬, TK-রিপোর্ট — ANAND KUMAR-এর ₹3,250 Due দুইবার
+    // সেভ হয়ে গিয়েছিল, কোনো ওয়ার্নিং ছাড়াই) — এই স্ক্রিনের নিজের
+    // "Add Referral Income" ফর্মেও PatientTimelineActivity-র হুবহু একই
+    // ডাবল-ট্যাপ লক।
+    private var referralSaving = false
 
     /**
      * 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ) — **ডাক্তারের পর্দাতেও ঠিক রোগীটিই।**
@@ -108,7 +113,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
                 .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
                 .setOnCancelListener { finishWith(null) }
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         }
     private lateinit var repository: DoctorVisitRepository
     private lateinit var adapter: DoctorVisitAdapter
@@ -122,13 +127,23 @@ class DoctorVisitActivity : AppCompatActivity() {
     // has zero Supabase/storage quota cost. A fresh cloud refresh still runs on open.
     private data class CallLine(val rawDate: String, val date: String, val note: String, val by: String)
     private data class ReferredPatient(val rawDate: String, val name: String, val mobile: String, val bill: Double, val paid: Double, val patientId: String = "", val disease: String = "")
-    private data class RefIncomeLine(val rawDate: String, val patient: String, val mobile: String, val amount: Double, val status: String, val date: String, val id: String = "", val mode: String = "", val referenceNo: String = "")
+    // 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — সময় (createdAt) এখন
+    // আলাদা করে রাখা হয়, যাতে একই রোগীর একাধিক এন্ট্রি সময় ধরে ঠিক সাজানো যায়
+    // আর সবচেয়ে নতুনটার সময় Date/Time কলামে দেখানো যায়।
+    private data class RefIncomeLine(val rawDate: String, val patient: String, val mobile: String, val amount: Double, val status: String, val date: String, val id: String = "", val mode: String = "", val referenceNo: String = "", val createdAt: String = "")
     private data class ViewAllData(
         val calls: List<CallLine>,
         val referred: List<ReferredPatient>,
         val refIncome: List<RefIncomeLine>,
         val refPaid: Double,
-        val refDue: Double
+        val refDue: Double,
+        /* 📒🔒 V1404 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ, খাতার সারি ৫১১) — "একটাই খাতা":
+           Earned · Paid · Due ও রোগী-ধরে ভাঙা হিসাব সবই ডেটাবেসের একই নিয়ম
+           (`fin.rmp_patient_breakdown`) থেকে। `oneLedger=false` মানে সার্ভারে
+           V1404 SQL এখনো বসেনি — তখন আগের (V1385) হিসাব ও তালিকাই থাকে। */
+        val earned: Double = 0.0,
+        val breakdown: List<RmpCommissionRepository.PatientBreakdownRow> = emptyList(),
+        val oneLedger: Boolean = false
     )
     private val doctorViewAllMemoryCache = android.util.LruCache<String, ViewAllData>(24)
 
@@ -204,17 +219,9 @@ class DoctorVisitActivity : AppCompatActivity() {
         // আগে ছিল "today" (নেক্সট কল আজ), এখন expectedPatientDate সেট করা
         // ডাক্তারদের তালিকা দেখায়।
         binding.statToday.setOnClickListener { currentFilter = "expected"; renderList() }
-        // 🔒 V233 (TK verified live-date fix, 01.08.2026): "EXPECTED" কার্ডের আগের
-        // একলা "⏰" ইমোজি কিছু Android emoji-ফন্টে fixed "Jul 17" এঁকে দেখাত।
-        // এখন Follow-up পর্দার হুবহু একই কোডে ২-লাইনের live badge-এ আজকের
-        // (device-local = IST) মাস ও দিন বসে — উদাহরণ: "Aug"/"1"। পর্দা খোলার
-        // সময়েই বসে, তাই তারিখ প্রতিদিন নিজে থেকে ঠিক থাকে।
-        // ⛔ শুধু date display; EXPECTED count/filter/click কিছুই বদলায়নি।
-        run {
-            val cal = java.util.Calendar.getInstance()
-            binding.tvDvCalMonth.text = java.text.SimpleDateFormat("MMM", java.util.Locale.ENGLISH).format(cal.time)
-            binding.tvDvCalDay.text = cal.get(java.util.Calendar.DAY_OF_MONTH).toString()
-        }
+        // 🎨🔒 V1074 (০৪.০৯.২০২৬, TK: "Sep4 এর কোন কাজ নেই, সরিয়ে দিন") —
+        // EXPECTED বাক্সের তারিখ-ব্যাজ (V233) লেআউট থেকে বাদ, তাই এখানে
+        // আর কিছু বসানোর নেই। EXPECTED-এর গোনা/ফিল্টার/ক্লিক অপরিবর্তিত।
         binding.etSearch.addTextChangedListener { text ->
             searchQuery = text?.toString() ?: ""
             renderList()
@@ -303,9 +310,14 @@ class DoctorVisitActivity : AppCompatActivity() {
         // ফিল্ড অফিসার হোক"): নতুন বাটন সম্পূর্ণ Master-only — অন্য কোনো রোলের
         // জন্য এই বাটন কখনো দেখা যাবে না (লেআউটে ডিফল্ট gone, এখানে শুধু
         // মাস্টার হলে VISIBLE করা হয়)।
+        /* ⋮🔒 V1307 (১০.০৯.২০২৬, তালিকা ৪২০ — TK-র ফটো-প্রুফ পাশ: *"ব্রাঞ্চ-সিলেক্টের পাশে +,
+           তার পাশে ⋮ — তার মধ্যে RMP Performance · RMP Due List · RMP Commission Sheet"*):
+           তিনটে বড় বোতাম পর্দা থেকে সরে হেডারের ⋮ মেনুতে। ⛔ কে কোনটা দেখবেন — B211/B685/V1252-এর
+           নিয়ম **হুবহু এক** (নিচের তিনটে শর্তই আগের); প্রতিটা চাপে আগের সেই একই ফাংশনই চলে।
+           ⛔ পুরনো বোতাম তিনটে লেআউটে আছে কিন্তু কখনো VISIBLE হয় না। */
+        val rmpMenuItems = ArrayList<Pair<String, () -> Unit>>()
         if (user.role == "master") {
-            binding.btnRmpPerformance.visibility = View.VISIBLE
-            binding.btnRmpPerformance.setOnClickListener { showRmpPerformanceReport() }
+            rmpMenuItems.add(Pair("\uD83C\uDFC6 RMP Performance") { showRmpPerformanceReport() })
         }
 
         // 🟢🔒 B685 (15.08.2026, TK-অনুমোদিত — TK: "কোন আরএমপির কত টাকা ডিউ
@@ -325,9 +337,37 @@ class DoctorVisitActivity : AppCompatActivity() {
         //    পরীক্ষাটাই (এই ফাইলের ৩৭৬১ লাইনে যেমন) ব্যবহার করা হলো।
         val isFieldOfficer = ModuleAuth.personCode == "FIELD-OFFICER"
         if ((user.role == "master" || user.role == "staff") && !isFieldOfficer) {
-            binding.btnRmpDueList.visibility = View.VISIBLE
-            binding.btnRmpDueList.setOnClickListener { showRmpDueList() }
+            rmpMenuItems.add(Pair("RMP Due List") { showRmpDueList() })   // ⋮ V1307
         }
+
+        /* 📒🔒 V1252 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৩) —
+           TK: *"কত তারিখে কোন RMP কে কত কমিশন দেওয়া হল সেটা আমি Google Sheet-এর
+           মতো দেখতে চাই"*। তারিখ ধরে সবার একসাথে দেখার পর্দাটাই ছিল না।
+           🔒 শুধু Master — টাকার এই তালিকা B211-এর সুরেই মাস্টারের; TK চাইলে
+              এখানেই এক লাইনে স্টাফের জন্য খোলা যাবে।
+           ⛔ পর্দাটা **শুধু পড়ার** — ওখান থেকে একটাও সারি লেখা/বদলানো যায় না।
+           ⛔ উপরের কোনো বোতাম বা ডিজাইন নড়েনি — এটা তার নিচে নতুন একটা সারি। */
+        if (user.role == "master") {
+            rmpMenuItems.add(Pair("RMP Commission Sheet") {   // ⋮ V1307
+                try {
+                    startActivity(android.content.Intent(this, RmpCommissionSheetActivity::class.java))
+                } catch (_: Throwable) { }
+            })
+        }
+        // ⋮ V1307 — হেডারের ⋮: যাঁর একটাও নেই (যেমন Field Officer) তাঁর কাছে বোতামটাই নেই।
+        if (rmpMenuItems.isNotEmpty()) {
+            binding.btnRmpMenu.visibility = View.VISIBLE
+            binding.btnRmpMenu.setOnClickListener { anchor ->
+                try {
+                    val pm = android.widget.PopupMenu(this, anchor)
+                    rmpMenuItems.forEachIndexed { i, it -> pm.menu.add(0, i, i, it.first) }
+                    pm.setOnMenuItemClickListener { mi ->
+                        rmpMenuItems.getOrNull(mi.itemId)?.second?.invoke(); true
+                    }
+                    pm.show()
+                } catch (_: Throwable) { }
+            }
+        } else binding.btnRmpMenu.visibility = View.GONE
 
         // TK-REQUESTED ADDITION (2026-07-18): deep-link from Patient
         // Timeline's "Referring Doctor" action. We don't know which branch
@@ -381,6 +421,33 @@ class DoctorVisitActivity : AppCompatActivity() {
     }
 
     private var allItems: List<DoctorVisitItem> = emptyList()
+
+    /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-অনুমোদিত) — একই নম্বর এখন একাধিক ব্রাঞ্চে
+       আলাদা RMP হিসেবে থাকতে পারে। আগে "কোন কোন রোগী পাঠিয়েছেন" তালিকা শুধু
+       **নম্বর/নাম** ধরে মেলাত, তাই দুই ব্রাঞ্চের দুটো কার্ডেই **একই রোগীরা**
+       দেখাত — কমিশনও দুবার গোনা হয়ে যেতে পারত।
+       ⇒ নিয়ম: রোগী যাবেন **তাঁর নিজের ব্রাঞ্চের** সারিতে; ওই নম্বরে ওই
+         ব্রাঞ্চে কোনো সারি না থাকলে **আগের মতোই** একমাত্র সারিতেই থাকবেন।
+       ⛔ ওই নম্বরে একটাই সারি থাকলে (আজকের ৯৯%) আচরণ এক অক্ষরও বদলায় না। */
+    /* 🔴🔒 V1132 (০৬.০৯.২০২৬, TK-নির্দেশ ও অনুমতি) — TK: *"যে ব্রাঞ্চ থেকে দেখা
+       হবে, সেই ব্রাঞ্চে ওই RMP কতজন পেশেন্ট পাঠিয়েছে সেটাই যেন দেখায়"* ·
+       *"তিনি যখন বীরপাড়ায় পেশেন্ট পাঠাবেন, বীরপাড়া ব্রাঞ্চে তাঁর নাম্বার সেভ
+       থাকতে হবে।"*
+
+       🔴 TK-এর ছবিতে ধরা: কোচবিহারের TK BISWAS কার্ডে ১৯ জন — যার ১৭ জনই
+       **ফালাকাটার**। কারণ V940-এর নিয়মটা কাজ করত **কেবল তখনই, যখন ওই নম্বরে
+       একাধিক ব্রাঞ্চে সারি থাকত এবং রোগীর ব্রাঞ্চেও একটা সারি থাকত**।
+
+       ⇒ এখন নিয়মটা সোজা: রোগী দেখাবেন **সেই RMP সারিতেই যার ব্রাঞ্চ রোগীর
+         ব্রাঞ্চের সঙ্গে মেলে**। মিল না থাকলে ওই কার্ডে ওঠেন না।
+       ⛔ দুটোর কোনো একটার ব্রাঞ্চ ফাঁকা হলে **আগের মতোই রাখা হয়** — না জেনে
+         কাউকে লুকানো হয় না, পুরনো সারি হারায় না। */
+    private fun v940Belongs(patientBranch: String, docBranch: String, docMobile10: String): Boolean {
+        val pb = patientBranch.trim()
+        val db = docBranch.trim()
+        if (pb.isBlank() || db.isBlank()) return true
+        return db.equals(pb, ignoreCase = true)
+    }
     private var currentFilter: String = "all"
     private var searchQuery: String = ""
     private var branchFilter: String = ""
@@ -752,6 +819,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         })
         UppercaseInputUtil.applyToAll(root)
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // 🔒 TK-ORDER (30.07.2026 রাত, খাতার সারি B205 — TK: "স্টাফ তো ভুল করে
@@ -799,19 +867,34 @@ class DoctorVisitActivity : AppCompatActivity() {
         val parts = premiumDialogShell("🩺", "Edit Doctor / RMP")
         val container = parts.body
 
+        /* 🟢 V944 (01.09.2026, TK-নির্দেশ "Edit ফর্মেও মিলিয়ে দিন") — Add ফর্মের
+           মতোই এখানেও **মোবাইল ঘরটা সবার আগে**, তারপর নাম।
+           ⛔ কোনো ঘর বাদ যায়নি, সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বসার ক্রম। */
+        /* 🩺🔒 V1033 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) —
+           TK: *"আরএমপির নাম প্রথমে রাখবেন"* · *"মোবাইল নাম্বার দুটো এক জায়গায়
+           রাখুন"* · *"বক্সের উচ্চতা একটু ছোট করুন"* · *"eg সহ ডেমো নাম্বার
+           থাকবে না"* · *"ডিলিট বটম এখানে রাখবেন না, ক্লোজ রাখুন"*।
+           ⇒ ক্রম: নাম → মোবাইল → বাড়তি নম্বর → ব্রাঞ্চ → এলাকা → রিমার্কস।
+           ⛔ একটাও ঘর বাদ যায়নি; সেভের নিয়ম · যাচাই · কোন ঘরে কী জমা হয় —
+              এক অক্ষরও বদলায়নি। শুধু বসার ক্রম, উচ্চতা ও লেখার রং। */
         container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *", 0))
         val name = EditText(this).apply { setText(item.name); hint = "Doctor Name" }
-        styleInput(name); clearErrorOnEdit(name); container.addView(name)
+        styleInputCompact(name); clearErrorOnEdit(name); container.addView(name)
 
-        container.addView(fieldLabel("📱", "Mobile *"))
+        container.addView(fieldLabel("📱", "Mobile *", 7))
         val mobile = EditText(this).apply { hint = "Mobile (10-digit)" }
-        styleInput(mobile)
+        styleInputCompact(mobile)
         MobileInput.attach(mobile)
         mobile.setText(MobileInput.digits(item.mobile))
         clearErrorOnEdit(mobile)
         container.addView(mobile)
 
-        container.addView(fieldLabel("🏥", "Branch *"))
+        // 🟢 B630 — একই ডাক্তারের বাড়তি নম্বর; এখন মূল নম্বরের ঠিক নিচেই (TK)।
+        container.addView(fieldLabel("📱", "Other number (optional)", 7, "#5B6B81"))
+        val altEdit = EditText(this).apply { setText(item.altMobiles) }
+        styleInputCompact(altEdit); container.addView(altEdit)
+
+        container.addView(fieldLabel("🏥", "Branch *", 7))
         val branch = Spinner(this).apply {
             adapter = ArrayAdapter(this@DoctorVisitActivity, android.R.layout.simple_spinner_dropdown_item, branches)
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
@@ -819,28 +902,27 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         container.addView(branch)
 
-        container.addView(fieldLabel("📍", "Area / Address"))
+        container.addView(fieldLabel("📍", "Area / Address", 7, "#5B6B81"))
         val area = EditText(this).apply { setText(item.area); hint = "Area / Address" }
-        styleInput(area); container.addView(area)
+        styleInputCompact(area); container.addView(area)
 
-        container.addView(fieldLabel("📝", "Remarks"))
+        /* 🚓🔒 V1034 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — ডাক্তার কোন
+           থানার অধীনে। ঠিকানার ঠিক নিচেই, বাধ্যতামূলক নয়।
+           ⛔ লেখাটা ইংরেজিতেই (TK-নির্দেশ: বাংলা থাকবে না)। */
+        container.addView(fieldLabel("🚓", "Police Station", 7, "#5B6B81"))
+        val police = EditText(this).apply { setText(item.policeStation); hint = "Police Station" }
+        styleInputCompact(police); container.addView(police)
+
+        container.addView(fieldLabel("📝", "Remarks", 7, "#5B6B81"))
         val remarks = EditText(this).apply { setText(item.remarks); hint = "Remarks" }
-        styleInput(remarks); clearErrorOnEdit(remarks); container.addView(remarks)
+        styleInputCompact(remarks); clearErrorOnEdit(remarks); container.addView(remarks)
 
-        // 🟢 B630 (11.08.2026, TK-নির্দেশ): একই ডাক্তারের বাড়তি নম্বর — বিদ্যমান ডাক্তারেও
-        //   যোগ/এডিট করা যায় (কমা দিয়ে আলাদা)। ⛔ মূল Mobile অটুট; শুধু বাড়তি নম্বর।
-        container.addView(fieldLabel("📱", "Other numbers (comma separated, optional)"))
-        val altEdit = EditText(this).apply { setText(item.altMobiles); hint = "e.g. 9800000000, 9811111111" }
-        styleInput(altEdit); container.addView(altEdit)
-
-        val u = NativeSession.current(this)
-        val canDelete = u != null && (u.role == "master" || u.role == "staff" || u.role == "field")
-        if (canDelete) {
-            parts.actionRow.addView(pillButton("🗑 Delete", "#FBECEC", android.graphics.Color.parseColor("#C0392B")).apply {
-                setOnClickListener { parts.dialog.dismiss(); confirmDeleteDoctor(item) }
-            })
-        }
-        parts.actionRow.addView(pillButton("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
+        /* 🗑️🔒 V1033 — TK: *"ডিলিট বটম এখানে রাখবেন না, এখানে ক্লোজ রাখুন"*।
+           ⛔ মোছার ক্ষমতা হারায়নি — কার্ডের নিজের ডিলিট (`onDeleteTap`) ও
+              পুরো-পর্দার তালিকার ডিলিট আগের মতোই আছে, একই
+              `confirmDeleteDoctor()` ডাকে। শুধু এই পপ-আপ থেকে সরানো হলো,
+              যাতে ভুল করে চাপ পড়ার ভয় না থাকে। */
+        parts.actionRow.addView(pillButton("Close", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.actionRow.addView(pillButton("💾 Save", "#0C9E33").apply {
@@ -870,6 +952,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     .put("mobile", mob)
                     .put("branch", br)
                     .put("area", area.text.toString().trim())
+                    .put("policeStation", police.text.toString().trim())   // 🚓 V1034
                     .put("remarks", rm)
                 // 🔴🔴🔒 V458 (TK-নির্দেশ ১৯.০৮.২০২৬: "কোন স্টাফ কল করেছিল কবে —
                 // সততার সাথে যেন বোঝা যায়")। এই পপ-আপের Remarks ঘরটা সরাসরি লেখে —
@@ -887,14 +970,40 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // 🟢 B630: altMobiles তখনই লেখা হয় যখন কিছু আছে বা আগে ছিল (মুছতে) —
                 //   নইলে নয়, যাতে SQL কলাম না থাকলেও সাধারণ এডিট ব্যর্থ না হয়।
                 if (altCsv.isNotBlank() || item.altMobiles.isNotBlank()) fields.put("altMobiles", altCsv)
+                /* 🔴🔴🔒 V992 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"নাম এডিট করে সেভ
+                   করলাম… কিন্তু কই সেভ হলো না তো, এই পুরানোটাই দেখাচ্ছে"*)।
+
+                   **আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়):** সেভটা ক্লাউডে
+                   ঠিকই যেত, কিন্তু এই PATCH-এ `updatedAt` ঘরটা ছিল না — তাই
+                   সারির সময়-চিহ্ন পুরনোই থেকে যেত। তালিকা নামানোর সময়
+                   (`fetchListRawSmartOrNull`) সার্ভারের সবচেয়ে নতুন
+                   `updatedAt` আর ফোনে জমা থাকা `updatedAt` মিলিয়ে দেখে —
+                   দুটো এক হওয়ায় "কিছুই বদলায়নি" ধরে **জমানো পুরনো তালিকাটাই**
+                   ফেরত দিত। তাই পর্দায় পুরনো নামটাই থেকে যেত, শুধু এই ফোনে নয়,
+                   **সব ফোনেই**।
+
+                   **সমাধান:** বদলের সাথে সময়-চিহ্নটাও বসে — প্রকল্পের বাকি
+                   সব লেখার হুবহু একই নিয়মে। তখন সার্ভারের চিহ্ন নতুন হয়,
+                   আর নতুন নামটা সব ফোনে নেমে আসে।
+                   ⛔ কোন ঘরে কী লেখা হয় তার আর কিছুই বদলায়নি। */
+                fields.put("updatedAt", java.text.SimpleDateFormat(
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+                ).format(java.util.Date()))
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { SupabaseClient.updateById("doctor_visits", item.id, fields) }
                     Toast.makeText(this@DoctorVisitActivity, if (ok) "Updated" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) { parts.dialog.dismiss(); loadList() }
+                    if (ok) {
+                        /* 🔴 V992 — এই ফোনের জমানো তালিকাটাও ফেলে দেওয়া হয়, যাতে
+                           সাথে সাথেই নতুন নামটা দেখা যায় (নেট থাকলে)। ⛔ তথ্য
+                           কোথাও মোছে না — শুধু জমানো কপি, পরের বারেই আবার বসে। */
+                        try { dvCachePrefs().edit().remove(dvCacheKey()).apply() } catch (_: Throwable) { }
+                        parts.dialog.dismiss(); loadList()
+                    }
                 }
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // TK-REQUESTED CHANGE (2026-07-23): Doctor/RMP delete now needs Admin
@@ -940,8 +1049,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                 .show().also { PremiumAlert.paint(it) }
         } else {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Delete request পাঠাবেন?"))
-                .setMessage(NoBengali.s("${item.name.ifBlank { item.mobile }}\n\nAdmin অনুমোদন দিলে তবেই ডিলিট হবে — এখনই কিছু মুছবে না।"))
+                .setCustomTitle(PremiumAlert.header(this, "Send the Delete request?"))
+                .setMessage(NoBengali.s("Nothing is deleted now — it is deleted only after Admin approves."))
                 .setPositiveButton("Send Request") { _, _ ->
                     lifecycleScope.launch {
                         val ok = withContext(Dispatchers.IO) { repository.requestDelete(item.id, user.mobile) }
@@ -959,7 +1068,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         val requesterName = StaffDirectory.findAccount(item.deleteRequestedBy)?.name ?: item.deleteRequestedBy
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Approve Delete?"))
-            .setMessage(NoBengali.s("${item.name.ifBlank { item.mobile }}\nRequested by: $requesterName\n\nআসলেই ডিলিট হবে (Trash Bin-এ যাবে)।"))
+            .setMessage(NoBengali.s("It will really be deleted (goes to the Trash Bin)."))
             .setPositiveButton("Approve") { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { repository.approveDelete(item.raw, user.mobile, this@DoctorVisitActivity) }
@@ -1017,10 +1126,22 @@ class DoctorVisitActivity : AppCompatActivity() {
      *  doctor this phone added for another branch could otherwise appear in
      *  this branch's list. This applies exactly the same branch rule the
      *  cloud query itself uses, so nothing can cross branches. Master /
-     *  "All" sees everything, as always. */
+     *  "All" sees everything, as always.
+     *
+     *  🟢🔒🔒 V635 (২৪.০৮.২০২৬, TK-নির্দেশ — "এই ধরনের সমস্যা আর কোথায়
+     *  আছে, গভীরে গিয়ে যাচাই করুন") — Chamber Attendance-এর "কাল আসার
+     *  কথা"-র ঠিক একই বাগের ধরন এখানেও ছিল: উপরের `raw` তোলা হয় সঠিক
+     *  ব্রাঞ্চ দিয়ে (`activeDoctorBranch()` — এই স্ক্রিনের নিজের
+     *  ব্রাঞ্চ-পিকার/`branchFilter` মেনে চলে), কিন্তু তারপর এই ফাংশন
+     *  সেই একই তালিকা আবার **`user.branch`** (লগইনের নিজের ব্রাঞ্চ) দিয়ে
+     *  দ্বিতীয়বার ছেঁকে ফেলত। Master-এর নিজের `branch` সাধারণত "All"
+     *  থাকে বলে এটা এতদিন প্রকাশ পায়নি — কিন্তু নির্দিষ্ট-ব্রাঞ্চের কোনো
+     *  Master/অংশীদার-ধরনের অ্যাকাউন্ট অন্য ব্রাঞ্চে সুইচ করলে RMP-তালিকা
+     *  ভুলভাবে ফাঁকা/কম দেখাতে পারত। এখন `activeDoctorBranch()`-ই
+     *  ব্যবহার হয় — ঠিক যে ব্রাঞ্চ দিয়ে `raw` আনা হয়েছিল, তার সাথেই মেলে। */
     private fun myDoctorRows(rows: org.json.JSONArray): org.json.JSONArray {
         val merged = MyPhoneWrites.overlay(this, "doctor_visits", rows)
-        val branch = user.branch
+        val branch = activeDoctorBranch().orEmpty()
         if (branch.isBlank() || branch == "All") return merged
         val out = org.json.JSONArray()
         for (i in 0 until merged.length()) {
@@ -1235,8 +1356,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                         // ⛔ ছাঁকনিটা হুবহু `myDoctorRows`-এর নিয়মেই — ব্রাঞ্চ ফাঁকা
                         //    থাকলে সারিটা আগের মতোই রাখা হয়, কোনো সারি হারায় না।
                         val myBranch = user.branch
-                        val patients = SupabaseClient.fetchListSlim("patients", null, 5000, "id,refBy,refDoctorMobile,branch,updatedAt")
-                        val patientRefs = ArrayList<Pair<String, String>>(patients.length())
+                        // 🔴🔒 V1362 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট) — `refDoctor` যোগ
+                        // (V1356-এর একই কারণ: আজকের অ্যাপ ডাক্তারের নাম রাখে refDoctor-এ,
+                        // refBy-তে শুধু "Dr. Visit")। এই ফলব্যাক-গোনা আগে refBy/refDoctorMobile
+                        // ছাড়া কিছু চিনত না, তাই কার্ডে সংখ্যা কম দেখাতে পারত।
+                        val patients = SupabaseClient.fetchListSlim("patients", null, 5000, "id,refBy,refDoctor,refDoctorMobile,branch,updatedAt")
+                        data class PatientRef(val refBy: String, val refDoc: String, val refMob: String, val branch: String)
+                        val patientRefs = ArrayList<PatientRef>(patients.length())
                         for (i in 0 until patients.length()) {
                             val pat = patients.optJSONObject(i) ?: continue
                             if (myBranch.isNotBlank() && myBranch != "All") {
@@ -1244,14 +1370,19 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 if (pb.isNotBlank() && !pb.equals(myBranch, ignoreCase = true)) continue
                             }
                             val refBy = pat.s("refBy").trim().lowercase()
+                            val refDoc = pat.s("refDoctor").trim().lowercase()
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                            if (refBy.isNotBlank() || refMob.isNotBlank()) patientRefs.add(refBy to refMob)
+                            // 🔴🔒 V940 — রোগীর ব্রাঞ্চটাও সঙ্গে রাখা হয়, নিচের গোনায় লাগে।
+                            if (refBy.isNotBlank() || refDoc.isNotBlank() || refMob.isNotBlank())
+                                patientRefs.add(PatientRef(refBy, refDoc, refMob, pat.s("branch")))
                         }
                         items.map { doc ->
                             val docName = doc.name.trim().lowercase()
                             val docMobile = doc.mobile.filter { it.isDigit() }.takeLast(10)
                             val oldCount = patientRefs.count { r ->
-                                (r.first.isNotBlank() && r.first == docName) || (r.second.isNotBlank() && r.second == docMobile)
+                                ((r.refBy.isNotBlank() && r.refBy == docName) || (r.refDoc.isNotBlank() && r.refDoc == docName) ||
+                                    (r.refMob.isNotBlank() && r.refMob == docMobile)) &&
+                                    v940Belongs(r.branch, doc.branch, docMobile)   // 🔴🔒 V940
                             }
                             // If the server result is valid, retain it for every cloud RMP
                             // and use the old count only for a not-yet-cloud local overlay.
@@ -1372,21 +1503,39 @@ class DoctorVisitActivity : AppCompatActivity() {
     // বার্তার (`PatientMessage.presentSendBox()`) ঠিক একই "আগে পাঠানো
     // হয়েছে কিনা" যাচাই এখানেও — একই শেয়ার্ড `MessageSentLog` টেবিল/
     // ফাংশন ব্যবহার করে (নতুন কিছু বানানো হয়নি, পুনর্ব্যবহার)।
+    /* 🔴🔒 V732 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **পর্দায় দেখানো নমুনা**।
+       TK: *"ওই বাক্সের দেখানো লেখাটা ঠিক করে দিন, তবে খুব সাবধানে।"*
+       বাংলা-বন্ধ ফোনে (কিশানগঞ্জ স্টাফ) বাংলা নমুনা পর্দায় ভেঙে যেত
+       ("Piles (Piles), Fissure (Fissure)…")। এখন ওই ফোনে **সম্পূর্ণ ইংরেজি
+       নমুনা** দেখানো হয় — রোগীর বার্তার পর্দায় V503-এ TK যেটা অনুমোদন
+       করেছিলেন, **হুবহু সেই নিয়ম**।
+       ⛔ ডাক্তারের কাছে যে বার্তা যায় (`text`) **এক অক্ষরও বদলায় না** —
+          স্টাফ যে ভাষা বাছবেন ডাক্তার সেই ভাষাতেই পাবেন।
+       ⛔ `previewEn` না দিলে বা বানাতে না পারলে আগের মতোই `text` দেখায়। */
     private fun sendDoctorMessage(mobile: String, doctorName: String, text: String, logKind: String = "") {
+        // 🔒 এই লাইনটা পাহারাদারে **লক করা** (B154/B156) — তাই এক অক্ষরও
+        //    বদলানো হয়নি। V732-এর নতুন কাজটা নিচের **একই নামের**
+        //    পাঁচ-ঘরের রূপে (overload) — তাই লক করা লেখাটাও অক্ষত।
+        sendDoctorMessage(mobile, doctorName, text, logKind, null)
+    }
+
+    private fun sendDoctorMessage(
+        mobile: String, doctorName: String, text: String, logKind: String, previewEn: String?
+    ) {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) {
             Toast.makeText(this, "This doctor has no valid 10-digit mobile number", Toast.LENGTH_LONG).show()
             return
         }
         if (logKind.isBlank()) {
-            buildAndShowDoctorSendBox(digits, doctorName, text, logKind, null)
+            buildAndShowDoctorSendBox(digits, doctorName, text, logKind, null, previewEn)
             return
         }
         BackgroundWork.run {
             val prior = try { MessageSentLog.checkPrior(digits, logKind, recipientType = "doctor") } catch (_: Throwable) { null }
             try {
                 if (!isFinishing && !isDestroyed) {
-                    runOnUiThread { buildAndShowDoctorSendBox(digits, doctorName, text, logKind, prior) }
+                    runOnUiThread { buildAndShowDoctorSendBox(digits, doctorName, text, logKind, prior, previewEn) }
                 }
             } catch (_: Throwable) { }
         }
@@ -1394,7 +1543,8 @@ class DoctorVisitActivity : AppCompatActivity() {
 
     private fun buildAndShowDoctorSendBox(
         digits: String, doctorName: String, text: String, logKind: String,
-        prior: MessageSentLog.PriorSend?
+        prior: MessageSentLog.PriorSend?,
+        previewEn: String? = null          // 🔴 V732 — শুধু পর্দায় দেখানোর জন্য
     ) {
         // 🔒 TK-APPROVED (30.07.2026 দুপুর ৩.১০, ফটো-প্রুফে "ওকে পছন্দ হয়েছে"
         //    · খাতার সারি B163): রোগীর বার্তার পপ-আপের **হুবহু একই প্রফেশনাল
@@ -1431,7 +1581,11 @@ class DoctorVisitActivity : AppCompatActivity() {
             })
         }
         parts.body.addView(TextView(this).apply {
-            this.text = text
+            // 🔴🔒 V732 — বাংলা-বন্ধ ফোনে ভাঙা বাংলার বদলে ইংরেজি নমুনা।
+            //    ⛔ পাঠানো বার্তা এতে বদলায় না (নিচে `text` সরাসরি যায়)।
+            this.text = try {
+                if (NoBengali.active() && previewEn != null) previewEn else text
+            } catch (_: Throwable) { text }
             textSize = 12.5f
             setTextColor(android.graphics.Color.parseColor("#1E2A3A"))
             setPadding((14 * d).toInt(), (12 * d).toInt(), (14 * d).toInt(), (12 * d).toInt())
@@ -1488,6 +1642,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** TK APPROVED (2026-07-16): premium dialog shell (navy header + rounded
@@ -1548,23 +1703,39 @@ class DoctorVisitActivity : AppCompatActivity() {
     /** Small colored icon+label field header, reused across the premium
      *  dialogs below (e.g. "👨‍⚕️ Doctor Name") instead of a plain textSize-only
      *  label — look-only change, the field it labels is unchanged. */
-    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 16): TextView {
+    /* 🩺🔒 V1033 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — যে ঘরগুলো
+       বাধ্যতামূলক **নয়** সেগুলোর লেখা আর লাল নয়, তাই আর জোরের মতো দেখায় না।
+       ⛔ ডিফল্ট রং আগেরটাই — যেখানে বলা হয়নি সেখানে এক অক্ষরও বদলায়নি। */
+    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 10, colorHex: String = "#B42318"): TextView {
         val d = resources.displayMetrics.density
         return TextView(this).apply {
             this.text = "$icon  $text"
             textSize = 12.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#B42318"))
-            setPadding(0, (marginTopDp * d).toInt(), 0, (4 * d).toInt())
+            setTextColor(android.graphics.Color.parseColor(colorHex))
+            // 🟢 V942 (01.09.2026, TK): ঘরগুলো উচ্চতায় ছোট — লেখার আকার/রং অটুট।
+            setPadding(0, (marginTopDp * d).toInt(), 0, (3 * d).toInt())
         }
     }
 
     private fun styleInput(v: EditText) {
         val d = resources.displayMetrics.density
         v.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-        val padH = (14 * d).toInt(); val pad = (12 * d).toInt()
+        val padH = (14 * d).toInt(); val pad = (7 * d).toInt()
         v.setPadding(padH, pad, padH, pad)
         v.setTextColor(android.graphics.Color.parseColor("#10223A"))
+    }
+
+    /* 📏🔒 V1033 (TK-নির্দেশ: *"বক্সের উচ্চতা একটু ছোট করুন"*) — ঘরটা নিচু করা।
+       ⛔ শুধু যে পপ-আপে ডাকা হয় সেখানেই; বাকি সব পপ-আপ `styleInput()`-ই ব্যবহার
+          করে, তাই তাদের চেহারা এক অক্ষরও বদলায়নি।
+       ⛔ লেখার আকার · রং · ব্যাকগ্রাউন্ড অটুট — শুধু উপর-নিচের ফাঁক ও উচ্চতা। */
+    private fun styleInputCompact(v: EditText) {
+        val d = resources.displayMetrics.density
+        styleInput(v)
+        val padH = (14 * d).toInt(); val pad = (4 * d).toInt()
+        v.setPadding(padH, pad, padH, pad)
+        v.minHeight = (40 * d).toInt()
     }
 
     /** TK-DECISION (2026-07-22): mark the exact field the user got wrong with a
@@ -1572,7 +1743,7 @@ class DoctorVisitActivity : AppCompatActivity() {
      *  to the normal style the moment the user edits that field. */
     private fun setFieldError(v: View) {
         val d = resources.displayMetrics.density
-        val padH = (14 * d).toInt(); val pad = (12 * d).toInt()
+        val padH = (14 * d).toInt(); val pad = (7 * d).toInt()
         v.background = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = 12f * d
             setColor(android.graphics.Color.parseColor("#FFF4F4"))
@@ -1620,13 +1791,14 @@ class DoctorVisitActivity : AppCompatActivity() {
         val parts = premiumDialogShell("🧑‍⚕️", "Add Doctor/RMP")
         val container = parts.body
 
-        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *", 0))
+        /* 🟢 V942 (01.09.2026, TK-নির্দেশ "আগে মোবাইল নাম্বার রাখুন") — মোবাইল ঘরটা
+           সবার উপরে, তারপর নাম — নম্বর লিখলেই "সেভ আছে কি না" আগে দেখা যায়।
+           ⛔ কোনো ঘর বাদ যায়নি, সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বসার ক্রম। */
         val nameInput = EditText(this).apply { hint = "Doctor Name" }
         styleInput(nameInput)
         clearErrorOnEdit(nameInput)
-        container.addView(nameInput)
 
-        container.addView(fieldLabel("📱", "Mobile *"))
+        container.addView(fieldLabel("📱", "Mobile *", 0))
         val mobileInput = EditText(this).apply { hint = "Mobile (10-digit)" }
         styleInput(mobileInput)
         // TK-DECISION (2026-07-22): standard phone field -- MobileInput enforces
@@ -1692,9 +1864,12 @@ class DoctorVisitActivity : AppCompatActivity() {
             text = "＋ Add another number"
             textSize = 13.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#166534"))
-            setPadding(0, (8 * resources.displayMetrics.density).toInt(), 0, (2 * resources.displayMetrics.density).toInt())
+            setPadding(0, (6 * resources.displayMetrics.density).toInt(), 0, (2 * resources.displayMetrics.density).toInt())
             setOnClickListener { addAltNumberRow() }
         })
+
+        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *"))
+        container.addView(nameInput)
 
         container.addView(fieldLabel("🏥", "Branch *"))
         val branchSpinner = Spinner(this).apply {
@@ -1712,7 +1887,17 @@ class DoctorVisitActivity : AppCompatActivity() {
         styleInput(areaInput)
         container.addView(areaInput)
 
-        container.addView(fieldLabel("📝", "Remarks (call/visit discussion) *"))
+        /* 🚓🔒 V1034 (TK-নির্দেশ) — ডাক্তার কোন থানার অধীনে; Edit ফর্মের হুবহু
+           একই ঘর, একই জায়গায় (ঠিকানার নিচে)। বাধ্যতামূলক নয়। */
+        container.addView(fieldLabel("🚓", "Police Station"))
+        val policeInput = EditText(this).apply { hint = "Police Station" }
+        styleInput(policeInput)
+        container.addView(policeInput)
+
+        /* 💬🔒 V1033 (TK-নির্দেশ: *"Add ফর্মেও Remarks বাধ্যতামূলক রাখবেন না"*)
+           — তারা-চিহ্ন ও লাল রং দুটোই গেল, নিচের যাচাইটাও তুলে দেওয়া হলো।
+           ⛔ ঘরটা আছেই, লেখা থাকলে আগের মতোই হুবহু একইভাবে জমা হয়। */
+        container.addView(fieldLabel("📝", "Remarks (call/visit discussion)", 10, "#5B6B81"))
         val remarkInput = EditText(this).apply { hint = "Remarks" }
         styleInput(remarkInput)
         clearErrorOnEdit(remarkInput)
@@ -1761,7 +1946,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             if (name.isBlank()) bad(nameInput, "Doctor Name দিন")
             if (mobile.length != 10) bad(mobileInput, "সঠিক 10 ডিজিট মোবাইল দিন")
             if (branch.isBlank()) bad(branchSpinner, "Branch বাছুন")
-            if (remark.isBlank()) bad(remarkInput, "Remarks দিন")
+            // 💬 V1033 — TK-নির্দেশে Remarks আর বাধ্যতামূলক নয়।
             if (firstMsg != null) {
                 Toast.makeText(this@DoctorVisitActivity, firstMsg, Toast.LENGTH_SHORT).show()
                 (firstBad as? EditText)?.requestFocus()
@@ -1786,19 +1971,45 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // কিছুই বদলায় না।
                 // 🟢 B630 (ক.১): প্রাইমারি + প্রতিটা বাড়তি নম্বর — কোনোটা আগে সেভ থাকলে Save আটকাবে।
                 val allNums = ArrayList<String>().apply { add(mobile); addAll(extras) }
-                var dupNum = ""; var dupName = ""
+                /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-নির্দেশ, অনুমতি নিয়ে) — *"ওই নাম্বার
+                   যদি এই ব্রাঞ্চের জন্য না হয়ে থাকে তাহলে যেন ওভাররাইড করতে
+                   পারে ... যদি এক স্টাফ চায় তাহলে করতে পারবে"*।
+                   ⇒ **একই ব্রাঞ্চে** থাকলে আগের মতোই আটকায়; শুধু **অন্য
+                     ব্রাঞ্চে** থাকলে জিজ্ঞাসা করে, স্টাফ Yes দিলে সেভ হয়।
+                   ⛔ যাচাই হয় **ফর্মে বাছা ব্রাঞ্চ** ধরে (TK-কে জানিয়ে নেওয়া)। */
+                var dupNum = ""; var dupName = ""; var dupBranch = ""; var dupSame = false
                 for (num in allNums) {
-                    val d = withContext(Dispatchers.IO) { repository.checkDuplicate(num, allItems) }
-                    if (d.found) { dupNum = num; dupName = d.name; break }
+                    val d = withContext(Dispatchers.IO) { repository.checkDuplicate(num, allItems, branch) }
+                    if (d.found) {
+                        dupNum = num; dupName = d.name; dupBranch = d.branch
+                        dupSame = d.branch.isBlank() || d.branch.equals(branch, ignoreCase = true)
+                        if (dupSame) break
+                    }
                 }
-                if (dupNum.isNotEmpty()) {
-                    Toast.makeText(this@DoctorVisitActivity, "Already saved: $dupName ($dupNum)", Toast.LENGTH_LONG).show()
+                if (dupNum.isNotEmpty() && dupSame) {
+                    Toast.makeText(this@DoctorVisitActivity, "Already saved in $branch: $dupName ($dupNum)", Toast.LENGTH_LONG).show()
                     saveDoctorBtn.isEnabled = true
                     return@launch
                 }
+                if (dupNum.isNotEmpty() && !dupSame) {
+                    val goOn = kotlinx.coroutines.CompletableDeferred<Boolean>()
+                    androidx.appcompat.app.AlertDialog.Builder(this@DoctorVisitActivity)
+                        .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Same number, another branch"))
+                        // ⛔ লেখাটা স্থির রাখা হলো (নাম/ব্রাঞ্চ পরে জোড়া হয়), নইলে
+                        //    বাংলা-বন্ধ স্টাফের জন্য অনুবাদ মেলানো যেত না (পাহারা ৯.১৪)।
+                        .setMessage(
+                            NoBengali.s("এই নম্বর অন্য ব্রাঞ্চের জন্য আগেই সেভ করা আছে। এই ব্রাঞ্চের জন্যও আলাদাভাবে সেভ করতে চান?") +
+                            "\n\n" + dupBranch + " · " + dupName + " · " + dupNum + "\n➜ " + branch
+                        )
+                        .setPositiveButton(NoBengali.s("Yes")) { _, _ -> goOn.complete(true) }
+                        .setNegativeButton(NoBengali.s("No")) { _, _ -> goOn.complete(false) }
+                        .setOnCancelListener { goOn.complete(false) }
+                        .show().also { PremiumAlert.paint(it) }
+                    if (!goOn.await()) { saveDoctorBtn.isEnabled = true; return@launch }
+                }
                 val altCsv = extras.joinToString(",") { "+91$it" }
                 val ok = withContext(Dispatchers.IO) {
-                    repository.addNewDoctor(name, mobile, branch, areaInput.text.toString().trim(), remark, nextDate, user.mobile, this@DoctorVisitActivity, altCsv)
+                    repository.addNewDoctor(name, mobile, branch, areaInput.text.toString().trim(), remark, nextDate, user.mobile, this@DoctorVisitActivity, altCsv, policeInput.text.toString().trim())
                 }
                 // 🔒 (03.08.2026, খাতার সারি B190/B373, TK-অনুমোদনে) — আসল কারণ:
                 // addNewDoctor() ব্যর্থ হলেও (ok=false) MyPhoneWrites.remember()
@@ -1824,6 +2035,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         parts.actionRow.addView(saveDoctorBtn)
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showLogCallDialog(item: DoctorVisitItem) {
@@ -2029,6 +2241,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         parts.actionRow.addView(saveCallBtn)
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /**
@@ -2157,15 +2370,37 @@ class DoctorVisitActivity : AppCompatActivity() {
                             ReferredPatient(p.referralDate, p.name, p.mobile, p.bill, p.paid, p.patientCode, p.disease)
                         }
                     } else {
-                        val patsDeferred = async { SupabaseClient.fetchListSlimOrNull("patients", null, 5000, "id,name,mobile,bill,branch,refBy,refDoctorMobile,registrationDate,date,disease,diagnosis,updatedAt") }
-                        val paysDeferred = async { SupabaseClient.fetchListSlimOrNull("payments", null, 5000, "id,mobile,amount,payType,refundApprovalStatus,updatedAt") }
+                        /* 🔴🔒 V1067 (০৪.০৯.২০২৬ — পুরো প্রজেক্ট খুঁটিয়ে দেখতে গিয়ে পাওয়া,
+                           **V1060-এর হুবহু একই ধরনের দোষ**) — এখানে সব রোগী ও সব পেমেন্ট
+                           `limit 5000`, ক্রম `updatedAt.desc` মানে **নতুন ৫০০০টা** আনা হত।
+                           ক্লিনিক বড় হয়ে ৫০০০ ছাড়াতেই সবচেয়ে **পুরনো টাকাগুলো ছাঁটা** পড়ত ⇒
+                           ঐ রোগীর "দেওয়া" কম দেখাত ⇒ **"বাকি" বেশি দেখাত**। রেফার-করা
+                           ডাক্তারের তালিকায় টাকার অঙ্ক ভুল হত।
+                           ⇒ এখন **পাতা ধরে ধরে সবটা** আনা হয়, ক্রম `id.asc` (অনন্য, তাই
+                             পাতার মাঝে সারি এড়িয়ে যায় না), আর কোনো পাতা না এলে `null`
+                             (আধা-হিসাব নয়) — নিচের `?: throw` আগের মতোই ধরে নেয়।
+                           ⛔ টাকার গোনার নিয়ম এক অক্ষরও বদলায়নি। */
+                        fun allPages(table: String, cols: String): org.json.JSONArray? {
+                            val out = org.json.JSONArray(); var off = 0; val page = 1000
+                            while (true) {
+                                val part = SupabaseClient.fetchListSlimOrNull(
+                                    table, null, page, cols, order = "id.asc", offset = off) ?: return null
+                                for (k in 0 until part.length()) out.put(part.get(k))
+                                if (part.length() < page) break
+                                off += page
+                                if (off >= 200000) break
+                            }
+                            return out
+                        }
+                        val patsDeferred = async { allPages("patients", "id,name,mobile,bill,branch,refBy,refDoctorMobile,registrationDate,date,disease,diagnosis,updatedAt") }
+                        val paysDeferred = async { allPages("payments", "id,mobile,amount,payType,refundApprovalStatus,updatedAt") }
                         val pats = patsDeferred.await() ?: throw IllegalStateException("patients refresh failed")
                         val pays = paysDeferred.await() ?: throw IllegalStateException("payments refresh failed")
                         val paidByMobile = HashMap<String, Double>()
                         for (i in 0 until pays.length()) {
                             val p = pays.optJSONObject(i) ?: continue
                             val payType = p.optString("payType", "")
-                            if (payType == "visit_fee" || payType == "attendance_mark") continue
+                            if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                             val paidEffect = when {
                                 PaymentModel.isApprovedRefund(p) -> -p.optDouble("amount", 0.0)
                                 PaymentModel.isRefundRow(p) -> 0.0
@@ -2185,9 +2420,14 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 if (pb.isNotBlank() && !pb.equals(myBranch, ignoreCase = true)) continue
                             }
                             val refBy = pat.s("refBy").trim().lowercase()
+                            // 🔴 V1356 — আজকের অ্যাপ ডাক্তারের নাম রাখে refDoctor-এ (refBy-তে শুধু "Dr. Visit")
+                            val refDoc = pat.s("refDoctor").trim().lowercase()
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                            val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
+                            val hit = (refBy.isNotBlank() && refBy == docName) || (refDoc.isNotBlank() && refDoc == docName) ||
+                                (refMob.isNotBlank() && refMob == docMobile)
                             if (!hit) continue
+                            // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চের সারি থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
+                            if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue
                             val m = pat.s("mobile").filter { it.isDigit() }.takeLast(10)
                             val regDate = pat.s("registrationDate").ifBlank { pat.s("date") }
                             old.add(ReferredPatient(regDate, pat.s("name"), m, pat.optDouble("bill", 0.0), paidByMobile[m] ?: 0.0, pat.s("patientId"), pat.s("disease").ifBlank { pat.s("diagnosis") }))
@@ -2217,27 +2457,54 @@ class DoctorVisitActivity : AppCompatActivity() {
                             e.s("date"),
                             e.s("id"),
                             e.s("mode"),
-                            e.s("referenceNo")
+                            e.s("referenceNo"),
+                            e.s("createdAt")
                         )
                     }
                     // V381: Ref. Paid means all money already handed to this RMP.
                     // Allocated advance is already inside the new payment total;
                     // only the still-unallocated balance is added, preventing double count.
+                    var earnedNow = 0.0
+                    var breakdownRows: List<RmpCommissionRepository.PatientBreakdownRow> = emptyList()
+                    var oneLedger = false
                     if (authReady) {
+                        /* 🔴🔒 V1355 (১১.০৯.২০২৬, TK-রিপোর্ট — BISHAKHA MANDAL): V1161-এর
+                           "এক ব্রাঞ্চে একবারই" কমিশন-জোড়া (`rmpAutoLinkedBranches`) —
+                           পর্দা খোলার পরে রেজিস্টার-হওয়া রোগীর কমিশন আর বাঁধা হত না।
+                           এখন প্রতিবার View All-এ জোড়া লাগে — কিন্তু V1357 থেকে সেটা
+                           এই পথে নয়, পর্দা আঁকার পরে পিছনে (renderBody-র ভিতরে),
+                           যাতে তালিকা আসতে দেরি না হয়। */
                         val modern = RmpCommissionRepository.rmpSummary(item.id)
-                        val advances = RmpCommissionRepository.advancePayments(item.id)
-                        val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
-                        // rmpSummary.paid already includes allocated payments + still-unallocated
-                        // direct RMP payments. Subtract only the part already represented by
-                        // visible legacy Paid rows, so the same money is never counted twice.
-                        if (modern.ok && modern.value != null)
+                        /* 📒🔒 V1404 — একটাই খাতা: সার্ভারের রোগী-ধরে ভাঙা হিসাব এলে
+                           Paid · Due · Earned **সরাসরি** ওখান থেকেই; অ্যাপে আর হাতে-লেখা
+                           Paid + নতুন Paid − covered ধরনের যোগ-বিয়োগ নয় (ওটাই JAKIR-এর
+                           "₹8,000 দেওয়া তবু ₹2,200 বাকি" গোলমালের উৎস ছিল)। */
+                        val bd = RmpCommissionRepository.patientBreakdown(item.id)
+                        if (modern.ok && modern.value != null && bd.ok && bd.value != null) {
+                            verifiedLegacyPaid = modern.value.paid
+                            verifiedLegacyDue = modern.value.due
+                            earnedNow = modern.value.earned
+                            breakdownRows = bd.value
+                            oneLedger = true
+                        } else if (modern.ok && modern.value != null) {
+                            // ⛔ V1404 SQL সার্ভারে না বসা পর্যন্ত আগের (V381) হিসাবই হুবহু থাকে।
+                            val advances = RmpCommissionRepository.advancePayments(item.id)
+                            val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
                             verifiedLegacyPaid += kotlin.math.max(0.0, modern.value.paid - covered)
+                            earnedNow = modern.value.earned
+                        }
                     }
-                    ViewAllData(calls, referred, refIncome, verifiedLegacyPaid, verifiedLegacyDue)
+                    ViewAllData(calls, referred, refIncome, verifiedLegacyPaid, verifiedLegacyDue, earnedNow, breakdownRows, oneLedger)
                 }
                 // V450: repeat-open starts from the last successful snapshot instead
                 // of fake zeroes. First-ever open remains unchanged (empty + Loading).
                 var data = cachedViewAllData ?: ViewAllData(emptyList(), emptyList(), emptyList(), 0.0, 0.0)
+                // 🔴🔒 V1357 (TK-রিপোর্ট, ছবিসহ): প্রথম খোলায় আসল তথ্য আসার আগে
+                //    "Referred 0 · ₹0 · কোনো কল/রেফারেল/আয় এখনো লগ হয়নি" লেখা থাকত —
+                //    ভুল তথ্য। এখন তথ্য না আসা পর্যন্ত "…" ও "Loading…" দেখায়।
+                var viewAllLoaded = cachedViewAllData != null
+                var viewAllFailed = false
+                var autoLinkedThisOpen = false
 
                 // TK-REQUESTED REDESIGN (2026-07-23): full-screen (not a
                 // half-screen popup) with clean card sections instead of a
@@ -2527,6 +2794,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         setOnClickListener { parts.dialog.dismiss() }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** বার্তা ৩-এর তিনটে ঘর স্টাফ নিজে বেছে দেন — অ্যাপ আন্দাজে
@@ -2553,9 +2821,15 @@ class DoctorVisitActivity : AppCompatActivity() {
                         DatePickerDialog(this@DoctorVisitActivity, com.tkbiswas.pilesclinic.R.style.PilesDatePicker, { _, y, m, d ->
                             // ⛔ Locale.US — নইলে ফোনের ভাষা বাংলা হলে সংখ্যা
                             //    বাংলায় বসে যেত (খাতার সারি B93-এর গ্লোবাল রুল)।
-                            nextDate = String.format(Locale.US, "%02d.%02d.%04d", d, m + 1, y)
+                            nextDate = String.format(Locale.US, "%02d/%02d/%04d", d, m + 1, y)
                             btnDate.text = nextDate
-                        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
+                        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).apply {
+            /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭ — একটা দোষ পেলে পুরো প্রজেক্টে):
+               **পরের** তারিখ বাছার ঘরে অতীতের তারিখ বাছা যেত। V671-এর
+               প্রমাণিত একই লাইন বসানো হলো।
+               ⛔ অতীতের তারিখ শুধু ধূসর হয় — জমা থাকা পুরনো তারিখ মোছে না। */
+            datePicker.minDate = System.currentTimeMillis() - 1000L
+        }.show()
                     }
                     parts.body.addView(btnDate)
 
@@ -2570,13 +2844,22 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
                                 spTreat.selectedItemPosition == 0, spBlood.selectedItemPosition == 0, nextTxt, lang
                             )
+                            // 🔴 V732 — শুধু পর্দায় দেখানোর ইংরেজি নমুনা (পাঠানো লেখা উপরেরটাই)
+                            val previewEn = try {
+                                DoctorMessage.details(
+                                    item.branch, item.name, item.area,
+                                    p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
+                                    spTreat.selectedItemPosition == 0, spBlood.selectedItemPosition == 0, nextTxt, "en"
+                                )
+                            } catch (_: Throwable) { null }
                             // 🔒 খাতার সারি B185 — এই পর্দাটাও আগে পুরো বন্ধ, তারপর
                             //    বার্তা পাঠানোর পর্দা (একই কারণ)।
                             parts.dialog.dismiss()
-                            afterUi { sendDoctorMessage(item.mobile, item.name, text, logKind = "DOCTOR_DETAILS") }
+                            afterUi { sendDoctorMessage(item.mobile, item.name, text, "DOCTOR_DETAILS", previewEn) }
                         }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** 🔗 পুরনো (মোবাইলহীন) রেফারেল ইনকামের সারিটা আসল রোগীর সঙ্গে
@@ -2667,6 +2950,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** 👥 TK-ORDER (30.07.2026 সকাল ৮.৪৫ · খাতার সারি B156):
@@ -2770,8 +3054,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                             }
                             fun copyOnLongPress(view: TextView, value: String, label: String) {
                                 view.setOnLongClickListener {
-                                    val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+                                    com.tkbiswas.pilesclinic.native.Clip.copy(this@DoctorVisitActivity, label, value)   // 🤫 V772
                                     Toast.makeText(this@DoctorVisitActivity, "$label copied", Toast.LENGTH_SHORT).show()
                                     true
                                 }
@@ -2913,6 +3196,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     listDialog = AlertDialog.Builder(this@DoctorVisitActivity).setView(listRoot).create()
                     listDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                     listDialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(listDialog) } catch (_: Throwable) { }   // 🤫 V774
                     forceDialogFullScreen(listDialog, listRoot)
                 }
 
@@ -2974,7 +3258,9 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 2 -> { fsDialog.dismiss(); showLogCallDialog(item) }
                                 3 -> { menuDlg.dismiss(); editLastCallNote(item) }
                                 4 -> withIntroLanguage { lang ->
-                                    sendDoctorMessage(item.mobile, item.name, DoctorMessage.intro(item.branch, item.name, item.area, lang), logKind = "DOCTOR_INTRO")
+                                    // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা; পাঠানো বার্তা `lang`-এই
+                                    val __pvEn = try { DoctorMessage.intro(item.branch, item.name, item.area, "en") } catch (_: Throwable) { null }
+                                    sendDoctorMessage(item.mobile, item.name, DoctorMessage.intro(item.branch, item.name, item.area, lang), "DOCTOR_INTRO", __pvEn)
                                 }
                                 // 🔒 খাতার সারি B185 (TK, 30.07.2026 বিকেল ৫.০০): বার্তা
                                 //    ২·৩·৪-এ পপ-আপ তিন ধাপে খোলে, তাই মেনুটা **আগে
@@ -2987,13 +3273,20 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 // দেওয়া হতো, তাই ভাষা যাই বাছুন বার্তা সবসময় বাংলাই যেত।
                                 5 -> { menuDlg.dismiss(); afterUi { withLanguage { lang ->
                                     pickReferredPatient { p ->
+                                        // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা
+                                        val __pvEn = try {
+                                            DoctorMessage.arrived(
+                                                item.branch, item.name, item.area,
+                                                p.name, p.patientId, FollowUpModel.displayDate(p.rawDate), "en"
+                                            )
+                                        } catch (_: Throwable) { null }
                                         sendDoctorMessage(
                                             item.mobile, item.name,
                                             DoctorMessage.arrived(
                                                 item.branch, item.name, item.area,
                                                 p.name, p.patientId, FollowUpModel.displayDate(p.rawDate), lang
                                             ),
-                                            logKind = "DOCTOR_ARRIVED"
+                                            "DOCTOR_ARRIVED", __pvEn
                                         )
                                     }
                                 } } }
@@ -3008,6 +3301,15 @@ class DoctorVisitActivity : AppCompatActivity() {
                                         val match = data.refIncome
                                             .filter { it.mobile == p.mobile && it.status.equals("Paid", true) }
                                             .maxByOrNull { it.rawDate }
+                                        // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা
+                                        val __pvEn = try {
+                                            DoctorMessage.referralPaid(
+                                                item.branch, item.name, item.area,
+                                                p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
+                                                match?.amount ?: 0.0, match?.date ?: "",
+                                                match?.mode ?: "", match?.referenceNo ?: "", "en"
+                                            )
+                                        } catch (_: Throwable) { null }
                                         sendDoctorMessage(
                                             item.mobile, item.name,
                                             DoctorMessage.referralPaid(
@@ -3016,7 +3318,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                                                 match?.amount ?: 0.0, match?.date ?: "",
                                                 match?.mode ?: "", match?.referenceNo ?: "", lang
                                             ),
-                                            logKind = "DOCTOR_REFERRAL_PAID"
+                                            "DOCTOR_REFERRAL_PAID", __pvEn
                                         )
                                     }
                                 } } }
@@ -3069,52 +3371,85 @@ class DoctorVisitActivity : AppCompatActivity() {
                         box.addView(TextView(this@DoctorVisitActivity).apply { text = value; textSize = 15f; gravity = android.view.Gravity.CENTER; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.parseColor(colorHex)) })
                         return box
                     }
-                    summaryRow2.addView(sumBox("Referred", data.referred.size.toString(), "#10223A"))
+                    summaryRow2.addView(sumBox("Referred", if (viewAllLoaded) data.referred.size.toString() else "…", "#10223A"))
+                    lateinit var refEarnedBox: android.widget.LinearLayout
                     lateinit var refPaidBox: android.widget.LinearLayout
                     lateinit var refDueBox: android.widget.LinearLayout
-                    refPaidBox = sumBox("Ref. Paid", "\u20B9${"%,.0f".format(data.refPaid)}", "#0C8F3A", "#EAF8EF").apply {
-                        isClickable = true; isFocusable = true
-                        setOnClickListener {
-                            showRmpDirectPayment(item) {
-                                lifecycleScope.launch {
-                                    val (fresh, advances) = withContext(Dispatchers.IO) {
-                                        RmpCommissionRepository.rmpSummary(item.id) to RmpCommissionRepository.advancePayments(item.id)
-                                    }
-                                    val s = fresh.value ?: return@launch
-                                    val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
-                                    val legacyPaid = data.refIncome.filter { it.status.equals("Paid", true) }.sumOf { it.amount }
-                                    val shownPaid = kotlin.math.max(0.0, legacyPaid + s.paid - covered)
-                                    (refPaidBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(shownPaid)}"
-                                    (refDueBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.due)}"
-                                    // Keep the repeat-open memory snapshot aligned with the
-                                    // just-verified figures; no cloud write/request is added.
-                                    data = data.copy(refPaid = shownPaid, refDue = s.due)
-                                    saveViewAllCache(data)
-                                }
+                    /* 📒🔒 V1404 (TK-নির্দেশ, ডেমো পাশ): ৪টা বক্স Referred · Earned · Paid · Due —
+                       তিনটে টাকার বক্সের যেকোনোটা চাপলে **একই** রোগী-ধরে ভাঙা হিসাব খোলে
+                       (TK: *"যে ঘরেই চাপ দেই না কেন একই পপ আপ… ₹4 কোন পেশেন্টের জন্য"*)।
+                       টাকা দেওয়া/বন্ধ করার পরে এই পর্দাই সঙ্গে সঙ্গে আবার আঁকা হয় (নিয়ম ৭খ)। */
+                    fun refreshFromCloud() {
+                        lifecycleScope.launch {
+                            val pairFb = withContext(Dispatchers.IO) {
+                                RmpCommissionRepository.rmpSummary(item.id) to RmpCommissionRepository.patientBreakdown(item.id)
                             }
+                            val fresh: RmpCommissionRepository.RepoResult<RmpCommissionRepository.RmpSummary> = pairFb.first
+                            val bd: RmpCommissionRepository.RepoResult<List<RmpCommissionRepository.PatientBreakdownRow>> = pairFb.second
+                            if (isFinishing || isDestroyed || !fsDialog.isShowing) return@launch
+                            val s: RmpCommissionRepository.RmpSummary = fresh.value ?: return@launch
+                            val rows = if (bd.ok && bd.value != null) bd.value else data.breakdown
+                            val one = data.oneLedger || (bd.ok && bd.value != null)
+                            data = data.copy(refPaid = if (one) s.paid else data.refPaid, refDue = s.due, earned = s.earned,
+                                breakdown = rows, oneLedger = one)
+                            saveViewAllCache(data)
+                            renderBody()
                         }
                     }
-                    refDueBox = sumBox("Ref. Due", "\u20B9${"%,.0f".format(data.refDue)}", "#B42318", "#FDEEEE").apply {
+                    fun openBreakdown(title: String) {
+                        if (data.oneLedger) showRmpPatientBreakdown(item, title, data.breakdown, data.refIncome,
+                            data.earned, data.refPaid, data.refDue) { refreshFromCloud() }
+                        else if (title == "Paid") showRmpDirectPayment(item) { refreshFromCloud() }
+                        else showRmpCommissionSummary(item)
+                    }
+                    refEarnedBox = sumBox("Earned", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.earned)}" else "\u2026", "#10223A").apply {
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { openBreakdown("Earned") }
+                    }
+                    refPaidBox = sumBox("Paid", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refPaid)}" else "\u2026", "#0C8F3A", "#EAF8EF").apply {
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { openBreakdown("Paid") }
+                    }
+                    refDueBox = sumBox("Due", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refDue)}" else "\u2026", "#B42318", "#FDEEEE").apply {
                         (layoutParams as android.widget.LinearLayout.LayoutParams).marginEnd = 0
                         isClickable = true; isFocusable = true
-                        setOnClickListener { showRmpCommissionSummary(item) }
+                        setOnClickListener { openBreakdown("Due") }
                     }
-                    summaryRow2.addView(refPaidBox); summaryRow2.addView(refDueBox)
+                    summaryRow2.addView(refEarnedBox); summaryRow2.addView(refPaidBox); summaryRow2.addView(refDueBox)
                     scrollBody.addView(summaryRow2)
                     lifecycleScope.launch {
-                        val verified = withContext(Dispatchers.IO) { RmpCommissionRepository.rmpSummary(item.id) }
-                        verified.value?.let { s ->
+                        val verified = withContext(Dispatchers.IO) {
+                            /* 🔴🔒 V1357 — V1355-এর "প্রতিবার View All খুললে কমিশন জোড়া
+                               লাগানো" কাজটা এখন পর্দা আঁকার **পরে**, পিছনে চলে (আগে
+                               তালিকা আসার পথ আটকে রাখত ⇒ TK: "সাথে সাথে কেন আসে না")।
+                               এক খোলায় একবারই; ব্যর্থ হলে নিঃশব্দে বাদ। */
+                            if (!autoLinkedThisOpen) {
+                                autoLinkedThisOpen = true
+                                try {
+                                    val br = item.branch.trim()
+                                    if (br.isNotBlank() && br != "All" && ModuleAuth.isSignedIn)
+                                        RmpCommissionRepository.autolinkRefDoctor(br, dryRun = false)
+                                } catch (_: Throwable) { }
+                            }
+                            RmpCommissionRepository.rmpSummary(item.id)
+                        }
+                        verified.value?.let { s: RmpCommissionRepository.RmpSummary ->
                             (refDueBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.due)}"
+                            (refEarnedBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.earned)}"
+                            if (data.oneLedger) (refPaidBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.paid)}"
                             // The final verified due is what the next repeat-open should
                             // show immediately. Memory only; Supabase is untouched.
-                            data = data.copy(refDue = s.due)
+                            data = data.copy(refDue = s.due, earned = s.earned, refPaid = if (data.oneLedger) s.paid else data.refPaid)
                             saveViewAllCache(data)
                         }
                     }
 
                     // Unified, chronologically-sorted entry list.
                     // 🟢 B628: onEdit — শুধু Referral Income সারিতে থাকে; তিনবার চাপলে এডিট খোলে।
-                    data class UnifiedRow(val rawDate: String, val dateText: String, val typeText: String, val typeColorHex: String, val byText: String, val noteText: String, val onTap: (() -> Unit)?, val highlightName: String? = null, val onEdit: (() -> Unit)? = null)
+                    // 🎨🔒 V1385 — onNameTap/onAmountTap: শুধু consolidated Referral
+                    // Income সারির জন্য (কলাম ২ ও Note আলাদাভাবে ট্যাপযোগ্য)। বাকি
+                    // সব সারির (Call/Referred Patient) জন্য ডিফল্ট null — কিছুই বদলায় না।
+                    data class UnifiedRow(val rawDate: String, val dateText: String, val typeText: String, val typeColorHex: String, val byText: String, val noteText: CharSequence, val onTap: (() -> Unit)?, val highlightName: String? = null, val onEdit: (() -> Unit)? = null, val onNameTap: (() -> Unit)? = null, val onAmountTap: (() -> Unit)? = null)
                     val unified = mutableListOf<UnifiedRow>()
                     data.calls.forEach { c ->
                         unified.add(UnifiedRow(c.rawDate, c.date, "Call", "#7A3FF2", c.by, c.note, null))
@@ -3125,21 +3460,91 @@ class DoctorVisitActivity : AppCompatActivity() {
                         // Back করলে সরাসরি RMP মূল পাতায় চলে যেত। এখন পপ-আপ
                         // খোলা রাখা হয় — Back করলে এই View All তালিকাতেই ফেরে।
                         val onTap: (() -> Unit)? = if (p.mobile.length == 10) { { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        unified.add(UnifiedRow(p.rawDate, FollowUpModel.displayDate(p.rawDate), "Referred Patient", "#16A36D", "", "${p.name.ifBlank { p.mobile }} \u2014 Bill \u20B9${"%,.0f".format(p.bill)} \u00b7 Paid \u20B9${"%,.0f".format(p.paid)}", onTap))
+                        /* 🎨🔒 V1404 (TK, ডেমো পাশ): Type/Patient ঘরে "Referred Patient" লেখা নয় —
+                           শুধু রোগীর নাম (সবুজ, ট্যাপে Timeline); Note-এ Bill · Paid। */
+                        unified.add(UnifiedRow(p.rawDate, FollowUpModel.displayDate(p.rawDate), p.name.ifBlank { p.mobile }, "#16A36D", "", "Bill \u20B9${"%,.0f".format(p.bill)} \u00b7 Paid \u20B9${"%,.0f".format(p.paid)}", onTap, onNameTap = onTap))
                     }
+                    /* 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — TK: *"একই পেশেন্টের জন্য একের অধিক বক্স তৈরি হবে না, শুধু টাকার পরিমাণ
+                       যুক্ত হয়ে যাবে... টাকার পরিমাণের উপর ক্লিক করলে প্রভাব খুলবে
+                       কত তারিখের কত জমা, কত পেমেন্ট বা কত ডিউ।"*
+                       একই রোগীর (মোবাইল দিয়ে, মোবাইল না থাকলে নাম দিয়ে) সব Referral Income
+                       এন্ট্রি একটাই সারিতে জমা হয় — সারিতে সবচেয়ে নতুন এন্ট্রির
+                       তারিখ+সময় ও মোট টাকা, নামে ক্লিকে Patient
+                       Timeline, টাকায় ক্লিকে ব্রেকডাউন (প্রতিটা তারিখের জমা +
+                       Paid/Due, সেখান থেকেই আগের মতো এডিট/ডিলিট)।
+                       ⛔ Call/Referred Patient সারি এক অক্ষরও বদলায়নি। */
+                    data class RefIncomeGroup(val key: String, var patient: String, val mobile: String, val entries: MutableList<RefIncomeLine> = mutableListOf())
+                    val refGroups = LinkedHashMap<String, RefIncomeGroup>()
                     data.refIncome.forEach { r ->
-                        // 🔒 14.08.2026, TK live-test correction: Referral Income
-                        // is an RMP money record, not a route to the patient's
-                        // Report Card. A single tap must therefore do nothing;
-                        // three quick taps open only the approved Edit/Delete
-                        // dialog below. Referred Patient rows above keep their
-                        // existing Patient Timeline action unchanged.
-                        unified.add(UnifiedRow(r.rawDate, FollowUpModel.displayDate(r.date), "Referral Income", "#C98A1E", "", "${r.patient} \u2014 \u20B9${"%,.0f".format(r.amount)} \u00b7 ${if (r.status.equals("Paid", true)) "Paid" else "Due"}", null, highlightName = null, onEdit = { openReferralEdit(item, r.id, r.amount, r.status, r.date, r.patient, r.mobile) }))
+                        val mob10 = r.mobile.filter { it.isDigit() }.takeLast(10)
+                        val key = if (mob10.length == 10) "m:$mob10" else "n:${r.patient.trim().lowercase(java.util.Locale.US)}"
+                        val g = refGroups.getOrPut(key) { RefIncomeGroup(key, r.patient, mob10) }
+                        g.entries.add(r)
+                    }
+                    if (data.oneLedger) {
+                        /* 📒🔒 V1404 — একটাই খাতা: আয়ের সারি সার্ভারের রোগী-ধরে ভাঙা হিসাব
+                           থেকে (auto কমিশন + হাতে-লেখা এন্ট্রি একসাথে, একই রোগী = একটাই সারি)।
+                           Note: "₹earned · Paid/Due ›" + নিচে "40% of ₹net treatment"।
+                           টাকা ছাড়া রোগী (Earned 0 · Paid 0) এখানে আসে না — সে শুধু Referred সারিতে। */
+                        for (b in data.breakdown) {
+                            if (b.earned <= 0.5 && b.paid <= 0.5 && b.due <= 0.5) continue
+                            val mob10 = b.mobile.filter { it.isDigit() }.takeLast(10)
+                            val key = if (mob10.length == 10) "m:$mob10" else "n:${b.name.trim().lowercase(java.util.Locale.US)}"
+                            val g = refGroups[key] ?: refGroups.values.firstOrNull { it.patient.trim().equals(b.name.trim(), ignoreCase = true) }
+                            val latest = g?.entries?.maxByOrNull { it.createdAt.ifBlank { it.date } }
+                            val setOn = b.setOn.take(10)
+                            val useLegacyDate = latest != null && latest.date.take(10) >= setOn
+                            val rawDate = if (useLegacyDate) latest!!.date else setOn
+                            val timeText = if (useLegacyDate) PaymentModel.displayTime12(latest!!.createdAt) else ""
+                            val dateText = FollowUpModel.displayDate(rawDate) + (if (timeText.isNotBlank()) "\n$timeText" else "")
+                            val line1 = when {
+                                b.due <= 0.5 -> "\u20B9${"%,.0f".format(b.earned)} \u00b7 Paid"
+                                b.paid <= 0.5 -> "\u20B9${"%,.0f".format(b.earned)} \u00b7 Due"
+                                else -> "\u20B9${"%,.0f".format(b.earned)} \u00b7 Due \u20B9${"%,.0f".format(b.due)}"
+                            }
+                            val line2 = when {
+                                b.cappedAmount != null -> "Fixed by Master \u20B9${"%,.0f".format(b.cappedAmount)}"
+                                b.mode.equals("PERCENT", true) && b.computed > 0.5 -> "${"%,.0f".format(b.value)}% of \u20B9${"%,.0f".format(b.netPaid)} treatment"
+                                b.mode.equals("AMOUNT", true) && b.computed > 0.5 -> "Fixed \u20B9${"%,.0f".format(b.value)}"
+                                b.source.equals("LEGACY", true) || (b.computed <= 0.5 && (b.legacyPaid > 0.5 || b.legacyDue > 0.5)) -> "Entered by hand"
+                                else -> "No treatment payment yet"
+                            }
+                            val sp = android.text.SpannableStringBuilder()
+                            sp.append(line1)
+                            val amtEnd = line1.indexOf(' ').let { if (it < 0) line1.length else it }
+                            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#1457B8")), 0, amtEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            val stColor = if (b.due <= 0.5) "#0C8F3A" else "#B42318"
+                            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(stColor)), amtEnd, line1.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            val subStart = sp.length + 1
+                            sp.append("\n").append(line2)
+                            sp.setSpan(android.text.style.RelativeSizeSpan(0.82f), subStart, sp.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#64748B")), subStart, sp.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), subStart, sp.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            val onNameTap: (() -> Unit)? = if (mob10.length == 10) { { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", mob10)) } } else null
+                            val onAmountTap: () -> Unit = { openBreakdown("Due") }
+                            unified.add(UnifiedRow(rawDate, dateText, b.name.ifBlank { mob10 }, "#1457B8", "", sp, null, highlightName = null, onEdit = null, onNameTap = onNameTap, onAmountTap = onAmountTap))
+                        }
+                    } else refGroups.values.forEach { g ->
+                        val latest = g.entries.maxByOrNull { it.createdAt.ifBlank { it.date } } ?: return@forEach
+                        g.patient = latest.patient.ifBlank { g.patient }
+                        val total = g.entries.sumOf { it.amount }
+                        val paidSum = g.entries.filter { it.status.equals("Paid", true) }.sumOf { it.amount }
+                        val dueSum = (total - paidSum).coerceAtLeast(0.0)
+                        val noteText = when {
+                            dueSum <= 0.5 -> "\u20B9${"%,.0f".format(total)} \u00b7 Paid"
+                            paidSum <= 0.5 -> "\u20B9${"%,.0f".format(total)} \u00b7 Due"
+                            else -> "\u20B9${"%,.0f".format(total)} (Paid \u20B9${"%,.0f".format(paidSum)} \u00b7 Due \u20B9${"%,.0f".format(dueSum)})"
+                        }
+                        val timeText = PaymentModel.displayTime12(latest.createdAt)
+                        val dateText = FollowUpModel.displayDate(latest.date) + (if (timeText.isNotBlank()) "\n$timeText" else "")
+                        val onNameTap: (() -> Unit)? = if (g.mobile.length == 10) { { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", g.mobile)) } } else null
+                        val onAmountTap: () -> Unit = { showReferralBreakdown(item, g.patient, g.entries.sortedByDescending { it.createdAt.ifBlank { it.date } }) }
+                        unified.add(UnifiedRow(latest.date, dateText, g.patient, "#1457B8", "", noteText, null, highlightName = null, onEdit = null, onNameTap = onNameTap, onAmountTap = onAmountTap))
                     }
                     unified.sortByDescending { it.rawDate }
 
                     scrollBody.addView(TextView(this@DoctorVisitActivity).apply {
-                        text = "\uD83D\uDCCB Total Entries: ${unified.size}"; textSize = 12.5f
+                        text = if (viewAllLoaded) "\uD83D\uDCCB Total Entries: ${unified.size}" else "\uD83D\uDCCB Total Entries: \u2026"; textSize = 12.5f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
                         setTextColor(android.graphics.Color.parseColor("#0F5C42"))
                         setBackgroundColor(android.graphics.Color.parseColor("#E6F4EE"))
@@ -3148,7 +3553,11 @@ class DoctorVisitActivity : AppCompatActivity() {
 
                     if (unified.isEmpty()) {
                         scrollBody.addView(TextView(this@DoctorVisitActivity).apply {
-                            text = NoBengali.s("কোনো কল/রেফারেল/আয় এখনো লগ হয়নি"); textSize = 12.5f
+                            text = when {
+                                viewAllLoaded -> NoBengali.s("কোনো কল/রেফারেল/আয় এখনো লগ হয়নি")
+                                viewAllFailed -> "Could not load details — check connection and try again"
+                                else -> "Loading referred patients, calls and income…"
+                            }; textSize = 12.5f
                             setTextColor(android.graphics.Color.parseColor("#8A97A8"))
                             setPadding(dgpx(16), dgpx(20), dgpx(16), dgpx(20))
                         })
@@ -3165,13 +3574,16 @@ class DoctorVisitActivity : AppCompatActivity() {
                         val measureSub = android.graphics.Paint().apply { typeface = boldTf; textSize = 8.5f * resources.displayMetrics.scaledDensity }
                         val measureHead = android.graphics.Paint().apply { typeface = boldTf; textSize = 9.5f * resources.displayMetrics.scaledDensity }
                         var dateTimeColPx = measureHead.measureText("Date/Time")
-                        var typeByColPx = measureHead.measureText("Type / By")
+                        var typeByColPx = measureHead.measureText("Type / Patient")
                         for (u in unified) {
-                            dateTimeColPx = maxOf(dateTimeColPx, measureMain.measureText(u.dateText))
+                            // 🎨🔒 V1404 — তারিখের নিচে সময় (দ্বিতীয় লাইন): লাইন ধরে ধরে মাপা
+                            for (ln in u.dateText.split("\n")) dateTimeColPx = maxOf(dateTimeColPx, measureMain.measureText(ln))
                             typeByColPx = maxOf(typeByColPx, measureMain.measureText(u.typeText), measureSub.measureText(u.byText.ifBlank { "\u2014" }))
                         }
                         val dateTimeColWidth = dateTimeColPx.toInt() + cellPadPx
-                        val typeByColWidth = typeByColPx.toInt() + cellPadPx
+                        // 🎨🔒 V1404 — রোগীর লম্বা নাম Note-এর জায়গা খেয়ে ফেলবে না: এই কলাম
+                        // পর্দার ৩৮%-এর বেশি নয়, লম্বা নাম দ্বিতীয় লাইনে নামে (maxLines=2)।
+                        val typeByColWidth = minOf(typeByColPx.toInt() + cellPadPx, (resources.displayMetrics.widthPixels * 0.38f).toInt())
 
                         fun tableCellBorder() = android.graphics.drawable.GradientDrawable().apply {
                             setColor(android.graphics.Color.WHITE)
@@ -3198,7 +3610,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                             setPadding(dgpx(8), dgpx(7), dgpx(8), dgpx(7))
                         }
                         headRow.addView(headCell("Date/Time", dateTimeColWidth))
-                        headRow.addView(headCell("Type / By", typeByColWidth))
+                        headRow.addView(headCell("Type / Patient", typeByColWidth))
                         headRow.addView(TextView(this@DoctorVisitActivity).apply {
                             layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                             text = "Note"; textSize = 9.5f; setTextColor(android.graphics.Color.WHITE)
@@ -3235,7 +3647,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 background = tableCellBorder()
                                 addView(TextView(this@DoctorVisitActivity).apply {
                                     text = u.dateText; textSize = 9.3f; setTextColor(android.graphics.Color.parseColor("#334155"))
-                                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                                    maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END   // 🎨🔒 V1404 — তারিখের নিচে সময়
                                 })
                             })
                             row.addView(android.widget.LinearLayout(this@DoctorVisitActivity).apply {
@@ -3243,10 +3655,17 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 layoutParams = android.widget.LinearLayout.LayoutParams(typeByColWidth, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
                                 setPadding(dgpx(8), dgpx(8), dgpx(8), dgpx(8))
                                 background = tableCellBorder()
+                                // 🎨🔒 V1385 — consolidated Referral Income সারিতে এই ঘরে
+                                // পেশেন্টের নাম, ট্যাপে Patient Timeline (onNameTap != null হলেই)।
+                                if (u.onNameTap != null) {
+                                    isClickable = true; isFocusable = true
+                                    setOnClickListener { u.onNameTap.invoke() }
+                                }
                                 addView(TextView(this@DoctorVisitActivity).apply {
-                                    text = u.typeText; textSize = 9.3f; setTextColor(android.graphics.Color.parseColor(u.typeColorHex))
+                                    text = if (u.onNameTap != null) "${u.typeText} ›" else u.typeText
+                                    textSize = 9.3f; setTextColor(android.graphics.Color.parseColor(u.typeColorHex))
                                     setTypeface(typeface, android.graphics.Typeface.BOLD)
-                                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                                    maxLines = 2; ellipsize = if (u.onNameTap != null) null else android.text.TextUtils.TruncateAt.END
                                 })
                                 if (u.byText.isNotBlank()) {
                                     addView(TextView(this@DoctorVisitActivity).apply {
@@ -3271,6 +3690,10 @@ class DoctorVisitActivity : AppCompatActivity() {
                                     sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#1457B8")), 0, u.highlightName.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                                     sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, u.highlightName.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                                     text = sp
+                                } else if (u.onAmountTap != null) {
+                                    // 🎨🔒 V1385 — consolidated Referral Income-এর মোট টাকা,
+                                    // ট্যাপে ব্রেকডাউন খোলে — একটা ছোট ইঙ্গিত-চিহ্ন সহ।
+                                    text = android.text.SpannableStringBuilder(u.noteText).append("  ›")
                                 } else {
                                     text = u.noteText
                                 }
@@ -3279,6 +3702,10 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
                                 setPadding(dgpx(8), dgpx(8), dgpx(8), dgpx(8))
                                 background = tableCellBorder()
+                                if (u.onAmountTap != null) {
+                                    isClickable = true; isFocusable = true
+                                    setOnClickListener { u.onAmountTap.invoke() }
+                                }
                             })
                             // V376 live-device root cause: the three visible
                             // cells fill the row and receive the finger touch;
@@ -3311,6 +3738,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 fsDialog = AlertDialog.Builder(this@DoctorVisitActivity).setView(root).create()
                 fsDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                 fsDialog.show()
+                try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
                 // 🔒 TK-ORDER (30.07.2026 · খাতার সারি B156, **দ্বিতীয়বার বলতে
                 // হয়েছে**): শুধু window MATCH_PARENT করলে হয় না — AlertDialog-এর
                 // নিজের কনটেইনারগুলো WRAP_CONTENT, তাই পর্দা অর্ধেক আসত।
@@ -3330,10 +3758,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                         // With cache, keep the last successful snapshot quietly on screen.
                         if (cachedViewAllData == null) {
                             Toast.makeText(this@DoctorVisitActivity, "Could not load details — check connection and try again", Toast.LENGTH_SHORT).show()
+                            viewAllFailed = true   // 🔴 V1357 — "Loading…" লেখায় আটকে থাকবে না
+                            renderBody()
                         }
                         return@launch
                     }
                     data = real
+                    viewAllLoaded = true
                     saveViewAllCache(real)
                     renderBody()
                 }
@@ -3619,6 +4050,7 @@ class DoctorVisitActivity : AppCompatActivity() {
 
         val noBranchChosen = user.role == "master" &&
             (branchFilter.isBlank() || branchFilter == BRANCH_NONE)
+        var cloudChecked = false   // 🔴 V1356 — ক্লাউড মেলানো শেষ হলে তবেই "NOBODY IS PENDING"
 
         fun render(list: List<Triple<DoctorVisitItem, Pair<Double, Double>, Boolean>>) {
             scrollBody.removeAllViews()
@@ -3637,7 +4069,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                 })
                 return
             }
-            if (list.isEmpty()) {
+            // 🔴🔒 V1356 (TK-রিপোর্ট, ছবিসহ): ক্লাউডের উত্তর আসার আগেই ফোনের পুরনো
+            //    হিসাবে "NOBODY IS PENDING ₹0" দেখাত, এক সেকেন্ড পরে ৪ জনের ₹13,902 —
+            //    ভুল তথ্য সামনে আসত। এখন যতক্ষণ ক্লাউড মেলানো বাকি, "CHECKING CLOUD"।
+            if (list.isEmpty() && !cloudChecked) {
+                totalBox.text = "CHECKING CLOUD\nVerifying pending referral money…"
+                totalAmount.text = ""
+            } else if (list.isEmpty()) {
                 totalBox.text = "NOBODY IS PENDING\nEvery RMP is fully settled"
                 totalAmount.text = money(0.0)
             } else {
@@ -3647,7 +4085,8 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
             if (list.isEmpty()) {
                 scrollBody.addView(TextView(this).apply {
-                    text = "No RMP of this branch has any pending referral money"
+                    text = if (cloudChecked) "No RMP of this branch has any pending referral money"
+                           else "Please wait — checking the cloud for pending referral money"
                     textSize = 12.5f
                     setTextColor(android.graphics.Color.parseColor("#8A97AB"))
                     setPadding(dp(8), dp(20), dp(8), dp(20))
@@ -3667,6 +4106,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             .sortedByDescending { it.second.second }
         render(rows)
         fsDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
         forceDialogFullScreen(fsDialog, root)
 
         // ধাপ ২ — শুধু এই তালিকার (সর্বোচ্চ ২৫) RMP-র সংখ্যা ক্লাউডে মিলিয়ে
@@ -3721,8 +4161,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                 rows = merged.values.toList()
                     .filter { it.second.second > 0.0 }
                     .sortedByDescending { it.second.second }
+                cloudChecked = true
                 render(rows)
-            } catch (_: Throwable) { }
+            } catch (_: Throwable) {
+                // 🔴 V1356 — ক্লাউড ব্যর্থ হলেও "CHECKING" লেখায় আটকে থাকবে না; ফোনের হিসাবই দেখায়
+                cloudChecked = true
+                try { if (!isFinishing && !isDestroyed && fsDialog.isShowing) render(rows) } catch (_: Throwable) { }
+            }
         }
     }
 
@@ -3951,6 +4396,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
 
         fsDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
         forceDialogFullScreen(fsDialog, root)
         loadAndRender()
     }
@@ -3978,7 +4424,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     // can change: every line of the matching and adding below is
                     // left word for word, and if a narrowed read ever fails,
                     // fetchListSlim asks for every column again by itself.
-                    val pats = SupabaseClient.fetchListSlim("patients", null, 5000, "id,name,mobile,bill,refBy,refDoctorMobile,registrationDate,date,updatedAt")
+                    val pats = SupabaseClient.fetchListSlim("patients", null, 5000, "id,name,mobile,bill,refBy,refDoctor,refDoctorMobile,registrationDate,date,updatedAt")
                     val pays = SupabaseClient.fetchListSlim("payments", null, 5000, "id,mobile,amount,payType,refundApprovalStatus,updatedAt")
                     val paidByMobile = HashMap<String, Double>()
                     // 🔴🔴 TK-অডিট-অনুরোধ (01.08.2026, প্রজেক্ট-জোড়া যাচাই): Refund
@@ -3989,7 +4435,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     for (i in 0 until pays.length()) {
                         val p = pays.optJSONObject(i) ?: continue
                         val payType = p.optString("payType", "")
-                        if (payType == "visit_fee" || payType == "attendance_mark") continue
+                        if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                         val paidEffect = when {
                             PaymentModel.isApprovedRefund(p) -> -p.optDouble("amount", 0.0)
                             PaymentModel.isRefundRow(p) -> 0.0
@@ -4005,9 +4451,14 @@ class DoctorVisitActivity : AppCompatActivity() {
                     for (i in 0 until pats.length()) {
                         val pat = pats.optJSONObject(i) ?: continue
                         val refBy = pat.s("refBy").trim().lowercase()
+                        // 🔴🔒 V1362 — refDoctor যোগ (V1356-এর একই কারণ)।
+                        val refDoc = pat.s("refDoctor").trim().lowercase()
                         val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                        val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
+                        val hit = (refBy.isNotBlank() && refBy == docName) || (refDoc.isNotBlank() && refDoc == docName) ||
+                            (refMob.isNotBlank() && refMob == docMobile)
                         if (!hit) continue
+                        // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চ থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
+                        if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue
                         val m = pat.s("mobile").filter { it.isDigit() }.takeLast(10)
                         val bill = pat.optDouble("bill", 0.0)
                         val paid = paidByMobile[m] ?: 0.0
@@ -4028,6 +4479,73 @@ class DoctorVisitActivity : AppCompatActivity() {
                 Toast.makeText(this@DoctorVisitActivity, "Could not load referral income — check connection and try again", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    /** 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — একই রোগীর জন্য জমা
+     *  হওয়া সব Referral Income এন্ট্রির ব্রেকডাউন: কোন তারিখে কত, Paid না Due,
+     *  আর সব মিলিয়ে মোট কত Paid/Due। প্রতিটা সারিতে চাপলে আগের মতোই
+     *  (openReferralEdit) এডিট/ডিলিট করা যায়। */
+    private fun showReferralBreakdown(item: DoctorVisitItem, patient: String, entries: List<RefIncomeLine>) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        val parts = premiumDialogShell("📒", "Referral Income — $patient")
+        val container = parts.body
+
+        val totalPaid = entries.filter { it.status.equals("Paid", true) }.sumOf { it.amount }
+        val totalDue = (entries.sumOf { it.amount } - totalPaid).coerceAtLeast(0.0)
+
+        for (e in entries) {
+            val isPaid = e.status.equals("Paid", true)
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(4), dp(10), dp(4), dp(10))
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    parts.dialog.dismiss()
+                    openReferralEdit(item, e.id, e.amount, e.status, e.date, e.patient, e.mobile)
+                }
+            }
+            row.addView(TextView(this).apply {
+                val t = PaymentModel.displayTime12(e.createdAt)
+                text = FollowUpModel.displayDate(e.date) + (if (t.isNotBlank()) "\n$t" else "")
+                textSize = 12f; setTextColor(android.graphics.Color.parseColor("#7A8699"))
+                layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(TextView(this).apply {
+                text = "₹${"%,.0f".format(e.amount)}   ${if (isPaid) "Paid" else "Due"}"
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(if (isPaid) "#0C9E33" else "#C0392B"))
+            })
+            container.addView(row)
+            container.addView(android.widget.LinearLayout(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                setBackgroundColor(android.graphics.Color.parseColor("#E3E8EC"))
+            })
+        }
+
+        container.addView(TextView(this).apply {
+            text = when {
+                totalDue <= 0.5 -> "Total — ₹${"%,.0f".format(totalPaid)}  · all Paid"
+                totalPaid <= 0.5 -> "Total — ₹${"%,.0f".format(totalDue)}  · all Due"
+                else -> "Total — Paid ₹${"%,.0f".format(totalPaid)}  ·  Due ₹${"%,.0f".format(totalDue)}"
+            }
+            textSize = 13f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#10223A"))
+            setPadding(dp(4), dp(14), dp(4), dp(2))
+        })
+        container.addView(TextView(this).apply {
+            text = "Tap any row to edit or delete that entry."
+            textSize = 11f; setTextColor(android.graphics.Color.parseColor("#98A2B3"))
+            setPadding(dp(4), dp(4), dp(4), dp(2))
+        })
+
+        parts.actionRow.addView(pillButton("Close", "#0F8F6F").apply {
+            setOnClickListener { parts.dialog.dismiss() }
+        })
+        parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }
     }
 
     /** 🟢 B628 (11.08.2026, TK-নির্দেশ): Referral Income এন্ট্রি এডিট (তিনবার-চাপ)।
@@ -4082,7 +4600,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         submitReferralChange(item, entryId, patient, patientMobile, entryDate, curAmount, curStatus, curAmount, curStatus, isDelete = true, isMaster = isMaster, sameDay = sameDay, u = u)
                     }
                     .setNegativeButton("Cancel", null)
-                    .show()
+                    .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         })
         parts.actionRow.addView(pillButton("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
@@ -4100,6 +4618,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         // V377: this was the missing final step. The dialog shell and all
         // Edit/Delete controls were built correctly but never displayed.
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** 🟢 B628: এডিট/ডিলিট প্রয়োগ — মাস্টার/একই-দিন সরাসরি; নইলে মাস্টারকে অনুরোধ। */
@@ -4177,21 +4696,100 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 🟢🔒🔒 V661 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ — "Google sheets এর
+     * মত থাকতে হবে... তারিখ এবং সময় লাগবে") — আগে সাদামাটা bullet-list
+     * (`AlertDialog.setItems`) ছিল, এখন IncomeExpenseActivity-র প্রমাণিত
+     * "Google Sheet" বক্স-টেবিল ছাঁচেই (হেডার সবুজ, বর্ডার-করা কোষ) —
+     * Date · Time · Amount · Mode চারটে কলাম।
+     * ⛔ সারিতে চাপলে (available থাকলে) আগের মতোই `showRmpAdvancePatientPicker`
+     *    খোলে — adjust করার ক্ষমতা/অনুমতি এক অক্ষরও বদলায়নি, শুধু দেখানোর ধরন।
+     */
     private fun showRmpAdvancePayments(item: DoctorVisitItem) {
         lifecycleScope.launch {
             val got = withContext(Dispatchers.IO) { RmpCommissionRepository.advancePayments(item.id) }
             if (!got.ok) { Toast.makeText(this@DoctorVisitActivity, got.message, Toast.LENGTH_LONG).show(); return@launch }
             val rows = got.value ?: emptyList()
-            val availableRows = rows.filter { it.available > 0.001 }
             val total = rows.sumOf { it.amount }; val allocated = rows.sumOf { it.allocated }; val available = total - allocated
-            val labels = mutableListOf("Paid: ₹${"%,.2f".format(total)}  ·  Adjusted: ₹${"%,.2f".format(allocated)}  ·  Available: ₹${"%,.2f".format(available)}")
-            labels.addAll(availableRows.map { "${FollowUpModel.displayDate(it.paidOn)} · ₹${"%,.2f".format(it.available)} available · ${it.mode}" })
+
+            val dpx = { v: Int -> (v * resources.displayMetrics.density).toInt() }
+            fun boxCell(text: String, weight: Float, bg: String, fg: String, bold: Boolean): TextView =
+                TextView(this@DoctorVisitActivity).apply {
+                    this.text = text; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor(fg))
+                    if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(dpx(6), dpx(8), dpx(6), dpx(8))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(android.graphics.Color.parseColor(bg))
+                        setStroke(dpx(1), android.graphics.Color.parseColor("#D9E2EC"))
+                    }
+                }
+
+            val table = LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            // হেডার
+            table.addView(LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(boxCell("Date", 1.1f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Time", 0.9f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Amount", 1f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Mode", 0.8f, "#0A7C3F", "#FFFFFF", true))
+            })
+            // ডেটা সারি
+            for ((idx, r) in rows.withIndex()) {
+                val bg = if (idx % 2 == 0) "#FFFFFF" else "#F7FBF8"
+                // 🟢🔒 V661 — recorded_at থেকে সময়টুকু বার করা (আগে থেকেই
+                // ছিল, শুধু sort-এর জন্য ব্যবহার হতো, এখন দেখানোও হয়)।
+                val timeTxt = try {
+                    val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                        .parse(r.recordedAt.take(19))
+                    java.text.SimpleDateFormat("h.mm a", java.util.Locale.US).format(d!!)
+                } catch (_: Throwable) { "—" }
+                val row = LinearLayout(this@DoctorVisitActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    if (r.available > 0.001) {
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { showRmpAdvancePatientPicker(item, r) }
+                    }
+                }
+                row.addView(boxCell(FollowUpModel.displayDate(r.paidOn), 1.1f, bg, "#41506A", false))
+                row.addView(boxCell(timeTxt, 0.9f, bg, "#41506A", false))
+                row.addView(boxCell("₹${"%,.0f".format(r.available)}", 1f, bg, "#0A5C33", true))
+                row.addView(boxCell(r.mode, 0.8f, bg, "#41506A", false))
+                table.addView(row)
+            }
+            if (rows.isEmpty()) table.addView(TextView(this@DoctorVisitActivity).apply {
+                text = "No advance payment yet."; textSize = 12f; setPadding(dpx(8), dpx(10), dpx(8), dpx(10))
+                setTextColor(android.graphics.Color.parseColor("#667085"))
+            })
+
+            val summary = TextView(this@DoctorVisitActivity).apply {
+                text = "Paid ₹${"%,.0f".format(total)}   ·   Adjusted ₹${"%,.0f".format(allocated)}   ·   Available ₹${"%,.0f".format(available)}"
+                textSize = 12.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+                setPadding(dpx(10), dpx(9), dpx(10), dpx(9))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#EAF6EE")); cornerRadius = dpx(10).toFloat()
+                }
+            }
+            val outer = LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dpx(14), dpx(10), dpx(14), dpx(4))
+                addView(summary)
+                addView(android.view.View(this@DoctorVisitActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpx(10))
+                })
+                addView(table)
+            }
+            val scroll = android.widget.ScrollView(this@DoctorVisitActivity).apply { addView(outer) }
+
             AlertDialog.Builder(this@DoctorVisitActivity)
                 .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Advance Payment — ${item.name}"))
-                .setItems(labels.toTypedArray()) { _, which ->
-                    if (which > 0) showRmpAdvancePatientPicker(item, availableRows[which - 1])
-                    else if (availableRows.isEmpty()) Toast.makeText(this@DoctorVisitActivity, "No unallocated payment", Toast.LENGTH_SHORT).show()
-                }
+                .setView(scroll)
                 .setNegativeButton("Close", null).show().also { PremiumAlert.paint(it) }
         }
     }
@@ -4255,6 +4853,169 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       📒🔒 V1404 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ, খাতার সারি ৫১১) —
+       RMP-র Earned / Paid / Due বক্স চাপলে **রোগী-ধরে** ভাঙা হিসাব:
+       Patient · Earned · Paid · Due — সংখ্যাগুলো ডেটাবেসের একই নিয়ম থেকে, তাই
+       বক্সের মোটের সাথে সবসময় মেলে (TK: *"₹4 কোন পেশেন্টের জন্য বাকি?"*)।
+       · নামে ট্যাপ → Patient Timeline
+       · হাতে-লেখা এন্ট্রি থাকলে "✎ hand entries" → আগের এডিট/ডিলিট পর্দা (V1385)
+       · Master: টাকার ঘরে ট্যাপ → "এখানেই বন্ধ" (কমিশন এখন যত দেওয়া হয়েছে
+         সেখানেই স্থির — আর বাড়বে না, কোথাও বাকি দেখাবে না) / আবার চালু
+       · "Pay RMP" → আগের RMP Payment পর্দা (V398)
+       ⛔ কোনো টাকা এখানে হিসাব করা হয় না — শুধু সার্ভারের সারি দেখানো হয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun showRmpPatientBreakdown(item: DoctorVisitItem, title: String,
+                                        rows: List<RmpCommissionRepository.PatientBreakdownRow>,
+                                        handEntries: List<RefIncomeLine>,
+                                        earned: Double, paid: Double, due: Double,
+                                        onChanged: () -> Unit) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        fun rs(v: Double) = "₹${"%,.0f".format(v)}"
+        val parts = premiumDialogShell("💰", "$title — ${item.name} (patient wise)")
+        val body = parts.body
+        body.setPadding(dp(8), dp(8), dp(8), dp(4))
+        val isMaster = ModuleAuth.isMaster
+
+        fun cell(t: CharSequence, weight: Float, colorHex: String, size: Float, bold: Boolean, right: Boolean) = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+            text = t; textSize = size; setTextColor(android.graphics.Color.parseColor(colorHex))
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = if (right) android.view.Gravity.END else android.view.Gravity.START
+            setPadding(dp(4), dp(8), dp(4), dp(8))
+        }
+        body.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(android.graphics.Color.parseColor("#0F5C42"))
+            addView(cell("Patient", 1.7f, "#FFFFFF", 10.5f, true, false))
+            addView(cell("Earned", 1f, "#FFFFFF", 10.5f, true, true))
+            addView(cell("Paid", 1f, "#FFFFFF", 10.5f, true, true))
+            addView(cell("Due", 0.9f, "#FFFFFF", 10.5f, true, true))
+        })
+        if (rows.isEmpty()) {
+            body.addView(TextView(this).apply {
+                text = "No commission patient yet"; textSize = 12.5f
+                setTextColor(android.graphics.Color.parseColor("#8A97A8")); setPadding(dp(8), dp(16), dp(8), dp(16))
+            })
+        }
+        val sorted = rows.sortedWith(compareByDescending<RmpCommissionRepository.PatientBreakdownRow> { it.due }.thenByDescending { it.earned })
+        for (b in sorted) {
+            val mob10 = b.mobile.filter { it.isDigit() }.takeLast(10)
+            val sub = when {
+                b.cappedAmount != null -> "Fixed by Master ${rs(b.cappedAmount)}"
+                b.mode.equals("PERCENT", true) && b.computed > 0.5 -> "${"%,.0f".format(b.value)}% of ${rs(b.netPaid)}"
+                b.mode.equals("AMOUNT", true) && b.computed > 0.5 -> "Fixed ${rs(b.value)}"
+                b.source.equals("LEGACY", true) || (b.computed <= 0.5 && (b.legacyPaid > 0.5 || b.legacyDue > 0.5)) -> "Entered by hand"
+                else -> "No treatment payment yet"
+            } + (if (b.setOn.isNotBlank()) " · ${FollowUpModel.displayDate(b.setOn.take(10))}" else "")
+            val myHand = handEntries.filter { e ->
+                val em = e.mobile.filter { it.isDigit() }.takeLast(10)
+                (mob10.length == 10 && em == mob10) || (em.length != 10 && e.patient.trim().equals(b.name.trim(), ignoreCase = true))
+            }
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.WHITE); setStroke(dp(1), android.graphics.Color.parseColor("#E2E8F0"))
+                }
+            }
+            val nameCol = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.7f)
+                setPadding(dp(4), dp(6), dp(4), dp(6))
+            }
+            nameCol.addView(TextView(this).apply {
+                text = (b.name.ifBlank { mob10 }) + (if (mob10.length == 10) " ›" else "")
+                textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#1457B8"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 2
+                if (mob10.length == 10) {
+                    isClickable = true; isFocusable = true
+                    setOnClickListener { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", mob10)) }
+                }
+            })
+            nameCol.addView(TextView(this).apply {
+                text = sub; textSize = 9f; setTextColor(android.graphics.Color.parseColor("#64748B")); maxLines = 2
+            })
+            if (myHand.isNotEmpty()) nameCol.addView(TextView(this).apply {
+                text = "✎ hand entries (${myHand.size})"; textSize = 9.5f
+                setTextColor(android.graphics.Color.parseColor("#7A3FF2")); setTypeface(typeface, android.graphics.Typeface.BOLD)
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    parts.dialog.dismiss()
+                    showReferralBreakdown(item, b.name.ifBlank { mob10 }, myHand.sortedByDescending { it.createdAt.ifBlank { it.date } })
+                }
+            })
+            row.addView(nameCol)
+            val dueColor = if (b.due > 0.5) "#B42318" else "#0C8F3A"
+            val cEarned = cell(rs(b.earned), 1f, "#10223A", 11f, false, true)
+            val cPaid = cell(rs(b.paid), 1f, "#10223A", 11f, false, true)
+            val cDue = cell(rs(b.due), 0.9f, dueColor, 11f, true, true)
+            row.addView(cEarned); row.addView(cPaid); row.addView(cDue)
+            if (isMaster) {
+                val capAction: () -> Unit = {
+                    if (b.patientRowId.isBlank()) {
+                        Toast.makeText(this, "Hand-entered only — nothing to stop here", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val capped = b.cappedAmount != null
+                        val nm = b.name.ifBlank { mob10 }
+                        val msg = if (!capped)
+                            "No further commission for $nm?\n\nCommission will be fixed at ${rs(b.paid)} (paid so far). It will not grow even if more treatment money comes, and nothing more will show as Due."
+                        else
+                            "Commission for $nm is fixed at ${rs(b.cappedAmount!!)} by Master.\n\nResume automatic commission (${"%,.0f".format(b.value)}${if (b.mode.equals("PERCENT", true)) "%" else ""})?"
+                        AlertDialog.Builder(this)
+                            .setCustomTitle(PremiumAlert.header(this, if (!capped) "Stop commission — $nm" else "Resume commission — $nm"))
+                            .setMessage(msg)
+                            .setPositiveButton(if (!capped) "Stop here" else "Resume") { _, _ ->
+                                lifecycleScope.launch {
+                                    val res = withContext(Dispatchers.IO) {
+                                        RmpCommissionRepository.capPatient(b.patientRowId, item.id, if (!capped) b.paid else null)
+                                    }
+                                    if (!res.ok) { Toast.makeText(this@DoctorVisitActivity, res.message.ifBlank { "Could not save" }, Toast.LENGTH_LONG).show(); return@launch }
+                                    Toast.makeText(this@DoctorVisitActivity, if (!capped) "Commission stopped for $nm" else "Commission resumed for $nm", Toast.LENGTH_SHORT).show()
+                                    val pairFb = withContext(Dispatchers.IO) {
+                                        RmpCommissionRepository.rmpSummary(item.id) to RmpCommissionRepository.patientBreakdown(item.id)
+                                    }
+                                    val fresh: RmpCommissionRepository.RepoResult<RmpCommissionRepository.RmpSummary> = pairFb.first
+                                    val bd: RmpCommissionRepository.RepoResult<List<RmpCommissionRepository.PatientBreakdownRow>> = pairFb.second
+                                    if (isFinishing || isDestroyed) return@launch
+                                    parts.dialog.dismiss()
+                                    onChanged()
+                                    val sN: RmpCommissionRepository.RmpSummary? = fresh.value
+                                    if (sN != null && bd.ok && bd.value != null)
+                                        showRmpPatientBreakdown(item, title, bd.value, handEntries, sN.earned, sN.paid, sN.due, onChanged)
+                                }
+                            }
+                            .setNegativeButton("Cancel", null).show().also { PremiumAlert.paint(it) }
+                    }
+                }
+                for (c in listOf(cEarned, cPaid, cDue)) { c.isClickable = true; c.isFocusable = true; c.setOnClickListener { capAction() } }
+            }
+            body.addView(row)
+        }
+        val total = android.text.SpannableStringBuilder("Total — Earned ${rs(earned)} · Paid ${rs(paid)} · ")
+        val dueStart = total.length
+        total.append("Due ${rs(due)}")
+        total.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(if (due > 0.5) "#B42318" else "#0C8F3A")), dueStart, total.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        total.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), dueStart, total.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        body.addView(TextView(this).apply {
+            text = total; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#10223A"))
+            setBackgroundColor(android.graphics.Color.parseColor("#F1F5F9")); setPadding(dp(8), dp(10), dp(8), dp(10))
+        })
+        if (isMaster) body.addView(TextView(this).apply {
+            text = "Master: tap a patient's amount to stop or resume their commission"; textSize = 9.5f
+            setTextColor(android.graphics.Color.parseColor("#94A3B8")); setPadding(dp(8), dp(6), dp(8), dp(2))
+        })
+        parts.actionRow.addView(pillButton("Pay RMP", "#145A32").apply {
+            setOnClickListener { parts.dialog.dismiss(); showRmpDirectPayment(item) { onChanged() } }
+        })
+        parts.actionRow.addView(pillButton("Close", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
+            setOnClickListener { parts.dialog.dismiss() }
+        })
+        parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
+    }
+
     private fun showRmpCommissionSummary(item: DoctorVisitItem) {
         lifecycleScope.launch {
             val (got, advanceGot) = withContext(Dispatchers.IO) {
@@ -4265,12 +5026,28 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
             val s = got.value
             val advanceRows = if (advanceGot.ok) (advanceGot.value ?: emptyList()) else emptyList()
-            val advanceAvailable = advanceRows.sumOf { it.available }
-            val paidIncludingAdvance = s.paid
-            val msg = "Patients: ${s.patientCount}\nCommission Earned: ₹${"%,.2f".format(s.earned)}\n" +
-                "Paid to this RMP: ₹${"%,.2f".format(paidIncludingAdvance)}\n" +
-                (if (advanceAvailable > 0) "Unallocated Advance: ₹${"%,.2f".format(advanceAvailable)}\n" else "") +
+            /* 📒🔒 V1404 (TK: *"এ গুলি কি হচ্ছে?"* — ডেমো পাশ): "Unallocated Advance" লাইনটা
+               বিভ্রান্ত করত (মনে হত টাকা কোথাও পড়ে আছে)। এখন এক লাইনে সহজ কথা —
+               Paid-এর ভিতরে কত টাকা RMP-কে সরাসরি দেওয়া, আর কত হাতে-লেখা এন্ট্রি। */
+            val directTotal = advanceRows.sumOf { it.amount }
+            val bdGot: RmpCommissionRepository.RepoResult<List<RmpCommissionRepository.PatientBreakdownRow>> =
+                withContext(Dispatchers.IO) { RmpCommissionRepository.patientBreakdown(item.id) }
+            val handRows = (bdGot.value ?: emptyList()).filter { it.legacyPaid > 0.5 }
+            val handTotal = handRows.sumOf { it.legacyPaid }
+            val handNames = handRows.map { it.name.ifBlank { it.mobile } }.filter { it.isNotBlank() }.distinct()
+            val composition = buildString {
+                if (directTotal > 0.5) append("Paid includes ₹${"%,.0f".format(directTotal)} given directly to the RMP (not tied to one patient)")
+                if (handTotal > 0.5) {
+                    append(if (isEmpty()) "Paid includes " else " and ")
+                    append("₹${"%,.0f".format(handTotal)} entered by hand")
+                    if (handNames.isNotEmpty()) append(" for ${handNames.take(3).joinToString(", ")}${if (handNames.size > 3) " …" else ""}")
+                }
+                if (isNotEmpty()) append(".")
+            }
+            val msg = "Patients: ${s.patientCount}\nEarned: ₹${"%,.2f".format(s.earned)}\n" +
+                "Paid: ₹${"%,.2f".format(s.paid)}\n" +
                 "Due: ₹${"%,.2f".format(s.due)}" +
+                (if (composition.isNotBlank()) "\n\n$composition" else "") +
                 (if (s.previousRmpPaid > 0) "\nPrevious RMP Paid: ₹${"%,.2f".format(s.previousRmpPaid)}" else "") +
                 (if (s.overpaid > 0) "\nMore Paid: ₹${"%,.2f".format(s.overpaid)}" else "")
             AlertDialog.Builder(this@DoctorVisitActivity)
@@ -4419,7 +5196,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         .show().also { PremiumAlert.paint(it) }
                     else AlertDialog.Builder(this@DoctorVisitActivity)
                         .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Payment is higher than Ref. Due"))
-                        .setMessage("Ref. Due: ₹${"%,.2f".format(due)}\nPayment: ₹${"%,.2f".format(pay)}\nMore: ₹${"%,.2f".format(pay - due)}\n\nএই বাড়তি টাকা শুধু Master অনুমোদন করতে পারেন।")
+                        .setMessage("Ref. Due: ₹${"%,.2f".format(due)}\nPayment: ₹${"%,.2f".format(pay)}\nMore: ₹${"%,.2f".format(pay - due)}\n\nOnly Master can approve this extra amount.")   /* 🔤 V726 */
                         .setPositiveButton("Close", null)
                         .show().also { PremiumAlert.paint(it) }
                 }
@@ -4427,6 +5204,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showRmpApprovalRequests(returnItem: DoctorVisitItem) {
@@ -4599,6 +5377,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showPatientCommission(item: DoctorVisitItem) {
@@ -4712,6 +5491,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showCommissionPayment(patient: PatientPhotoRepository.PatientRef, expectedRmpId: String) {
@@ -4722,7 +5502,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.parseColor("#145A32"))
         }
         body.addView(summaryText)
-        body.addView(fieldLabel("📅", "Payment Date"))
+        body.addView(fieldLabel("🧾", "Payment Date"))
         var paidOn = DoctorVisitModel.today()
         val dateValue = TextView(this).apply {
             text = FollowUpModel.displayDate(paidOn)
@@ -4833,6 +5613,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showCommissionPaymentHistory(patient: PatientPhotoRepository.PatientRef) {
@@ -4945,6 +5726,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** WebView parity (saveReferralIncome): records a referral commission entry
@@ -5022,12 +5804,20 @@ class DoctorVisitActivity : AppCompatActivity() {
         styleInput(amountInput)
         container.addView(amountInput)
 
-        container.addView(fieldLabel("📊", "Status"))
-        val statusSpinner = android.widget.Spinner(this).apply {
-            adapter = android.widget.ArrayAdapter(this@DoctorVisitActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Select Status", "Due", "Paid"))
+        /* 🔴🔒 V1399 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো ফটো পাশ) — এই ফর্মের কাজ
+           শুধু লিংক করা (কত টাকা) — টাকা সত্যিই দেওয়া হয়েছে কিনা এখানে
+           জিজ্ঞাসা করা বিভ্রান্তিকর ছিল। এখন সবসময় Due হয়েই সেভ হয়; এই
+           RMP-কে সত্যিই টাকা দেওয়ার সময় তাঁর নিজের Referral Income পাতা
+           থেকে (Edit → Paid, showLegacyReferralIncomeEdit) বসাতে হবে। */
+        val st = "Unpaid"
+        container.addView(TextView(this).apply {
+            text = "This links the patient to ${item.name} for the amount above — always saved as Due.\nTo actually pay ${item.name}, edit this entry from the Referral Income list and mark it Paid."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-        }
-        container.addView(statusSpinner)
+            setPadding((10 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt(), (10 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt())
+        })
 
         // TK-APPROVED ADDITION (31.07.2026): two new OPTIONAL fields so RMP
         // Message 4 (Referral Payment Confirmation) can show the real
@@ -5052,42 +5842,87 @@ class DoctorVisitActivity : AppCompatActivity() {
         })
         parts.actionRow.addView(pillButton("💾 Save", "#0C9E33").apply {
             setOnClickListener {
+                // 🔒🔒 V1381 — ডাবল-ট্যাপে দ্বিতীয়বার সেভ আটকানো।
+                if (referralSaving) return@setOnClickListener
                 val mobileDigits = mobileInput.text.toString().filter { it.isDigit() }.takeLast(10)
                 val amt = amountInput.text.toString().trim().toDoubleOrNull() ?: 0.0
                 if (mobileDigits.length != 10 || amt <= 0) {
                     Toast.makeText(this@DoctorVisitActivity, "Valid 10-digit mobile and referral amount required", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                if (statusSpinner.selectedItemPosition == 0) {
-                    Toast.makeText(this@DoctorVisitActivity, "Select Paid or Due", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                val st = if (statusSpinner.selectedItemPosition == 2) "Paid" else "Unpaid"
                 val payMode = modeSpinner.selectedItem.toString()
                 val refNo = refInput.text.toString().trim()
+                /* 🔴🔒 V1398 (১২.০৯.২০২৬, নিজের-অডিটে ধরা পড়া ভুল, TK-কে জানিয়ে) —
+                   V1381-এর লক আগে `lifecycleScope.launch`-এর **ভিতরে**, নেট-ডাক
+                   দুটো (findVisitPatient · todaysReferralLike) শেষ হওয়ার পরে
+                   বসত — অর্থাৎ দুই ট্যাপের মাঝের নেট-বিলম্বেই লকটা কার্যকর
+                   ছিলই না, refundSaving (PaymentActivity.kt)-এর প্রমাণিত নিয়মে
+                   ছিল না। এখন সেই নিয়মেই — ক্লিক হ্যান্ডলারেই সঙ্গে সঙ্গে লক। */
+                if (referralSaving) return@setOnClickListener
+                referralSaving = true
                 lifecycleScope.launch {
                     val patientRef = findVisitPatient(mobileDigits)   // 🔵 V530
                     if (patientRef == null) {
+                        referralSaving = false
                         Toast.makeText(this@DoctorVisitActivity, "No patient found with this mobile — check the number", Toast.LENGTH_LONG).show()
                         return@launch
                     }
-                    val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
-                    // TK-REPORTED FIX (2026-07-23): also link this patient's
-                    // own record back to this doctor (if not already linked
-                    // to someone) so "Referred Patients" count matches the
-                    // referral income just saved. Best-effort -- if this
-                    // part fails the income entry itself is still saved.
-                    if (ok) {
-                        withContext(Dispatchers.IO) {
-                            DoctorVisitRepository().linkReferringDoctorIfBlank(patientRef.id, item.name, item.mobile, applicationContext)
-                        }
+                    /* 🔒🔒 V1381 (TK-রিপোর্ট, ANAND KUMAR ₹3,250 দুইবার) — Refund/
+                       PatientTimeline-এর হুবহু একই "আজই একবার হয়ে গেছে" সতর্কতা। */
+                    val dup = withContext(Dispatchers.IO) { DoctorVisitRepository().todaysReferralLike(item.id, mobileDigits, amt) }
+                    if (dup != null) {
+                        val prevStatus = dup.optString("status")
+                        AlertDialog.Builder(this@DoctorVisitActivity)
+                            .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "⚠️ Same referral already today"))
+                            .setMessage(
+                                "A referral income of ₹${"%,.0f".format(amt)} for ${patientRef.name.ifBlank { mobileDigits }} " +
+                                "is already recorded today" +
+                                (if (prevStatus.isNotBlank()) " ($prevStatus)" else "") + ".\n\n" +
+                                "Adding again will add another ₹${"%,.0f".format(amt)} to this doctor's referral total.\n\n" +
+                                "Cancel = do nothing.  OK = add again anyway."
+                            )
+                            .setPositiveButton("OK, add again") { _, _ ->
+                                lifecycleScope.launch {
+                                    try {
+                                        val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
+                                        if (ok) {
+                                            withContext(Dispatchers.IO) {
+                                                DoctorVisitRepository().linkReferringDoctorIfBlank(patientRef.id, item.name, item.mobile, applicationContext)
+                                            }
+                                        }
+                                        Toast.makeText(this@DoctorVisitActivity, if (ok) "Referral income saved — ${patientRef.name}" else "Failed — check connection", Toast.LENGTH_SHORT).show()
+                                        if (ok) parts.dialog.dismiss()
+                                    } finally { referralSaving = false }
+                                }
+                            }
+                            .setNegativeButton("Cancel") { _, _ -> referralSaving = false }
+                            .setOnCancelListener { referralSaving = false }
+                            .show().also {
+                                PremiumAlert.paint(it)
+                                com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
+                            }
+                        return@launch
                     }
-                    Toast.makeText(this@DoctorVisitActivity, if (ok) "Referral income saved — ${patientRef.name}" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) parts.dialog.dismiss()
+                    try {
+                        val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
+                        // TK-REPORTED FIX (2026-07-23): also link this patient's
+                        // own record back to this doctor (if not already linked
+                        // to someone) so "Referred Patients" count matches the
+                        // referral income just saved. Best-effort -- if this
+                        // part fails the income entry itself is still saved.
+                        if (ok) {
+                            withContext(Dispatchers.IO) {
+                                DoctorVisitRepository().linkReferringDoctorIfBlank(patientRef.id, item.name, item.mobile, applicationContext)
+                            }
+                        }
+                        Toast.makeText(this@DoctorVisitActivity, if (ok) "Referral income saved — ${patientRef.name}" else "Failed — check connection", Toast.LENGTH_SHORT).show()
+                        if (ok) parts.dialog.dismiss()
+                    } finally { referralSaving = false }
                 }
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private data class Quad(val a: String, val b: Double, val c: Double, val d: Int)

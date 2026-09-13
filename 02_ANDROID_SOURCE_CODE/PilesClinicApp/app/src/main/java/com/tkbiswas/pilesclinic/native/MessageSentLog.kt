@@ -61,7 +61,7 @@ object MessageSentLog {
             ) ?: return null
             if (rows.length() == 0) return null
             val row = rows.getJSONObject(0)
-            val staffName = row.optString("sent_by_name", "").ifBlank { "অন্য স্টাফ" }
+            val staffName = row.s("sent_by_name").ifBlank { "অন্য স্টাফ" }   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
             val whenRaw = row.optString("sent_at", "")
             val whenText = try { DateUtil.displayWithTime(whenRaw) } catch (_: Throwable) { whenRaw }
             val channel = row.optString("channel", "")

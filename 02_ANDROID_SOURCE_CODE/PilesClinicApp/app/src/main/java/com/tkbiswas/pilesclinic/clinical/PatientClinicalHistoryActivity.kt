@@ -8,6 +8,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.tkbiswas.pilesclinic.R
+import com.tkbiswas.pilesclinic.native.NoBengali
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -15,8 +16,20 @@ import com.tkbiswas.pilesclinic.native.UppercaseInputUtil
 
 class PatientClinicalHistoryActivity : AppCompatActivity() {
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         setContentView(R.layout.activity_patient_history)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
 
@@ -66,7 +79,7 @@ class PatientClinicalHistoryActivity : AppCompatActivity() {
             } catch (_: Throwable) { null }
             if (rawRows == null) {
                 if (!hasCache) {
-                    tvEmpty.text = "লোড করা গেল না — একটু পরে আবার দেখুন"
+                    tvEmpty.text = NoBengali.s("লোড করা গেল না — একটু পরে আবার দেখুন")
                     tvEmpty.visibility = android.view.View.VISIBLE
                     rv.visibility = android.view.View.GONE
                 }

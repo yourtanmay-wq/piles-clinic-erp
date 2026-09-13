@@ -69,7 +69,7 @@ class FollowUpRepository(private val context: Context? = null) {
         //
         // If a column is ever ADDED to the live table, nothing breaks: the app
         // simply does not read it here, the same as before it existed.
-        private const val FOLLOWUP_COLS = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
+        private const val FOLLOWUP_COLS = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,noMoreCalls,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
         // 🔴🆕🔒 TK-নির্দেশ (08.08.2026) — Supabase Egress কমানো (মাসে ১০ GB > ৫ GB
         // ফ্রি সীমা = ২০৫%)। Follow-up তালিকা প্রতিবার খুললে সব রোগীর এই ৫টা বড়
         // লেখা-ঘরও নামত, অথচ তালিকায় এগুলো দেখানোই হয় না; শুধু ডাক্তার-চেকআপ/
@@ -78,7 +78,43 @@ class FollowUpRepository(private val context: Context? = null) {
         // ডেটা কম নামে। যাচাই: এই ৫টা ঘর FollowUp-এর কোনো ফাইলে পড়া হয় না
         // (আগের ছবি-বাদের মতোই নিরাপদ কৌশল)। বাদ: doctorFullNote · doctorAdvice ·
         // medicalHistory · previousTreatment · previousResult।
-        private const val PATIENT_COLS = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorComplete,id,mobile,name,occupation,patientId,previousCost,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+        private const val PATIENT_COLS = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorComplete,id,mobile,name,occupation,patientId,previousCost,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+
+        /* 📉🔒 V1259 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-কাজ · খাতার সারি ৩৮০) —
+           **Follow-up তালিকার `payments` পড়ায় ২২টা ঘরের বদলে ৭টা।**
+
+           TK: *"কোন ভাল কাজ যেন খারাপ না হয়, সঠিকভাবে সততার সাথে গভীরে যাচাই
+           করে কাজটা করতে হবে"*।
+
+           🔬 **যাচাই (কোড ধরে, আন্দাজ নয়) — এই টেবিলের সারিগুলো এই ফাইলে
+              ঠিক দুই জায়গায় ব্যবহার হয়, আর কোথাও নয়:**
+           ① `paymentsForHigher` লুপ — পড়ে `payType` · `amount` · `mobile`
+           ② টাকার মূল লুপ (`paidByPid` / `paidByMobileFallback`) — পড়ে
+              `patientId` · `payType` · `amount` · `mobile`, আর
+              `PaymentModel.isRefundRow()` / `isApprovedRefund()` পড়ে
+              `payType` · `refundApprovalStatus`।
+           ⇒ মোট **৫টা ঘর**।
+
+           🛡️ **তার সঙ্গে দুটো ঘর ইচ্ছে করে রাখা হলো (নইলে ভালো কাজ খারাপ হত):**
+           · `id` — `deltaUpsertOnlyOrNull()` সারিগুলো **`id` ধরে** মেলায়;
+             `id` না থাকলে ওখানে সারি বাদ পড়ে যেত ⇒ টাকার হিসাব কম দেখাত।
+           · `updatedAt` — পড়ার সাজানোর ক্রম (`updatedAt.desc.nullslast`)।
+
+           ⛔ **একটাও সারি কমে না** — শুধু প্রতিটা সারির অব্যবহৃত ঘরগুলো
+              (`dailyEvents` · `progress` · `remarks` · `payLabel` ·
+              `paymentLabel` · `cashAmount` · `onlineAmount` · `mode` ·
+              `patientCode` · `branch` · `name` · `date` · `receivedBy` ·
+              `createdBy` · `createdAt`) আর নামে না ⇒ Paid · Due · Bill ·
+              কার্ড · সংখ্যা — সব এক চুলও বদলায় না।
+           ⛔ তিন জায়গাতেই **হুবহু এই একই তালিকা** বসাতে হবে — দুটো পড়া একই
+              জমানো-চাবি (`followup:payments:<ব্রাঞ্চ>`) ব্যবহার করে, আলাদা
+              তালিকা দিলে কে আগে ভরল তার উপর ফল নির্ভর করত।
+           ⛔ ঘরের নাম ভুল হলে `fetchListSlimOrNull` নিজেই চওড়া পড়ায় ফিরে যায় —
+              তখন বাড়তি ঘর আসে, কম নয়; তাই কিছু ভাঙার পথ নেই।
+           ⛔ Chamber বোর্ড · টাকার পর্দা · রিপোর্ট — এরা `PAYMENT_COLS_LIST`
+              আগের মতোই ব্যবহার করে, ছোঁয়া হয়নি। */
+        private const val PAYMENT_COLS_FOLLOWUP =
+            "id,patientId,mobile,amount,payType,refundApprovalStatus,updatedAt"
 
         /**
          * Narrowed read, with a one-time full-row safety net.
@@ -95,10 +131,62 @@ class FollowUpRepository(private val context: Context? = null) {
             val narrow = SupabaseClient.fetchListOrNull(table, filter, 5000, select = cols)
             if (narrow != null) { narrowProven = true; return narrow }
             if (narrowProven) return null
+            /* 🔴🔒 V800 (২৮.০৮.২০২৬) — TK: "আরো যাচাই করুন egress-এর ঝুঁকি আছে কিনা"।
+               ─── যা ধরা পড়ল ────────────────────────────────────────────────────
+               এই `slim()` ডাকা হয় **followups ও patients**-এর জন্য (নিচে দেখুন) —
+               দুটোতেই রোগীর base64 ছবি আছে। সরু পড়াটা প্রথমবারেই ব্যর্থ হলে
+               (দুর্বল নেট = খুব সাধারণ ব্যাপার) সোজা `select=*` × ৫০০০ সারি চলত।
+               ঠিক এই একই দোষ trash-এ V798-এ সারানো হয়েছে (খাতার নিয়ম ৬.২ —
+               "একটা দোষ পেলে পুরো প্রজেক্টে একই ধরনের সব জায়গা ঠিক করা")।
+               ─── সারানো ───────────────────────────────────────────────────────
+               মাঝখানে `SafeWideColumns` ধাপ — **ভারী ঘর (ছবি) ছাড়া বাকি সব ঘর**।
+               এটা ঠিক সেই ধাপ যেটা `SupabaseClient.fetchListSlimOrNull()`-এ
+               V493/V494-এ প্রমাণিত হয়ে বসানো আছে; এখানে ভুলে বাদ পড়েছিল।
+               ⛔ শেষ ধাপের `select=*` **হুবহু আগের মতোই** রইল, তাই B446-এর
+                  গ্যারান্টি ("খালি তালিকা / ₹0 কখনো দেখাবে না") অটুট। */
+            val safe = SafeWideColumns.forTable(table, cols)
+            if (safe != null) {
+                val safeRead = SupabaseClient.fetchListOrNull(table, filter, 5000, select = safe)
+                if (safeRead != null) return safeRead
+            }
             return SupabaseClient.fetchListOrNull(table, filter, 5000)
         }
 
         private fun slimFollowups(filter: String?): JSONArray? = slim("followups", filter, FOLLOWUP_COLS)
+        /* 📉🔒 V1260 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-কাজ · খাতার সারি ৩৮০) —
+           **"কে কোন ধাপে আছে" মেলানোর চারটে পড়ায় ২৬ ঘরের বদলে ৫ ঘর।**
+
+           TK: *"সত্যতা যাচাই করে গভীরে গিয়ে কাজ করবেন, কোন ভাল কাজের যেন
+           ক্ষতি না হয়"*।
+
+           🔬 **যাচাই (কোড ধরে, প্রতিটা লাইন খুলে দেখা):** Follow-up পর্দা খুললে
+              তালিকার মূল পড়াটা ছাড়াও আরও কয়েকটা `followups` পড়া হয় — শুধু
+              এটুকু জানার জন্য যে **কোন নম্বর ইতিমধ্যে উপরের ধাপে চলে গেছে বা
+              বাতিল হয়েছে**, যাতে সেই কার্ড নিচের সেকশনে দুবার না দেখায়।
+              ওই চারটে পড়ার সারি থেকে কোড **শুধু** এইগুলো পড়ে:
+              · `fu:higher:…`     → `mobile` · `refId` · `patientId`
+              · `fu:visitRejected` → `mobile`
+              · `fu:treatmentAll`  → `mobile`
+              · `fu:trIncomplete`  → `mobile`
+              ⇒ আর একটাও ঘর নয় (প্রতিটা ব্যবহারের জায়গা খুঁজে মিলিয়ে দেখা)।
+
+           ⛔ অথচ এতদিন প্রতিবার **২৬টা ঘর** নামত — তার মধ্যে `history`
+              (প্রতিটা রোগীর পুরো কল-ইতিহাস) এই টেবিলের **সবচেয়ে ভারী** অংশ,
+              যেটা এই চারটে পড়ায় কোনোদিন ছোঁয়াও হয় না।
+           ⛔ **একটাও সারি কমে না** — একই ছাঁকনি · একই সারি · একই ফল; শুধু
+              প্রতিটা সারি অনেক হালকা হয়ে আসে।
+           ⛔ `id` ও `updatedAt` ইচ্ছে করে রাখা হলো (সাজানোর ক্রম ও ভবিষ্যতের
+              মেলানো), যদিও এখনকার হিসাবে লাগে না।
+           ⛔ **তালিকার মূল পড়াটা (`preCloud`) ছোঁয়া হয়নি** — কার্ডে "শেষ কল কে ·
+              কখন" ওই `history` ঘর থেকেই আসে (TK-র স্থায়ী নিয়ম)।
+           ⛔ **`fu:inqCancelled` ইচ্ছে করে বাদ রাখা হলো** — ওটা `noMoreCalls`
+              ঘরটাও পড়ে, আর ওই ঘর ডেটাবেসে আছে কিনা এখান থেকে যাচাই করা যায় না
+              (V1246-এর মন্তব্য দেখুন)। না থাকলে সরু পড়া ব্যর্থ হয়ে **উল্টে বেশি**
+              ডেটা নামত। আন্দাজে হাত দেওয়া হয়নি।
+           ⛔ সরু পড়া ব্যর্থ হলে `slim()` নিজেই চওড়া পড়ায় ফিরে যায় ⇒ তখন
+              **বাড়তি** ঘর আসে, কম নয় — তাই ভাঙার পথ নেই। */
+        private const val FOLLOWUP_COLS_LINK = "id,mobile,patientId,refId,updatedAt"
+        private fun slimFollowupsLink(filter: String?): JSONArray? = slim("followups", filter, FOLLOWUP_COLS_LINK)
         private fun slimPatients(filter: String?): JSONArray? = slim("patients", filter, PATIENT_COLS)
 
         /**
@@ -149,7 +237,7 @@ class FollowUpRepository(private val context: Context? = null) {
             for (i in 0 until (row.optJSONArray("history")?.length() ?: 0)) {
                 val h = row.optJSONArray("history")?.optJSONObject(i) ?: continue
                 val hs = h.optString("status", "").trim().lowercase()
-                val remark = h.optString("remark", "").trim().lowercase()
+                val remark = h.s("remark").trim().lowercase()   // 🔴🔒 V696
 
                 val activeDecision = hs in setOf("active", "restored", "continued", "continue") ||
                     remark.startsWith("restored & moved to") ||
@@ -224,6 +312,43 @@ class FollowUpRepository(private val context: Context? = null) {
             }
             return "or=($encParts,branch.is.null)"
         }
+        /**
+         * 📦🔒 V999 (০৩.০৯.২০২৬, TK-অনুমোদিত, মেপে নেওয়া) — **তালিকার মূল পড়াটা
+         * এখন শুধু নিজের ব্রাঞ্চের সারি চায়।**
+         *
+         * **কেন (মাপা তথ্য, আন্দাজ নয়):** Supabase-এর লগে ২৪ ঘণ্টায় `followups`
+         * একাই ১৩,৫৮৯ বার ডাকা হয় — সব ডাকের ৪০%, আর সবগুলোই ফোনের অ্যাপ থেকে।
+         * অথচ প্রতিবার **পাঁচ ব্রাঞ্চের সব সারিই** নামত, দেখানো হত শুধু নিজের
+         * ব্রাঞ্চেরটা (কোচবিহার ৪৮২ · কিষানগঞ্জ ৪৩০ · জলপাইগুড়ি ৩৫৫ ·
+         * ফালাকাটা ৪৬ · বীরপাড়া ৬ — মোট ১৩১৯, ব্রাঞ্চ-ফাঁকা একটাও নেই)।
+         *
+         * **কেন নিরাপদ:** ফেরত আসা প্রতিটা সারি এমনিতেই `branchAllows()`-এর
+         * ছাঁকনি পার হয় — অর্থাৎ যেগুলো এখানে বাদ পড়বে, সেগুলো পর্দায় আগেও
+         * উঠত না। ছাঁকনিতে তিনটেই ধরা আছে: নিজের ব্রাঞ্চ · রোগীর কোডের
+         * শুরুর তিন অক্ষর (`branchAllows`-এর দ্বিতীয় নিয়ম) · ব্রাঞ্চ ফাঁকা।
+         * ⛔ মাস্টার/All-branch হলে ছাঁকনি বসেই না — আগের মতোই সব নামে।
+         * ⛔ ছাঁকা পড়া ব্যর্থ হলে **হুবহু আগের পুরো পড়াটাই** চলে (নিচে দেখুন)।
+         * ⛔ ইচ্ছে করেই **শুধু তালিকার মূল পড়াটায়** বসানো হলো। ধাপ-মেলানোর
+         *    বাকি পড়াগুলো (`preHigher`, `preTreatmentStage` ইত্যাদি) ছোঁয়া হয়নি —
+         *    ওগুলো "এই রোগী কি অন্য ধাপে চলে গেছে?" যাচাই করে, আর সেই সারি
+         *    অন্য ব্রাঞ্চে থাকতে পারে; ছেঁকে দিলে একই নাম দু'বার দেখাত।
+         */
+        private fun followupBranchScope(branchFilter: String?): String {
+            val b = branchFilter?.trim() ?: return ""
+            if (b.isEmpty() || b.equals("All", ignoreCase = true)) return ""
+            val parts = b.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (parts.isEmpty()) return ""
+            val clauses = ArrayList<String>()
+            for (p in parts) {
+                val enc = try { java.net.URLEncoder.encode(p, "UTF-8") } catch (_: Throwable) { p }
+                clauses.add("branch.eq.$enc")
+                val code = try { PatientIdGenerator.branchCode(p) } catch (_: Throwable) { "" }
+                if (code.isNotBlank()) clauses.add("patientId.like.$code-*")
+            }
+            clauses.add("branch.is.null")
+            return "&or=(" + clauses.joinToString(",") + ")"
+        }
+
         private fun branchKeyPart(branchFilter: String?): String =
             branchFilter?.trim()?.takeIf { it.isNotEmpty() && !it.equals("All", ignoreCase = true) } ?: "all"
 
@@ -240,6 +365,21 @@ class FollowUpRepository(private val context: Context? = null) {
         private val healExecutor: java.util.concurrent.ExecutorService =
             java.util.concurrent.Executors.newSingleThreadExecutor()
 
+        /** 🔴🔒 V1371 (১২.০৯.২০২৬, তালিকা ৪৬২-ঙ — TK-নির্দেশে গভীরে যাচাই করে):
+         *  `loadCachedTab()` মেইন থ্রেডে চলে (পর্দা খোলা · ট্যাব বদল · প্রতি
+         *  ২৫ সেকেন্ডের নিজে-নিজে রিফ্রেশ — সব একই পথে), আর আগে প্রতিবারই
+         *  ডিস্কের পুরো JSON string নতুন করে parse করে `FollowUpItem` তালিকা
+         *  বানাত — ব্রাঞ্চের বাস্তব তথ্য (মাস-বছরের রোগী) বড় হলে এটাই প্রতি
+         *  ট্যাব-বদলে একটু দেরি করাত (নিয়ম ৭খ)। এখন raw JSON string অক্ষত
+         *  থাকলে (ডিস্কের ক্যাশ পাল্টায়নি) আগেরবার বানানো তালিকাটাই আবার
+         *  ব্যবহার হয়; না মিললে (নতুন সিঙ্ক এসেছে) স্বয়ংক্রিয়ভাবে আবার parse
+         *  হয় — LocalWorkflowStore.snapshot-এর একই প্রমাণিত ধাঁচ।
+         *  🔒 নিরাপদ কেন: `FollowUpItem` অপরিবর্তনীয় (`data class ... val`),
+         *  আর `mergeOwnPhoneRows()` এই তালিকার একটা কপি (`ArrayList(cached)`)
+         *  বানিয়ে তাতে বদল করে — মূল cached তালিকা কখনো ছোঁয়া হয় না, তাই
+         *  একই object একাধিক পর্দা/instance শেয়ার করলেও ঝুঁকি নেই। */
+        private val parsedTabCache = java.util.concurrent.ConcurrentHashMap<String, Pair<String, List<FollowUpItem>>>()
+
         // 🔴🔒 V456 (20.08.2026, TK-অনুমোদিত · ধাপ ১, শুধু Inquiry ট্যাব):
         // "শুধু বদলানো অংশটুকু নামুক" — Follow-up-এর সবচেয়ে ভারী একক-read
         // অংশ (`preCloud`, stage-এর সব followups সারি) delta করার ব্যবস্থা।
@@ -247,7 +387,31 @@ class FollowUpRepository(private val context: Context? = null) {
         //    blank-branch repair) এই delta-র কথা জানেই না — তারা যা পায়
         //    (merge-করা preCloud) তাই নিয়ে **হুবহু আগের মতোই** কাজ করে।
         private const val FU_DELTA_PREFS = "followup_inquiry_delta_state"
-        private const val FU_FULL_REFRESH_INTERVAL_MS = 30L * 60L * 1000L   // ৩০ মিনিট (Doctor Queue-র চেয়ে কড়া)
+        /* 📉🔒 V1258 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-প্লানের **ধাপ ৩**,
+           খাতার সারি ৩৮০) — ৩০ মিনিট → **৩ ঘণ্টা**।
+
+           এই ঘড়িটা শুধু একটা কাজেই লাগে — সময় পেরোলে delta ছেড়ে
+           **পূর্ণ পড়া** (followups + patients + payments একসাথে) চালানো।
+           সেই পূর্ণ পড়াটাই প্রকল্পের সবচেয়ে ভারী — তাই ব্যবধান ৬ গুণ হলে
+           ওই খরচ ৬ ভাগের এক হয়।
+
+           মাঝের সময়ে কি হারায় — মেপে দেখা (আন্দাজ নয়):
+           · নতুন/বদলানো সারি → delta-তে আগের মতোই সঙ্গে সঙ্গে আসে।
+           · Cancelled/Incomplete/Rejected/Closed → `deltaPreCloudOrNull()`
+             নিজেই সরিয়ে দেয় (নিচে `terminal` তালিকা)।
+           · ধাপ বদল (Patient → Treatment) → `fetchTab()`-এর `preHigher` পড়াটা
+             **কখনোই delta নয়**, সবসময় তাজা — তাই পদোন্নতি পাওয়া সারি
+             নিচের সেকশন থেকে আগের মতোই বাদ পড়ে।
+           ⚠️ শুধু **সত্যিকারের ডিলিট** (Trash → Delete Forever) delta ধরতে পারে না —
+             এতদিন সেটা সরতে সর্বোচ্চ ৩০ মিনিট লাগত, এখন সর্বোচ্চ ৩ ঘণ্টা।
+             TK-কে এটা কাজের আগেই বলা হয়েছে (নিয়ম ৬)।
+           ⛔ এই ঘড়ি শুধু **নিজে-নিজে রিফ্রেশ** পথে (`fetchTabDelta`) খাটে।
+              পর্দা খোলা · Resume · ট্যাব বদল · ব্রাঞ্চ বদল — সবই আগের মতোই
+              সরাসরি পূর্ণ `fetchTab()`, এক অক্ষরও বদলায়নি।
+           ⛔ `DashboardActivity.BANNER_FULL_GAP_MS`-ও **একসাথে ৩ ঘণ্টা** করা হলো —
+              দুটো আলাদা হলে ব্যানারের সংখ্যা আর তালিকার সংখ্যা বেমানান হত (TK-এর
+              "৫৬ বনাম ৪৭"-এর সমস্যা) — তাই দুটো সবসময় এক মাপে রাখতে হবে। */
+        private const val FU_FULL_REFRESH_INTERVAL_MS = 3L * 60L * 60L * 1000L   // ৩ ঘণ্টা (V1258; আগে ৩০ মিনিট)
         private const val FU_SAFETY_BACK_MS = 5_000L
     }
 
@@ -267,17 +431,35 @@ class FollowUpRepository(private val context: Context? = null) {
     // pending-queue, retried from BottomNav.wire() on every screen open.
     private val pendingPrefs = context?.getSharedPreferences("piles_clinic_followup_pending", Context.MODE_PRIVATE)
 
+    /* 🔴🔒 V1222 ① (০৮.০৯.২০২৬ — কিশানগঞ্জের স্টাফ Laxmi-র রিপোর্ট,
+       TK-র অনুমতি নিয়ে): *"রিমার্ক লিখে নেক্সট ফলোআপও দিয়েছি, তবু আজকের কোনো
+       আপডেট হয় নাই"*।
+       **আসল দোষ:** এই ঘরটা একই সারির **আগের জমা কাজটা মুছে দিয়ে** নতুনটা বসাত।
+       বাস্তব ক্রম হলো — আগে রিমার্ক সেভ (নেট দুর্বল ⇒ জমা হলো), তার ঠিক পরেই
+       বাধ্যতামূলক ক্যালেন্ডারে তারিখ সেভ (ও-ও জমা হলো) ⇒ **রিমার্কটা জমা-তালিকা
+       থেকেই মুছে যেত**, চিরতরে। কার্ডে তাই পুরনো রিমার্কই থেকে যেত।
+       ⇒ এখন আগের জমা ঘরগুলোর সঙ্গে নতুন ঘরগুলো **জোড়া লাগানো হয়** (একই নামের
+         ঘর হলে নতুনটাই থাকে — স্টাফের শেষ সিদ্ধান্তই জেতে)।
+       ⛔ কোনো ঘর মোছা হয় না · পাঠানোর নিয়ম · ক্রম কিছুই বদলায়নি। */
     private fun queueFieldUpdate(id: String, fields: JSONObject) {
         val prefs = pendingPrefs ?: return
         if (id.isBlank()) return
         synchronized(LOCK) {
         val queue = loadFieldQueue()
         val next = JSONArray()
+        val merged = JSONObject()
         for (i in 0 until queue.length()) {
             val e = queue.optJSONObject(i) ?: continue
-            if (e.optString("id") != id) next.put(e)
+            if (e.optString("id") != id) { next.put(e); continue }
+            // একই সারির পুরনো জমা ঘরগুলো আগে তুলে রাখা হয়
+            val old = e.optJSONObject("fields") ?: continue
+            val ok = old.keys()
+            while (ok.hasNext()) { val k = ok.next(); merged.put(k, old.opt(k)) }
         }
-        next.put(JSONObject().put("id", id).put("fields", fields))
+        // তারপর নতুন ঘরগুলো — একই নাম হলে নতুনটাই জেতে
+        val nk = fields.keys()
+        while (nk.hasNext()) { val k = nk.next(); merged.put(k, fields.opt(k)) }
+        next.put(JSONObject().put("id", id).put("fields", merged))
         prefs.edit().putString("queue", next.toString()).commit()
         }
         // TK-REQUESTED (2026-07-25): sync immediately, even if the staff
@@ -378,8 +560,162 @@ class FollowUpRepository(private val context: Context? = null) {
      * Registration/Payment. Safe to repeat -- re-writing the same fields
      * to the same id changes nothing if it already succeeded. Does
      * nothing (no network call) if nothing is pending. */
+    /* 🔴🔴🔒 V1222 ④ — "যে কলটা ইতিহাসে বসানো যায়নি" তার জমা তালিকা।
+       ⛔ এখানে কিছুই **মোছা** হয় না — নতুন সারি শুধু যোগ হয়। */
+    private val historyPendingPrefs =
+        context?.getSharedPreferences("piles_clinic_followup_history_pending", Context.MODE_PRIVATE)
+
+    private fun queueHistoryEntry(id: String, entry: JSONObject) {
+        val prefs = historyPendingPrefs ?: return
+        if (id.isBlank()) return
+        synchronized(LOCK) {
+            val raw = prefs.getString("queue", "[]") ?: "[]"
+            val q = try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
+            q.put(JSONObject().put("id", id).put("entry", entry))
+            // সর্বোচ্চ ৫০০টা — পুরনোগুলো আগে যায়, নতুনগুলো কখনো বাদ পড়ে না
+            val trimmed = JSONArray()
+            val from = if (q.length() > 500) q.length() - 500 else 0
+            for (i in from until q.length()) trimmed.put(q.opt(i))
+            prefs.edit().putString("queue", trimmed.toString()).commit()
+        }
+        context?.let { c2 -> try { com.tkbiswas.pilesclinic.data.sync.SyncScheduler.syncNow(c2) } catch (_: Throwable) { } }
+    }
+
+    /** একই কল দুবার বসছে কিনা — তারিখ · সময় · লেখা · স্টাফ মিলিয়ে। */
+    private fun historyHasEntry(history: JSONArray, entry: JSONObject): Boolean {
+        for (i in 0 until history.length()) {
+            val e = history.optJSONObject(i) ?: continue
+            if (e.optString("date") == entry.optString("date") &&
+                e.optString("time") == entry.optString("time") &&
+                e.optString("remark") == entry.optString("remark") &&
+                e.optString("staff") == entry.optString("staff")) return true
+        }
+        return false
+    }
+
+    private fun flushHistoryPending() {
+        val prefs = historyPendingPrefs ?: return
+        synchronized(LOCK) {
+            val raw = prefs.getString("queue", "[]") ?: "[]"
+            val q = try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
+            if (q.length() == 0) return
+            val left = JSONArray()
+            for (i in 0 until q.length()) {
+                val e = q.optJSONObject(i) ?: continue
+                val id = e.optString("id")
+                val entry = e.optJSONObject("entry") ?: continue
+                if (id.isBlank()) continue
+                if (DeletedGuard.isDeleted("followups", id, context)) continue   // মোছা সারিতে নয়
+                val back = try { SupabaseClient.fetchListOrNull("followups", "id=eq.$id", 1) } catch (_: Throwable) { null }
+                if (back == null || back.length() == 0) { left.put(e); continue }  // এখনো পড়া যাচ্ছে না
+                val row = back.optJSONObject(0) ?: run { left.put(e); null } ?: continue
+                val history = row.optJSONArray("history") ?: JSONArray()
+                if (historyHasEntry(history, entry)) continue                     // আগেই বসে গেছে
+                // 🔴🔒 V1372 (তালিকা ৪৬২-চ) — এখানেও একই atomic RPC আগে চেষ্টা,
+                // যাতে জমা-থাকা এই এন্ট্রি ফ্লাশ হওয়ার সময়ও অন্য ফোনের ঠিক ওই
+                // মুহূর্তে লেখা এন্ট্রি চাপা না পড়ে। ব্যর্থ হলে আগের পথেই ফেরা।
+                val rpcResult = SupabaseClient.appendFollowupHistory(id, entry)
+                if (rpcResult != null) continue                                  // জমা থেকে বাদ, সফল
+                history.put(entry)
+                val fields = JSONObject().put("history", history).put("updatedAt", isoNow())
+                val sent = SupabaseClient.updateById("followups", id, fields)
+                if (!(sent && verifyQueuedUpdate(id, fields) == 1)) left.put(e)
+            }
+            prefs.edit().putString("queue", left.toString()).commit()
+        }
+    }
+
+    /* 🔴🔒 V1222 ② — জমা কাজটা **সত্যিই** ক্লাউডে বসল কিনা মিলিয়ে দেখা।
+       ফেরত: 1 = বসেছে (জমা থেকে বাদ) · 2 = সারিই নেই, তাই গোটা সারিটা heal
+       তালিকায় পাঠানো হলো (জমা থেকে বাদ) · 0 = বসেনি, জমাই থাকুক।
+       ⛔ কোনো তথ্য কখনো চুপচাপ ফেলে দেওয়া হয় না — এটাই এই সংশোধনের মূল কথা। */
+    /** 🔴 V1360 — জমা ঘরটা ক্লাউডে বসেছে কি না: null/"" এক · সময়-ঘরে "Z" বনাম "+00:00"
+     *  ধাঁচের তফাত উপেক্ষা (তারিখ+সময় সেকেন্ড পর্যন্ত মিললেই বসেছে) · বাকি হুবহু। */
+    private fun queuedValueLanded(cloudV: Any?, sentV: Any?): Boolean {
+        fun norm(v: Any?): String = when {
+            v == null || v == JSONObject.NULL -> ""
+            else -> v.toString().let { if (it == "null") "" else it }
+        }
+        val c = norm(cloudV); val s = norm(sentV)
+        if (c == s) return true
+        val iso = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")
+        if (iso.containsMatchIn(c) && iso.containsMatchIn(s)) return c.take(19) == s.take(19)
+        return false
+    }
+
+    private fun verifyQueuedUpdate(id: String, fields: JSONObject): Int {
+        val back = try { SupabaseClient.fetchListOrNull("followups", "id=eq.$id", 1) } catch (_: Throwable) { null }
+            ?: return 0                       // নেট খারাপ — জমাই থাকুক, পরে আবার
+        if (back.length() == 0) {
+            // সারিটা ক্লাউডে নেই। ফোনের নিজের কপির সঙ্গে জমা ঘরগুলো জুড়ে
+            // গোটা সারিটা heal তালিকায় — DeletedGuard ও FollowUpHealGuard
+            // সেখানে আগের মতোই পাহারায়, তাই ইচ্ছে করে মোছা সারি ফিরবে না।
+            val ctx = context ?: return 0
+            val mine = try { LocalWorkflowStore(ctx).findFollowUp(id) } catch (_: Throwable) { null }
+                ?: return 0                   // ফোনেও নেই — জমা রেখে দেওয়াই নিরাপদ
+            val row = JSONObject(mine.toString()).put("id", id)
+            val k = fields.keys()
+            while (k.hasNext()) { val key = k.next(); row.put(key, fields.opt(key)) }
+            queueHealRow(row)
+            return 2
+        }
+        val cloud = back.optJSONObject(0) ?: return 0
+        var allLanded = true
+        val keys = fields.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            // `updatedAt` ডেটাবেসের ট্রিগার নিজেই বদলাতে পারে — ওটা মেলানো হয় না
+            if (key == "updatedAt") continue
+            /* 🔴🔒 V1352 (১১.০৯.২০২৬, TK-রিপোর্ট — "হাই স্পিড নেট থাকলেও ৩টা
+               Follow-up কিছুতেই Send হচ্ছে না, বারবার চেষ্টা করেও একই")।
+               **আসল কারণ (কোডে মিলিয়ে পাওয়া):** `history`-ই একমাত্র জমা-ঘর
+               যেটা একটা পুরো JSON তালিকা (`JSONArray`) — নিচের `.toString()`
+               তুলনাটা এই ঘরে কখনো নির্ভরযোগ্য নয়, কারণ Postgres/PostgREST
+               jsonb-এ পাঠানোর পর ভিতরের প্রতিটা এন্ট্রির ঘরগুলোর ক্রম বদলে
+               দিতে পারে — লেখা হুবহু ঠিক বসলেও `.toString()` দুটো ভিন্ন হয়ে
+               যায়, তাই চিরকাল "বসেনি" ধরা হত আর সারিটা পাঠানো-বাকি তালিকায়
+               চিরতরে আটকে থাকত (আসল টাকা/রিমার্ক তবু ঠিকই ক্লাউডে বসত)।
+               ⇒ `history`-র বেলায় এখন **বিষয়বস্তু মিলিয়ে** দেখা হয় (দৈর্ঘ্য +
+                 শেষ এন্ট্রির remark/date/staff) — ক্রম বদলালেও ধরা পড়ে। */
+            if (key == "history") {
+                val sentHist = fields.optJSONArray("history")
+                val cloudHist = cloud.optJSONArray("history")
+                if (sentHist == null || cloudHist == null || sentHist.length() != cloudHist.length()) {
+                    allLanded = false; break
+                }
+                val sentLast = sentHist.optJSONObject(sentHist.length() - 1)
+                val cloudLast = cloudHist.optJSONObject(cloudHist.length() - 1)
+                val sameLast = sentLast != null && cloudLast != null &&
+                    sentLast.optString("remark") == cloudLast.optString("remark") &&
+                    sentLast.optString("date") == cloudLast.optString("date") &&
+                    sentLast.optString("staff") == cloudLast.optString("staff")
+                if (!sameLast) { allLanded = false; break }
+                continue
+            }
+            /* 🔴🔒 V1360 (১১.০৯.২০২৬, পুরো প্রজেক্ট যাচাইয়ে ধরা — V1352-এর `history`-র
+               হুবহু একই জাতের দোষ, আরেকটা ঘরে): `lastRemarkAt` সার্ভারে timestamptz —
+               আমরা পাঠাই "…T14:00:00.123Z", সার্ভার ফেরত দেয় "…T14:00:00.123+00:00"।
+               লেখা হুবহু বসলেও `.toString()` তুলনা কখনো মেলে না ⇒ রিমার্কটা "পাঠানো
+               বাকি" তালিকায় চিরকাল আটকে থাকত, প্রতিবার পর্দা খুললে আবার পাঠাত।
+               একই ভাবে ফাঁকা ঘর: আমরা "" পাঠালে সার্ভার null ফেরাতে পারে।
+               ⇒ এখন সময়-ঘর হলে প্রথম ১৯ অক্ষর (তারিখ+সময়, সেকেন্ড পর্যন্ত) মেলানো
+                 হয়, আর null ও "" এক ধরা হয়। বাকি সব ঘরে আগের মতোই হুবহু মিল লাগে। */
+            if (!queuedValueLanded(cloud.opt(key), fields.opt(key))) {
+                allLanded = false; break
+            }
+        }
+        if (allLanded) return 1
+        // বসেনি — ক্লাউডেরটা আমাদের চেয়ে নবীন হলে অন্য কেউ পরে লিখেছেন,
+        // তখন আমাদেরটা পুরনো; জোর করে বসালে তাঁর কাজ মুছে যেত।
+        val ours = fields.optString("updatedAt", "")
+        val theirs = cloud.optString("updatedAt", "")
+        if (ours.isNotBlank() && theirs.isNotBlank() && theirs > ours) return 1
+        return 0
+    }
+
     fun flushPending() {
         flushHealPending()
+        flushHistoryPending()   // 🔴 V1222 ④ — বসানো যায়নি এমন কলগুলো
         flushMobileTaskPending()
         val prefs = pendingPrefs ?: return
         synchronized(LOCK) {
@@ -395,7 +731,30 @@ class FollowUpRepository(private val context: Context? = null) {
                 // in the meantime, drop the queued edit instead of writing it
                 // back (a PATCH on a deleted row can also silently "succeed").
                 if (DeletedGuard.isDeleted("followups", id, context)) continue
-                if (SupabaseClient.updateById("followups", id, fields)) {
+                /* 🔴🔒 V1222 ② (০৮.০৯.২০২৬ — Laxmi-র রিপোর্ট, TK-র অনুমতি নিয়ে)।
+                   **আসল দোষ:** `updateById()` **সারি না মিললেও** (`row_not_matched`)
+                   `true` ফেরায় (`outcome != 0`) — এই ফাইলের নিজের মন্তব্যেই লেখা
+                   *"an update that matched no row still answers 200, so read it back
+                   before believing it"*, আর সেই যাচাইটা `updateRemark()` /
+                   `updateNextFollow()`-এ আছে, কিন্তু **এই পুনরায়-পাঠানোর পথে ছিল না**।
+                   ⇒ জমা কাজটা "হয়ে গেছে" ধরে তালিকা থেকে মুছে ফেলা হত ⇒ স্টাফের
+                     রিমার্ক ও পরের-কলের তারিখ চিরতরে হারাত, আর পরের রিফ্রেশে
+                     পুরনো অবস্থা ফিরে আসত ("সকালের কলগুলো আবার দেখাচ্ছে")।
+                   ⇒ এখন পাঠানোর পরে সারিটা **পড়ে মিলিয়ে** দেখা হয়:
+                     · সারিই নেই ⇒ ফোনের নিজের কপি + জমা ঘরগুলো নিয়ে **heal**
+                       তালিকায় পাঠানো হয় (গোটা সারিটা আবার বসে) — DeletedGuard ও
+                       FollowUpHealGuard আগের মতোই পাহারায়, তাই ইচ্ছে করে মোছা সারি
+                       কখনো ফিরে আসে না।
+                     · সারি আছে কিন্তু ঘরগুলো বসেনি ⇒ ক্লাউডেরটা আমাদের চেয়ে নবীন
+                       হলে ছেড়ে দেওয়া হয় (অন্য কেউ পরে লিখেছেন — হারানোর কিছু নেই),
+                       নইলে জমা থেকেই থাকে, পরে আবার চেষ্টা হয়।
+                   ⛔ বাড়তি পড়া শুধু তখনই যখন সত্যিই কিছু জমা আছে (রোজকার ব্যবহারে
+                      তালিকা ফাঁকা ⇒ একটাও বাড়তি ক্লাউড-কল নেই)। */
+                val sent = SupabaseClient.updateById("followups", id, fields)
+                //  1 = সত্যিই বসেছে · 2 = heal-এ পাঠানো হলো · 0 = জমাই থাকুক
+                val verdict = if (!sent) 0 else verifyQueuedUpdate(id, fields)
+                if (verdict == 0) { stillPending.put(e); continue }
+                if (verdict == 1) {
                     // TK-REPORTED BUG FIX (2026-07-16): same fix as
                     // Enquiry/Registration's flushPending() -- confirm the
                     // local cache row as SYNCED right when this retry
@@ -406,8 +765,6 @@ class FollowUpRepository(private val context: Context? = null) {
                         val syncRow = JSONObject(fields.toString()).put("id", id)
                         LocalWorkflowStore(ctx).upsertFollowUp(syncRow, "SYNCED")
                     }
-                } else {
-                    stillPending.put(e)
                 }
             } catch (_: Throwable) {
                 stillPending.put(e)
@@ -444,6 +801,10 @@ class FollowUpRepository(private val context: Context? = null) {
             // ⚡ জমানো তালিকা না থাকলেও (প্রথমবার খোলা) ফোনের নিজের সেভ করা
             // রেকর্ড সঙ্গে সঙ্গে দেখাতে হবে — নইলে ধীর লাইনে পর্দা ফাঁকা থাকত।
             ?: return mergeOwnPhoneRows(stage, branchFilter, emptyList()).ifEmpty { null }
+        val already = parsedTabCache[key]
+        if (already != null && already.first == json) {
+            return mergeOwnPhoneRows(stage, branchFilter, already.second)
+        }
         return try {
             val arr = JSONArray(json)
             val list = mutableListOf<FollowUpItem>()
@@ -453,17 +814,30 @@ class FollowUpRepository(private val context: Context? = null) {
                     FollowUpItem(
                         id = r.optString("id", ""), name = r.optString("name", ""), mobile = r.optString("mobile", ""),
                         branch = r.optString("branch", ""), disease = r.optString("disease", ""), stage = r.optString("stage", ""),
-                        lastRemark = r.optString("lastRemark", ""), nextFollow = r.optString("nextFollow", ""),
+                        lastRemark = r.s("lastRemark"), nextFollow = r.s("nextFollow"),   // 🔴🔒 V696
                         recordDate = r.optString("recordDate", ""), callCount = r.optInt("callCount", 0),
                         createdAt = r.optString("createdAt", ""),   // 🔒 খাতার সারি B65
                         bill = r.optDouble("bill", 0.0), paid = r.optDouble("paid", 0.0),
                         patientId = r.optString("patientId", ""), address = r.optString("address", ""),
                         age = r.optString("age", ""), sex = r.optString("sex", ""),
                         photo = r.optString("photo", ""), updatedAt = r.optString("updatedAt", ""),
-                        lastCallDate = r.optString("lastCallDate", ""), lastCallBy = FollowUpModel.prettyStaff(r.optString("lastCallBy", ""))
+                        noMoreCalls = r.optBoolean("noMoreCalls", false),   // 📵 V1206
+                        // 🏷️🔒 V712 — উপরের তিনটে ঘর ফেরত পড়া (পুরোনো জমানো তালিকায়
+                        //    না থাকলে ফাঁকা — অর্থাৎ ঠিক আগের আচরণ, কিছুই ভাঙে না)।
+                        timeType = r.optString("timeType", ""),
+                        refDoctor = r.optString("refDoctor", ""),
+                        addressTag = r.optString("addressTag", ""),
+                        lastCallDate = r.optString("lastCallDate", ""), lastCallBy = FollowUpModel.prettyStaff(r.optString("lastCallBy", "")),
+                        // ⏰🔒 V827 — পুরোনো জমানো তালিকায় ঘরটা নেই ⇒ ফাঁকা,
+                        //    অর্থাৎ হুবহু আগের আচরণ; কিছুই ভাঙে না।
+                        lastCallTime = r.optString("lastCallTime", ""),
+                        // 🆕 V851 — উপরের `saveCachedTab`-এর জোড়া।
+                        regDate = r.optString("regDate", ""),
+                        regBy = r.optString("regBy", "")
                     )
                 )
             }
+            parsedTabCache[key] = json to list
             // ⚡ TK (28.07.2026): নিজের ফোনে করা কাজ সঙ্গে সঙ্গে দেখাতে হবে।
             mergeOwnPhoneRows(stage, branchFilter, list)
         } catch (t: Throwable) { null }
@@ -522,6 +896,10 @@ class FollowUpRepository(private val context: Context? = null) {
             val allBranch = branchFilter == null || branchFilter.isBlank() ||
                 branchFilter.equals("All", ignoreCase = true)
             val extra = mutableListOf<FollowUpItem>()
+            /* 🔴🔴🔒 V1319 (তালিকা ৪২৪, আসল কারণ): নিচের পুরনো-সারি-ভুলে-যাওয়ার কাজ এখন
+               একসাথে জমিয়ে, লুপ শেষে **একবারই** — প্রতিটা সারির জন্য আলাদা করে ফোনের
+               পুরো জমানো টেবিল ছোঁয়া বন্ধ (নিচের মন্তব্য দেখুন)। */
+            val toForget = HashSet<String>()
             for (i in 0 until local.length()) {
                 val r = local.optJSONObject(i) ?: continue
                 val id = r.s("id")
@@ -532,6 +910,22 @@ class FollowUpRepository(private val context: Context? = null) {
                 if (pos != null) {
                     // আগে থেকেই আছে — ফোনের নিজের নতুন লেখাটা বসিয়ে দাও
                     val old = out[pos]
+                    /* 🔴🔴🔒 V1305 (১০.০৯.২০২৬, তালিকা ৪১৯ — জলপাইগুড়ি: BARNALI-র ফোনে Pending
+                       Calls 9, CHANDANA-র 3, ক্লাউডে 3): এখানে ফোনের নিজের পুরনো লেখা
+                       **নিঃশর্তে** জিতত — অন্য ফোন পরে কল করে নতুন তারিখ বসালেও এই ফোন
+                       নিজের আগের তারিখটাই দেখাত, তাই "আজকের কল" বেশি গুনত। এখন ফোনের লেখা
+                       জেতে **শুধু তার updatedAt ক্লাউড/জমানো সারির চেয়ে নতুন হলে** (V1285-এর
+                       "পুরনো কপি নতুন ক্লাউড চাপা দেবে না" — একই নিয়ম, এবার দেখানোর দিকেও)।
+                       পুরনো (আর দরকার নেই) সারিটা ফোনের খাতা থেকে সরিয়ে দেওয়া হয়, যাতে
+                       বারবার ফিরে না আসে — শুধু SYNCED হলে; PENDING (এখনো ক্লাউডে যায়নি)
+                       হলে ছোঁয়া হয় না, ওটা sync-এর কাজ। */
+                    val localStamp = r.s("updatedAt")
+                    val cloudStamp = old.updatedAt
+                    val localNewer = localStamp.isNotBlank() && (cloudStamp.isBlank() || localStamp > cloudStamp)
+                    if (!localNewer) {
+                        if (r.s("_syncStatus") != "PENDING") toForget.add(id)
+                        continue
+                    }
                     out[pos] = old.copy(
                         lastRemark = r.s("lastRemark").ifBlank { old.lastRemark },
                         nextFollow = r.s("nextFollow").ifBlank { old.nextFollow },
@@ -594,9 +988,18 @@ class FollowUpRepository(private val context: Context? = null) {
                         photo = r.s("photo"),
                         updatedAt = r.s("updatedAt"),
                         lastCallDate = r.s("lastCallDate"),
-                        lastCallBy = FollowUpModel.prettyStaff(r.s("lastCallBy"))
+                        lastCallBy = FollowUpModel.prettyStaff(r.s("lastCallBy")),
+                        /* 🏷️🔒 V712 — এই ফোনে সেভ হওয়া (এখনো ক্লাউডে না যাওয়া)
+                           সারিতেও ট্যাগের ঘরগুলো বসে। আগে বসত না, তাই সদ্য তোলা
+                           এনকোয়ারিতে UNEXPECTED/RMP ট্যাগ দেখাত না।
+                           ⛔ না থাকলে ফাঁকা — অর্থাৎ ঠিক আগের আচরণ। */
+                        timeType = r.s("timeType"),
+                        refDoctor = r.s("refDoctor")
                     )
                 )
+            }
+            if (toForget.isNotEmpty()) {
+                try { LocalWorkflowStore(ctx).forgetRecords("followups", toForget) } catch (_: Throwable) { }
             }
             if (extra.isEmpty()) out else extra + out
         } catch (_: Throwable) { cached }
@@ -612,12 +1015,43 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("id", it.id).put("name", it.name).put("mobile", it.mobile)
                         .put("branch", it.branch).put("disease", it.disease).put("stage", it.stage)
                         .put("lastRemark", it.lastRemark).put("nextFollow", it.nextFollow)
+                        .put("noMoreCalls", it.noMoreCalls)   // 📵 V1206
                         .put("recordDate", it.recordDate).put("callCount", it.callCount)
                         .put("createdAt", it.createdAt)   // 🔒 খাতার সারি B65
                         .put("bill", it.bill).put("paid", it.paid).put("patientId", it.patientId)
                         .put("address", it.address).put("age", it.age).put("sex", it.sex)
                         .put("photo", it.photo).put("updatedAt", it.updatedAt)
                         .put("lastCallDate", it.lastCallDate).put("lastCallBy", it.lastCallBy)
+                        /* ⏰🔒 V827 (২৯.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"LAST CALL
+                           তারিখের পরে যেন Time থাকে"*)।
+                           **আসল কারণ (কোড ধরে যাচাই, আন্দাজ নয়):** V543-এ সময়টা
+                           দেখানোর ব্যবস্থা হয়েছিল, কিন্তু **জমানো তালিকায়
+                           (`saveCachedTab`) ঘরটা কখনো লেখাই হত না**, আর ফেরত
+                           পড়ার সময়ও (`loadCachedTab`) তোলা হত না। Follow-up
+                           পর্দা "আগে জমানোটা দেখাও" নিয়মে চলে — তাই পর্দা
+                           খুললেই সময়হীন লাইনটা চোখে পড়ত, আর লাইন খারাপ থাকলে
+                           চিরকালই সময় থাকত না।
+                           ⛔ ছোট্ট একটা লেখা — জমানো ফাইল কার্যত বড় হয় না।
+                           ⛔ ক্লাউডে একটাও বাড়তি অনুরোধ যায় না (সময়টা `history`
+                              থেকেই আসে, যা আগে থেকেই তালিকার সঙ্গে আসে)। */
+                        .put("lastCallTime", it.lastCallTime)
+                        /* 🆕🔒 V851 — জমানো তালিকাতেও দুটো ঘর, নইলে পর্দা খোলার
+                           সঙ্গে সঙ্গে (ক্যাশ থেকে) লাইনটা আবার `LAST CALL`
+                           দেখাত, আর লাইন খারাপ থাকলে চিরকালই (V827-এর শিক্ষা)। */
+                        .put("regDate", it.regDate)
+                        .put("regBy", it.regBy)
+                        /* 🏷️🔒 V712 (২৬.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"Tag এ Unexpected
+                           লেখা নেই, কিন্তু View All-এ ক্লিক করলে আছে"*)।
+                           **আসল কারণ:** এই তিনটে ঘর জমানো তালিকায় **লেখাই হত না**
+                           (আগে ইচ্ছাকৃত আপস ছিল)। তাই লাইভ তালিকা আসার আগে —
+                           বা লাইন খারাপ থাকলে চিরকাল — কার্ডে ঠিকানার ট্যাগ ·
+                           UNEXPECTED · RMP তিনটেই উধাও থাকত, অথচ View All-এ
+                           (যেটা আলাদা করে পড়ে) ঠিকই দেখা যেত।
+                           ⛔ এগুলো ছোট লেখা, ছবি নয় — জমানো ফাইল বড় হয় না।
+                           ⛔ ক্লাউডে একটাও বাড়তি অনুরোধ যায় না। */
+                        .put("timeType", it.timeType)
+                        .put("refDoctor", it.refDoctor)
+                        .put("addressTag", it.addressTag)
                 )
             }
             val key = "cache_${stage}_${branchFilter ?: "All"}"
@@ -657,7 +1091,7 @@ class FollowUpRepository(private val context: Context? = null) {
     //    ছোঁয়া হয় না।
     //
     // নিরাপত্তা-জাল (Doctor Queue-র একই ৩ স্তর, কিন্তু কড়া — ৩০ মিনিট):
-    //  ১. since না থাকলে/৩০ মিনিট পার হলে → জোর করে পূর্ণ fetch
+    //  ১. since না থাকলে/৩ ঘণ্টা পার হলে → জোর করে পূর্ণ fetch
     //  ২. delta-কল ব্যর্থ হলে → পূর্ণ fetch
     //  ৩. প্রতিটা delta-সারি নিজের `status` দিয়ে যাচাই হয় — এখনও Active হলে
     //     জমানো preCloud-এ বসে/আপডেট হয়, Cancelled/Incomplete/Rejected/
@@ -697,7 +1131,7 @@ class FollowUpRepository(private val context: Context? = null) {
     //
     // ⛔ সত্যিকারের hard-DELETE (কোনো row updatedAt না বদলে সরাসরি মুছে
     //    যাওয়া) delta-তে ধরা পড়বে না — DoctorQueue/Inquiry-র একই সীমাবদ্ধতা,
-    //    ৩০ মিনিটের নিয়মিত পূর্ণ-fetch স্বয়ংক্রিয়ভাবে ঠিক করে দেয়।
+    //    ৩ ঘণ্টার নিয়মিত পূর্ণ-fetch স্বয়ংক্রিয়ভাবে ঠিক করে দেয়।
     // =========================================================================
 
     /**
@@ -734,28 +1168,53 @@ class FollowUpRepository(private val context: Context? = null) {
         return if (isDeclaredSeparatePatientId(refId, m)) refId else m
     }
 
+    /* 📱🔒 V1288 (১০.০৯.২০২৬, তালিকা ৪১১-⑥ ক, TK: *"ক"*) — **বড় তালিকা আলাদা ফাইলে।**
+       আগে precloud_/prepatients_/prepayments_ (মিলিয়ে মাস্টার-ফোনে ~৫ MB) আর ছোট
+       since_/fullAt_ ঘড়ি — সব একটাই SharedPreferences ফাইলে; ফলে যেকোনো একটা লেখা
+       (এমনকি ছোট ঘড়িটাও) পুরো ৫ MB ফাইল নতুন করে ডিস্কে লেখাত। এখন প্রতিটা বড়
+       তালিকা নিজের ফাইলে (`followup_delta_big_<key>`) — একটা বদলালে শুধু সেটাই লেখা হয়।
+       · প্রথমবার: পুরনো ফাইলে থাকলে সেখান থেকে নতুন ফাইলে সরিয়ে (লিখে) তবেই
+         পুরনোটা থেকে মোছা — কিছু হারায় না। · নিয়ম/তথ্য একটুও বদলায়নি, শুধু কোথায় রাখা। */
+    private fun bigPrefs(key: String) = context?.getSharedPreferences("followup_delta_big_$key", Context.MODE_PRIVATE)
+
     private fun loadCachedArray(key: String): JSONArray {
-        val sp = deltaPrefs() ?: return JSONArray()
+        val big = bigPrefs(key) ?: return JSONArray()
         return try {
-            val raw = sp.getString(key, null) ?: return JSONArray()
+            var raw = big.getString(key, null)
+            if (raw == null) {
+                // পুরনো জায়গা থেকে একবারই সরানো
+                val old = deltaPrefs()
+                raw = old?.getString(key, null) ?: return JSONArray()
+                big.edit().putString(key, raw).apply()
+                old.edit().remove(key).apply()
+            }
             JSONArray(raw)
         } catch (_: Throwable) { JSONArray() }
     }
 
     private fun saveCachedArray(key: String, arr: JSONArray) {
-        val sp = deltaPrefs() ?: return
-        try { sp.edit().putString(key, arr.toString()).apply() } catch (_: Throwable) { }
+        val big = bigPrefs(key) ?: return
+        try {
+            big.edit().putString(key, arr.toString()).apply()
+            val old = deltaPrefs()
+            if (old != null && old.contains(key)) old.edit().remove(key).apply()
+        } catch (_: Throwable) { }
     }
 
     /** followups (preCloud)-এর জন্য — Inquiry-তে যে নিয়ম, এখানেও হুবহু একই
      *  (terminal status হলে সরানো)। stage অনুযায়ী আলাদা cache key। */
     private fun deltaPreCloudOrNull(stage: String, since: String): JSONArray? {
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
+        /* 🔴🔒 V1311 (তালিকা ৪২৩): আগে `stage=eq.` ছাঁকনি ছিল — যে সারি এই ধাপ **ছেড়ে** গেছে
+           (Inquiry→Registered, Patient→Treatment) delta-য় আসতই না, তাই ৩ ঘণ্টা পর্যন্ত জমানো
+           তালিকায় থেকে যেত। এখন সব ধাপের বদল আসে (সারি ক'টা — শেষ পড়ার পরে যা বদলেছে শুধু),
+           আর অন্য ধাপের সারি এই তালিকা থেকে সরে। */
         val delta = try {
-            slimFollowups("stage=eq.$stage&updatedAt=gt.$sinceEnc")
+            slimFollowups("updatedAt=gt.$sinceEnc")
         } catch (_: Throwable) { null } ?: return null
         val cacheKey = "precloud_${stage.lowercase()}"
         val cached = loadCachedArray(cacheKey)
+        if (delta.length() == 0) return cached   // 📱 V1288 (⑥ ক): কিছু বদলায়নি ⇒ লেখা নয়
         val byId = LinkedHashMap<String, JSONObject>()
         for (i in 0 until cached.length()) {
             val o = cached.optJSONObject(i) ?: continue
@@ -765,7 +1224,7 @@ class FollowUpRepository(private val context: Context? = null) {
         for (i in 0 until delta.length()) {
             val row = delta.getJSONObject(i)
             val id = row.optString("id"); if (id.isBlank()) continue
-            if (row.optString("status").trim() in terminal) byId.remove(id) else byId[id] = row
+            if (row.optString("status").trim() in terminal || row.optString("stage").trim() != stage) byId.remove(id) else byId[id] = row
         }
         val merged = JSONArray(); for (v in byId.values) merged.put(v)
         saveCachedArray(cacheKey, merged)
@@ -773,6 +1232,36 @@ class FollowUpRepository(private val context: Context? = null) {
     }
 
     /** patients/payments — upsert-only (কখনো row সরানো হয় না, উপরের কারণেই)। */
+    /* 💸🔒 V1282 (০৯.০৯.২০২৬, TK-র অনুমতি — তালিকা সারি ৪০৫, ধাপ ২ক; TK: *"আমি কোন
+       প্রকার ঝুঁকি নিতে চাইছি না"*) — **Doctor Queue-র জন্য Follow-up-এর রোগী-তালিকা
+       ভাগ করে দেওয়া।** মেপে দেখা: Queue-র প্রতিটা ঘর `PATIENT_COLS`-এর ভিতরেই আছে,
+       আর দুটোর ব্রাঞ্চ-ছাঁকনিও হুবহু এক (`or=(branch.eq.X,branch.is.null)`, limit 5000)।
+       ⇒ Follow-up-এর Patient/Treatment ট্যাব গত ৩ ঘণ্টায় পূর্ণ পড়া করে থাকলে, Queue
+         আর নিজে ২ MB নামায় না — জমানো তালিকার উপরে শুধু `updatedAt` বদলানো সারি
+         বসিয়ে সেটাই পায়।
+       ⛔ **কখনো Follow-up-এর নিজের ঘড়ি (`since_`/`fullAt_`) ছোঁয় না** — শুধু পড়ে।
+       ⛔ তালিকা তাজা না থাকলে (Follow-up খোলা হয়নি / ৩ ঘণ্টা পার) `null` ⇒ Queue
+          **হুবহু আগের মতো নিজের পড়াই** করে — কোনো আচরণ বদলায় না। */
+    fun sharedPatientsOrNull(branchFilter: String?): JSONArray? {
+        val sp = deltaPrefs() ?: return null
+        val branchKey = branchKeyPart(branchFilter)
+        val now = System.currentTimeMillis()
+        var bestSince: String? = null
+        var bestFullAt = 0L
+        for (stage in listOf("Treatment", "Patient")) {
+            val k = "${stage.lowercase()}_$branchKey"
+            val since = sp.getString("since_$k", null) ?: continue
+            val fullAt = sp.getLong("fullAt_$k", 0L)
+            if (since.isBlank() || fullAt <= 0L || (now - fullAt) > FU_FULL_REFRESH_INTERVAL_MS) continue
+            if (fullAt > bestFullAt) { bestFullAt = fullAt; bestSince = since }
+        }
+        val since = bestSince ?: return null
+        if (loadCachedArray("prepatients_$branchKey").length() == 0) return null
+        return try {
+            deltaUpsertOnlyOrNull("patients", PATIENT_COLS, branchScopeFilterPlain(branchFilter), "prepatients_$branchKey", since)
+        } catch (_: Throwable) { null }
+    }
+
     private fun deltaUpsertOnlyOrNull(table: String, cols: String, extraFilter: String, cacheKey: String, since: String): JSONArray? {
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
         val filter = "updatedAt=gt.$sinceEnc" + (if (extraFilter.isNotBlank()) "&$extraFilter" else "")
@@ -780,6 +1269,9 @@ class FollowUpRepository(private val context: Context? = null) {
             SupabaseClient.fetchListSlimOrNull(table, filter, 2000, cols)
         } catch (_: Throwable) { null } ?: return null
         val cached = loadCachedArray(cacheKey)
+        /* 📱 V1288 (⑥ ক): ক্লাউডে নতুন/বদলানো সারি একটাও নেই ⇒ জমানো তালিকাটাই উত্তর —
+           আবার লেখা হয় না (আগে প্রতি ৩০ সেকেন্ডে পুরো তালিকা নতুন করে ডিস্কে যেত)। */
+        if (delta.length() == 0) return cached
         val byId = LinkedHashMap<String, JSONObject>()
         for (i in 0 until cached.length()) {
             val o = cached.optJSONObject(i) ?: continue
@@ -812,7 +1304,7 @@ class FollowUpRepository(private val context: Context? = null) {
             "patients", PATIENT_COLS, branchExtra, "prepatients_$branchKey", since
         ) ?: return null
         val payments = deltaUpsertOnlyOrNull(
-            "payments", SupabaseClient.PAYMENT_COLS_LIST, branchExtra, "prepayments_$branchKey", since
+            "payments", PAYMENT_COLS_FOLLOWUP, branchExtra, "prepayments_$branchKey", since   // V1259
         ) ?: return null
 
         try { sp.edit().putString("since_$stateKey", fuStampNow()).apply() } catch (_: Throwable) { }
@@ -841,18 +1333,10 @@ class FollowUpRepository(private val context: Context? = null) {
         return f   // ইতিমধ্যেই "or=(...)" আকারে, সরাসরি &-এ জোড়া যায়
     }
 
-    private fun loadCachedPreCloudInquiry(): JSONArray {
-        val sp = deltaPrefs() ?: return JSONArray()
-        return try {
-            val raw = sp.getString("precloud_inquiry", null) ?: return JSONArray()
-            JSONArray(raw)
-        } catch (_: Throwable) { JSONArray() }
-    }
+    /* 📱 V1288 (⑥ ক): Inquiry-র তালিকাও একই আলাদা-ফাইল পথে (উপরের loadCachedArray/saveCachedArray)। */
+    private fun loadCachedPreCloudInquiry(): JSONArray = loadCachedArray("precloud_inquiry")
 
-    private fun saveCachedPreCloudInquiry(arr: JSONArray) {
-        val sp = deltaPrefs() ?: return
-        try { sp.edit().putString("precloud_inquiry", arr.toString()).apply() } catch (_: Throwable) { }
-    }
+    private fun saveCachedPreCloudInquiry(arr: JSONArray) = saveCachedArray("precloud_inquiry", arr)
 
     /** Inquiry ট্যাবের preCloud — delta বা পূর্ণ, নিরাপত্তা-জাল সহ। ব্যর্থ/
      *  প্রথমবার/দীর্ঘ-বিরতিতে `null` ফেরে — কলার তখন আগের পূর্ণ পথে (slimFollowups) যাবে। */
@@ -865,10 +1349,11 @@ class FollowUpRepository(private val context: Context? = null) {
 
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
         val delta = try {
-            slimFollowups("stage=eq.Inquiry&updatedAt=gt.$sinceEnc")
+            slimFollowups("updatedAt=gt.$sinceEnc")   // 🔴 V1311 (তালিকা ৪২৩): ধাপ-ছাঁকনি নেই — ধাপ ছেড়ে যাওয়া সারিও আসে (নিচে সরে)
         } catch (_: Throwable) { null } ?: return null   // ব্যর্থ → পূর্ণ-fetch পথে
 
         val cached = loadCachedPreCloudInquiry()
+        if (delta.length() == 0) return cached   // 📱 V1288 (⑥ ক): কিছু বদলায়নি ⇒ লেখা নয়
         val byId = LinkedHashMap<String, JSONObject>()
         for (i in 0 until cached.length()) {
             val o = cached.optJSONObject(i) ?: continue
@@ -881,7 +1366,7 @@ class FollowUpRepository(private val context: Context? = null) {
             val id = row.optString("id")
             if (id.isBlank()) continue
             val status = row.optString("status").trim()
-            if (status in terminal) byId.remove(id) else byId[id] = row
+            if (status in terminal || row.optString("stage").trim() != "Inquiry") byId.remove(id) else byId[id] = row
         }
         val merged = JSONArray()
         for (v in byId.values) merged.put(v)
@@ -912,10 +1397,40 @@ class FollowUpRepository(private val context: Context? = null) {
                 // নিরাপত্তা-জাল: পূর্ণ fetchTab() চালিয়ে তিনটে cache-ই আবার জমানো।
                 val result = fetchTab(stage, branchFilter, creatorName, creatorMobile)
                 try {
-                    val freshCloud = slimFollowups("stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                    /* 📉🔒 V1257 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-প্লানের **ধাপ ১**,
+                       খাতার সারি ৩৮০) — TK: *"free Plan-এ চালানোর কথা ছিল"*।
+
+                       🔴 **মাপা দোষ:** ঠিক উপরের `fetchTab()` এইমাত্র
+                          followups + patients + payments তিনটেই নামিয়েছে; নিচে
+                          জমা রাখার জন্য **হুবহু সেই তিনটেই আবার** নামত — একই
+                          তথ্য দুবার।
+
+                       ⇒ এখন `CloudReadCache`-এর **হুবহু সেই চাবিগুলো** দিয়েই চাওয়া
+                         হয়, যেগুলো `fetchTab()` একটু আগে ভরে গেছে (২০ সেকেন্ডের
+                         ভিতরে) ⇒ **নতুন কোনো ডাউনলোড হয় না**, একই সারিগুলোই ফেরে।
+                       ⛔ ক্যাশ ফাঁকা/পুরনো হলে ভিতরের ডাকটা **হুবহু আগের পড়াটাই**
+                          চালায় — তাই আচরণ এক চুলও বদলায় না, কিছু হারানোর পথ নেই।
+
+                       ⚠️ **followups-এ ইচ্ছে করে হাত দেওয়া হয়নি, শুধু "All" ছাড়া**
+                          (TK-কে আগেই জানানো): নিচে জমা হওয়া `precloud_<ধাপ>` ঘরটা
+                          ব্রাঞ্চ ধরে আলাদা নয়। ব্রাঞ্চ বাছা থাকলে `fetchTab()`-এর
+                          ক্যাশে **শুধু ওই ব্রাঞ্চের** সারি থাকে; সেটা ওখানে বসালে
+                          পরে মাস্টার/অন্য ব্রাঞ্চে **কম সারি** দেখাত — ভালো কাজ
+                          খারাপ হত। তাই ব্রাঞ্চ বাছা থাকলে ওই পড়াটা আগের মতোই
+                          আলাদা করে হয়; "All" হলে ক্যাশের সারিটাই হুবহু এক, তাই
+                          তখন সেটাই নেওয়া হয়। */
+                    val bKey = branchKeyPart(branchFilter)
+                    val fuBase = "stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)"
+                    val freshCloud = if (followupBranchScope(branchFilter).isEmpty())
+                        CloudReadCache.get("fu:stage:$stage:$bKey") { slimFollowups(fuBase) }
+                    else slimFollowups(fuBase)
                     val branchExtra = branchScopeFilterPlain(branchFilter)
-                    val freshPatients = SupabaseClient.fetchListSlimOrNull("patients", branchExtra.removePrefix("&"), 5000, PATIENT_COLS)
-                    val freshPayments = SupabaseClient.fetchListSlimOrNull("payments", branchExtra.removePrefix("&"), 5000, SupabaseClient.PAYMENT_COLS_LIST)
+                    val freshPatients = CloudReadCache.get("followup:patients:$bKey") {
+                        SupabaseClient.fetchListSlimOrNull("patients", branchExtra.removePrefix("&"), 5000, PATIENT_COLS)
+                    }
+                    val freshPayments = CloudReadCache.get("followup:payments:$bKey") {
+                        SupabaseClient.fetchListSlimOrNull("payments", branchExtra.removePrefix("&"), 5000, PAYMENT_COLS_FOLLOWUP)   // V1259
+                    }
                     if (freshCloud != null && freshPatients != null && freshPayments != null) {
                         markPatientTreatmentFullDone(stage, branchFilter, freshCloud, freshPatients, freshPayments)
                     }
@@ -934,7 +1449,14 @@ class FollowUpRepository(private val context: Context? = null) {
             // জমিয়ে রাখা হয়, যাতে পরের delta-কল এখান থেকে এগোতে পারে।
             val result = fetchTab(stage, branchFilter, creatorName, creatorMobile)
             try {
-                val fresh = slimFollowups("stage=eq.Inquiry&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                /* 📉🔒 V1257 (ধাপ ১, উপরের একই কারণ ও একই সাবধানতা) — `fetchTab()`
+                   এইমাত্র এই পড়াটা করেছে; "All" হলে ক্যাশের সারিটা হুবহু এক, তাই
+                   আর নামানো হয় না। ⛔ ব্রাঞ্চ বাছা থাকলে আগের মতোই আলাদা পড়া —
+                   নইলে ব্রাঞ্চ-ধরে-আলাদা-নয় এমন ঘরে কম সারি জমা হয়ে যেত। */
+                val fuBase = "stage=eq.Inquiry&status=not.in.(Cancelled,Incomplete,Rejected,Closed)"
+                val fresh = if (followupBranchScope(branchFilter).isEmpty())
+                    CloudReadCache.get("fu:stage:Inquiry:" + branchKeyPart(branchFilter)) { slimFollowups(fuBase) }
+                else slimFollowups(fuBase)
                 if (fresh != null) markFuFullDone(fresh)
             } catch (_: Throwable) { }
             return result
@@ -999,15 +1521,20 @@ class FollowUpRepository(private val context: Context? = null) {
         runBlocking {
             val jobs = mutableListOf<Deferred<Unit>>()
             jobs += async(Dispatchers.IO) {
-                preCloud = if (preCloudOverride != null) preCloudOverride else
-                    CloudReadCache.get("fu:stage:$stage") {
-                        slimFollowups("stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                preCloud = if (preCloudOverride != null) preCloudOverride else {
+                    val base = "stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)"
+                    val scope = followupBranchScope(branchFilter)   // 📦 V999
+                    CloudReadCache.get("fu:stage:$stage:" + branchKeyPart(branchFilter)) {
+                        // ছাঁকা পড়া আগে; ব্যর্থ হলে হুবহু আগের পুরো পড়া
+                        (if (scope.isEmpty()) null else slimFollowups(base + scope))
+                            ?: slimFollowups(base)
                     } ?: JSONArray()
+                }
             }
             if (higherStagesPre != null) {
                 jobs += async(Dispatchers.IO) {
                     preHigher = CloudReadCache.get("fu:higher:$higherStagesPre") {
-                        slimFollowups("stage=in.($higherStagesPre)&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                        slimFollowupsLink("stage=in.($higherStagesPre)&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")   // V1260
                     }
                 }
             }
@@ -1017,12 +1544,72 @@ class FollowUpRepository(private val context: Context? = null) {
                         // V445: include every terminal Inquiry status.  The active list is
                         // fetched separately; this small companion read is only the
                         // "do not resurrect" guard for duplicate rows of the same mobile.
-                        slimFollowups("stage=eq.Inquiry&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                        /* 📵🔒 V1245 (০৯.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি — খাতার সারি ৩৬৬):
+                           TK: *"যে সমস্ত নাম্বারে আমরা কল করব না বলে ফাইনাল করেছি,
+                           সেই নম্বরগুলোও কেন দেখাবে"*।
+                           🔴 **আসল কারণ (কোড ধরে):** নিচের এনকোয়ারি-জাল `followups`
+                              সারিটা না পেলে `enquiries` টেবিল থেকে কার্ডটা আবার বানায়,
+                              আর সেই বানানো কার্ডে `noMoreCalls` **কখনো বসেই না** ⇒
+                              ডিফল্ট false ⇒ থামানো নম্বর ফিরে আসে। জালের বাদ-দেওয়ার
+                              তালিকাতেও শুধু Cancelled/Incomplete/Rejected/Closed ছিল।
+                           ⇒ **এই একই পড়াতেই** এখন `noMoreCalls=true` সারিগুলোও আসে —
+                             **নতুন কোনো ক্লাউড-ডাক নয়**, শুধু ছাঁকনিটা চওড়া (নিয়ম ১৩)।
+                           ⛔ নিচে `closedInquiryMobiles` বানানোর সময় **status মিলিয়ে**
+                              নেওয়া হয়, তাই "আর ফোন নয়" সারি ভুল করে *Reject* হিসেবে
+                              গোনা হয় না — পুরনো আচরণ এক অক্ষরও বদলায়নি। */
+                        /* 🛡️🔒 V1246 — **নিরাপত্তা:** `noMoreCalls` ঘরটা ডেটাবেসে
+                           না থাকলে (V1206-এর SQL না চালানো থাকলে) এই চওড়া ছাঁকনি
+                           ব্যর্থ হত ⇒ উত্তর `null` ⇒ নিচের এনকোয়ারি-জাল **পুরোটাই বন্ধ**
+                           হয়ে যেত, নতুন এনকোয়ারিও দেখা যেত না। তাই ব্যর্থ হলে
+                           সঙ্গে সঙ্গে **পুরনো সরু ছাঁকনিতেই** ফিরে যাওয়া হয় —
+                           তখন আচরণ হুবহু V1244-এর মতো, কিছুই ভাঙে না।
+                           ⛔ সফল হলে (SQL চালানো থাকলে) আগের মতোই দুরকম সারি আসে। */
+                        slimFollowups("stage=eq.Inquiry&or=(status.in.(Cancelled,Incomplete,Rejected,Closed),noMoreCalls.is.true)")
+                            ?: slimFollowups("stage=eq.Inquiry&status=in.(Cancelled,Incomplete,Rejected,Closed)")
                     }
                 }
                 jobs += async(Dispatchers.IO) {
-                    preEnquiries = CloudReadCache.get("enq:inquiry") {
-                        SupabaseClient.fetchListOrNull("enquiries", "stage=eq.Inquiry", 5000)
+                    /* 🔴🔒 V820 (২৯.০৮.২০২৬) — **Supabase লগ মেপে পাওয়া সবচেয়ে বড় ফুটো।**
+                       লগে (Log Explorer, chunked উত্তর) গত এক ঘণ্টায় ২৪ বার এসেছে:
+                       `?select=*&order=updatedAt.desc.nullslast&limit=5000&stage=eq.Inquiry`
+                       — অর্থাৎ `enquiries` টেবিলের **সব ঘর, ৫০০০ সারি, সব ব্রাঞ্চের**।
+                       এটাই ছিল দৈনিক ~৫০০ MB-র বড় অংশ।
+
+                       দুটো বদল, দুটোই **কোড পড়ে প্রমাণ করে** নেওয়া:
+
+                       ১) **শুধু দরকারি ঘর** (`ENQUIRY_COLS_INQUIRY_TAB`) — বিস্তারিত
+                          ওই ধ্রুবকের মাথায়।
+
+                       ২) **নিজের ব্রাঞ্চের সারিই** আনা হয়, যদি ছাঁকনিতে ঠিক একটাই
+                          ব্রাঞ্চ থাকে। কেন এটা নিরাপদ (আন্দাজ নয়):
+                          · নিচের প্রতিটা ব্যবহারেই সারিটা শেষে `branchAllows()`
+                            দিয়েই বাছা হয় — অন্য ব্রাঞ্চের সারি আজও দেখানো হয় না।
+                          · `branchAllows()` এখানে শুধু **ব্রাঞ্চের নাম** মেলায়,
+                            কারণ তার দ্বিতীয় শর্তটা `patientId` ধরে চলে আর ঘরটা
+                            `enquiries` টেবিলে নেই (সবসময় ফাঁকা)।
+                          · ফাঁকা-ব্রাঞ্চ সারানোর কাজটাও (`branchFromEnquiries`)
+                            **নিজের ব্রাঞ্চের** এনকোয়ারি থেকেই হয় — অন্য ব্রাঞ্চের
+                            সারি পেলেও সেটা পরের ধাপে বাদই যেত। ⇒ ফল অভিন্ন।
+                       ⛔ Master / "All" / একাধিক ব্রাঞ্চের ছাঁকনি হলে **আগের মতোই
+                          সব** আনা হয় — কোনো ঝুঁকি নেওয়া হয়নি।
+                       ⛔ জমানো কপির চাবিতে ব্রাঞ্চ যোগ করা হলো, নইলে এক ফোনে
+                          মাস্টার ও স্টাফ পালা করে খুললে ভুল তালিকা দেখাতে পারত।
+                       ⛔ সরু পড়া ব্যর্থ হলে `fetchListSlimOrNull` নিজেই আগের
+                          পথে (`select=*`) ফিরে যায় — কিছুই ভাঙে না। */
+                    val enqOneBranch = branchFilter
+                        ?.takeIf { it.isNotBlank() && it != "All" }
+                        ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+                        ?.singleOrNull()
+                        .orEmpty()
+                    val enqScope =
+                        if (enqOneBranch.isNotBlank())
+                            "&branch=eq." + java.net.URLEncoder.encode(enqOneBranch, "UTF-8").replace("+", "%20")
+                        else ""
+                    preEnquiries = CloudReadCache.get("enq:inquiry:" + enqOneBranch.ifBlank { "all" }) {
+                        SupabaseClient.fetchListSlimOrNull(
+                            "enquiries", "stage=eq.Inquiry$enqScope", 5000,
+                            SupabaseClient.ENQUIRY_COLS_INQUIRY_TAB
+                        )
                     } ?: JSONArray()
                 }
                 jobs += async(Dispatchers.IO) {
@@ -1069,26 +1656,26 @@ class FollowUpRepository(private val context: Context? = null) {
                     val scope = branchScopeFilter(branchFilter)
                     prePayments = if (prePaymentsOverride != null) prePaymentsOverride else
                         CloudReadCache.get("followup:payments:" + branchKeyPart(branchFilter)) {
-                            SupabaseClient.fetchListOrNull("payments", scope, 5000, select = SupabaseClient.PAYMENT_COLS_LIST)
+                            SupabaseClient.fetchListOrNull("payments", scope, 5000, select = PAYMENT_COLS_FOLLOWUP)   // V1259
                         }
                 }
             }
             if (stage == "Patient") {
                 jobs += async(Dispatchers.IO) {
                     preRejectedVisits = CloudReadCache.get("fu:visitRejected") {
-                        slimFollowups("stage=eq.Patient&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                        slimFollowupsLink("stage=eq.Patient&status=in.(Cancelled,Incomplete,Rejected,Closed)")   // V1260
                     }
                 }
                 jobs += async(Dispatchers.IO) {
                     preTreatmentStage = CloudReadCache.get("fu:treatmentAll") {
-                        slimFollowups("stage=eq.Treatment")
+                        slimFollowupsLink("stage=eq.Treatment")   // V1260
                     }
                 }
             }
             if (stage == "Treatment") {
                 jobs += async(Dispatchers.IO) {
                     preIncompleteTreatment = CloudReadCache.get("fu:trIncomplete") {
-                        slimFollowups("stage=eq.Treatment&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                        slimFollowupsLink("stage=eq.Treatment&status=in.(Cancelled,Incomplete,Rejected,Closed)")   // V1260
                     }
                 }
             }
@@ -1133,6 +1720,7 @@ class FollowUpRepository(private val context: Context? = null) {
         // মুছে যাওয়া সারি বাদ দেওয়া নিরাপদ।
         val cloudAnswered = cloud.length() > 0
         context?.let { ctx ->
+            try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("followups", rows) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             val pending = LocalWorkflowStore(ctx).rowsForStage(stage)
             val idPosition = HashMap<String, Int>()
             for (i in 0 until merged.length()) {
@@ -1202,7 +1790,19 @@ class FollowUpRepository(private val context: Context? = null) {
                     // (not-yet-synced) edit for the same record -- the pending
                     // version is always the newer one, so it replaces the stale
                     // cloud row instead of being ignored.
-                    merged.put(existingPos, p)
+                    /* 🔴🔒 V1305 (তালিকা ৪১৯): "pending মানেই নতুন" — এই ধরে-নেওয়াটা ভুল ছিল।
+                       pending লেখাটা আটকে থাকলে (নেট/কিউ) আর তার মধ্যে অন্য ফোন একই সারিতে
+                       নতুন কিছু লিখলে, ক্লাউডের সারিটাই নতুন। তাই updatedAt মিলিয়ে —
+                       ফোনেরটা নতুন হলে তবেই ফোনেরটা; নইলে ক্লাউডেরটাই থাকে। */
+                    val localStamp = p.optString("updatedAt", "")
+                    val cloudStamp = merged.getJSONObject(existingPos).optString("updatedAt", "")
+                    if (localStamp.isNotBlank() && (cloudStamp.isBlank() || localStamp >= cloudStamp)) {
+                        /* 🔴🔒 V1311 (তালিকা ৪২৩, রুল ৭ — V1306-এর একই নিয়ম): পুরো সারি বদলানো নয়;
+                           ক্লাউডের সারির উপরে ফোনের ঘরগুলো — ফোনের কপি আধখানা হলেও নাম/রোগ/তারিখ হারায় না। */
+                        val ov = JSONObject(merged.getJSONObject(existingPos).toString()); val ks = p.keys()
+                        while (ks.hasNext()) { val k = ks.next(); ov.put(k, p.opt(k)) }
+                        merged.put(existingPos, ov)
+                    }
                 } else {
                     idPosition[pid] = merged.length()
                     merged.put(p)
@@ -1221,11 +1821,23 @@ class FollowUpRepository(private val context: Context? = null) {
         // there is no terminal sibling left, so the card appears normally again.
         // No row is deleted and no payment/patient data is touched.
         val closedInquiryMobiles = HashSet<String>()
+        /* 📵🔒 V1245 — *"আর ফোন নয়"* করা নম্বরগুলো আলাদা তালিকায়।
+           ⛔ ইচ্ছে করেই `closedInquiryMobiles`-এ মেশানো হয়নি — ওটা Reject/Close-এর
+              অর্থ বহন করে, আর "আর ফোন নয়" **Reject নয়** (কার্ডটা তালিকায় থাকে,
+              শুধু কল-তালিকা ও ব্যানার থেকে সরে)। মিশিয়ে দিলে ভালো কাজ খারাপ হত। */
+        val stoppedInquiryMobiles = HashSet<String>()
         if (stage == "Inquiry") {
             preCancelledInquiry?.let { terminalRows ->
                 for (i in 0 until terminalRows.length()) {
-                    val m = digits(terminalRows.optJSONObject(i)?.s("mobile").orEmpty())
-                    if (m.isNotEmpty()) closedInquiryMobiles.add(m)
+                    val r = terminalRows.optJSONObject(i) ?: continue
+                    val m = digits(r.s("mobile"))
+                    if (m.isEmpty()) continue
+                    /* 📵 V1245 — পড়াটা এখন দুরকম সারি আনে, তাই এখানে **status
+                       মিলিয়ে** নেওয়া হয়: terminal হলে আগের তালিকায়, "আর ফোন নয়"
+                       হলে নতুন তালিকায়। ⛔ আগের আচরণ হুবহু অক্ষত। */
+                    val st = r.s("status").trim().lowercase()
+                    if (st in setOf("cancelled", "incomplete", "rejected", "closed")) closedInquiryMobiles.add(m)
+                    if (r.optBoolean("noMoreCalls", false)) stoppedInquiryMobiles.add(m)
                 }
             }
             // V447: terminal enquiry rows must be judged by STATUS, not by stage=Inquiry.
@@ -1449,6 +2061,11 @@ class FollowUpRepository(private val context: Context? = null) {
             if (cancelledInquiryOrNull != null) {
                 val rejectedMobiles = HashSet<String>()
                 rejectedMobiles.addAll(closedInquiryMobiles)
+                /* 📵🔒 V1245 (TK-র অনুমতি) — *"আর ফোন নয়"* করা নম্বরও
+                   জাল আর ফিরিয়ে আনবে না। ⛔ কার্ডটা মোছে না, Reject-ও হয় না —
+                   শুধু এই জাল ওটাকে **নতুন করে বানায় না**, তাই স্টাফের সিদ্ধান্ত
+                   আর উল্টে যায় না। */
+                rejectedMobiles.addAll(stoppedInquiryMobiles)
                 for (i in 0 until cancelledInquiryOrNull.length()) {
                     val m = digits(cancelledInquiryOrNull.getJSONObject(i).s("mobile"))
                     if (m.isNotEmpty()) rejectedMobiles.add(m)
@@ -1520,6 +2137,11 @@ class FollowUpRepository(private val context: Context? = null) {
                         fbHistory.put(
                             JSONObject()
                                 .put("date", row.s("date"))
+                                /* ⏰🔒 V1005 (০৩.০৯.২০২৬) — আগে এখানে `isoNow()` বসত,
+                                   অর্থাৎ **পর্দা খোলার মুহূর্তটাই** পুরনো কলের সময়
+                                   হিসেবে দেখাত। এখন এনকোয়ারির নিজের সময়টাই বসে;
+                                   না থাকলে তবেই এখনকার সময়। */
+                                .put("time", row.s("createdAt").ifBlank { isoNow() })
                                 .put("remark", row.s("remarks"))
                                 .put("staff", row.s("receivedBy").ifBlank { row.s("createdBy") })
                         )
@@ -1535,6 +2157,11 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("nextFollow", row.s("nextFollow"))
                         .put("date", row.s("date"))
                         .put("callCount", row.optInt("callCount", 0))
+                        /* 📵🔒 V1245 — **দ্বিতীয় জাল।** উপরের বাদ-দেওয়ার তালিকা
+                           কোনো কারণে (নেট) ফাঁকা এলেও যেন থামানো কার্ড কল-তালিকায়
+                           না ওঠে, তাই ঘরটা এখানেও বসে। আগে এটা **কখনোই বসত না** ⇒
+                           ডিফল্ট false ⇒ TK-র অভিযোগ। */
+                        .put("noMoreCalls", m in stoppedInquiryMobiles)
                         .put("history", fbHistory)
                     items.add(FollowUpModel.parse(fallback))
                     presentMobiles.add(m)
@@ -1572,7 +2199,9 @@ class FollowUpRepository(private val context: Context? = null) {
                     } catch (_: Throwable) { null }
                     if (alreadyExists == null || alreadyExists.length() > 0) continue
                     val healRow = JSONObject()
-                        .put("id", "fu_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+                        /* 🔗 V1005 — ফোন ও কম্পিউটার একই id বানায়
+                           (`fu_inq_<enquiry id>`), তাই ডুপ্লিকেট সারি হয় না। */
+                        .put("id", "fu_inq_" + row.s("id"))
                         .put("refId", row.s("id"))
                         .put("mobile", row.s("mobile"))
                         .put("name", row.s("name"))
@@ -1586,7 +2215,17 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("lastRemark", row.s("remarks"))
                         .put("nextFollow", row.s("nextFollow"))
                         .put("timeType", row.s("timeType"))
-                        .put("callCount", row.optInt("callCount", 0))
+                        /* 📶🔴🔒 V1268 (TK-রিপোর্ট: *"কল করেছে তাও ওয়াইফাই সিগনাল
+                           কেন ওঠেনি?"*) — এখানে `enquiries.callCount` কপি হত, আর
+                           ওই ঘরটা **সব সময় ০** (`EnquiryModel.buildEnquiryRow`)।
+                           নিচে `history`-ও ফাঁকা লেখা হয় ⇒ মেরামত করা সারিতে
+                           সিগন্যাল **চিরকাল ফাঁকা** থাকত।
+                           ⇒ এখন অন্তত **১** — হুবহু সেই নিয়ম যেটা
+                             `EnquiryModel.buildFollowUpRow()`-এ TK-র ৩১.০৭.২০২৬-এর
+                             নির্দেশে আগে থেকেই বসানো আছে (*"Enquiry Form Save
+                             হওয়ার সাথে সাথেই তো একটা signal হতে হতো"*)।
+                           ⛔ এনকোয়ারিতে গোনা বেশি থাকলে সেটাই থাকে, কমে না। */
+                        .put("callCount", maxOf(row.optInt("callCount", 0), 1))
                         .put("status", "Active")
                         .put("history", JSONArray())
                         .put("createdBy", row.s("createdBy"))
@@ -1666,7 +2305,7 @@ class FollowUpRepository(private val context: Context? = null) {
                     for (i in 0 until paymentsForHigher.length()) {
                         val pay = paymentsForHigher.optJSONObject(i) ?: continue
                         val payType = pay.optString("payType", "")
-                        if (payType == "visit_fee" || payType == "attendance_mark") continue
+                        if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                         if (pay.optDouble("amount", 0.0) <= 0.0) continue
                         val pm = digits(pay.s("mobile"))
                         if (pm.isNotEmpty()) higher.put(JSONObject().put("mobile", pm))
@@ -1705,11 +2344,20 @@ class FollowUpRepository(private val context: Context? = null) {
             /* 🔵🔒 V518: "একই নম্বর একবারই" → "একই **রোগী** একবারই"।
                ⛔ একজন রোগীর ক্ষেত্রে চাবিটা মোবাইলই — নিয়ম হুবহু আগের মতোই। */
             val dedup = ArrayList<FollowUpItem>()
+            /* 📵🔒 V1283 (তালিকা সারি ৪০৬) — একই রোগীর **যেকোনো** সারি "আর কল নয়"
+               হলে যে সারিটা কার্ড হিসেবে টিকল সেটাও থামানো ধরা হয়। নইলে চিহ্নটা
+               জোড়া সারিতে থেকে যেত আর কার্ড/গোনা অন্যটা দিয়ে চলত (SQL-এ মাপা)।
+               ⛔ কোন সারি টিকবে — সেই নিয়ম (নতুন recordDate) এক অক্ষরও বদলায়নি। */
+            val stoppedKeys = HashSet<String>()
+            for (r in items) if (r.noMoreCalls) {
+                val k = identityKey(r.refId, r.mobile)
+                if (k.isNotEmpty()) stoppedKeys.add(k)
+            }
             items.sortedByDescending { it.recordDate }.forEach { r ->
                 val m = identityKey(r.refId, r.mobile)
                 if (m.isNotEmpty() && seen.contains(m)) return@forEach
                 if (m.isNotEmpty()) seen.add(m)
-                dedup.add(r)
+                dedup.add(if (!r.noMoreCalls && m.isNotEmpty() && m in stoppedKeys) r.copy(noMoreCalls = true) else r)
             }
             items.clear(); items.addAll(dedup)
         }
@@ -1774,6 +2422,14 @@ class FollowUpRepository(private val context: Context? = null) {
             val nameByMobile = HashMap<String, String>()
             val branchByMobile = HashMap<String, String>()
             val createdByMobileMap = HashMap<String, String>()
+            /* 🆕🔒 V851 (৩০.০৮.২০২৬, TK-অনুমোদিত) — TK: "যেগুলো রেজিস্ট্রেশন করা
+               হয়েছে সেখানে লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে
+               রেজিস্ট্রেশন করেছিল"। V850-এ Draft-এর কার্ডে বসেছে, এবার
+               Follow-up পর্দার নিজের কার্ডেও (নিয়ম ৬.২ — একই দোষ সব জায়গায়)।
+               ⛔ দুটো ঘরই `PATIENT_COLS`-এ **আগে থেকেই** আসে ⇒ নতুন কোনো
+                  ক্লাউড-পড়া নেই, egress এক বিন্দুও বাড়ে না। */
+            val regDateByMobile = HashMap<String, String>()
+            val regByMobile = HashMap<String, String>()
             // TK-REQUESTED ADDITION (2026-07-24): "Complete despite Due"
             // workflow -- a patient Master has approved for this must also
             // stop showing in the active Treatment call/reminder tab, same
@@ -1839,6 +2495,9 @@ class FollowUpRepository(private val context: Context? = null) {
                 nameByMobile[m] = p.s("name")
                 branchByMobile[m] = p.s("branch")
                 createdByMobileMap[m] = p.s("createdBy")
+                // 🆕 V851 — রেজিস্ট্রেশনের তারিখ ও কে করেছিলেন।
+                regDateByMobile[m] = p.s("registrationDate").ifBlank { p.s("date") }.take(10)
+                regByMobile[m] = p.s("registeredBy").ifBlank { p.s("createdBy") }
                 if (p.s("completeApprovedBy").isNotBlank()) completeApprovedByMobile[m] = p.s("completeApprovedBy")
                 if (p.s("refundRestoredBy").isNotBlank()) refundRestoredByMobile[m] = p.s("refundRestoredBy")
             }
@@ -1876,7 +2535,7 @@ class FollowUpRepository(private val context: Context? = null) {
                 val pay = payments.getJSONObject(i)
                 val pid = pay.s("patientId")
                 val payType = pay.optString("payType", "")
-                if (payType == "visit_fee" || payType == "attendance_mark") continue
+                if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                 // V238: Follow-up Paid/Due must use the same net-payment rule as
                 // Payment Details: approved refunds subtract; pending/rejected
                 // refunds have no effect. The refund row remains untouched.
@@ -2062,7 +2721,9 @@ class FollowUpRepository(private val context: Context? = null) {
                         } catch (_: Throwable) { null }
                         if (alreadyExistsV != null && alreadyExistsV.length() == 0) {
                         val healRow = JSONObject()
-                            .put("id", "fu_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+                            /* 🔗 V1005 — কম্পিউটারের self-heal-এর হুবহু একই id,
+                               তাই দুই যন্ত্রে দুটো সারি হয় না। */
+                            .put("id", "fu_pat_" + p.s("id"))
                             .put("refId", p.s("id"))
                             .put("patientId", p.s("patientId"))
                             .put("mobile", p.s("mobile"))
@@ -2297,7 +2958,15 @@ class FollowUpRepository(private val context: Context? = null) {
                     name = (if (own != null) own.s("name") else nameByMobile[m].orEmpty()).ifBlank { items[idx].name },
                     branch = branchByMobile[m].orEmpty().ifBlank { items[idx].branch },
                     hasApprovedRefund = refundExists,
-                    refundManuallyRestored = refundRestoredByMobile.containsKey(m)
+                    refundManuallyRestored = refundRestoredByMobile.containsKey(m),
+                    /* 🆕 V851 — রোগীর নিজের সারি থাকলে তবেই ভরে; নিছক এনকোয়ারিতে
+                       ফাঁকা থাকে ⇒ ওই কার্ডে আগের মতোই `LAST CALL` দেখায়। */
+                    regDate = (if (own != null) own.s("registrationDate").ifBlank { own.s("date") }.take(10)
+                               else regDateByMobile[m].orEmpty()),
+                    regBy = FollowUpModel.prettyStaff(
+                        if (own != null) own.s("registeredBy").ifBlank { own.s("createdBy") }
+                        else regByMobile[m].orEmpty()
+                    )
                 )
             }
 
@@ -2350,7 +3019,6 @@ class FollowUpRepository(private val context: Context? = null) {
         // Newest first — the most recent enquiry/record shows at the TOP,
         // matching the web's sortFollowRowsByRecent().
         val result = items.sortedByDescending { it.recordDate }
-        saveCachedTab(stage, branchFilter, result)
         // 🔒 খাতার সারি B172 (TK, 30.07.2026): কার্ডের ঠিকানা-ট্যাগ বসানো —
         // ⛔ **এই ধাপটা `saveCachedTab`-এর পরে**, তাই অফলাইন/জমানো তালিকার
         // আচরণ এক অক্ষরও বদলায়নি (জমানো তালিকায় ঠিকানা-ট্যাগ বেঁধে রাখা হয় না;
@@ -2361,8 +3029,12 @@ class FollowUpRepository(private val context: Context? = null) {
         // 🔒 খাতার সারি B173 (TK, 30.07.2026): Patient (Treatment) কার্ডে এই
         // ট্যাগ আর দেখানো হয় না ("View All-এ চাপলে সব দেখা যাবে") — তাই ওই
         // ট্যাবে এই ব্যাচ-অনুরোধটাও আর করা হয় না, বাড়তি একটা ক্লাউড-কলও বাঁচল।
-        if (stage == "Treatment") return result
-        return try {
+        /* 🏷️🔒 V712 — **জমানো তালিকা এখন ঠিকানার ট্যাগ বসানোর পরে লেখা হয়**
+           (আগে তার আগে লেখা হত, তাই ট্যাগটা কখনোই জমত না — উপরের বড় নোট দেখুন)।
+           ⛔ Treatment ট্যাবে ঠিকানার ট্যাগ দেখানোই হয় না (খাতার সারি B173),
+              তাই সেখানে আগের মতোই বাড়তি কোনো অনুরোধ যায় না — শুধু জমা করে ফেরত। */
+        if (stage == "Treatment") { saveCachedTab(stage, branchFilter, result); return result }
+        val tagged = try {
             val saved = AddressTagRepository.fetchSavedTags(result.map { it.mobile })
             result.map { it ->
                 val key = AddressTagRepository.keyFor(it.mobile)
@@ -2370,6 +3042,8 @@ class FollowUpRepository(private val context: Context? = null) {
                 if (tag.isBlank()) it else it.copy(addressTag = tag)
             }
         } catch (_: Throwable) { result }
+        saveCachedTab(stage, branchFilter, tagged)
+        return tagged
     }
 
     private fun digits(s: String): String = s.filter { it.isDigit() }.takeLast(10)
@@ -2574,7 +3248,50 @@ class FollowUpRepository(private val context: Context? = null) {
         } catch (_: Exception) {}
     }
 
-    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false): Boolean {
+    /**
+     * 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — নতুন, **ঐচ্ছিক** ঘর `stampCallDate`।
+     *
+     * TK-এর সমস্যা: *"কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু নম্বরটা
+     * জলপাইগুড়ির এনকোয়ারি — সে রিমার্ক লিখতে পারে না। … রিমার্কটা ফলোআপ
+     * কার্ডে চলে যেতে হবে, যাতে জলপাইগুড়ির স্টাফ বোঝে লাস্ট কে কথা বলেছিল।"*
+     *
+     * কার্ডে লেখা থাকে `LAST CALL <তারিখ> (<স্টাফ>)`. স্টাফের নামটা আসে
+     * history-র শেষ সারি থেকে, আর তারিখটা `lastCallDate` থেকে — **দুটো আলাদা
+     * ঘর**। তাই শুধু রিমার্ক লিখলে **পুরনো তারিখের পাশে নতুন নাম** বসে যেত,
+     * যেটা মিথ্যা।
+     *
+     * TK-অনুমোদিত তৃতীয় পথ: তারিখটা আজকের হবে, **কিন্তু কল-গোনা বাড়বে না** —
+     * তাই "৫ কলের পর বাতিল" নিয়মে এক অক্ষরও প্রভাব পড়ে না।
+     *
+     * ⛔ ডিফল্ট `false` ⇒ আগের প্রতিটা ডাক (Chamber · Dialer · Appointment ·
+     *    Follow-up) হুবহু আগের মতোই চলে।
+     * ⛔ `incrementCall = true` হলে সেই পুরনো নিয়মই আগে চলে; এই ঘরটা তখন
+     *    বাড়তি কিছু করে না (তারিখ ওখানেই বসে যায়)।
+     */
+    /**
+     * 🏷🔒 V1192 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **প্রতিটা লেখায় উৎসের চিহ্ন।**
+     *
+     * TK-এর রিপোর্ট থেকে যে ফাঁকটা বেরিয়েছিল: চেম্বারে লেখা **চিকিৎসা** আর
+     * ফোন-কলের **রিমার্ক** — দুটোই এই একই `history`-তে জমা হয়, আলাদা চেনার
+     * কিছু ছিল না। ফলে Report Card ও CHECK-UP Queue যখন ওই দিনের লেখা তুলে
+     * আনে (V1189/V1191), তখন কল-রিমার্ক "চিকিৎসা" সেজে বসে যেতে পারত।
+     *
+     * ⇒ এখন প্রতিটা নতুন সারিতে একটা ছোট চিহ্ন বসে: `src` = `"treat"` (চেম্বারের
+     *   চিকিৎসা) অথবা `"call"` (ফোন-কল)। জানা না গেলে চিহ্নটা বসেই না।
+     * ⛔ **পর্দায় কিচ্ছু বদলায় না** — চিহ্নটা শুধু ভিতরে; History-র Type কলাম,
+     *    কল-গোনা, লেখা — সব হুবহু আগের মতোই।
+     * ⛔ **পুরনো সারিতে চিহ্ন নেই**, আর সেগুলো আগের মতোই দেখানো হয় (V1189/V1191-এ
+     *    TK যা প্রুফে পাশ করেছেন) — শুধু **স্পষ্টভাবে `"call"` লেখা** সারিগুলোই
+     *    চিকিৎসার জায়গায় বাদ যায়। তাই আজ থেকে ভুলটা আর হতেই পারবে না, অথচ
+     *    পুরনো কিছুই হারায় না।
+     * ⛔ ডেটাবেসে নতুন কোনো টেবিল/কলাম লাগে না — `history` আগে থেকেই JSON।
+     */
+    /* 💰🔒 V1403 — `systemNote = true` = অ্যাপের নিজের লেখা নোট (যেমন "Bill corrected…"),
+       স্টাফের কল নয় ⇒ হিস্ট্রি/lastRemark-এ লেখা হয়, কিন্তু কল-গোনা · lastCallDate ·
+       (তার সূত্রে V1065-এর `nextFollow`=আজ) — কিছুই বসে না। TK-র CSV-তে পেন্ডিং ১২-র
+       ৭টা ঠিক এই নোট থেকেই "আজকের কল"-এ ঢুকেছিল। ওয়েবের বিল-ঠিক পথ আগে থেকেই
+       কল ধরে না — এখন ফোনও এক। ⛔ ডিফল্ট false ⇒ বাকি সব ডাক অপরিবর্তিত। */
+    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false, stampCallDate: Boolean = false, source: String = "", systemNote: Boolean = false): Boolean {
         // Match the WebView's updateFollowAction: append to the history log and,
         // when this is an enquiry call, bump callCount (capped at 5) + stamp today.
         val existing = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
@@ -2606,16 +3323,87 @@ class FollowUpRepository(private val context: Context? = null) {
         // ⛔ জানা না থাকলে হাত না দেওয়াই নিরাপদ — ভুল অঙ্ক লিখে দেওয়ার চেয়ে
         //    আগেরটা অক্ষত রাখা ভালো।
         val haveRow = row.length() > 0
+        // 🔴🔒 V1372 (১২.০৯.২০২৬, তালিকা ৪৬২-চ): দুই ফোনে একই রোগীর history
+        // একসাথে লিখলে একজনের এন্ট্রি হারানোর ঝুঁকি — নিচে RPC সফল হলে এই
+        // এন্ট্রি সরাসরি সার্ভারে জুড়ে যায়, তাই এই ফোন আর পুরো array নিজে
+        // ফিরিয়ে লিখবে না (নিচে fields-এ "history" বসে না)।
+        var historyAppendedViaRpc = false
         if (remark.isNotBlank() && haveRow) {
-            history.put(JSONObject().put("date", FollowUpModel.today()).put("time", isoNow()).put("remark", remark).put("staff", staffName))
+            /* 🏷 V1192 — উৎসের চিহ্ন। কল-ফ্ল্যাগ থাকলে নিজে থেকেই "call",
+               নইলে caller যা বলেছে (চেম্বারের পথে "treat")। কিছুই জানা না গেলে
+               ঘরটা বসেই না — তখন আচরণ হুবহু আগের মতোই। */
+            val src = when {
+                source.isNotBlank() -> source
+                incrementCall || stampCallDate -> "call"
+                else -> ""
+            }
+            val entry = JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())
+                .put("remark", remark).put("staff", staffName)
+            if (src.isNotBlank()) entry.put("src", src)
+            val rpcResult = SupabaseClient.appendFollowupHistory(id, entry)
+            if (rpcResult != null) {
+                historyAppendedViaRpc = true
+            } else {
+                // ⛔ RPC ব্যর্থ (পুরনো ডেটাবেসে ফাংশন না থাকলেও) — আগের
+                // read-modify-write পথেই ফিরে যাওয়া, আচরণ আগের মতোই থাকে।
+                history.put(entry)
+            }
+        }
+        /* 🔴🔴🔒 V1222 ④ (০৮.০৯.২০২৬ — TK, স্টাফের সামনে অপমানিত হয়ে, ছবিসহ:
+           *"Staff কল করেছে, প্রতিবার Remarks লিখেছে, কিন্তু App-এর মধ্যে দেখাচ্ছে না"*
+           — Susmita Das (+919635608042): ফোনের কল-লগে ১৭.০৭ · ১৮.০৭ · ২৪.০৭-এর
+           কল আছে, অথচ অ্যাপের "Enquiry Calls" টেবিলে ওই তিনটে কলের কিছুই নেই।)
+
+           **আসল কারণ (কোডে মেপে পাওয়া):** উপরের `haveRow` — সারিটা ক্লাউড বা
+           ফোন কোথাও থেকেই পড়া না গেলে (নেট দুর্বল) `history`-তে **হাত দেওয়াই হয়
+           না**। নিয়মটা B58-এ ইচ্ছে করেই বসানো, কারণ তখন শুধু আজকের একটা সারি
+           লিখলে রোগীর **পুরো কল-ইতিহাস মুছে যেত** — সেটা আরও বড় সর্বনাশ।
+           ⇒ কিন্তু ফল দাঁড়াত: রিমার্কটা `lastRemark`-এ বসত, আর **কলটা ইতিহাসে
+             কোথাও উঠত না** — চিরতরে। স্টাফ "সেভ হয়েছে" দেখে পরের কলে চলে যেতেন।
+
+           ⇒ **সমাধান (ইতিহাস মোছার ঝুঁকি এক ফোঁটাও না বাড়িয়ে):** এমন সময়ে
+             সারিটা ফোনে **জমা** থাকে। পরে যখন সারিটা সত্যিই পড়া যায়, তখন
+             ক্লাউডের **আসল ইতিহাসের শেষে** সারিটা জুড়ে দেওয়া হয়।
+           ⛔ ফাঁকা/আন্দাজের ইতিহাস কখনো লেখা হয় না — সারি পড়া গেলে তবেই।
+           ⛔ একই সারি দুবার বসে না (তারিখ · সময় · লেখা · স্টাফ মিলিয়ে দেখা হয়)।
+           ⛔ `callCount` এখানে ছোঁয়া হয় না — "দিনে একবার" ও ৫-এর সীমা অটুট। */
+        if (remark.isNotBlank() && !haveRow) {
+            val src2 = when {
+                source.isNotBlank() -> source
+                incrementCall || stampCallDate -> "call"
+                else -> ""
+            }
+            val late = JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())
+                .put("remark", remark).put("staff", staffName)
+            if (src2.isNotBlank()) late.put("src", src2)
+            queueHistoryEntry(id, late)
         }
 
         val fields = JSONObject().put("updatedAt", isoNow())
-        if (haveRow) fields.put("history", history)
+        // 🔴🔒 V1372 — history RPC দিয়ে সরাসরি সার্ভারে জুড়ে গেলে এখানে আর
+        // পাঠানো হয় না (নইলে এই ফোনের পুরনো কপি RPC-এর করা এন্ট্রি চাপা দিয়ে দিত)।
+        if (haveRow && !historyAppendedViaRpc) fields.put("history", history)
         if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — লেখাটা **কবে
+           লেখা হলো** সেটা এখন আলাদা ঘরে বসে। `updatedAt` অন্য কাজেও (যেমন
+           `updateNextFollow`) আজকের হয়ে যেত, তাই সেটা দিয়ে "আজকের নোট কি না"
+           বোঝা যেত না — পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হত।
+           ⛔ ঘরটা **শুধু তখনই** লেখা হয় যখন রিমার্কের কথাটা সত্যিই বদলায়। */
+        if (remark.isNotBlank()) fields.put("lastRemarkAt", isoNow())
         // Final safety gate: regardless of which Follow-up screen calls this
         // function, empty text can never change Last Call or Call Count.
-        if (incrementCall && remark.isNotBlank() && haveRow) {
+        /* 🔴🔴🔒 V1149 (০৬.০৯.২০২৬, TK-সিদ্ধান্ত: *"শুধু রিমার্ক লিখলে তবেই সেটা
+           কল বলে গণ্য করা হয় — এই নিয়মটাই থাকতে হবে"*, আর পরে *"খ করুন"*)।
+           🔴 **যা ধরা পড়ল (TK-এর SQL-এ মেপে):** ১৫০২টা সারির মধ্যে **১৩৯৩টায়**
+              গোনা আর হিস্ট্রি দুই রকম বলত — প্রায় সবগুলোতেই **গোনা কম**।
+              কারণ: গোনা বাড়ত **কেবল `incrementCall = true` পথে**, অথচ রিমার্ক
+              লেখা হলেই হিস্ট্রিতে সারি বসত। ⇒ যে পর্দাগুলো ওটা পাঠাত না,
+              সেখানে কল হিস্ট্রিতে উঠত কিন্তু গোনায় নয়।
+           ⇒ এখন TK-র নিয়মই কোডে: **রিমার্ক লেখা মানেই একটা কল** — কোন পর্দা
+             থেকে লেখা হলো তাতে কিছু আসে যায় না।
+           ⛔ "দিনে একবার" নিয়ম অটুট (খাতার সারি B53) · ৫ বারের সীমা অটুট ·
+              ফাঁকা রিমার্কে কিছুই বদলায় না · সারিটা পড়া না গেলে হাত পড়ে না। */
+        if (remark.isNotBlank() && haveRow && !systemNote) {   // 💰 V1403 — অ্যাপের নোট কল নয়
             // 🔒 খাতার সারি B53 (TK, 28.07.2026 রাত): **দিনে একবারই।**
             // আগে একই দিনে দুটো রিমার্ক লিখলে দাগ (call signal) দু'ঘর বেড়ে
             // যেত, অথচ কম্পিউটারের নিয়ম চিরকাল ছিল "দিনে একবার"
@@ -2629,6 +3417,41 @@ class FollowUpRepository(private val context: Context? = null) {
             val newCount = if (lastCall == todayStr) current else (current + 1).coerceAtMost(5)
             fields.put("callCount", newCount)
             fields.put("lastCallDate", todayStr)
+        }
+        /* 📝🔒 V827 — কল-গোনা ছোঁয়া হয় না, শুধু তারিখটা আজকের হয়, যাতে কার্ডের
+           `LAST CALL <তারিখ> (<স্টাফ>)` লাইনটা সত্যি কথা বলে।
+           ⛔ উপরের `incrementCall` পথে ইতিমধ্যে তারিখ বসে গেলে এখানে আর কিছু
+              করা হয় না (দুই পথ কখনো একে অপরের উপর লিখবে না)। */
+        if (stampCallDate && !incrementCall && remark.isNotBlank() && haveRow) {
+            fields.put("lastCallDate", FollowUpModel.today())
+        }
+        /* 📞🔴🔒 V1065 (০৪.০৯.২০২৬) — **V998-এর বাকি দরজাটা।**
+           TK ছবি দিয়ে বললেন *"এই সমস্যার কথা এর আগে কি আপনাকে বলা হয় নাই"* —
+           হ্যাঁ, বলা হয়েছিল (তালিকার সারি ৯১ · V998, আর তার আগে সারি B214)।
+           **আমার ব্যর্থতা:** V998-এ শুধু **ডায়ালারের** পথটা সেরেছিলাম, কিন্তু
+           রিমার্ক/টাকার এই পথেও হুবহু একই ফাঁক ছিল — `lastCallDate` আজকের
+           হয়ে যেত, অথচ `nextFollow` পুরনোই থাকত ⇒ **পরের কল, শেষ কলের আগে**,
+           সারিটা চিরকাল "Overdue" (TK-এর ছবিতে NOOR ALAM: শেষ কল ০১.০৯,
+           পরের কল ০২.০৮ — লেখা ছিল *"Treatment payment / Advance received"*,
+           অর্থাৎ কল নয়, টাকার পথ)।
+           ⇒ এখন তারিখ বসার সাথে সাথেই `nextFollow` **ফাঁকা বা আজকের আগের হলে**
+             আজকের দিন বসে — V998-এর হুবহু একই নিয়ম।
+           ⛔ **ভবিষ্যতের তারিখ কখনো ছোঁয়া হয় না।**
+           ⛔ স্টাফ নিজে তারিখ বাছলে সেটাই জেতে (`nextFollow` আগেই বসানো থাকলে
+              এখানে আর কিছু করা হয় না)।
+           ⛔ সারি তালিকা থেকে হারায় না — "বকেয়া" থেকে "আজকের"-এ সরে আসে। */
+        /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"বার বার নো মোর কল দাবার পরেও
+           আবার এই পেশেন্টের নাম কেনো শো করছে"*) — **এটাই ছিল আসল দোষ।**
+           V1065-এর এই নিয়মটা ফাঁকা `nextFollow` দেখলেই আজকের দিন বসিয়ে দিত,
+           অর্থাৎ "ইচ্ছে করে থামানো"-কেও "কখনো বসানোই হয়নি" ধরত। ⇒ এখন
+           `noMoreCalls` সত্যি হলে এই নিয়ম **ছোঁয়াই হয় না**।
+           ⛔ V1065-এর আসল উদ্দেশ্য (কল হলেও সারিটা চিরকাল "বকেয়া" না থাকা)
+              অন্য সব সারিতে হুবহু আগের মতোই কাজ করে। */
+        val stoppedRow = haveRow && row.optBoolean("noMoreCalls", false)
+        if (fields.has("lastCallDate") && !fields.has("nextFollow") && haveRow && !stoppedRow) {
+            val todayStr = FollowUpModel.today()
+            val nf = if (row.isNull("nextFollow")) "" else row.optString("nextFollow", "").trim()
+            if (nf.isBlank() || nf < todayStr) fields.put("nextFollow", todayStr)
         }
         rememberEditOnThisPhone(id, fields, row)
         // TK-REPORTED BUG FIX (2026-07-16): if this cloud write fails, queue
@@ -2651,23 +3474,114 @@ class FollowUpRepository(private val context: Context? = null) {
             if (remark.isBlank()) true
             else {
                 val back = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
-                back.length() > 0 && back.getJSONObject(0).optString("lastRemark") == remark
+                back.length() > 0 && back.getJSONObject(0).s("lastRemark") == remark   // 🔴🔒 V696
             }
         } catch (_: Exception) { false }
         if (!reallySaved) queueFieldUpdate(id, fields)
-        return reallySaved || context != null
+        return reallySaved
     }
 
-    fun updateNextFollow(id: String, nextFollow: String): Boolean {
+    /* 📵🔒 V1206 — `stop` **শুধু তখনই** লেখা হয় যখন ডাকার জায়গা নিজে বলে দেয়:
+       "আর কল লাগবে না" ⇒ true, স্টাফ নতুন তারিখ বাছলে ⇒ false (আবার চালু,
+       আলাদা কোনো বোতাম লাগে না)।
+       ⛔ ডিফল্ট `null` ⇒ বাকি সব পুরোনো ডাক (Dialer · Appointment · Draft ·
+          Timeline) **এক অক্ষরও বদলায়নি**, ঘরটা তারা ছোঁয়ই না। */
+    /* 🔴🔒 V1222 ③ (০৮.০৯.২০২৬ — Laxmi-র রিপোর্ট, TK-র অনুমতি নিয়ে):
+       ডাকা জায়গাটা যেন জানতে পারে কাজটা **সত্যিই ক্লাউডে বসল, নাকি শুধু ফোনে
+       জমা হলো** — নইলে স্টাফকে মিথ্যে "হয়ে গেছে" দেখানো হয়।
+       ⛔ `updateNextFollow()`-এর ফেরত এক অক্ষরও বদলায়নি (আগের মতোই জমা হলেও
+          সফল), তাই কোনো পর্দার পুরনো আচরণ ভাঙে না — এটা শুধু বাড়তি একটা সৎ খবর। */
+    fun updateNextFollowSaved(id: String, nextFollow: String, stop: Boolean? = null): Boolean =
+        updateNextFollowInner(id, nextFollow, stop)
+
+    fun updateNextFollow(id: String, nextFollow: String, stop: Boolean? = null): Boolean =
+        updateNextFollowInner(id, nextFollow, stop) || context != null
+
+    private fun updateNextFollowInner(id: String, nextFollow: String, stop: Boolean? = null): Boolean {
         val fields = JSONObject()
             .put("nextFollow", nextFollow)
             .put("updatedAt", isoNow())
+        if (stop != null) fields.put("noMoreCalls", stop)
         val knownRow = try {
             val found = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
             if (found.length() > 0) found.getJSONObject(0) else null
         } catch (_: Exception) { null }
         rememberEditOnThisPhone(id, fields, knownRow)
         val cloudOk = SupabaseClient.updateById("followups", id, fields)
+        /* 📵🔒 V1283 (১০.০৯.২০২৬, TK-রিপোর্ট ষষ্ঠবার ও অনুমতি — তালিকা সারি ৪০৬):
+           TK: *"staff-দের বক্তব্য তারা আর কল করতে চায় না বলে চেপেছে, তারপরও
+           আবার সেই সমস্ত নম্বর ফিরে আসে Today pending call-এ"*।
+           🔴 **SQL-প্রমাণে ধরা আসল কারণ:** একই নম্বরে **জোড়া সারি** থাকে (heal-এ
+           বানানো `fu_mskc7kv…`/`fu_pat_…`)। থামানোর চিহ্ন বসত শুধু **এই একটা**
+           সারিতে (`ensureFollowUpRowId()` ক্লাউডের প্রথমটা বাছে), অথচ কার্ড ও
+           গোনা চলে **জোড়াটা** দিয়ে; পরের কল/টাকায় V1065-এর নিয়ম জোড়াটায়
+           আজকের তারিখ বসাত (৪০ থামানো সারির ৩টায় হুবহু এটাই মাপা)।
+           ⇒ এখন থামালে/চালু করলে ওই নম্বরের **সব চালু সারিতে** একই চিহ্ন বসে
+             (থামালে তারিখও ফাঁকা); চালু করলে (`stop=false`) জোড়ার শুধু চিহ্ন
+             ওঠে — ওদের তারিখ ছোঁয়া হয় না।
+           ⛔ Cancelled/Incomplete/Rejected/Closed সারি ছোঁয়া হয় না · কিছু মোছে না ·
+              ইতিহাস অটুট · ব্যর্থ হলে জমা (queue) থেকে পরে আবার চেষ্টা।
+           ⛔ `stop == null` (সাধারণ তারিখ-বদল) হলে এই ব্লক চলেই না — আগের আচরণ অটুট। */
+        if (stop != null) {
+            try {
+                val kMob = digits(knownRow?.s("mobile").orEmpty())
+                if (kMob.length == 10) {
+                    val sibs = SupabaseClient.fetchListSlimOrNull(
+                        "followups",
+                        "mobile=like.*$kMob&status=not.in.(Cancelled,Incomplete,Rejected,Closed)",
+                        20, "id,mobile,stage,status,nextFollow,noMoreCalls,updatedAt"
+                    )
+                    if (sibs != null) for (i in 0 until sibs.length()) {
+                        val s = sibs.optJSONObject(i) ?: continue
+                        val sid = s.optString("id", "")
+                        if (sid.isBlank() || sid == id) continue
+                        if (s.optBoolean("noMoreCalls", false) == stop && (!stop || s.s("nextFollow").isBlank())) continue
+                        val sf = JSONObject().put("noMoreCalls", stop).put("updatedAt", isoNow())
+                        if (stop) sf.put("nextFollow", "")
+                        /* ⛔ জোড়ার জন্য ফোনের স্থানীয় কপিতে শুধু **থাকলে** ঘরগুলো বদলানো হয়;
+                           নতুন আধখানা সারি (নাম ছাড়া) তৈরি করা হয় না — নইলে অন্য ট্যাবে
+                           নামহীন কার্ড উঠতে পারত। ক্লাউডে বসল কি না সেটাই আসল। */
+                        try { context?.let { LocalWorkflowStore(it).updateLocalFollowUp(sid, sf) } } catch (_: Throwable) { }
+                        if (!SupabaseClient.updateById("followups", sid, sf)) queueFieldUpdate(sid, sf)
+                    }
+                }
+            } catch (_: Throwable) { }
+        }
+        /* 📅🔒 V1245 (০৯.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি — খাতার সারি ৩৬৬):
+           TK: *"স্টাফরা বলছে রিমার্ক লিখেছি, পরের তারিখও দিয়েছি — তারপরেও কেন
+           এগুলো আসবে"*।
+           🔴 **আসল কারণ (কোড ধরে):** নতুন তারিখটা এতদিন **শুধু `followups`
+              সারিতেই** বসত। কিন্তু এনকোয়ারি ট্যাবের জাল কার্ডটা বানায়
+              `enquiries` টেবিল থেকে, আর ওই সারির `nextFollow` লেখা হয় **শুধু
+              এনকোয়ারি তৈরির দিনে** — তারপর কোনোদিন বদলায় না। ⇒ জাল একবার
+              চললেই কার্ডে **পুরনো তারিখটাই** ফিরে আসত, স্টাফের দেওয়া নতুন
+              তারিখ নয় — দেখে মনে হত কেউ কল করেইনি।
+           ⇒ এখন Inquiry ধাপে নতুন তারিখটা **এনকোয়ারির সারিতেও** বসে, ঠিক
+             V445-এর প্রমাণিত ধাঁচে (দুই টেবিলের কথা এক রাখা)।
+           ⛔ **বাড়তি কোনো পড়া নেই** — `knownRow` উপরে এমনিতেই আনা হয়েছে,
+              সেখান থেকেই stage ও মোবাইল নেওয়া হয় (নিয়ম ১৩)।
+           ⛔ শুধু `nextFollow` ঘরটাই — নাম · নম্বর · রিমার্ক · status · ইতিহাস
+              কিছুই ছোঁয়া হয় না; সারি মোছাও হয় না।
+           ⛔ ব্যর্থ হলে কিছুই ভাঙে না — `followups`-এর তারিখটাই আসল, এটা শুধু
+              জালের জন্য বাড়তি সুরক্ষা।
+           ⛔ Inquiry ছাড়া অন্য ধাপে (Visit/Patient) চলেই না — ওদের জাল আলাদা। */
+        try {
+            val kStage = knownRow?.s("stage").orEmpty().trim()
+            val kMob = digits(knownRow?.s("mobile").orEmpty())
+            if (cloudOk && kStage.equals("Inquiry", true) && kMob.length == 10 && nextFollow.isNotBlank()) {
+                val eRows = SupabaseClient.findByMobileOrNull("enquiries", kMob, "id", 50)
+                if (eRows != null) {
+                    for (i in 0 until eRows.length()) {
+                        val eid = eRows.optJSONObject(i)?.optString("id").orEmpty()
+                        if (eid.isBlank()) continue
+                        val ef = JSONObject().put("nextFollow", nextFollow).put("updatedAt", isoNow())
+                        if (!SupabaseClient.updateById("enquiries", eid, ef)) {
+                            context?.let { try { GenericUpdateQueue.queue(it, "enquiries", eid, ef) } catch (_: Throwable) { } }
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) { }
         // Same proof as the remark just above: an update that matched no row
         // still answers 200, so read it back before believing it.
         val reallySaved = cloudOk && try {
@@ -2778,7 +3692,7 @@ class FollowUpRepository(private val context: Context? = null) {
                 val done = when (kind) {
                     "patient" -> markPatientDoctorCompleteByMobile(mob)
                     "followup_stage" -> closeSiblingFollowUpsInternal(
-                        mob, stage, "", status, e.optString("remark"), e.optString("staffName"), false
+                        mob, stage, "", status, e.s("remark"), e.s("staffName"), false   // 🔴🔒 V696
                     )
                     else -> markEnquiryClosedByMobile(mob, status)
                 }
@@ -2848,6 +3762,12 @@ class FollowUpRepository(private val context: Context? = null) {
     ): Boolean {
         val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
         if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — লেখাটা **কবে
+           লেখা হলো** সেটা এখন আলাদা ঘরে বসে। `updatedAt` অন্য কাজেও (যেমন
+           `updateNextFollow`) আজকের হয়ে যেত, তাই সেটা দিয়ে "আজকের নোট কি না"
+           বোঝা যেত না — পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হত।
+           ⛔ ঘরটা **শুধু তখনই** লেখা হয় যখন রিমার্কের কথাটা সত্যিই বদলায়। */
+        if (remark.isNotBlank()) fields.put("lastRemarkAt", isoNow())
         val terminal = status.equals("Cancelled", true) || status.equals("Incomplete", true) ||
             status.equals("Rejected", true) || status.equals("Closed", true)
         var knownRow: JSONObject? = null
@@ -2942,6 +3862,12 @@ class FollowUpRepository(private val context: Context? = null) {
             if (PatientIdentity.provablyOtherPatient(row, d, myRowId, myCode, myName)) continue
             val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
             if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — লেখাটা **কবে
+           লেখা হলো** সেটা এখন আলাদা ঘরে বসে। `updatedAt` অন্য কাজেও (যেমন
+           `updateNextFollow`) আজকের হয়ে যেত, তাই সেটা দিয়ে "আজকের নোট কি না"
+           বোঝা যেত না — পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হত।
+           ⛔ ঘরটা **শুধু তখনই** লেখা হয় যখন রিমার্কের কথাটা সত্যিই বদলায়। */
+        if (remark.isNotBlank()) fields.put("lastRemarkAt", isoNow())
             if (staffName.isNotBlank()) {
                 val history = row.optJSONArray("history") ?: JSONArray()
                 history.put(JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())
@@ -2984,6 +3910,24 @@ class FollowUpRepository(private val context: Context? = null) {
             .put("callCount", newCount)
             .put("lastCallDate", today)
             .put("updatedAt", isoNow())
+        /* 📞🔒 V998 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — Susmita Das · MD RAJ):
+           *"NEXT CALL, LAST CALL-এর আগের তারিখ, তাই চিরকাল Overdue"*।
+
+           **আসল কারণ (কোড ধরে, আন্দাজ নয়):** ডায়ালার থেকে কল হলে
+           `DialerRepository.saveCallRemark()` এই ফাংশনটা ডাকে — এটা কল গোনে ও
+           `lastCallDate` আজকের করে, **কিন্তু `nextFollow` কখনো ছোঁয় না**।
+           স্টাফ পরের কলের তারিখ বেছে দিলে তবেই V873-এর পথে সেটা বসে; না
+           দিলে পুরনো তারিখটাই থেকে যায় ⇒ সারিটা চিরকাল "Overdue"।
+
+           **এখন:** তারিখটা **ফাঁকা বা আজকের আগের** হলেই আজকের দিন বসে —
+           অর্থাৎ সারিটা "আজকের কল"-এ ফেরে, পুরনো তারিখে আটকে থাকে না।
+           ⛔ **ভবিষ্যতের তারিখ কখনো ছোঁয়া হয় না** — স্টাফের বেছে দেওয়া
+              পরের তারিখ অক্ষত।
+           ⛔ স্টাফ নিজে তারিখ বাছলে সেটাই শেষ কথা: `saveCallRemark()`-এ
+              `updateNextFollow()` এই ফাংশনের **পরে** চলে, তাই সে-ই জেতে।
+           ⛔ সারি তালিকা থেকে হারায় না — "বকেয়া" থেকে "আজকের"-এ সরে আসে। */
+        val curNext = if (row.isNull("nextFollow")) "" else row.optString("nextFollow", "")
+        if (curNext.isBlank() || curNext < today) fields.put("nextFollow", today)
         rememberEditOnThisPhone(id, fields, row)
         val ok = SupabaseClient.updateById("followups", id, fields)
         if (!ok) queueFieldUpdate(id, fields)

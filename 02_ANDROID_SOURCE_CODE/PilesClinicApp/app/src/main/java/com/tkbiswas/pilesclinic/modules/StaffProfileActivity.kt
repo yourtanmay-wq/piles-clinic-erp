@@ -10,12 +10,14 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
 import android.widget.ImageView
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Spinner
 import android.widget.ArrayAdapter
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.tkbiswas.pilesclinic.native.HourSalary   // ⏱️ V1166
 import com.tkbiswas.pilesclinic.native.NativeSession
 import com.tkbiswas.pilesclinic.native.PhotoUtils
 import com.tkbiswas.pilesclinic.native.TripleTapEdit
@@ -25,6 +27,8 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+// 🅰️ V1057 — কার্ডের ছয়টা আইকনের জন্য (নিয়ম ৯.৩৮ মেনে খালি লাইনে)
+import com.tkbiswas.pilesclinic.R
 
 class StaffProfileActivity : AppCompatActivity() {
 
@@ -118,6 +122,11 @@ class StaffProfileActivity : AppCompatActivity() {
         }
     }
 
+    /** 🗓️ V1248 — "2026-08-28" → "28/08/2026"। চেনা না গেলে যা আছে তাই। */
+    private fun salDmy(iso: String): String = try {
+        val p = iso.take(10).split("-"); p[2] + "/" + p[1] + "/" + p[0]
+    } catch (_: Throwable) { iso }
+
     private fun todayIso(): String {
         val f = SimpleDateFormat("yyyy-MM-dd", Locale.US); f.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
         return f.format(java.util.Date())
@@ -159,7 +168,66 @@ class StaffProfileActivity : AppCompatActivity() {
     // ---------- MASTER: list all ----------
     private fun renderList() {
         backAction = { finish() }
-        val root = ModuleUi.screen(this, "🧑‍💼 Staff Profiles")
+        /* 🎨🔒 V764 (২৭.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন A**, ডেমো ফটো দেখে বাছা)
+           TK: *"Add staff & Doctor উপরে হেডারে রাখুন, একটা icon সহ"*।
+           ⛔ `ModuleUi.screen()`-কে **খালি শিরোনাম** দেওয়া হলো, কারণ ওটা নিজে
+              শুধু একটা লেখা বসায় — পাশে বোতাম বসানোর জায়গা নেই। শিরোনাম ও
+              গোল ➕ বোতাম এখানে নিজেই এক সারিতে বসানো হলো।
+           ⛔ `ModuleUi.screen()` **ছোঁয়া হয়নি** — নইলে প্রজেক্টের অন্য সব
+              Module-পর্দার শিরোনাম বদলে যেত। */
+        val root = ModuleUi.screen(this, "")
+        run {
+            val d = resources.displayMetrics.density
+            val head = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, (10 * d).toInt())
+            }
+            head.addView(ModuleUi.heading(this, "🧑\u200d💼 Staff Profiles").apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            // ⋮ শুধু মাস্টার দেখবেন — সার্ভারেও একই পাহারা আছে।
+            /* 📋🔒 V1321 (TK-নির্দেশ ১০.০৯.২০২৬, ডেমো-প্রুফ পাশ) — আলাদা 📱
+               ও ➕ গোল বোতাম দুটো, আর নিচের "🏆 Staff Performance" বোতাম —
+               তিনটেই এখন এই একটা ⋮ মেনুর ভিতরে। TK: *"এগুলি উপরে ডান সাইড
+               3 Dot এর মধ্যে থাকবে"*।
+               ⛔ কাজ/পাহারা/অ্যাকশন তিনটেই আগের মতোই (phoneVersionsScreen,
+                  addPersonDialog, performanceList) — শুধু বসার জায়গা বদলাল। */
+            if (ModuleAuth.isMaster) {
+                head.addView(android.widget.TextView(this).apply {
+                    text = "\u22EE"
+                    textSize = 20f
+                    setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0B7A3E"))
+                    gravity = android.view.Gravity.CENTER
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = 10f * d
+                        setColor(android.graphics.Color.WHITE)
+                        setStroke((1 * d).toInt(), android.graphics.Color.parseColor("#CFE3D8"))
+                    }
+                    elevation = 3f * d
+                    isClickable = true; isFocusable = true
+                    contentDescription = "More"
+                    setOnClickListener { v ->
+                        val items: List<Pair<String, () -> Unit>> = listOf(
+                            "\uD83C\uDFC6 Staff Performance" to ({ performanceList("") }),
+                            "\uD83D\uDCF1 Mobile Version" to ({ phoneVersionsScreen() }),
+                            "\u2795 Add Staff / Doctor" to ({ addPersonDialog() })
+                        )
+                        try {
+                            val pm = android.widget.PopupMenu(this@StaffProfileActivity, v)
+                            items.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+                            pm.setOnMenuItemClickListener { mi ->
+                                items.getOrNull(mi.itemId)?.second?.invoke(); true
+                            }
+                            pm.show()
+                        } catch (_: Throwable) { }
+                    }
+                    layoutParams = LinearLayout.LayoutParams((40 * d).toInt(), (40 * d).toInt())
+                })
+            }
+            root.addView(head)
+        }
         // 🔧 V486: এই তালিকার ScrollView চিনে রাখি + কতটা নিচে নামা হচ্ছে মাপি।
         listScroll = (root.parent as? android.widget.ScrollView)?.also { sv ->
             sv.setOnScrollChangeListener { _, _, y, _, _ -> if (trackListScroll) listScrollY = y }
@@ -182,7 +250,30 @@ class StaffProfileActivity : AppCompatActivity() {
         /* 🏆🔒 V419 (TK-নির্দেশ, ১৭.০৮.২০২৬): সবার পারফরম্যান্স এক পর্দায় —
            তালিকার উপরে একটাই বোতাম। ⛔ শুধু Master দেখতে পাবেন। */
         if (ModuleAuth.isMaster) {
-            root.addView(salOutlineButton("🏆 Staff Performance", "#0A5C33", "#0A5C33") { performanceList("") })
+            // ⛔ V1321 — বোতামটা এখন উপরের ⋮ মেনুতে ("🏆 Staff Performance"), তাই এখানে আর নেই।
+            /* 📱🔒 V813 (২৮.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ডেমো-প্রুফ:
+               *"phone Version আলাদা থাকবে না … স্টাফের পারফরম্যান্স যেখানে,
+               তার পাশে একটুখানি অপশন থাকলেই তো চলে"*) —
+               V771-এর আলাদা "📱 Phone Versions" **বোতাম ও পর্দা দুটোই উঠে গেল**।
+               কোন ফোনে কোন ভার্সন চলছে সেটা এখন **Staff Performance-এর ভিতরেই**
+               প্রত্যেকের নামের নিচে ছোট ট্যাগ হয়ে দেখায় (performanceList)।
+               ⛔ কোনো তথ্য · পাহারা · SQL কিছুই বদলায়নি — একই `hr.app_devices_list`,
+                  একই মাস্টার-যাচাই; শুধু দেখার জায়গাটা বদলাল। */
+            /* 👥🔒 V746 (২৭.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) —
+               TK: *"আপনি তো আর আমার সাথে সারা জীবন থাকবেন না... আমি
+               অ্যাপ্লিকেশন থেকে কোন স্টাফ যোগ বা বিয়োগ করতে পারব কিনা।"*
+               ⛔ শুধু মাস্টার — সার্ভারেও একই পাহারা, তাই ফোন থেকে ফাঁকি নেই।
+               ⛔ পুরনো তালিকা/বেতন/পারফরম্যান্স — কিচ্ছু ছোঁয়া হয়নি,
+                  শুধু একটা নতুন বোতাম যোগ। */
+            /* 🧹🔒 V761 (২৭.০৮.২০২৬, TK: *"Remove করার অপশন আগেই ছিল, আবার কেন
+   ডুপ্লিকেট বানালেন"*) — TK সম্পূর্ণ ঠিক বলেছেন।
+   এই পর্দার **প্রতিটা কার্ডেই** আগে থেকে Remove · Restore · Suspend আছে
+   (V404/V603, ডাক্তার ও ফিল্ড-অফিসার সহ সবার জন্য), আর নিচে আলাদা
+   "Removed" ভাগও আছে। V746-এ আমি ভুল করে ওই একই তালিকা আবার বানিয়ে
+   ফেলেছিলাম — সেটা মুছে দেওয়া হলো।
+   ⇒ সত্যিই যেটা ছিল না তা হলো **যোগ করা**। তাই বোতামটা এখন সরাসরি
+     যোগ করার ঘরটাই খোলে — বাড়তি কোনো পর্দা নেই। */
+            // ⛔ V764 — বোতামটা এখন উপরে হেডারে (গোল ➕), তাই এখানে আর নেই।
         }
         val cachedNow = loadCachedStaffList()
         if (cachedNow != null) {
@@ -218,6 +309,51 @@ class StaffProfileActivity : AppCompatActivity() {
                 "select=person_code,designation,role_kind,branch,full_name,link_mobile,active&order=person_code"
             )
             val cfgR = ModuleAuth.getRowsChecked("hr", "salary_config", "select=*")
+            /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"এখানে extra income নেই"*।
+               সত্যিই ছিল না — কার্ডে শুধু Salary লেখা হত। এখন প্রতিটা কার্ডে
+               `Extra: ₹… paid · ₹… due` বসে।
+               ⛔ **একজন-একজন করে নয় — গোটা তালিকার জন্য একটাই পড়া**, আর মাত্র
+                  তিনটে ঘর (`person_code,kind,amount,status`)। Free Plan-এ
+                  Egress-এ প্রভাব নগণ্য।
+               ⛔ ব্যর্থ হলে ম্যাপ ফাঁকা থাকে ⇒ লাইনটা বসে না, কার্ড হুবহু আগের
+                  মতোই — একটাও নাম/তথ্য হারায় না। */
+            try {
+                val exR = ModuleAuth.getRowsChecked(
+                    "hr", "salary_payments", "select=person_code,kind,amount,status&kind=eq.EXTRA")
+                if (exR.ok) {
+                    val paidM = HashMap<String, Double>(); val dueM = HashMap<String, Double>()
+                    for (i in 0 until exR.rows.length()) {
+                        val r = exR.rows.optJSONObject(i) ?: continue
+                        val c = ns(r, "person_code").trim()
+                        if (c.isBlank()) continue
+                        val a = r.optDouble("amount", 0.0)
+                        if (payStatus(r) == "DUE") dueM[c] = (dueM[c] ?: 0.0) + a
+                        else paidM[c] = (paidM[c] ?: 0.0) + a
+                    }
+                    extraPaidByStaff = paidM; extraDueByStaff = dueM
+                }
+            } catch (_: Throwable) { }
+            /* 📱🔒 V822 — কার সাথে কোন ভার্সন, সেটাও একই থ্রেডে আনা হয়।
+               ⛔ একটাই ছোট RPC (~৩০ সারি) — Egress-এ প্রভাব নগণ্য।
+               ⛔ ব্যর্থ হলে ম্যাপ ফাঁকা থাকে ⇒ কোনো ট্যাগ বসে না, আর
+                  তালিকাটা আগের মতোই পুরোপুরি চলে (একটাও নাম হারায় না)। */
+            try {
+                val vr = ModuleAuth.rpc("hr", "app_devices_list", JSONObject())
+                if (vr.ok) {
+                    val va = JSONArray(vr.body)
+                    val m = HashMap<String, Int>()
+                    for (i in 0 until va.length()) {
+                        val o = va.optJSONObject(i) ?: continue
+                        val code = ns(o, "person_code").trim().uppercase(Locale.US)
+                        if (code.isNotBlank()) m[code] = o.optInt("app_version_code", 0)
+                    }
+                    verListMap = m
+                    verListLatest = maxOf(
+                        com.tkbiswas.pilesclinic.BuildConfig.VERSION_CODE,
+                        com.tkbiswas.pilesclinic.native.AppVersionCheck.newerVersionOrZero(this)
+                    )
+                }
+            } catch (_: Throwable) { }
             if (!rowsR.ok || !cfgR.ok) {
                 runOnUiThread {
                     if (cachedNow == null) {
@@ -227,7 +363,20 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 return@Thread   // ব্যর্থ পড়া — ভালো cache/তালিকা অক্ষত
             }
-            val rows = rowsR.rows
+            /* ⛔🔒 V890 (৩০.০৮.২০২৬, TK-নির্দেশ) — বাদ দেওয়া স্টাফের একটাও
+               তথ্য কোথাও দেখাবে না। এই **একটাই জায়গায়** ছেঁকে দেওয়া হয়, তাই
+               স্টাফ-তালিকা · Performance · Phone Versions · বেতন — সব পর্দাতেই
+               একসাথে বাদ পড়ে, কোনো জায়গা ভুলে বাদ যায় না।
+               তালিকা: `BlockedStaff`। ⛔ রোগীর তথ্য/টাকা কিছুই মোছে না। */
+            val rows = com.tkbiswas.pilesclinic.native.BlockedStaff.let { blk ->
+                val keep = JSONArray()
+                for (i in 0 until rowsR.rows.length()) {
+                    val r = rowsR.rows.optJSONObject(i) ?: continue
+                    if (blk.isBlocked(ns(r, "link_mobile"), ns(r, "person_code"))) continue
+                    keep.put(r)
+                }
+                keep
+            }
             val cfg = cfgR.rows
             saveCachedStaffList(rows, cfg)
             val cfgMap = HashMap<String, JSONObject>()
@@ -267,67 +416,173 @@ class StaffProfileActivity : AppCompatActivity() {
     private fun renderStaffList(listBox: LinearLayout, rows: JSONArray, cfg: JSONArray) {
         val cfgMap = HashMap<String, JSONObject>()
         for (i in 0 until cfg.length()) cfgMap[cfg.getJSONObject(i).optString("person_code")] = cfg.getJSONObject(i)
-        var shown = 0
+        // V308-এ এই চার Doctor-এর login identity তৈরি হয়েছিল, কিন্তু
+        // staff_profiles সারি তৈরি হয়নি। তাই তালিকা থেকে অদৃশ্য ছিলেন। live
+        // directory-এর একই code/mobile/name/branch দিয়ে শুধু অনুপস্থিত চারজনকে
+        // তালিকায় পূরণ করা হয়; DB-তে থাকা কাউকে কখনো overwrite করা হয় না।
+        val allRows = ArrayList<JSONObject>()
+        val presentCodes = HashSet<String>()
+        for (i in 0 until rows.length()) {
+            val p = rows.getJSONObject(i); allRows.add(p)
+            presentCodes.add(ns(p, "person_code").uppercase(Locale.US))
+        }
+        configuredMissingDoctors().forEach { p ->
+            if (!presentCodes.contains(ns(p, "person_code").uppercase(Locale.US))) allRows.add(p)
+        }
+
+        val activeStaff = ArrayList<JSONObject>()
+        val activeDoctors = ArrayList<JSONObject>()
+        val activeField = ArrayList<JSONObject>()
         // 🔴 V404 (16.08.2026, TK-নির্দেশ): বাদ-দেওয়া কর্মী (active=false) মূল
         //    তালিকায় আসবে না — নিচে আলাদা "Removed Staff" ভাগে গোনা থাকবে,
         //    ভুল হলে Restore করা যাবে। ⛔ চুপচাপ লুকোনো নয়।
         val removedList = ArrayList<JSONObject>()
-        for (i in 0 until rows.length()) {
-            val p = rows.getJSONObject(i)
-            val pc = p.optString("person_code")
+        for (p in allRows) {
             val roleKind = ns(p, "role_kind")
             // ⛔ পুরনো cache-এ `active` ঘরটা নেই ⇒ ডিফল্ট true ⇒ কেউ উধাও হবে না।
-            if (roleKind.equals("staff", ignoreCase = true) && !p.optBoolean("active", true)) {
+            if (!p.optBoolean("active", true) && (
+                    roleKind.equals("staff", true) || roleKind.equals("doctor", true) || roleKind.equals("field", true))) {
                 removedList.add(p); continue
             }
-            // 🔴 B306 (03.08.2026, TK-নির্দেশ): এই তালিকায় শুধু স্টাফ থাকবে —
-            // ডাক্তার/মাস্টার/ফিল্ড অফিসার এখানে দেখানো হবে না। ডেটা এখনো
-            // hr.staff_profiles-এই আছে (কিছু মোছা হয়নি), শুধু এই পর্দায়
-            // রেন্ডার-লেভেলে বাদ দেওয়া হচ্ছে।
-            if (!roleKind.equals("staff", ignoreCase = true)) continue
-            shown++
+            // 🟢🔒 V603 (২৪.০৮.২০২৬, TK-স্পষ্ট নির্দেশ, ছবি-প্রুফ পাশ) —
+            // B306 (03.08.2026)-এ ইচ্ছে করে এই তালিকা শুধু staff-এ সীমিত
+            // করা হয়েছিল। TK এখন বলেছেন: *"সবাইকে তো সেখানে দেখায় না...
+            // যে কোনো ব্যক্তির ফোনে অ্যাপ চলবে না সেরকম ব্যবস্থা"* — অর্থাৎ
+            // Doctor/Field-কেও Suspend করার সুযোগ দরকার। ⇒ B306-এর সিদ্ধান্ত
+            // আংশিক উল্টে staff-এর সাথে doctor ও field-ও এখন এই তালিকায়
+            // আসবে (backend-এর suspend-যাচাই আগে থেকেই সবার জন্য কাজ করে —
+            // SessionGuard.kt-এ শুধু Master ছাড়া বাকি সবাইকে ধরে, তাই এটা
+            // নতুন কোনো ঝুঁকি নয়, শুধু আগে থেকে-কাজ-করা জিনিসটা এখানে
+            // দেখানো হলো)।
+            // ⛔ Master কখনো এখানে আসবে না/suspend হবে না — RoleRules ও
+            //    SessionGuard দুটোতেই আগে থেকেই আটকানো, এখানেও বাদ রাখা হলো।
+            val visibleRole = roleKind.equals("staff", true) ||
+                roleKind.equals("doctor", true) || roleKind.equals("field", true)
+            if (!visibleRole) continue
+            when {
+                roleKind.equals("staff", true) -> activeStaff.add(p)
+                roleKind.equals("doctor", true) -> activeDoctors.add(p)
+                else -> activeField.add(p)
+            }
+        }
+
+        fun heading(label: String, top: Int = 14) = TextView(this).apply {
+            text = label; textSize = 14f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setPadding(dp(4), dp(top), dp(4), dp(6))
+        }
+        fun addCard(p: JSONObject, removed: Boolean = false) {
+            val pc = ns(p, "person_code")
             val sc = cfgMap[pc]
+            val directory = com.tkbiswas.pilesclinic.native.StaffDirectory.findAccount(ns(p, "link_mobile"))
+            val roleKind = ns(p, "role_kind")
             val desig = ns(p, "designation").ifBlank { roleKind }
-            val fullName = ns(p, "full_name").ifBlank { "(name not set)" }
+            val knownDoctorName = mapOf(
+                "DR-KH-MANDAL" to "Dr. K.H MANDAL",
+                "DR-JAY-BANIK" to "Dr. JAY BANIK",
+                "DR-AMIT-GOLDAR" to "AMIT GOLDAR",
+                "DR-PK-ROY" to "P.K ROY",
+                "DR-JH-MANDAL" to "J.H MANDAL",
+                "DR-GOKUL" to "GOKUL",
+                "DR-SAIKAT-ROY" to "Dr. SAIKAT ROY",
+                "DR-PRANAB-BISWAS" to "Dr. PRANAB BISWAS"
+            )[pc.uppercase(Locale.US)]
+            val fullName = ns(p, "full_name").ifBlank { directory?.name ?: knownDoctorName ?: "(name not set)" }
+            val branch = ns(p, "branch").ifBlank { directory?.branch ?: "" }
             val salTxt = if (sc != null && sc.optBoolean("salary_enabled", false))
                 "Salary: " + money(sc.optDouble("salary_amount", 0.0)) + " (day " + ns(sc, "salary_date") + ")" else "Salary: disabled"
-            listBox.addView(staffCard(pc, desig, roleKind, ns(p, "branch"), fullName, ns(p, "link_mobile"), salTxt,
-                onView = { editProfile(pc) }, onSalary = { salary(pc) }))
+            /* 🟣 V961 — কোনো এক্সট্রা না থাকলে লাইনটাই বসে না (কার্ড আগের মতো)। */
+            val exPaid = extraPaidByStaff[pc] ?: 0.0
+            val exDue = extraDueByStaff[pc] ?: 0.0
+            /* 🎨🔒 V1146 (০৬.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"Extra 8100 Paid তাহলে
+               লাল কালার কেন? তাছাড়া 8100 এখানে দেখাবে না, শুধুমাত্র Due দেখাবে"*)
+               ⇒ লাইনটায় এখন **শুধু বাকিটা** — দেওয়া হয়ে যাওয়া টাকা আর ওঠে না,
+                 আর বাকি না থাকলে লাইনটাই বসে না (তাই লাল রংও আর ভুল বোঝায় না)।
+               ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু কার্ডে দেখানোর লেখা।
+               ⛔ `exPaid` মোছা হয়নি — Extra Income পর্দায় ওটা আগের মতোই লাগে। */
+            val extraTxt = if (exDue > 0.0) "Extra: " + money(exDue) + " due" else ""
+            listBox.addView(staffCard(pc, desig, roleKind, branch, fullName, ns(p, "link_mobile"), salTxt,
+                onView = { editProfile(pc) }, onSalary = { salary(pc) }, isRemoved = removed,
+                extraText = extraTxt))
+        }
+
+        var shown = 0
+        if (activeStaff.isNotEmpty()) {
+            listBox.addView(heading("STAFF"))
+            val branchOrder = com.tkbiswas.pilesclinic.native.BranchFilterStore.BRANCHES
+            val branches = activeStaff.map { ns(it, "branch") }.distinct()
+                .sortedWith(compareBy<String> { val n = branchOrder.indexOf(it); if (n < 0) Int.MAX_VALUE else n }.thenBy { it })
+            for (branch in branches) {
+                listBox.addView(heading(branch.ifBlank { "Branch not set" }, 7))
+                activeStaff.filter { ns(it, "branch") == branch }
+                    .sortedBy { ns(it, "full_name").ifBlank { ns(it, "person_code") } }
+                    .forEach { addCard(it); shown++ }
+            }
+        }
+        if (activeDoctors.isNotEmpty()) {
+            listBox.addView(heading("DOCTORS"))
+            activeDoctors.sortedWith(compareBy<JSONObject>({ ns(it, "branch") }, { ns(it, "full_name").ifBlank { ns(it, "person_code") } }))
+                .forEach { addCard(it); shown++ }
+        }
+        if (activeField.isNotEmpty()) {
+            listBox.addView(heading("FIELD OFFICER"))
+            activeField.sortedBy { ns(it, "full_name").ifBlank { ns(it, "person_code") } }
+                .forEach { addCard(it); shown++ }
         }
         if (shown == 0) listBox.addView(ModuleUi.body(this, "No profiles."))
-        // 🔴 V404: বাদ-দেওয়া কর্মীদের আলাদা ভাগ — শেষে, ছোট করে।
+        // Removed profile-গুলো ডিফল্টে লুকানো। প্রয়োজন হলে Master শিরোনামে
+        // চাপ দিয়ে খুলে Restore করতে পারবেন—Restore-এর পথ হারায় না।
         if (removedList.isNotEmpty()) {
-            listBox.addView(TextView(this).apply {
-                text = "Removed Staff (" + removedList.size + ")"
+            val removedBox = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = android.view.View.GONE
+            }
+            val removedHead = TextView(this).apply {
+                text = "REMOVED (" + removedList.size + ")  ▾"
                 textSize = 12.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#6B7A72"))
-                setPadding(dp(4), dp(18), dp(4), dp(2))
-            })
-            for (p in removedList) {
-                val pc = p.optString("person_code")
-                listBox.addView(
-                    staffCard(
-                        pc,
-                        ns(p, "designation").ifBlank { ns(p, "role_kind") },
-                        ns(p, "role_kind"),
-                        ns(p, "branch"),
-                        ns(p, "full_name").ifBlank { "(name not set)" },
-                        ns(p, "link_mobile"),
-                        "Salary: disabled",
-                        onView = { editProfile(pc) },
-                        onSalary = { salary(pc) },
-                        isRemoved = true
-                    )
-                )
+                setPadding(dp(4), dp(18), dp(4), dp(10))
+                isClickable = true; isFocusable = true
             }
+            removedHead.setOnClickListener {
+                val opening = removedBox.visibility != android.view.View.VISIBLE
+                removedBox.visibility = if (opening) android.view.View.VISIBLE else android.view.View.GONE
+                removedHead.text = "REMOVED (" + removedList.size + ")  " + if (opening) "▴" else "▾"
+            }
+            listBox.addView(removedHead)
+            for (p in removedList) {
+                val before = listBox.childCount
+                addCard(p, true)
+                val card = listBox.getChildAt(before)
+                listBox.removeView(card)
+                removedBox.addView(card)
+            }
+            listBox.addView(removedBox)
         }
     }
+
+    private fun configuredMissingDoctors(): List<JSONObject> = listOf(
+        JSONObject().put("person_code", "DR-JH-MANDAL").put("link_mobile", "7479173399").put("full_name", "J.H MANDAL").put("role_kind", "doctor").put("branch", "Cooch Behar").put("active", true),
+        JSONObject().put("person_code", "DR-GOKUL").put("link_mobile", "9002610352").put("full_name", "GOKUL").put("role_kind", "doctor").put("branch", "Cooch Behar").put("active", true),
+        JSONObject().put("person_code", "DR-SAIKAT-ROY").put("link_mobile", "7810907954").put("full_name", "Dr. SAIKAT ROY").put("role_kind", "doctor").put("branch", "Falakata").put("active", true),
+        JSONObject().put("person_code", "DR-PRANAB-BISWAS").put("link_mobile", "9242009205").put("full_name", "Dr. PRANAB BISWAS").put("role_kind", "doctor").put("branch", "Birpara").put("active", true)
+    )
 
     // 🔴 লক করা ডিজাইন (03.08.2026, B304 মকআপ অনুমোদন, B307-এ সংশোধিত) —
     // কম্প্যাক্ট কার্ড: নাম+ব্যাজ + View/Salary ছোট বোতাম ডানপাশে। TK পরে
     // অ্যাভাটার-আইকন (রঙিন বাক্স/👤) বাদ দিতে বলেছেন — সরানো হলো, শুধু নাম-ই
     // যথেষ্ট। শুধু এই ফাইলেই ব্যবহৃত, ModuleUi.kt ছোঁয়া হয়নি।
+    /* 📱🔒 V822 (২৯.০৮.২০২৬, TK-নির্দেশ) — তালিকার কার্ডে **শুধু পুরনো ভার্সন**
+       দেখানোর জন্য। TK: *"যাদের পুরনো ভার্সন চলছে তাদেরটাই শো করবে; লেটেস্ট
+       চললে আর শো করার দরকার নেই।"*
+       ⚠️ TK-কে আগেই জানানো ঝুঁকি: ট্যাগ না থাকা মানে "হালনাগাদ" — কিন্তু
+          ভার্সনের তালিকা আনতে **ব্যর্থ** হলেও ট্যাগ বসে না। তাই আসল উত্তর
+          সবসময় 📱 পর্দাটাই দেয় (ব্যর্থ হলে সেখানে "Could not load" লেখে)। */
+    private var verListMap: Map<String, Int> = emptyMap()
+    private var verListLatest = 0
+
     private fun dp(v: Int) = ModuleUi.dp(this, v)
 
     /* 🔴🔒 V442 (TK-নির্দেশ ১৮.০৮.২০২৬, ফটো-প্রুফ অনুমোদিত: "প্রফেশনাল বানানো
@@ -336,29 +591,84 @@ class StaffProfileActivity : AppCompatActivity() {
        দেখাত)। এখন card উপরে-নিচে (তথ্য পুরো চওড়া জুড়ে, তার নিচে বোতাম দুই
        সারিতে পাশাপাশি — View·Salary·Performance / Suspend·Remove)।
        ⛔ কোনো বোতামের কাজ/রং/লেবেল বদলায়নি — শুধু জায়গা। */
+    /* ⋮🔒 V1058 (TK-নির্দেশ: *"এই থ্রি ডটে চাপ দিলে fix attendance, suspend,
+       remove আসবে এবং সেটা কার্যকারী হতে হবে"*) — তিনটেই **আসল কাজ** করে,
+       আগের সেই একই ফাংশনগুলোই ডাকা হয়; নতুন কিছু বানানো হয়নি।
+       ⛔ বাদ-দেওয়া স্টাফের কার্ডে শুধু Restore — আগের নিয়মই।
+       ⛔ Master ছাড়া Fix Attendance আসে না (আগেও আসত না)। */
+    private fun staffDotsMenu(pc: String, fullName: String, mobile: String, isRemoved: Boolean, onView: () -> Unit) {
+        val labels = ArrayList<String>()
+        val acts = ArrayList<() -> Unit>()
+        labels.add("View profile"); acts.add { onView() }
+        // 🏆 V1091 (TK: *"ডানদিকে থ্রি ডটের মধ্যে থাকবে"*) — কার্ড থেকে তুলে আনা
+        //    বোতামটার কাজ এক অক্ষরও বদলায়নি, একই `performanceOne()` ডাকা হয়।
+        if (ModuleAuth.isMaster) { labels.add("Performance"); acts.add { performanceOne(pc, "") } }
+        if (isRemoved) {
+            labels.add("Restore"); acts.add { restoreStaffDialog(pc, fullName) }
+        } else {
+            if (ModuleAuth.isMaster) {
+                labels.add("Fix Attendance"); acts.add { fixAttendanceDialog(pc, fullName, mobile) }
+            }
+            labels.add("Suspend"); acts.add { suspendStaffDialog(pc, fullName) }
+            labels.add("Remove");  acts.add { removeStaffDialog(pc, fullName) }
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, fullName))
+            .setItems(labels.toTypedArray()) { _, which -> acts.getOrNull(which)?.invoke() }
+            .setNegativeButton("Close", null)
+            .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+    }
+
     private fun staffCard(
         pc: String, desig: String, roleKind: String, branch: String, fullName: String,
         mobile: String, salaryText: String, onView: () -> Unit, onSalary: () -> Unit,
         // 🔴 V404 (16.08.2026): বাদ-দেওয়া কর্মীর কার্ডে Suspend/Remove-এর বদলে
         //    শুধু Restore থাকবে। ডিফল্ট false ⇒ পুরনো সব ডাক অবিকল আগের মতোই চলে।
-        isRemoved: Boolean = false
+        isRemoved: Boolean = false,
+        extraText: String = ""      // 🟣 V961 — ফাঁকা হলে লাইনটা বসে না
     ): LinearLayout {
         val card = ModuleUi.card(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-        val info = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        /* 🎨🔒 V1057 (০৪.০৯.২০২৬ — **TK-এর নিজের পাঠানো ছবি হুবহু**) — TK: *"অ্যান্ড্রয়েড
+           ফোনে চেহারা এরকম বানান… যা ফটো পাঠিয়েছে হুবহু একই বানাবেন"*।
+           ⇒ বাঁয়ে নামের আদ্যক্ষরের গোল ব্যাজ, ডানে ⋮ (কার্ডের View-ই খোলে),
+             বেতনের লাইনে `•` বিভাজক ও "Salary day:", আর ছয়টা বোতামেই আইকন।
+           ⛔ **কোনো বোতাম যোগ/বাদ/অদলবদল হয়নি** — ছবির মতোই ৩+৩; আগের সেশনে
+              ওয়েবে যে "danger row" করেছিলাম সেটাও ফিরিয়ে নেওয়া হলো, কারণ
+              TK-এর ছবিতে ওরকম নেই।
+           ⛔ কোনো বোতামের কাজ এক অক্ষরও বদলায়নি। */
+        val headRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
+        /* 🗑️🔒 V1059 (TK-নির্দেশ ০৪.০৯.২০২৬: *"নামের short থাকবে না, মানে
+           LAXMI GUPTA (LG)"*) — V1057-এর গোল আদ্যক্ষর-ব্যাজটা তুলে দেওয়া হলো।
+           ⛔ বাকি সব (⋮ · বেতনের লাইন · তিনটে বোতাম) আগের মতোই। */
+        val info = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
         val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+        /* 🎨🔒 V1091 (TK-রিপোর্ট ছবিসহ — CHANDANA ROY PRADHAN: *"mobile version
+           কেন এরকম ব্রেক হবে"*) — লম্বা নাম গোটা সারিটা দখল করে নিত, তাই
+           ডানের ভার্সন-ব্যাজটা চেপে গিয়ে **তিন লাইনে** ভেঙে যেত।
+           ⇒ এখন নামটাই একমাত্র ঘর যেটা ছোট হয় (`weight = 1f`), আর ব্যাজ দুটো
+             নিজের মাপেই থাকে। নাম না ধরলে শেষে "…" বসে — ভাঙে না।
+           ⛔ লেখা · রং · মাপ কিছুই বদলায়নি, শুধু জায়গা ভাগের নিয়ম। */
         topRow.addView(TextView(this).apply {
             text = fullName; textSize = 14.5f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#1C2B22"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         val isDoc = roleKind.equals("doctor", true)
         topRow.addView(TextView(this).apply {
             text = desig.ifBlank { if (isDoc) "Doctor" else "Staff" }; textSize = 9.5f
+            maxLines = 1   // 🎨 V1091 — চিপ কখনো ভাঙবে না
             setTextColor(android.graphics.Color.parseColor(if (isDoc) "#6A3FCB" else "#0B8A3E"))
             setPadding(dp(7), dp(2), dp(7), dp(2))
             background = android.graphics.drawable.GradientDrawable().apply {
@@ -368,17 +678,87 @@ class StaffProfileActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                 .apply { marginStart = dp(6) }
         })
+        /* 📱🔒 V822 — নামের পাশে ভার্সনের ট্যাগ, কিন্তু **শুধু পুরনো হলে**
+           (TK: *"লেটেস্ট ভার্সন চললে আর শো করার দরকার নেই"*)।
+           ⛔ জানা না থাকলে বা হালনাগাদ হলে কিছুই বসে না — কার্ড আগের মতোই। */
+        if (verListLatest > 0) {
+            val v = verListMap[pc.trim().uppercase(Locale.US)]
+            if (v != null && v < verListLatest) {
+                topRow.addView(pvChip(
+                    if (v <= 0) "No app yet" else "V" + v + " · old",
+                    "#B3261E", "#FDECEA"
+                ))
+            }
+        }
         info.addView(topRow)
         info.addView(TextView(this).apply {
             text = pc + " · " + branch + " · " + ModuleUi.fullMobile(mobile)   // 🔵 V521 (TK): পুরো নম্বর
             textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#6B7A72"))
             setPadding(0, dp(2), 0, 0)
         })
-        info.addView(TextView(this).apply {
-            text = salaryText; textSize = 10.5f
-            setTextColor(android.graphics.Color.parseColor(if (salaryText.startsWith("Salary: disabled")) "#A7B0AB" else "#0B8A3E"))
-            setPadding(0, dp(3), 0, dp(10))
-        })
+        /* \uD83D\uDD12\uD83D\uDC41\uFE0F V1321 (TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6 \u09e7\u09e6.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, \u09a1\u09c7\u09ae\u09cb-\u09aa\u09cd\u09b0\u09c1\u09ab \u09aa\u09be\u09b6) \u2014 "Salary: \u09f3\u09ee,\u09e6\u09e6\u09e6"
+           \u09a1\u09bf\u09ab\u09b2\u09cd\u099f\u09c7 \u09a1\u099f \u09a6\u09bf\u09af\u09bc\u09c7 \u09a2\u09be\u0995\u09be, \u09aa\u09be\u09b6\u09c7\u09b0 \uD83D\uDC41 \u099a\u09be\u09aa\u09b2\u09c7 \u09a6\u09c7\u0996\u09be \u09af\u09be\u09af\u09bc\u0964 "Salary day: N" \u0993
+           "Extra: \u2026 due" \u0986\u0997\u09c7\u09b0 \u09ae\u09a4\u09cb\u0987 \u0996\u09cb\u09b2\u09be\u0964 \u09aa\u09cd\u09b0\u09a4\u09bf\u099f\u09be \u0995\u09be\u09b0\u09cd\u09a1 \u0986\u09b2\u09be\u09a6\u09be \u099f\u0997\u09b2 \u2014 \u098f\u0995\u099f\u09be
+           \u0996\u09c1\u09b2\u09b2\u09c7 \u0985\u09a8\u09cd\u09af\u0997\u09c1\u09b2\u09cb \u099b\u09cb\u0981\u09af\u09bc \u09a8\u09be\u0964 \u2b1b Salary disabled \u09b9\u09b2\u09c7 \u09ae\u09be\u09b8\u09cd\u0995 \u09a6\u09b0\u0995\u09be\u09b0 \u09a8\u09c7\u0987\u0964 */
+        if (salaryText.startsWith("Salary: disabled")) {
+            info.addView(TextView(this).apply {
+                text = salaryText
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#A7B0AB"))
+                setPadding(0, dp(5), 0, if (extraText.isBlank()) dp(10) else dp(2))
+            })
+        } else {
+            val m = Regex("^Salary:\\s*(.+?)\\s*\\(day\\s*([^)]*)\\)").find(salaryText)
+            val amountStr = m?.groupValues?.get(1) ?: salaryText.removePrefix("Salary: ")
+            val dayStr = m?.groupValues?.getOrNull(2) ?: ""
+            var salaryRowMasked = true
+            val salRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, dp(5), 0, if (extraText.isBlank()) dp(10) else dp(2))
+            }
+            val amtTv = TextView(this).apply {
+                text = "Salary: \u2022\u2022\u2022\u2022\u2022\u2022"
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B8A3E"))
+            }
+            salRow.addView(amtTv)
+            salRow.addView(TextView(this).apply {
+                text = "\uD83D\uDC41"
+                textSize = 9.5f
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(4), dp(2), dp(4), dp(2))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(5).toFloat()
+                    setColor(android.graphics.Color.parseColor("#EEF3F0"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#DCE6E0"))
+                }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(6) }
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    salaryRowMasked = !salaryRowMasked
+                    amtTv.text = "Salary: " + (if (salaryRowMasked) "\u2022\u2022\u2022\u2022\u2022\u2022" else amountStr)
+                }
+            })
+            if (dayStr.isNotBlank()) {
+                salRow.addView(TextView(this).apply {
+                    text = "  \u2022  Salary day: $dayStr"
+                    textSize = 12f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0B8A3E"))
+                })
+            }
+            info.addView(salRow)
+        }
+        if (extraText.isNotBlank()) {   // 🟣 V961
+            info.addView(TextView(this).apply {
+                text = extraText; textSize = 10.5f
+                setTextColor(android.graphics.Color.parseColor("#B45309"))
+                setPadding(0, 0, 0, dp(8))
+            })
+        }
         // 🔴 V442 — দুই সারির অনুভূমিক বোতাম-বার (প্রতিটা বোতাম সমান চওড়া, `weight=1f`)।
         val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -394,11 +774,60 @@ class StaffProfileActivity : AppCompatActivity() {
                 marginStart = if (first) 0 else dp(4)
                 marginEnd = if (last) 0 else dp(4)
             }
-        fun smallBtn(text: String, filled: Boolean, onClick: () -> Unit) = TextView(this).apply {
-            this.text = text; textSize = 11.5f
+        /* 🎨🔒 V1091 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"সব লেখাগুলো ব্রেক হয়ে
+           উপর-নিচে হয়ে গেছে… সাইজ একটু ছোট করুন যাতে উপর নিচে না হয়"* —
+           বিশেষ করে RUPAM-এর কার্ড, যেখানে বোতাম একটা বেশি)।
+           ⇒ তিনটে পাহারা একসাথে:
+             ① `maxLines = 1` — লেখা কখনো দ্বিতীয় লাইনে নামবে না
+             ② লেখা **নিজে থেকে ছোট হয়ে** ঘরে বসে (autosize 8→11.5sp),
+                তাই বোতাম কটা আছে বা নাম কত লম্বা — কিছুতেই ভাঙবে না
+             ③ উচ্চতা নির্দিষ্ট (dp 40) — autosize-এর জন্য উচ্চতা wrap হলে
+                Android-এর ফল অনিশ্চিত হয়ে যায় (গুগলের নিজের সতর্কতা), আর
+                সব বোতাম সমান উঁচু দেখায়
+           ⛔ কোনো বোতামের কাজ · রং · কে দেখতে পায় — কিছুই বদলায়নি। */
+        // 🎨🔒 V1342 (১১.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ: "উচ্চতা এত কম কেন,
+        // প্রফেশনাল বলে মনে হচ্ছে না") — 46dp → 56dp, লেখাও 11.5sp → 13sp।
+        // ⛔ শুধু এই বোতাম আর নিচের dangerBtn (Suspend/Remove/Restore, একই
+        // উচ্চতা রাখতেই হয়) — বাকি প্রজেক্টের অন্য কোনো বোতাম/পর্দা ছোঁয়া হয়নি।
+        fun smallBtn(text: String, filled: Boolean, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
+            this.text = text; textSize = 13f
+            maxLines = 1
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(6), dp(9), dp(6), dp(9))
+            /* 🎨 V1057 — লেখার বাঁয়ে আইকন (TK-এর ছবির মতো)। ⛔ আইকন না দিলে
+               বোতামটা আগের মতোই শুধু লেখা — অন্য কোথাও কিছু ভাঙে না। */
+            if (icon != 0) {
+                setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+                compoundDrawablePadding = dp(4)   // 🎨 V1091 — লেখার জায়গা বাড়াতে
+                // ভরাট বোতামে আইকনটাও সাদা, নইলে সবুজের উপর সবুজ মিলিয়ে যেত
+                if (filled) androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(
+                    this, android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
+            }
+            setPadding(dp(4), 0, dp(4), 0)
+            // 🎨 V1146 (TK: *"তিনটা লাইন উচ্চতা এত কম"*) — 40 → 46dp, সব বোতামেই।
+            // 🎨 V1342 (১১.০৯.২০২৬, TK-নির্দেশ) — 46 → 56dp, আরো প্রফেশনাল দেখাতে।
+            /* 🔴🔒 V1401 (১২.০৯.২০২৬ সন্ধ্যা, TK: *"এই বক্সগুলোর উচ্চতা সামান্য একটু
+               বড় করুন"*, ডেমো-প্রুফ পাশ) — **আমার ভুল ধরা পড়ল:** উপরের ৪৬/৫৬dp
+               কোনোদিন কার্যকর হয়নি। `height = dp(..)` লেখার **পরে** নিচের
+               `setSingleLine(true)` চলত, আর Android-এ setSingleLine ভিতরে
+               setLines(1) ডাকে — যা আগের নির্দিষ্ট উচ্চতা বাতিল করে দেয়। তাই বোতাম
+               আসলে লেখা/আইকনের মাপেই (~১৬-২৪dp) ছিল — TK-র ছবিতেও তাই দেখা যায়।
+               ⇒ উচ্চতা এখন setSingleLine-এর **পরে** বসে (XML-এ singleLine+height
+                  যেভাবে কাজ করে, হুবহু সেই ক্রম), মাপ TK-র পাশ করা ২৬dp —
+                  এখনকার আসল উচ্চতার থেকে সামান্য বেশি (৫৬ দিলে অনেক বেশি হত,
+                  TK ডেমো দেখে বাতিল করেছেন)।
+               ⛔ নিচের dangerBtn-এও একই ক্রম, একই উচ্চতা (একই দোষ, নিয়ম ৭)। */
+            /* 🎨🔒 V1092 (০৫.০৯.২০২৬ — TK-এর বিল্ড-করা ছবিতে ধরা পড়ল: RUPAM-এর
+               "Extra Income" তখনো দুই লাইনে)। **আসল কারণ মেপে পাওয়া:** বাঁয়ের
+               আইকনটা (২৪dp + ফাঁক) বোতামের চওড়ার একটা বড় অংশ নিয়ে নেয়, আর
+               Android-এর নিজে-থেকে-ছোট-হওয়া (autosize) মাপার সময় **আইকনের
+               জায়গাটা বাদ দেয় না** — তাই লেখা ঠিক আছে ভেবে ছোট করত না, অথচ
+               আঁকার সময় জায়গা কম পড়ে ভেঙে যেত। ⇒ autosize-এর উপর ভরসা না করে
+               এখন নিশ্চিত নিয়ম: এক লাইনে বাঁধা, আর সারিতে ৩টে বা বেশি বোতাম
+               থাকলে নিচে (`row1Btns` বানানোর পরে) আইকন বাদ ও লেখা ছোট। */
+            setSingleLine(true)
+            height = dp(26)   // 🔴 V1401 — setSingleLine-এর পরে, নইলে বাতিল হয়ে যায়
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor(if (filled) "#FFFFFF" else "#0B4F2A"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -409,11 +838,19 @@ class StaffProfileActivity : AppCompatActivity() {
             setOnClickListener { onClick() }
         }
         // 🔴 V404: লাল বোতাম বানানোর একটাই জায়গা (Suspend ও Remove একই চেহারার)।
-        fun dangerBtn(label: String, onClick: () -> Unit) = TextView(this).apply {
-            text = label; textSize = 11.5f
+        fun dangerBtn(label: String, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
+            text = label; textSize = 13f   // 🎨 V1342 — smallBtn-এর হুবহু একই মাপ
+            maxLines = 1   // 🎨 V1091 — উপরের smallBtn-এর হুবহু একই নিয়ম
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(6), dp(9), dp(6), dp(9))
+            if (icon != 0) {
+                setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+                compoundDrawablePadding = dp(4)   // 🎨 V1091 — লেখার জায়গা বাড়াতে
+            }
+            setPadding(dp(4), 0, dp(4), 0)
+            setSingleLine(true)   // 🎨 V1092 — উপরের smallBtn-এর হুবহু একই নিয়ম
+            height = dp(26)       // 🔴 V1401 — smallBtn-এর হুবহু একই উচ্চতা, setSingleLine-এর পরে
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor("#B0392B"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -430,12 +867,21 @@ class StaffProfileActivity : AppCompatActivity() {
            ⛔ `onView` ফাংশনটা এক অক্ষরও বদলায়নি — শুধু কোথা থেকে ডাকা হচ্ছে সেটা।
            ⛔ ভিতরের বোতামগুলো নিজের কাজই করে (Android-এ ভিতরের ক্লিক আগে চলে ও
               সেখানেই থেমে যায়), তাই Salary চাপলে ভুল করে View খুলবে না। */
+        /* 🏆🔒 V1091 (০৫.০৯.২০২৬, TK-নির্দেশ: *"কার্ডে চাপ দিলে পারফরমেন্স খুলবে…
+           সামনে Performance লেখা না থাকলেও চলবে, ডানদিকে থ্রি ডটের মধ্যে থাকবে"*)
+           ⇒ ① কার্ডে চাপ = **Performance** (আগে প্রোফাইল খুলত)
+             ② কার্ডের "Performance" বোতামটা তুলে দেওয়া হলো — তাই বোতাম একটা কমল,
+                লেখা ভাঙার চাপও কমল
+             ③ প্রোফাইল হারায়নি — ⋮ মেনুতে "View profile" আগে থেকেই আছে, আর
+                সেখানে "Performance"-ও বসানো হলো
+           ⛔ Master ছাড়া কারো জন্য Performance আগেও ছিল না, এখনো নেই — তাই
+              তাঁদের কার্ডে চাপ দিলে আগের মতোই প্রোফাইলই খোলে। */
         card.isClickable = true
         card.isFocusable = true
-        card.setOnClickListener { onView() }
-        row1Btns.add(smallBtn("Salary", true, onSalary))
-        // 🏆 V419: এই একজনের পুরো হিসাব (Master ছাড়া বোতামটাই আসে না)।
-        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Performance", false) { performanceOne(pc, "") })
+        card.setOnClickListener { if (ModuleAuth.isMaster) performanceOne(pc, "") else onView() }
+        row1Btns.add(smallBtn("Salary", true, R.drawable.ic_sp_wallet, onSalary))
+        // 💰 V1058 — TK: "salary performance extra income এই তিনটাই পাশাপাশি"
+        row1Btns.add(smallBtn("Extra Income", false, R.drawable.ic_sp_hand_rupee) { salaryExtra(pc) })
         // 🔴🔴🔒 V477 (20.08.2026, TK-জরুরি নির্দেশ — "সমস্ত স্টাফের একই সমস্যা,
         // OUT TIME দেখাচ্ছে না") — আসল কারণ (যাচাই করা): আজ সকালে JWT/reAuth
         // বাগ (V465-এ ঠিক করা) থাকাকালীন যাদের IN TIME নিঃশব্দে ক্লাউডে সেভ
@@ -444,7 +890,64 @@ class StaffProfileActivity : AppCompatActivity() {
         // স্টাফের আজকের IN/OUT TIME সরাসরি বসানোর/ঠিক করার সুযোগ।
         // ⛔ স্টাফের নিজের Work Notebook স্ক্রিন/নিয়ম এক অক্ষরও বদলায়নি —
         //    এটা সম্পূর্ণ নতুন, আলাদা Master-only পথ, একই টেবিলে লেখে।
-        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Fix Attendance", false) { fixAttendanceDialog(pc, fullName, mobile) })
+        /* 🎨🔒 V1058 (TK-নির্দেশ ০৪.০৯.২০২৬: *"এই থ্রি ডটে চাপ দিলে fix attendance,
+           suspend, remove আসবে… salary performance extra income এই তিনটাই কার্ডে
+           পাশাপাশি থাকবে"*) — Fix Attendance এখন কার্ডে নয়, ⋮ মেনুতে।
+           ⛔ কাজটা এক অক্ষরও বদলায়নি — একই `fixAttendanceDialog()` ডাকা হয়। */
+        /* 🏍️🔒 V978 (০২.০৯.২০২৬, TK-নির্দেশ: *"হ্যাঁ, ওই সারিতেই বসিয়ে দিন"*) —
+           বাইরে ঘোরা স্টাফের (এখন শুধু RUPAM) কার্ডেই **Field Visit** বোতাম,
+           এই একই সারিতে। আগে এটা Salary পর্দার ভিতরে ছিল, TK খুঁজে পাচ্ছিলেন না।
+           🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — এখন **সব স্টাফের** কার্ডেই এই
+           বোতাম আসে (আগে শুধু isFieldStaffCode হলে) — কারণ IN-OUT TIME
+           হাজিরা-লোকেশন এখন সবার জন্য চালু। ফিল্ড-স্টাফের বেলায় লেবেল আগের
+           মতোই "Field Visit" (বাইক/কিমি-হিসাব), বাকি সবার বেলায় "Location"
+           (শুধু হাজিরার সময়টুকু কোথায় ছিলেন) — একই পর্দা (`FieldVisitActivity`)
+           খোলে, ভিতরের `readDays()`-এর তথ্য একই টেবিল থেকেই আসে। */
+        if (ModuleAuth.isMaster) {
+            val isFieldCode = com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(pc)
+            row1Btns.add(smallBtn(if (isFieldCode) "Field Visit" else "Location", false, R.drawable.ic_sp_pin) {
+                startActivity(android.content.Intent(this, FieldVisitActivity::class.java)
+                    .putExtra(FieldVisitActivity.EXTRA_OWNER, true)
+                    .putExtra(FieldVisitActivity.EXTRA_STAFF_CODE, pc)
+                    .putExtra(FieldVisitActivity.EXTRA_STAFF_MOBILE,
+                        com.tkbiswas.pilesclinic.native.FieldVisit.mobileForCode(pc)))
+            })
+        }
+        /* 🎨🔒 V1092 — ৩টে বা বেশি বোতাম হলে (এখন শুধু RUPAM-এর কার্ড) প্রতিটা
+           বোতাম সরু হয়ে যায়। তখন আইকন তুলে দিয়ে ও লেখা একটু ছোট করে দেওয়া হয়,
+           তাই "Extra Income" এক লাইনেই ধরে। ⛔ দুটো বোতামের কার্ড (বাকি সবার)
+           হুবহু আগের মতোই — আইকনসহ, একই মাপ। */
+        /* 🎨🔒 V1128 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"সবার মতো এক রকম করুন…
+           বোতামগুলোর উচ্চতা সবগুলোর ক্ষেত্রে একই থাকবে, যাতে দেখলে প্রফেশনাল
+           বলে মনে হয়"*) — আগে তিনটে বোতাম হলে **আইকন তুলে দেওয়া হত**, তাই
+           RUPAM-এর কার্ডটা বাকি সবার থেকে আলাদা দেখাত (TK ধরেছেন)।
+           ⇒ এখন **আইকন থাকে**, শুধু লেখা এক ধাপ ছোট (১১.৫ → ১০) — ফোনের আসল
+             চওড়ায় (৩৬০) মেপে দেখা হয়েছে, "Extra Income" ঠিকঠাক ধরে, কিছুই
+             কাটে না বা ভাঙে না।
+           ⛔ উচ্চতা প্রতিটা বোতামেই আগের মতোই স্থির (dp 40) — কার্ড কটা বোতাম
+              ধরে তাতে কিছু বদলায় না।
+           ⛔ দুটো বোতামের কার্ড (বাকি সবার) এক অক্ষরও বদলায়নি। */
+        /* 🎨🔒 V1146 (০৬.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"লেখা ব্রেক হয়ে গেছে"* —
+           RUPAM-এর কার্ডে "Extra Inc…")। **কারণ মেপে পাওয়া:** ৩৬০dp ফোনে
+           তিনটে বোতামের প্রতিটা ≈৯৭dp; তার থেকে আইকন ২৪dp + ফাঁক ৪ + প্যাডিং ৮
+           বাদ গেলে লেখার থাকে ≈৬১dp, আর "Extra Income" ১০sp-এ ≈৬২dp — ঠিক
+           ওইটুকুতেই কেটে যেত।
+           ⇒ আইকনটা **১৬dp**-তে ছোট করা হলো (ফাঁকও ৩dp) ⇒ লেখার জায়গা ≈৭০dp,
+             তাই পুরো "Extra Income" এক লাইনেই ধরে।
+           ⛔ V1128-এর TK-নির্দেশ অটুট: **আইকন থাকছে** (তুলে দেওয়া হয়নি) আর
+              সব বোতামের উচ্চতা এক — কার্ড কটা বোতাম ধরে তাতে কিছু বদলায় না।
+           ⛔ দুটো বোতামের কার্ড (বাকি সবার) এক অক্ষরও বদলায়নি। */
+        if (row1Btns.size >= 3) {
+            val ic = dp(16)
+            row1Btns.forEach { b ->
+                b.textSize = 10f
+                b.compoundDrawablePadding = dp(3)
+                b.compoundDrawablesRelative.getOrNull(0)?.let { d ->
+                    d.setBounds(0, 0, ic, ic)
+                    b.setCompoundDrawablesRelative(d, null, null, null)
+                }
+            }
+        }
         row1Btns.forEachIndexed { i, b -> b.layoutParams = rowBtnParams(i == 0, i == row1Btns.size - 1); row1.addView(b) }
         info.addView(row1)
         if (isRemoved) {
@@ -453,20 +956,32 @@ class StaffProfileActivity : AppCompatActivity() {
             restore.layoutParams = rowBtnParams(true, true)
             row2.addView(restore)
         } else {
+            /* 💰🔒 V1029 (০৩.০৯.২০২৬, TK-নির্দেশ: *"salary সহ যে পাঁচটা বটম আছে
+               সেখানেই এক্সট্রা ইনকামটা রাখতে বলা হয়েছিল"*) — এতদিন এক্সট্রা ইনকাম
+               শুধু বেতন-পর্দার **ভিতরে** ছিল, কার্ডে শুধু লেখার একটা লাইন (V961)।
+               এখন এই সারিতেই বোতাম — চাপলে সোজা সেই স্টাফের এক্সট্রা ইনকামে।
+               ⛔ V978-এর Field Visit-এর মতোই একই ধরন; বাকি বোতাম অপরিবর্তিত।
+               ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
+
             // 🔵🔒 B618 (11.08.2026, TK-নির্দেশ): master স্টাফকে কয়েকদিন Suspend করতে
             // পারবেন — সাসপেন্ড থাকাকালীন সে লগইন করতে পারবে না (LoginActivity গেট)।
             // ⛔ শুধু স্টাফ-তালিকায় (এই পর্দা master-only, role_kind=staff ফিল্টার করা)।
-            val suspend = dangerBtn("Suspend") { suspendStaffDialog(pc, fullName) }
-            suspend.layoutParams = rowBtnParams(true, false)
-            row2.addView(suspend)
+
             // 🔴 V404 (16.08.2026, TK-নির্দেশ "কর্মী বাদ দিন বোতাম বসান"):
             //    আগে অ্যাপে বাদ দেওয়ার কোনো পথই ছিল না — শুধু Suspend ছিল।
-            val remove = dangerBtn("Remove") { removeStaffDialog(pc, fullName) }
-            remove.layoutParams = rowBtnParams(false, true)
-            row2.addView(remove)
+
         }
         info.addView(row2)
-        card.addView(info)
+        /* 🎨 V1057 — গোল ব্যাজ · তথ্য · ⋮ এক সারিতে; ⋮ চাপলে কার্ডে চাপ দিলে যা
+           হয় ঠিক তাই (View) — নতুন কোনো কাজ বানানো হয়নি। */
+        headRow.addView(info)
+        headRow.addView(android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_sp_more)
+            layoutParams = LinearLayout.LayoutParams(dp(22), dp(22)).apply { marginStart = dp(6) }
+            isClickable = true; isFocusable = true
+            setOnClickListener { staffDotsMenu(pc, fullName, mobile, isRemoved, onView) }   // ⋮ V1058
+        })
+        card.addView(headRow)
         return card
     }
 
@@ -496,7 +1011,7 @@ class StaffProfileActivity : AppCompatActivity() {
             )
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Remove") { _, _ -> doSetActive(pc, false) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun restoreStaffDialog(pc: String, fullName: String) {
@@ -509,14 +1024,27 @@ class StaffProfileActivity : AppCompatActivity() {
             )
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Restore") { _, _ -> doSetActive(pc, true) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun doSetActive(pc: String, active: Boolean) {
         Thread {
             val enc = java.net.URLEncoder.encode(pc, "UTF-8")
             val patch = JSONObject().put("active", active)
-            val ok = try { ModuleAuth.update("hr", "staff_profiles", "person_code=eq.$enc", patch) } catch (_: Throwable) { false }
+            var ok = try { ModuleAuth.updateAtLeastOne("hr", "staff_profiles", "person_code=eq.$enc", patch) } catch (_: Throwable) { false }
+            // চার V308 Doctor-এর profile আগে DB-তে ছিল না। তাঁদের Remove করলে
+            // একটি inactive profile তৈরি করাই login বন্ধ করার নিরাপদ চিহ্ন।
+            if (!ok && !active) {
+                val seed = configuredMissingDoctors().firstOrNull { ns(it, "person_code") == pc }
+                if (seed != null) {
+                    val inactiveSeed = JSONObject(seed.toString()).put("active", false)
+                    ok = try { ModuleAuth.upsertOnConflict("hr", "staff_profiles", inactiveSeed, "person_code") } catch (_: Throwable) { false }
+                    if (ok) {
+                        val verify = try { ModuleAuth.getRowsChecked("hr", "staff_profiles", "select=active&person_code=eq.$enc&active=eq.false&limit=1") } catch (_: Throwable) { null }
+                        ok = verify?.ok == true && verify.rows.length() == 1
+                    }
+                }
+            }
             // বাদ দিলে মাইনে ও চাবিও বন্ধ। ⛔ ফেরানোর সময় মাইনে নিজে থেকে চালু
             //    হয় না — টাকার ব্যাপার, মাস্টার নিজে Salary পর্দায় গিয়ে করবেন।
             var salOk = true; var permitOk = true
@@ -539,7 +1067,12 @@ class StaffProfileActivity : AppCompatActivity() {
                     else -> "$pc removed"
                 }
                 ModuleUi.toast(this, msg)
-                if (ok) renderList()
+                if (ok) {
+                    // পুরনো cached card এক মুহূর্তও আবার দেখাব না। নতুন সত্য
+                    // সরাসরি cloud থেকে এনে তারপর তালিকা আঁকা হবে।
+                    try { staffListCachePrefs().edit().clear().apply() } catch (_: Throwable) { }
+                    renderList()
+                }
             }
         }.start()
     }
@@ -899,23 +1432,54 @@ class StaffProfileActivity : AppCompatActivity() {
     // হিসাব (আন্দাজ নয়): প্রতিটা পেমেন্ট "কোন মাসের" = `for_month` থাকলে সেটা, নইলে
     //    `paid_on`-এর মাস (তাই পুরনো ট্যাগ-বিহীন পেমেন্টও ধরা পড়ে, TK: লাস্ট মাস পর্যন্ত
     //    সবার দেওয়া আছে)। "Paid up to" = পেমেন্টগুলোর সবচেয়ে সাম্প্রতিক ঐ মাস।
+    /* 💰 V1029 — `openExtra=true` হলে বেতন-পর্দা খোলার সঙ্গে সঙ্গেই
+       এক্সট্রা ইনকামের তালিকাটা দেখানো হয় (কার্ডের নতুন বোতামের জন্য)।
+       ⛔ ডিফল্ট `false` — পুরনো সব ডাক হুবহু আগের মতোই চলে। */
+    /* 💰 V1029 — কার্ডের "Extra Income" বোতামের জন্য: বেতন-পর্দা খুলে
+       সঙ্গে সঙ্গেই এক্সট্রা ইনকামের তালিকাটা দেখায়। */
+    private var openExtraOnce = false
+    private fun salaryExtra(code: String) { openExtraOnce = true; salary(code) }
+
+    /* 🎨🔒 V1181 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"Salary History,
+       Salary Statement উপরে ৩ ডট থাকবে তার মধ্যে থাকবে · Total Paid Joining Date
+       না থাকলেও চলবে এখানে"* + *"salary Setting টা ও ৩ ডটে রাখুন"*।
+       ⇒ পর্দার উপরে ডান দিকে একটা ⋮ — তার ভিতরে পাঁচটা: Salary History ·
+         Statement · Salary Settings · Total paid · Joining date।
+       ⛔ কোনো বোতামের **কাজ** বদলায়নি — একই ফাংশনই ডাকা হয়, শুধু জায়গা।
+       ⛔ টাকার একটাও হিসাব ছোঁয়া হয়নি। */
+    private var salMenuAction: (() -> Unit)? = null
+
     private fun salary(code: String) {
         backAction = { renderList() }
-        val col = ModuleUi.screen(this, "Salary — $code")
+        salMenuAction = null
+        val col = ModuleUi.screen(this, "")
+        col.addView(salHeaderRow("Salary — " + code))
         val box = ModuleUi.card(this)
         col.addView(box)
         /* 🔵🔒 V521 — জমানো তথ্য থাকলে **সঙ্গে সঙ্গে** পর্দা; "Loading..." নয়।
            ⛔ প্রথমবার (বা ১০ মিনিটের পুরনো হলে) আগের মতোই "Loading..."। */
         val cached = salaryCacheLoad(code)
+        /* 🔵🔒 V1250 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"এই স্ক্রিনে ঢুকলেই স্ক্রিনটা
+           কাঁপে কেন"*, খাতার সারি ৩৭০) — জমানো তথ্য দিয়ে যেটা আঁকা হলো, তার
+           **হুবহু ছাপ** এখানে রাখা হয়। ক্লাউডের উত্তর এসে যদি ঠিক এই তথ্যই দেয়
+           (বেশির ভাগ সময় তাই হয়), তখন পর্দাটা **আর দ্বিতীয়বার আঁকা হয় না** —
+           ওই দ্বিতীয় আঁকাটাই TK-র চোখে "কাঁপা" হয়ে ধরা পড়ছিল।
+           ⛔ ছাপ না মিললে (সত্যিই কিছু বদলেছে) আগের মতোই সঙ্গে সঙ্গে নতুন করে
+              আঁকা হয় — বাসি তথ্য এক মুহূর্তও থাকে না। */
+        var cacheSig = ""
         if (cached != null) {
             try {
                 val cfg = cached.optJSONObject("cfg") ?: JSONObject()
+                val cPays = cached.optJSONArray("pays") ?: JSONArray()
+                val cJoin = cached.optString("joinDate", "")
                 renderSalary(code, box,
                     cfg.optBoolean("salary_enabled", false),
                     cfg.optDouble("salary_amount", 0.0),
                     ns(cfg, "salary_date"),
-                    cached.optJSONArray("pays") ?: JSONArray(),
-                    cached.optString("joinDate", ""))
+                    cPays, cJoin)
+                // ⛔ ছাপটা **আঁকা সফল হওয়ার পরেই** রাখা হয় — নইলে "Loading..."
+                //    লেখাটাই পর্দায় থেকে যেত।
+                cacheSig = salSignature(cfg, cPays, cJoin)
             } catch (_: Throwable) {
                 box.removeAllViews()
                 box.addView(ModuleUi.body(this, "Loading..."))
@@ -933,7 +1497,7 @@ class StaffProfileActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
         col.addView(ModuleUi.button(this, "Back") { renderList() })
-        loadSalary(code, box, cached != null)
+        loadSalary(code, box, cached != null, cacheSig)
     }
 
     /** 🔵 V416 (TK-নির্দেশ): তারিখ সবসময় 31/12/2026 ধাঁচে।
@@ -941,7 +1505,8 @@ class StaffProfileActivity : AppCompatActivity() {
     private fun dmy(iso: String): String {
         val t = iso.trim()
         val m = Regex("^(\\d{4})-(\\d{2})-(\\d{2})").find(t) ?: return t
-        return m.groupValues[3] + "/" + m.groupValues[2] + "/" + m.groupValues[1]
+        // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): স্ল্যাশ ছিল, এখন প্রজেক্টের বিন্দু।
+        return m.groupValues[3] + "/" + m.groupValues[2] + "/" + m.groupValues[1]   // 🔴 V1158
     }
 
     /** একটা সারি এখনো "বাকি" না "দেওয়া হয়েছে"। পুরনো সারিতে ঘরটা নেই ⇒ দেওয়া হয়েছে। */
@@ -1061,7 +1626,13 @@ class StaffProfileActivity : AppCompatActivity() {
         } catch (_: Throwable) {}
     }
 
-    private fun loadSalary(code: String, box: LinearLayout, hadCache: Boolean = false) {
+    /** 🔵🔒 V1250 — পর্দায় এখন যা আঁকা আছে তার হুবহু ছাপ। দুটো ছাপ এক হলে
+     *  আর আঁকার দরকার নেই (পর্দা কাঁপে না)। ⛔ শুধু মেলানোর কাজ — কোনো
+     *  টাকার হিসাব বা সাজ এতে বদলায় না। */
+    private fun salSignature(cfg: JSONObject, pays: JSONArray, joinDate: String): String =
+        cfg.toString() + "\u0001" + pays.toString() + "\u0001" + joinDate
+
+    private fun loadSalary(code: String, box: LinearLayout, hadCache: Boolean = false, shownSig: String = "") {
         Thread {
             incentiveSyncThrottled()
             val cfgR = ModuleAuth.getRowsChecked("hr", "salary_config", "select=*&person_code=eq.$code&limit=1")
@@ -1104,11 +1675,86 @@ class StaffProfileActivity : AppCompatActivity() {
                 val joinDate = if (profR.ok && profR.rows.length() > 0) ns(profR.rows.getJSONObject(0), "join_date") else ""
                 // 🔵 V521: পরেরবার যেন সঙ্গে সঙ্গে দেখানো যায়
                 salaryCacheSave(code, cfg, payR.rows, joinDate)
+                /* 🔵🔒 V1250 — ক্লাউড ঠিক সেই তথ্যই দিল যা পর্দায় আঁকা আছে
+                   ⇒ আবার আঁকা মানে শুধু একটা ঝাঁকুনি, আর কিছু নয়। থামা হলো।
+                   ⛔ এক অক্ষর আলাদা হলেই নিচের আঁকাটা আগের মতোই চলে। */
+                if (shownSig.isNotEmpty() &&
+                    salSignature(cfg, payR.rows, joinDate) == shownSig) return@runOnUiThread
                 renderSalary(code, box,
                     cfg.optBoolean("salary_enabled", false),
                     cfg.optDouble("salary_amount", 0.0),
                     ns(cfg, "salary_date"),
                     payR.rows, joinDate)
+            }
+        }.start()
+    }
+
+    /**
+     * ⏱️ V1166 — ওই স্টাফের ওই মাসের হাজিরা পড়ে **ঘণ্টা হিসাবে বেতন কত হত**
+     * সেটা লাইনে বসায়। ⛔ শুধু দেখানো — কোনো টাকা লেখা/বদলানো হয় না।
+     */
+    /* 💰🔒 V1178 (০৭.০৯.২০২৬, TK-অনুমোদিত ধাপ ২) — TK নিজে সেপ্টেম্বরের
+       সংখ্যাটা মিলিয়ে দেখে (COB-UTTAMA — ৪৪ঘ ৫২মি · ₹১,৪৯৬, হাতে গুনে হুবহু
+       মিলেছে) বলেছেন: *"হ্যাঁ, সেপ্টেম্বর থেকেই চালু হবে"*।
+
+       ⇒ এখন **"এই মাসে বাকি" ঘণ্টা হিসাবেই** আসে (সেপ্টেম্বর ২০২৬ থেকে):
+          বাকি = ঘণ্টার হিসাবে প্রাপ্য − ওই মাসে ইতিমধ্যে দেওয়া।
+
+       ⛔ **শেষ-ভরসা:** হাজিরা আনা না গেলে (নেট/অনুমতি) সংখ্যাটা **ছোঁয়াই হয় না** —
+          তখন আগের নিয়মেই সেট করা বেতন ধরে বাকি দেখায়। ভুল অঙ্ক কখনো বসে না।
+       ⛔ সেপ্টেম্বরের আগের কোনো মাস ছোঁয়া হয় না।
+       ⛔ দেওয়া টাকার সারি (`hr.salary_payments`) এক অক্ষরও বদলায় না — শুধু
+          "বাকি কত" দেখানোর অঙ্কটা। */
+    private var hourPayThisMonth: Double? = null
+    private var salaryDueRow: LinearLayout? = null
+    private var salaryPaidThisMonth: Double = 0.0
+
+    private fun loadHourSalaryInto(code: String, amount: Double, ym: String, row: LinearLayout) {
+        if (amount <= 0.0) { row.visibility = android.view.View.GONE; return }
+        Thread {
+            val from = "$ym-01"
+            val end = try {
+                val p = ym.split("-"); val y = p[0].toInt(); val m = p[1].toInt()
+                if (m >= 12) String.format(Locale.US, "%04d-01-01", y + 1)
+                else String.format(Locale.US, "%04d-%02d-01", y, m + 1)
+            } catch (_: Throwable) { "$ym-31" }
+            val r = try {
+                ModuleAuth.getRowsChecked(
+                    "wn", "notebook_days",
+                    /* 🏠 V1180 — Work From Home দিনও চেনা দরকার (৭ ঘণ্টা ধরা হয়)। */
+                    "select=work_date,check_in,check_out,is_leave,is_wfh&staff_code=eq.$code" +
+                        "&work_date=gte.$from&work_date=lt.$end"
+                )
+            } catch (_: Throwable) { null }
+            val res = HourSalary.compute(if (r != null && r.ok) r.rows else null, amount, ym)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (r == null || !r.ok) { row.visibility = android.view.View.GONE; return@runOnUiThread }
+                /* ⛔ নিজে মেপে ধরা: নিয়মটা চালু **আগামী মাস থেকে**, অথচ পর্দায়
+                   দেখানো হচ্ছে **এই মাসের** হিসাব (TK যেন আগে থেকে মিলিয়ে
+                   দেখতে পারেন)। তাই চালু হওয়ার আগে লেবেলে স্পষ্ট লেখা থাকে
+                   যে এটা শুধু আগাম দেখা — নইলে TK ভাবতেন সংখ্যাটা ওই মাসের। */
+                val started = ym >= HourSalary.startsFrom()
+                (row.getChildAt(0) as? TextView)?.text =
+                    if (started) "By hours \u00b7 " + salaryMonthLabel(ym)
+                    else "By hours \u00b7 " + salaryMonthLabel(ym) +
+                        " (preview \u2014 counts from " + salaryMonthLabel(HourSalary.startsFrom()) + ")"
+                (row.getChildAt(1) as? TextView)?.apply {
+                    text = money(res.payable) + "  \u00b7  " +
+                        HourSalary.hoursText(res.workedMinutes) + " of " + res.monthHours.toInt() + "h"
+                    setTextColor(android.graphics.Color.parseColor("#0E6E8C"))
+                }
+                /* 💰 V1178 — নিয়ম চালু হওয়া মাস থেকে "এই মাসে বাকি"-ও
+                   ঘণ্টা হিসাবেই। ⛔ এর আগের মাসে হাত পড়ে না। */
+                if (started) {
+                    hourPayThisMonth = res.payable
+                    val dueNow = maxOf(0.0, res.payable - salaryPaidThisMonth)
+                    (salaryDueRow?.getChildAt(1) as? TextView)?.apply {
+                        text = if (dueNow <= 0.0) "Paid" else "Due " + money(dueNow)
+                        setTextColor(android.graphics.Color.parseColor(
+                            if (dueNow <= 0.0) "#0A7C3F" else "#B42318"))
+                    }
+                }
             }
         }.start()
     }
@@ -1153,15 +1799,33 @@ class StaffProfileActivity : AppCompatActivity() {
         box.addView(salSectionTitle("Salary", "#0A5C33"))
         if (active) {
             box.addView(salaryStatusRow("Monthly", money(amount) + (if (salaryDate.isNotBlank()) " · day $salaryDate" else ""), "#0A5C33"))
-            box.addView(salaryStatusRow(salaryMonthLabel(cur),
+            /* 💰 V1178 — এই সারিটাই পরে ঘণ্টার হিসাবে বদলে যায় (উপরে দেখুন)।
+               ⛔ প্রথমে আগের নিয়মেই বসে, তাই হাজিরা না এলে কিছুই খারাপ হয় না। */
+            val dueRow = salaryStatusRow(salaryMonthLabel(cur),
                 if (due <= 0.0) "Paid" else "Due " + money(due),
-                if (due <= 0.0) "#0A7C3F" else "#B42318"))
+                if (due <= 0.0) "#0A7C3F" else "#B42318")
+            salaryDueRow = dueRow
+            salaryPaidThisMonth = paidThisMonth
+            hourPayThisMonth = null
+            box.addView(dueRow)
             box.addView(salaryStatusRow("Paid up to", if (latestMonth.isNotBlank()) salaryMonthLabel(latestMonth) else "—", "#0A7C3F"))
+            /* ⏱️🔒 V1166 (০৭.০৯.২০২৬, TK-র সঙ্গে পুরো আলোচনা করে ঠিক হওয়া নিয়ম —
+               খাতার সারি ২৭০) — **ঘণ্টা হিসাবে বেতন কত হত**, এখানে দেখানো হয়।
+               ⛔ TK-এর স্পষ্ট নির্দেশ: *"প্রথমে শুধু দেখানো, টাকা কাটা নয়"* ⇒
+                  এই লাইনটা **কোনো টাকা বদলায় না** — উপরের Due · Paid · সব
+                  হিসাব হুবহু আগের নিয়মেই চলে, এক পয়সাও নড়ে না।
+               ⛔ TK: *"বিগত দিনের হিসাব ধরবেন না, আগামী মাস থেকে হবে"* ⇒ লাইনেই
+                  লেখা থাকে কোন মাস থেকে নিয়মটা চালু হবে।
+               ⛔ একটাই ছোট পড়া (ওই স্টাফের ওই মাসের হাজিরা, তিনটে ঘর) — পর্দা
+                  আঁকা এর জন্য থামে না, ব্যর্থ হলে লাইনটা শুধু বসে না। */
+            val hourRow = salaryStatusRow("By hours", "…", "#5B6B81")
+            box.addView(hourRow)
+            loadHourSalaryInto(code, amount, cur, hourRow)
         } else {
             box.addView(salaryStatusRow("Monthly", "Not set", "#B42318"))
         }
-        box.addView(salaryStatusRow("Total paid", money(salaryTotal), "#123A26"))
-        box.addView(salaryStatusRow("Joining date", if (joinDate.isBlank()) "Not recorded" else dmy(joinDate), "#5B6B81"))
+        /* 🎨 V1181 — "Total paid" ও "Joining date" এখন ⋮-এর ভিতরে (TK: *"না
+           থাকলেও চলবে এখানে"*) — মুছে ফেলা হয়নি, শুধু সরানো হয়েছে। */
 
         /* 🔵 V417খ (TK-নির্দেশ): *"Add Salary & Payment History এক লাইনে থাকবে পাশাপাশি
            বক্স"* ⇒ দুটো সমান বাক্স এক লাইনে।
@@ -1173,48 +1837,124 @@ class StaffProfileActivity : AppCompatActivity() {
         val btnAddSalary = if (active) salOutlineButton("Add Salary", "#0A5C33", "#0A5C33") {
             addSalaryAnyMonth(code, amount, joinDate, pays)
         } else null
-        val btnHistory = salOutlineButton("Payment History (" + pays.length() + ")", "#0A5C33", "#0A5C33") {
-            showAllPayments(code, pays)
+        /* 🟣🔒 V961 — TK-নির্দেশ: বেতন ও এক্সট্রার হিস্ট্রি আলাদা। এই বোতামটা
+           এখন **শুধু বেতনের** সারিগুলো দেখায়; এক্সট্রার নিজের বোতাম নিচের
+           Extra Income বাক্সে বসে। ⛔ কোনো সারি হারায় না — দুটো মিলিয়ে আগের
+           সেই একই তালিকা। */
+        var salaryCount = 0
+        for (i in 0 until pays.length()) if (payKind(pays.getJSONObject(i)) != "EXTRA") salaryCount++
+        val btnHistory = salOutlineButton("Salary History (" + salaryCount + ")", "#0A5C33", "#0A5C33") {
+            showAllPayments(code, pays, "SALARY")
         }
-        box.addView(if (btnAddSalary != null) salPairRow(btnAddSalary, btnHistory) else salPairRow(btnHistory, null))
-        if (active && due > 0.0) {
-            box.addView(ModuleUi.button(this, "Pay " + salaryMonthLabel(cur) + " Salary (" + money(due) + ")") {
-                payForMonth(code, cur, due)
-            })
-        }
+        /* 🎨 V1181 — "Add Salary" একাই পুরো লাইন; "Salary History" ও
+           "🧾 Statement (date to date)" এখন ⋮-এর ভিতরে (নিচে দেখুন)।
+           ⛔ `btnHistory` বানানোই থাকল — গোনার হিসাবটা (salaryCount) ওখান
+              থেকেই আসে, আর ⋮-এর সারিতেও ঠিক ওই লেখাটাই বসে। */
+        if (btnAddSalary != null) box.addView(salPairRow(btnAddSalary, null))
+        /* 🗑️🔒 V1051 (TK-নির্দেশ, ০৪.০৯.২০২৬: *"Add salary আর Pay September 2026
+           salary — ২টা একই জিনিস, তাহলে এটা বাদ দিন"*) — TK ঠিক বলেছেন: "Add
+           Salary" দিয়ে **যেকোনো মাসের** বেতন দেওয়া যায়, তাই এই বোতামটা বাড়তি।
+           ⛔ `payForMonth()` মোছা হয়নি — অন্য জায়গা থেকে ওটা ব্যবহার হয়;
+              শুধু এই বোতামটা তোলা হলো, টাকার কোনো হিসাব বদলায়নি। */
 
         // ───────── বাক্স ২ ও ৩ · আলাদা সাদা কার্ডে (মডেল ৩) ─────────
         // ⛔ আগের কার্ডগুলো tag দিয়ে চিনে সরিয়ে তবেই নতুন বসে ⇒ বারবার আঁকলেও
         //    কার্ড জমতে থাকে না। col না পেলে সবটা এই বাক্সেই বসে (কিছু হারায় না)।
+        /* 🎨 V1181 — "Salary Settings"-এর নিজের বাক্সটা আর নেই (TK-নির্দেশে
+           বোতামটা ⋮-এ গেছে), তাই সেই কার্ডটা এখন **বানানোই হয় না** — নইলে
+           একটা ফাঁকা সাদা বাক্স পড়ে থাকত। ⛔ পুরনো কার্ড থাকলে আগের মতোই
+           সরিয়ে দেওয়া হয় (বারবার আঁকলে জমে না)। */
         val col = box.parent as? LinearLayout
         val extraBox: LinearLayout
-        val cfgBox: LinearLayout?
         if (col != null) {
             col.findViewWithTag<android.view.View>(SAL_TAG_EXTRA)?.let { col.removeView(it) }
             col.findViewWithTag<android.view.View>(SAL_TAG_CFG)?.let { col.removeView(it) }
             extraBox = ModuleUi.card(this).apply { tag = SAL_TAG_EXTRA }
             col.addView(extraBox, col.indexOfChild(box) + 1)
-            cfgBox = ModuleUi.card(this).apply { tag = SAL_TAG_CFG }
-            col.addView(cfgBox, col.indexOfChild(extraBox) + 1)
         } else {
             extraBox = box
-            cfgBox = null
         }
 
         // 🔵 V416: বেতন ছাড়াও বাড়তি টাকা। ⛔ `kind='EXTRA'` হয়ে জমা হয়, তাই বেতনের
         //    বাকি-হিসাব ছোঁয় না। 🔵 V417: এখনো না-দেওয়া টাকা লাল "Due" হয়ে থাকে।
-        extraBox.addView(salSectionTitle("Extra Income", "#B45309"))
-        extraBox.addView(salaryStatusRow("Paid", money(extraTotal), "#123A26"))
-        extraBox.addView(salaryStatusRow("Due", money(extraDue), if (extraDue > 0.0) "#B42318" else "#5B6B81"))
+        /* 💰 V991 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — সোনালি পট্টি ও দুটো টালি।
+           ⛔ শুধু সাজ; `extraTotal` ও `extraDue` ঠিক আগের হিসাবেই আসে। */
+        extraBox.addView(salGoldHeader("EXTRA INCOME", salMonthName(salaryCurrentMonth())))
+        extraBox.addView(salMoneyTiles(money(extraTotal), money(extraDue), extraDue > 0.0))
         val btnAddExtra = salOutlineButton("Add Extra", "#B45309", "#E0A800") { addExtraIncome(code) }
         val btnPayExtra = if (extraDue > 0.0) salOutlineButton("Pay " + money(extraDue), "#0A5C33", "#0A5C33") {
             payExtraDue(code, pays)
         } else null
         extraBox.addView(salPairRow(btnAddExtra, btnPayExtra))
+        /* 🟣🔒 V961 — TK: *"এক্সট্রা ইনকামের টাকার উপরে চাপ দিলে কোনো হিস্ট্রি
+           দেখতে পাচ্ছি না"*। সত্যিই দেখা যেত না — Paid/Due দুটোই স্রেফ লেখা
+           ছিল, চাপা যেত না, আর হিস্ট্রির একটাই বোতামে বেতনের সাথে মেশানো ছিল।
+           এখন এখানেই নিজের বোতাম। ⛔ টাকার কোনো অঙ্ক ছোঁয়া হয়নি। */
+        var extraCount = 0
+        for (i in 0 until pays.length()) if (payKind(pays.getJSONObject(i)) == "EXTRA") extraCount++
+        val btnExtraHistory = salOutlineButton("Extra Income History (" + extraCount + ")", "#B45309", "#E0A800") {
+            showAllPayments(code, pays, "EXTRA")
+        }
+        // 💰 V1029 — কার্ডের "Extra Income" বোতাম থেকে এলে তালিকাটা নিজেই খোলে
+        if (openExtraOnce) { openExtraOnce = false; extraBox.post { try { showAllPayments(code, pays, "EXTRA") } catch (_: Throwable) {} } }
+        /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"তারা যদি নাই
+           জানতে পারে যে সেই পেশেন্টটা ট্রিটমেন্ট চালু করেছে কিনা, তাহলে তারা
+           হিসাবটা পাবে কি করে"*। এই বোতামে স্টাফ নিজের অসময়ের এনকোয়ারিগুলো ও
+           প্রতিটার এখনকার ধাপ দেখতে পান; মাস্টার যেকোনো স্টাফেরটা।
+           ⛔ টাকার কোনো অঙ্ক এখান থেকে বদলায় না — শুধু দেখা। */
+        /* 🎨🔒 V1181 (TK-নির্দেশ, হুবহু): *"Extra income History, My Unexpected
+           Enquiry এগুলি পাশাপাশি থাকতে হবে ( তাছাড়া My Unexpected Enquiry এটা
+           staff এর তাহলে মাস্টারের ডিসপ্লে তে এরকম নাম কেন থাকবে)"*।
+           ⇒ দুটো বোতাম এক লাইনে, আর মাস্টারের পর্দায় "My" থাকে না — কারণ
+             মাস্টার তখন **অন্য একজন স্টাফের** এনকোয়ারি দেখছেন, নিজের নয়।
+           ⛔ বোতামের কাজ ও রং অপরিবর্তিত; স্টাফের নিজের পর্দায় লেখাটাও হুবহু আগের। */
+        val btnUnexpected = salOutlineButton(
+            if (ModuleAuth.isMaster) "Unexpected Enquiries" else "My Unexpected Enquiries",
+            "#123E8C", "#123E8C") {
+            try {
+                startActivity(
+                    android.content.Intent(this, com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity::class.java)
+                        .putExtra(
+                            com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity.EXTRA_MOBILE,
+                            com.tkbiswas.pilesclinic.native.UnexpectedIncentive.mobileForCode(code)
+                        )
+                        .putExtra(
+                            com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity.EXTRA_NAME,
+                            if (ModuleAuth.isMaster) code else ""
+                        )
+                )
+            } catch (_: Throwable) { }
+        }
+        extraBox.addView(salPairRow(btnExtraHistory, btnUnexpected))
 
-        (cfgBox ?: box).addView(salOutlineButton("Salary Settings", "#0A5C33", "#0A5C33") {
-            editSalaryConfig(code, enabled, amount, salaryDate)
-        })
+        /* 🎨🔒 V1181 — ⋮-এর তালিকা এখানেই তৈরি হয়, কারণ সংখ্যা ও তারিখগুলো
+           (History-র গোনা · মোট দেওয়া · জয়েনিং ডেট) এই জায়গাতেই জানা যায়।
+           ⛔ প্রতিটা সারি ঠিক আগের বোতামটাই ডাকে — কাজ এক অক্ষরও বদলায়নি।
+           ⛔ "Total paid" ও "Joining date" শুধু দেখার সারি, চাপলে কিছু হয় না। */
+        salMenuAction = {
+            val items: List<Pair<String, () -> Unit>> = listOf(
+                ("Salary History (" + salaryCount + ")") to ({ showAllPayments(code, pays, "SALARY") }),
+                "🧾 Statement (date to date)" to ({ statement(code, pays) }),
+                "Salary Settings" to ({ editSalaryConfig(code, enabled, amount, salaryDate) }),
+                /* 🗓️ V1199 (TK-নির্দেশ) — কত তারিখে কত ঘণ্টা, আলাদা পর্দায়। */
+                "Performance Sheet" to ({ attendanceSheet(code, salaryCurrentMonth()) }),
+                ("Total paid  ·  " + money(salaryTotal)) to ({ }),
+                ("Joining date  ·  " + (if (joinDate.isBlank()) "Not recorded" else dmy(joinDate))) to ({ })
+            )
+            try {
+                val pm = android.widget.PopupMenu(this, salMenuAnchor ?: box)
+                items.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+                pm.setOnMenuItemClickListener { mi ->
+                    items.getOrNull(mi.itemId)?.second?.invoke(); true
+                }
+                pm.show()
+            } catch (_: Throwable) { }
+        }
+
+        /* 🏍️ V978 (TK-নির্দেশ) — বোতামটা এখন **স্টাফ-কার্ডের সারিতেই**
+           (Salary · Performance · Fix Attendance-এর পাশে), তাই বেতন-পর্দার
+           ভিতরের এই দ্বিতীয় বোতামটা তুলে দেওয়া হলো — একই জিনিস দুই জায়গায়
+           থাকলে বিভ্রান্তি হত। ⛔ বেতনের একটাও হিসাব ছোঁয়া হয়নি। */
     }
 
     /* =====================================================================
@@ -1245,7 +1985,26 @@ class StaffProfileActivity : AppCompatActivity() {
      *  🔴 TK-নির্দেশ (১৭.০৮.২০২৬): *"ডাক্তারদের বাদ দিয়ে দিন"* — এই তালিকা শুধু
      *  কর্মীদের। ডেটাবেসেও একই ছাঁকনি বসানো আছে; এটা দ্বিতীয় স্তর, যাতে পুরনো
      *  ডেটাবেসেও (নতুন SQL না চালালেও) ডাক্তার আর তালিকায় না ওঠেন। */
+    /* ═══════════════════════════════════════════════════════════════
+       ⚡🔒 V1092 (০৫.০৯.২০২৬, TK: *"যতবার চাপ দেই ততবার লোডিং নেয়"*)
+       V1091-এ কার্ডে চাপ দিলেই Performance খোলে, তাই TK এখন বারবার খোলেন —
+       আর প্রতিবার সার্ভারে **দুটো ডাক** (`staff_performance` +
+       `branch_performance`) যেত, তাই প্রতিবার "Loading..."।
+
+       ⇒ একই মাসের উত্তরটা **৬০ সেকেন্ড** ফোনের মধ্যেই রাখা হয়। ওই সময়ের
+         ভিতরে আবার খুললে সঙ্গে সঙ্গে দেখায়, কোনো ডাক যায় না।
+       ✅ Egress-এও লাভ — বারবার খুললে আর বারবার নামে না।
+       ⛔ ৬০ সেকেন্ড পেরোলে আগের মতোই তাজা হিসাব নামে, তাই সংখ্যা কখনো
+          পুরনো হয়ে থাকে না। ⛔ অ্যাপ বন্ধ করলে জমানো কিছুই থাকে না।
+       ⛔ গণনার নিয়ম · সংখ্যা · পর্দা — কিছুই বদলায়নি, শুধু বারবার না নামানো।
+       ═══════════════════════════════════════════════════════════════ */
+    private val perfCache = java.util.HashMap<String, JSONArray>()
+    private val perfCacheAt = java.util.HashMap<String, Long>()
+
     private fun perfFetch(month: String): JSONArray? {
+        perfCache[month]?.let { hit ->
+            if (System.currentTimeMillis() - (perfCacheAt[month] ?: 0L) < 60_000L) return hit
+        }
         return try {
             val r = ModuleAuth.rpc("hr", "staff_performance", JSONObject().put("p_month", month))
             if (!r.ok) return null
@@ -1275,6 +2034,9 @@ class StaffProfileActivity : AppCompatActivity() {
                     }
                 }
             } catch (_: Throwable) { }
+            // ⚡ V1092 — সফল উত্তরটাই শুধু জমা থাকে (ব্যর্থ হলে কিছুই জমে না)
+            perfCache[month] = out
+            perfCacheAt[month] = System.currentTimeMillis()
             out
         } catch (_: Throwable) { null }
     }
@@ -1338,6 +2100,171 @@ class StaffProfileActivity : AppCompatActivity() {
     }
 
     /** ---- ১) সবার তালিকা ---- */
+    // =====================================================================
+    /* 📱🔒 V813 — ছোট রঙিন ট্যাগ (শুধু দেখানোর, কোনো কাজ করে না)।
+       V771-এ এটা আলাদা "Phone Versions" পর্দায় ছিল; TK-র নির্দেশে সেই পর্দা
+       উঠে গেছে, তাই ট্যাগটাই এখন Performance-এর সারিতে বসে। */
+    private fun pvChip(text: String, textHex: String, bgHex: String): TextView =
+        TextView(this).apply {
+            this.text = text
+            textSize = 11.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor(textHex))
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(android.graphics.Color.parseColor(bgHex))
+                setStroke(dp(1), android.graphics.Color.parseColor(textHex))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = dp(7) }
+        }
+
+
+    /* 📱🔒 V822 (২৯.০৮.২০২৬) — **V813-এ মুছে ফেলা এই পর্দাটাই হুবহু ফিরিয়ে আনা হলো**
+       (git ইতিহাস থেকে, নতুন করে লেখা হয়নি — তাই আচরণ এক অক্ষরও বদলায়নি)।
+       কেন: V813-এর পরে **ডাক্তারদের ভার্সন আর কোথাও দেখা যেত না** —
+       `hr.staff_performance()` সার্ভারেই ডাক্তার বাদ দেয়। এই পর্দা
+       `hr.app_devices_list` পড়ে, যা staff · doctor · field · master **সবাইকেই**
+       দেয়। ⛔ শিরোনাম-লেখা আর বোতাম নয় — এখন উপরের 📱 চিহ্ন থেকে খোলে। */
+    private fun phoneVersionsScreen() {
+        backAction = { renderList() }
+        val col = ModuleUi.screen(this, "")
+        col.addView(ModuleUi.heading(this, "📱 Phone Versions"))
+        col.addView(TextView(this).apply {
+            text = "Which phone is running which app version. " +
+                "An old version keeps using extra internet, so it must be updated."
+            textSize = 12f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(0, dp(2), 0, dp(8))
+        })
+        val listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        listBox.addView(ModuleUi.body(this, "Loading..."))
+        col.addView(listBox)
+        col.addView(ModuleUi.button(this, "Back") { renderList() })
+        Thread {
+            val rows = try {
+                val r = ModuleAuth.rpc("hr", "app_devices_list", JSONObject())
+                if (r.ok) JSONArray(r.body) else null
+            } catch (_: Throwable) { null }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                listBox.removeAllViews()
+                if (rows == null) {
+                    listBox.addView(ModuleUi.body(this, "Could not load. Please try again."))
+                    return@runOnUiThread
+                }
+                if (rows.length() == 0) {
+                    listBox.addView(ModuleUi.body(this, "No one yet."))
+                    return@runOnUiThread
+                }
+                /* সর্বশেষ ভার্সন কোনটা?
+                   ⛔ শুধু নিজের বিল্ডের সংখ্যা ধরলে ভুল হতো — মাস্টারের ফোনটাই
+                      যদি পুরনো হয়, তবে সবাইকে "Latest" দেখাত। তাই ওয়েবসাইটের
+                      `version.json` থেকে জানা সংখ্যাও (থাকলে) ধরা হয়। */
+                val latest = maxOf(
+                    com.tkbiswas.pilesclinic.BuildConfig.VERSION_CODE,
+                    com.tkbiswas.pilesclinic.native.AppVersionCheck.newerVersionOrZero(this)
+                )
+                var old = 0
+                var never = 0
+                for (i in 0 until rows.length()) {
+                    val v = rows.optJSONObject(i)?.optInt("app_version_code", 0) ?: 0
+                    if (v <= 0) never++ else if (v < latest) old++
+                }
+                if (old > 0 || never > 0) {
+                    val warn = ModuleUi.card(this)
+                    warn.addView(TextView(this).apply {
+                        text = "⚠️ " + (old + never) + " phone" + (if (old + never == 1) "" else "s") +
+                            " not on the latest version"
+                        textSize = 14f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor("#B3261E"))
+                    })
+                    warn.addView(TextView(this).apply {
+                        text = "Old: " + old + "   ·   Never opened: " + never +
+                            "\nPlease install V" + latest + " on these phones."
+                        textSize = 12f
+                        setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                        setPadding(0, dp(3), 0, 0)
+                    })
+                    listBox.addView(warn)
+                }
+                for (i in 0 until rows.length()) {
+                    val x = rows.optJSONObject(i) ?: continue
+                    val v = x.optInt("app_version_code", 0)
+                    val card = ModuleUi.card(this)
+                    card.addView(TextView(this).apply {
+                        text = ns(x, "full_name").ifBlank { ns(x, "person_code") }
+                        textSize = 15f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+                    })
+                    card.addView(TextView(this).apply {
+                        // ⛔ `PeopleAdminRepository.roleLabel()` "master" চেনে না
+                        //    (ওখানে master যোগ করাই যায় না), তাই এখানে আলাদা।
+                        text = ns(x, "person_code") + " · " + ns(x, "branch") + " · " +
+                            (if (ns(x, "role_kind").trim().lowercase() == "master") "Master"
+                             else com.tkbiswas.pilesclinic.native.PeopleAdminRepository
+                                 .roleLabel(ns(x, "role_kind")))
+                        textSize = 12f
+                        setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                        setPadding(0, dp(2), 0, dp(6))
+                    })
+                    card.addView(when {
+                        v <= 0 -> pvChip("Never opened the new app", "#5B6B81", "#EEF1F5")
+                        v < latest -> pvChip("V" + v + "  ·  OLD — must update", "#B3261E", "#FDECEA")
+                        else -> pvChip("V" + v + "  ·  Latest", "#0A5C33", "#E9F7EE")
+                    })
+                    val seen = pvSeen(ns(x, "app_seen_at"))
+                    if (seen.isNotBlank()) {
+                        card.addView(TextView(this).apply {
+                            text = "Last seen: " + seen
+                            textSize = 11.5f
+                            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                            setPadding(0, dp(5), 0, 0)
+                        })
+                    }
+                    listBox.addView(card)
+                }
+            }
+        }.start()
+    }
+
+    /* ⏰ PostgREST-এর timestamptz আসে `2026-08-28T05:12:33.123456+00:00` রূপে।
+       `DateUtil` এই রূপটা চেনে না (মাইক্রোসেকেন্ড + অফসেট), আর অফসেট না ধরলে
+       সময় সাড়ে ৫ ঘণ্টা ভুল দেখাত। তাই এখানে নিজেই ঠিকভাবে পড়া হলো, তারপর
+       ফোনের নিজের সময়-অঞ্চলে (IST) দেখানো — খাতার লক-করা ছাঁদেই (B76)।
+       ⛔ চিনতে না পারলে ফাঁকা ফেরে — পর্দা কখনো ভাঙে না। */
+    private fun pvSeen(raw: String): String {
+        if (raw.isBlank()) return ""
+        return try {
+            var body = raw.trim()
+            var off = "+0000"
+            val dot = body.indexOf('.')
+            if (dot > 0) {
+                var end = dot + 1
+                while (end < body.length && body[end].isDigit()) end++
+                off = pvOffset(body.substring(end))
+                body = body.substring(0, dot)
+            } else if (body.length > 19) {
+                off = pvOffset(body.substring(19))
+                body = body.substring(0, 19)
+            }
+            val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US)
+            val d = f.parse(body + off) ?: return ""
+            com.tkbiswas.pilesclinic.native.DateUtil.displayWithTime(d)
+        } catch (_: Throwable) { "" }
+    }
+
+    private fun pvOffset(tail: String): String {
+        val t = tail.trim()
+        if (t.isEmpty() || t.equals("Z", true)) return "+0000"
+        return t.replace(":", "")
+    }
+
     private fun performanceList(month: String) {
         backAction = { renderList() }
         // 🔧 V421খ: ডিফল্ট **আজকের দিন** (আগে মাস ছিল)।
@@ -1350,6 +2277,27 @@ class StaffProfileActivity : AppCompatActivity() {
         col.addView(ModuleUi.button(this, "Back") { renderList() })
         Thread {
             val rows = perfFetch(ym)
+            /* 📱🔒 V813 — একই থ্রেডে ভার্সনের তালিকাও আনা হয় (person_code → version)।
+               ⛔ ব্যর্থ হলে ম্যাপ ফাঁকা থাকে — পারফরম্যান্সের পর্দা আগের মতোই
+                  পুরোপুরি চলে, একটাও সংখ্যা আটকায় না। মাস্টার না হলে সার্ভার
+                  নিজেই খালি তালিকা ফেরায়, তাই কোনো ট্যাগ দেখায় না। */
+            val verMap = HashMap<String, Int>()
+            var verLatest = 0
+            try {
+                val vr = ModuleAuth.rpc("hr", "app_devices_list", JSONObject())
+                if (vr.ok) {
+                    val va = JSONArray(vr.body)
+                    for (i in 0 until va.length()) {
+                        val o = va.optJSONObject(i) ?: continue
+                        val code = ns(o, "person_code").trim().uppercase(Locale.US)
+                        if (code.isNotBlank()) verMap[code] = o.optInt("app_version_code", 0)
+                    }
+                    verLatest = maxOf(
+                        com.tkbiswas.pilesclinic.BuildConfig.VERSION_CODE,
+                        com.tkbiswas.pilesclinic.native.AppVersionCheck.newerVersionOrZero(this)
+                    )
+                }
+            } catch (_: Throwable) { }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 listBox.removeAllViews()
@@ -1377,12 +2325,30 @@ class StaffProfileActivity : AppCompatActivity() {
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
                         setTextColor(android.graphics.Color.parseColor("#0A5C33"))
                     })
-                    card.addView(TextView(this).apply {
+                    /* 📱🔒 V813 — কোড · ব্রাঞ্চ-এর পাশেই ফোনের ভার্সনের ট্যাগ।
+                       ⛔ পুরনো লাইনটা হুবহু আগের মতোই আছে, শুধু তার পাশে
+                          একটা ট্যাগ যোগ হলো (জানা না থাকলে কিছুই বসে না)। */
+                    val idRow = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                        setPadding(0, dp(2), 0, dp(2))
+                    }
+                    idRow.addView(TextView(this).apply {
                         text = ns(x, "person_code") + " · " + ns(x, "branch")
                         textSize = 12f
                         setTextColor(android.graphics.Color.parseColor("#5B6B81"))
-                        setPadding(0, dp(2), 0, dp(2))
                     })
+                    if (verLatest > 0) {
+                        val v = verMap[ns(x, "person_code").trim().uppercase(Locale.US)]
+                        if (v != null) {
+                            idRow.addView(when {
+                                v <= 0 -> pvChip("No app yet", "#B3261E", "#FDECEA")
+                                v < verLatest -> pvChip("V" + v + " · old", "#B3261E", "#FDECEA")
+                                else -> pvChip("V" + v, "#0A5C33", "#E9F7EE")
+                            })
+                        }
+                    }
+                    card.addView(idRow)
                     val tiles = LinearLayout(this).apply {
                         orientation = LinearLayout.HORIZONTAL
                         setPadding(0, dp(7), 0, dp(2))
@@ -1390,6 +2356,17 @@ class StaffProfileActivity : AppCompatActivity() {
                     tiles.addView(perfTile("Enquiry", perfInt(x, "enquiry_count").toString(), false))
                     tiles.addView(perfTile("Regist.", perfInt(x, "registration_count").toString(), false))
                     tiles.addView(perfTile("Treat.", perfInt(x, "treatment_count").toString(), false))
+                    /* 🟠🔒 V1077 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — TK:
+                       *"আজকের সারাদিনে কে কতগুলো RMP-র নাম এন্ট্রি করল সেটাও যেন
+                       বোঝা যায়, বিশেষ করে নতুন নাম"*।
+                       ⛔ নতুন কোনো গোনা বানানো হয়নি — `hr.staff_performance`-এর
+                          **আগে থেকে থাকা** `rmp_added` ঘরটাই দেখানো হচ্ছে; ওটা
+                          গোনে ওই সময়ে ওই স্টাফের `createdBy`-তে বসানো নতুন
+                          `doctor_visits` সারি। ভিতরের পর্দায় "RMP added"-এ
+                          ঠিক এই সংখ্যাটাই আগে থেকেই দেখানো হয়, তাই দুই পর্দায়
+                          কখনো দুরকম উত্তর হবে না।
+                       ⛔ SQL লাগেনি · বাকি চারটে ঘরের সংখ্যা/রং এক অক্ষরও বদলায়নি। */
+                    tiles.addView(perfTile("New RMP", perfInt(x, "rmp_added").toString(), false, warm = true))
                     tiles.addView(perfTile("Collected",
                         money(perfDbl(x, "cash_collected") + perfDbl(x, "online_collected")), true))
                     card.addView(tiles)
@@ -1403,29 +2380,37 @@ class StaffProfileActivity : AppCompatActivity() {
     }
 
     /** তালিকার ছোট বাক্স — Salary পর্দার টাইলের মতোই। */
-    private fun perfTile(caption: String, value: String, last: Boolean): LinearLayout {
+    /* 🟠 V1077 — `warm` শুধু নতুন "New RMP" ঘরের জন্য (হলুদ), TK-এর পাশ-করা
+       ফটোর হুবহু রং। ডিফল্ট false, তাই পুরনো চারটে ডাক আগের মতোই সবুজ। */
+    private fun perfTile(caption: String, value: String, last: Boolean, warm: Boolean = false): LinearLayout {
+        val fill = if (warm) "#FFF4E5" else "#F2FBF5"
+        val edge = if (warm) "#F3D9AE" else "#D8ECDF"
+        val capCol = if (warm) "#8A5A00" else "#5B6B81"
+        val valCol = if (warm) "#B45309" else "#0A5C33"
         val t = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(4), dp(8), dp(4), dp(8))
+            setPadding(dp(3), dp(8), dp(3), dp(8))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(10).toFloat()
-                setColor(android.graphics.Color.parseColor("#F2FBF5"))
-                setStroke(dp(1), android.graphics.Color.parseColor("#D8ECDF"))
+                setColor(android.graphics.Color.parseColor(fill))
+                setStroke(dp(1), android.graphics.Color.parseColor(edge))
             }
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                .apply { if (!last) rightMargin = dp(7) }
+                .apply { if (!last) rightMargin = dp(6) }
         }
         t.addView(TextView(this@StaffProfileActivity).apply {
-            text = caption; textSize = 10.5f
+            text = caption; textSize = 10f
             gravity = android.view.Gravity.CENTER
-            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            maxLines = 1
+            setTextColor(android.graphics.Color.parseColor(capCol))
         })
         t.addView(TextView(this@StaffProfileActivity).apply {
-            text = value; textSize = 14f
+            text = value; textSize = 13.5f
             gravity = android.view.Gravity.CENTER
+            maxLines = 1
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTextColor(android.graphics.Color.parseColor(valCol))
             setPadding(0, dp(2), 0, 0)
         })
         return t
@@ -1461,28 +2446,58 @@ class StaffProfileActivity : AppCompatActivity() {
         })
         box.addView(TextView(this).apply { text = "IN TIME (e.g. 09:15 AM)"; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5B6B81")) })
         val inInput = android.widget.EditText(this).apply {
-            hint = "hh:mm AM/PM — leave blank if not changing"
+            hint = "Tap to select time — leave blank if not changing"
             val pad = dp2(11); setPadding(pad, pad, pad, pad)
+            isFocusable = false
+            isCursorVisible = false
+            isClickable = true
         }
         box.addView(inInput)
         box.addView(TextView(this).apply { text = "OUT TIME (e.g. 06:30 PM)"; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5B6B81")); setPadding(0, dp2(10), 0, 0) })
         val outInput = android.widget.EditText(this).apply {
-            hint = "hh:mm AM/PM — leave blank if not changing"
+            hint = "Tap to select time — leave blank if not changing"
             val pad = dp2(11); setPadding(pad, pad, pad, pad)
+            isFocusable = false
+            isCursorVisible = false
+            isClickable = true
         }
         box.addView(outInput)
+        // Fix Attendance-এ সময় টাইপ করতে হবে না — ঘড়ি থেকে বেছে নেওয়া হবে।
+        fun openTimePicker(target: android.widget.EditText) {
+            val now = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+            android.app.TimePickerDialog(
+                this,
+                { _, hour, minute ->
+                    val picked = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
+                        set(java.util.Calendar.HOUR_OF_DAY, hour)
+                        set(java.util.Calendar.MINUTE, minute)
+                    }
+                    target.setText(SimpleDateFormat("hh.mm a", Locale.US).format(picked.time))   // 🔴 V1158
+                },
+                now.get(java.util.Calendar.HOUR_OF_DAY),
+                now.get(java.util.Calendar.MINUTE),
+                false
+            ).show()
+        }
+        inInput.setOnClickListener { openTimePicker(inInput) }
+        outInput.setOnClickListener { openTimePicker(outInput) }
         // hh:mm AM/PM → "HH:mm:ss" (24-ঘণ্টা, notebook_days-এ যেভাবে জমা থাকে)।
         fun to24(raw: String): String? {
             val t = raw.trim().uppercase(Locale.US)
             if (t.isBlank()) return null
-            return try {
-                val fmt = SimpleDateFormat("hh:mm a", Locale.US)
-                val parsed = fmt.parse(t) ?: return null
-                SimpleDateFormat("HH:mm:ss", Locale.US).format(parsed)
-            } catch (_: Throwable) { null }
+            /* 🔴🔒 V1158 — লেখাটা এখন `03.15 PM` ধাঁচে বসে, কিন্তু স্টাফ হাতে
+               `3:15 PM`-ও লিখতে পারেন, আর পুরনো বিল্ডের লেখাও ওরকমই।
+               ⇒ চারটে ধাঁচই চেষ্টা করা হয়, একটাও হারায় না। */
+            for (pat in listOf("hh.mm a", "h.mm a", "hh:mm a", "h:mm a")) {
+                try {
+                    val parsed = SimpleDateFormat(pat, Locale.US).parse(t) ?: continue
+                    return SimpleDateFormat("HH:mm:ss", Locale.US).format(parsed)
+                } catch (_: Throwable) { }
+            }
+            return null
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🕐 Fix Attendance"))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Fix Attendance"))
             .setView(box)
             .setPositiveButton("Save") { _, _ ->
                 val inTxt = inInput.text.toString().trim()
@@ -1603,6 +2618,43 @@ class StaffProfileActivity : AppCompatActivity() {
     }
 
     /** মডেল ৩-এর কার্ড-শিরোনাম (Salary / Extra Income)। */
+    /* 🎨🔒 V1181 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — বেতন-পর্দার উপরের
+       সারি: বাঁয়ে শিরোনাম, ডানে ⋮।
+       ⛔ শিরোনামের লেখা · মাপ · রং · নিচের ফাঁক — সব হুবহু `ModuleUi.screen()`-এর
+          মতোই রাখা হলো, যাতে দেখতে এক চুলও আলাদা না লাগে।
+       ⛔ তথ্য আসার আগে ⋮ চাপলে কিছু ভাঙে না — তখন শুধু একটা ছোট বার্তা। */
+    private var salMenuAnchor: android.view.View? = null
+
+    private fun salHeaderRow(title: String): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(10))
+        }
+        row.addView(TextView(this).apply {
+            text = title
+            textSize = 19f
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        val dots = TextView(this).apply {
+            text = "⋮"
+            textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            setPadding(dp(16), dp(4), dp(12), dp(4))   // 🔎 V1254
+            isClickable = true
+            setOnClickListener {
+                val a = salMenuAction
+                if (a == null) ModuleUi.toast(this@StaffProfileActivity, "Loading...")
+                else a()
+            }
+        }
+        salMenuAnchor = dots
+        row.addView(dots)
+        return row
+    }
+
     private fun salSectionTitle(text: String, hex: String): TextView = TextView(this).apply {
         this.text = text
         textSize = 16f
@@ -1638,9 +2690,26 @@ class StaffProfileActivity : AppCompatActivity() {
      *  ⛔ নতুন সারি বানানো হয় না — যে সারিটা "বাকি" ছিল সেটাই "দেওয়া হয়েছে" হয়,
      *     তাই একই টাকা দুবার গোনা হওয়ার সুযোগ নেই।
      *  ⛔ শুধু `status` · `mode` · `paid_on` বদলায়; টাকার অঙ্ক ও কারণ অটুট। */
+    /**
+     * 🎨🔒 V1183 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু):
+     * *"এই ২ টা তে চেহারা একই রকম করতে হবে, রোগের নামের পাশে থাকবে Unexpected Time"*
+     * · *"একটা একটা আলদা আলদা ও Paid করা যায় তার ব্যাবস্থা রাখতে হবে"*
+     *
+     * ⇒ এই পর্দাটা এখন Extra Income History-র **হুবহু একই বাক্স** আঁকে —
+     *   এক রোগী = এক বাক্স (নাম · মোবাইল · রোগ · Unexpected Time), নিচে ধাপগুলো
+     *   তারিখ-সময় সহ, তারপর Total ও অবস্থা। প্রতিটা বাক্সে নিজের একটা **Pay**
+     *   বোতাম — শুধু ওই রোগীর বাকি টাকাটাই মেটে।
+     * ⛔ নিচের "Mark as Paid" আগের মতোই **সবগুলো একসাথে** মেটায় — তুলে দেওয়া হয়নি।
+     * ⛔ টাকার কোনো অঙ্ক · নিয়ম · কোন সারি কোথায় জমা — কিচ্ছু বদলায়নি; যা সেভ হয়
+     *    তা ঠিক আগের মতোই (`status=PAID` · `mode` · `paid_on`)।
+     * ⛔ বাক্সগুলোর তথ্য আসে ঠিক ওই একই ব্যাচ-পড়া থেকে (`fillExtraPatientNames`) —
+     *    নতুন কোনো cloud-read যোগ হয়নি।
+     */
     private fun payExtraDue(code: String, pays: JSONArray) {
         backAction = { salary(code) }
         val col = ModuleUi.screen(this, "Pay Extra Income")
+        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
+
         val dueRows = ArrayList<JSONObject>()
         var dueSum = 0.0
         for (i in 0 until pays.length()) {
@@ -1649,36 +2718,354 @@ class StaffProfileActivity : AppCompatActivity() {
                 dueRows.add(p); dueSum += p.optDouble("amount", 0.0)
             }
         }
-        val box = ModuleUi.card(this)
-        col.addView(box)
-        box.addView(salaryStatusRow("Total to pay now", money(dueSum), "#B42318"))
-        for (p in dueRows) {
-            box.addView(ModuleUi.body(this, money(p.optDouble("amount", 0.0)) + "  ·  " + ns(p, "extra_reason")))
-        }
+        val head = ModuleUi.card(this)
+        col.addView(head)
+        head.addView(salaryStatusRow("Total to pay now", money(dueSum), "#B42318"))
+
         val md = spinner(listOf("Cash", "Online"))
+
+        /* ⛔ এই পর্দার নিজের ছোট সহায়ক — History-র বাক্সের হুবহু মাপ ও রং। */
+        fun boxBg(fill: String, stroke: String): android.graphics.drawable.GradientDrawable =
+            android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(android.graphics.Color.parseColor(fill))
+                setStroke(dp(1), android.graphics.Color.parseColor(stroke))
+            }
+
+        // ⬇ এক রোগী = এক বাক্স (History-র মতোই), ধাপ ধরে টাকার যোগ
+        xStepBoxes.clear(); xGroupSums.clear(); xGroupDue.clear(); xGroupState.clear(); xGroupOther.clear()
+        val byPatient = LinkedHashMap<String, MutableList<JSONObject>>()
+        val loose = ArrayList<JSONObject>()
+        for (p in dueRows) {
+            val pid = extraPatientId(p)
+            if (pid.isBlank()) loose.add(p) else byPatient.getOrPut(pid) { mutableListOf() }.add(p)
+        }
+        for ((pid, list) in byPatient) {
+            val arr = doubleArrayOf(0.0, 0.0, 0.0)
+            for (q in list) {
+                val amt = q.optDouble("amount", 0.0)
+                val h = cleanWhy(ns(q, "extra_reason")).trim().substringBefore("·").trim().lowercase()
+                when {
+                    h.startsWith("registration") -> arr[0] += amt
+                    h.startsWith("treatment") -> arr[1] += amt
+                    else -> {
+                        arr[2] += amt
+                        val txt = cleanWhy(ns(q, "extra_reason")).trim()
+                        if (txt.isNotBlank()) xGroupOther.getOrPut(pid) { mutableListOf() }.add(Pair(txt, amt))
+                    }
+                }
+            }
+            xGroupSums[pid] = arr
+            xGroupDue[pid] = true
+            xGroupState[pid] = "DUE"
+        }
+
+        val payRows = ArrayList<Triple<String, TextView?, JSONObject>>()
+        val nameViews = ArrayList<Pair<String, TextView>>()
+
+        for ((pid, list) in byPatient) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(10), dp(10), dp(10), dp(9))
+                background = boxBg("#FFF7F7", "#F2C8C8")
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(8) }
+            }
+            val nameView = TextView(this).apply {
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0F5132"))
+                setPadding(dp(3), dp(3), dp(2), 0)
+                visibility = android.view.View.GONE
+            }
+            card.addView(nameView)
+            nameViews.add(Pair(pid, nameView))
+
+            val stepBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            card.addView(stepBox)
+            xStepBoxes.add(Pair(pid, stepBox))
+
+            var mine = 0.0
+            for (q in list) mine += q.optDouble("amount", 0.0)
+
+            val foot = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(13), dp(8), dp(2), dp(2))
+            }
+            foot.addView(TextView(this).apply {
+                text = "Total " + money(mine)
+                textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#C62828"))
+            })
+            foot.addView(TextView(this).apply {
+                text = "DUE"
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#C62828"))
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(7), dp(4), dp(7), dp(4))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(6).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FDE9EA"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { leftMargin = dp(9) }
+            })
+            /* 💸 V1183 (TK-নির্দেশ) — শুধু **এই রোগীর** টাকা মেটানোর বোতাম। */
+            foot.addView(android.view.View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(1), 1f)
+            })
+            foot.addView(salOutlineButton("Pay " + money(mine), "#0A5C33", "#0A5C33") {
+                markExtraPaid(code, list, md.selectedItem?.toString().orEmpty())
+            })
+            card.addView(foot)
+
+            card.isClickable = true
+            card.isFocusable = true
+            card.setOnClickListener { openPatientHistory(pid, extraPatientCache[pid]?.second.orEmpty()) }
+            payRows.add(Triple(pid, null, list[0]))
+            col.addView(card)
+        }
+
+        /* ⛔ রোগী চেনা যায়নি এমন সারি (পুরনো তথ্য) — আগের মতোই সাদামাটা লাইন,
+           যাতে একটাও টাকা পর্দা থেকে হারিয়ে না যায়। */
+        for (p in loose) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(10), dp(10), dp(9))
+                background = boxBg("#FFF7F7", "#F2C8C8")
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(8) }
+            }
+            row.addView(TextView(this).apply {
+                text = money(p.optDouble("amount", 0.0)) + "  ·  " + cleanWhy(ns(p, "extra_reason"))
+                textSize = 13.5f
+                setTextColor(android.graphics.Color.parseColor("#17212B"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(salOutlineButton("Pay " + money(p.optDouble("amount", 0.0)), "#0A5C33", "#0A5C33") {
+                markExtraPaid(code, listOf(p), md.selectedItem?.toString().orEmpty())
+            })
+            col.addView(row)
+        }
+
+        if (payRows.isNotEmpty() || nameViews.isNotEmpty()) fillExtraPatientNames(payRows, nameViews = nameViews)
+
         col.addView(ModuleUi.label(this, "Mode")); col.addView(md)
         col.addView(ModuleUi.button(this, "✅ Mark as Paid") {
             if (dueRows.isEmpty()) { ModuleUi.toast(this, "Nothing due"); return@button }
-            val mode = md.selectedItem.toString()
-            Thread {
-                var okAll = true
-                for (p in dueRows) {
-                    val id = ns(p, "id")
-                    if (id.isBlank()) { okAll = false; continue }
-                    val patch = JSONObject().put("status", "PAID").put("mode", mode).put("paid_on", todayIso())
-                    if (!ModuleAuth.update("hr", "salary_payments", "id=eq.$id", patch)) okAll = false
-                }
-                runOnUiThread {
-                    ModuleUi.toast(this, if (okAll) "Paid" else "Some entries did not save — try again")
-                    salary(code)
-                }
-            }.start()
+            markExtraPaid(code, dueRows, md.selectedItem?.toString().orEmpty())
         })
-        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
         col.addView(android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
         col.addView(ModuleUi.button(this, "Back") { salary(code) })
+    }
+
+    /** 💸🔒 V1183 — বাকি টাকা মেটানোর **একটাই** পথ (একটা সারি হোক বা সবগুলো),
+     *  তাই দুই বোতামে কখনো দুরকম কিছু ঘটতে পারে না।
+     *  ⛔ যা লেখা হয় তা হুবহু আগের মতোই: `status=PAID` · `mode` · `paid_on`। */
+    private fun markExtraPaid(code: String, rows: List<JSONObject>, mode: String) {
+        if (rows.isEmpty()) { ModuleUi.toast(this, "Nothing due"); return }
+        Thread {
+            var okAll = true
+            for (p in rows) {
+                val id = ns(p, "id")
+                if (id.isBlank()) { okAll = false; continue }
+                val patch = JSONObject().put("status", "PAID").put("mode", mode).put("paid_on", todayIso())
+                if (!ModuleAuth.update("hr", "salary_payments", "id=eq.$id", patch)) okAll = false
+            }
+            runOnUiThread {
+                salaryCacheClear(code)
+                ModuleUi.toast(this, if (okAll) "Paid" else "Some entries did not save — try again")
+                salary(code)
+            }
+        }.start()
+    }
+
+
+    /* 🧾🔒 V1055 (TK-নির্দেশ ০৪.০৯.২০২৬) — **তারিখ-থেকে-তারিখ স্টেটমেন্ট**,
+       কম্পিউটারের V1052–V1054-এর হুবহু যমজ (নিয়ম ৬.৬)।
+       ⛔ **নতুন কোনো হিসাব বানানো হয়নি** — যে সারিগুলো এমনিতেই আনা হয়েছে
+          সেগুলোই `paid_on` ধরে ছেঁকে মাস ধরে যোগ করা হয়, তাই এই পাতার সংখ্যা
+          আর অন্য পর্দার সংখ্যা কখনো আলাদা হবে না (নিয়ম ৭ক-এর ২)।
+       ⛔ তারিখ-ফাঁকা সারি চুপচাপ হারায় না — কতগুলো বাদ পড়ল নিচে লেখা থাকে।
+       ⛔ মাসের লেখা `Sep-26` ধাঁচে — TK নিজে তালিকা দিয়েছেন। */
+    private var stFrom: String = ""
+    private var stTo: String = ""
+
+    /* 📅 V1055 — "From / To" এক-একটা সারি; চাপ দিলে ফোনের নিজের ক্যালেন্ডার খোলে
+       (প্রকল্পে আগে থেকেই এই প্রমাণিত পথ — `perfHeader`-এ একই DatePickerDialog)। */
+    private fun dateRow(label: String, value: String, onPick: (String) -> Unit): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(6), dp(2), dp(6))
+        }
+        row.addView(TextView(this).apply {
+            text = label; textSize = 13.5f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            layoutParams = LinearLayout.LayoutParams(dp(64), LinearLayout.LayoutParams.WRAP_CONTENT)
+        })
+        row.addView(TextView(this).apply {
+            text = dmy(value); textSize = 14.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0F5132"))
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#DDE5EC"))
+            }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                val cal = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+                try {
+                    val q = value.split("-")
+                    cal.set(q[0].toInt(), q[1].toInt() - 1, q[2].toInt())
+                } catch (_: Throwable) { }
+                android.app.DatePickerDialog(this@StaffProfileActivity, { _, y, mth, day ->
+                    onPick(String.format(Locale.US, "%04d-%02d-%02d", y, mth + 1, day))
+                }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+                   cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+            }
+        })
+        return row
+    }
+
+    private fun stMonthLabel(ym: String): String {
+        val N = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+        return try {
+            val q = ym.split("-")
+            (N.getOrNull(q[1].toInt() - 1) ?: q[1]) + "-" + q[0].takeLast(2)
+        } catch (_: Throwable) { ym }
+    }
+
+    private fun statement(code: String, pays: JSONArray) {
+        backAction = { salary(code) }
+        if (stTo.isBlank()) stTo = todayIso()
+        if (stFrom.isBlank()) {
+            stFrom = try {
+                val c = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+                c.add(java.util.Calendar.MONTH, -11); c.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                String.format(Locale.US, "%04d-%02d-%02d",
+                    c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, 1)
+            } catch (_: Throwable) { todayIso() }
+        }
+        val col = ModuleUi.screen(this, "Statement — $code")
+
+        val pick = ModuleUi.card(this)
+        col.addView(pick)
+        pick.addView(dateRow("From", stFrom) { v -> stFrom = v; statement(code, pays) })
+        pick.addView(dateRow("To", stTo) { v -> stTo = v; statement(code, pays) })
+
+        // ── মাস ধরে যোগ ──
+        val sal = HashMap<String, Double>(); val exP = HashMap<String, Double>()
+        val exD = HashMap<String, Double>(); var noDate = 0
+        for (i in 0 until pays.length()) {
+            val r = pays.optJSONObject(i) ?: continue
+            val d = ns(r, "paid_on").take(10)
+            if (d.isBlank()) { noDate++; continue }
+            if (d < stFrom || d > stTo) continue
+            val ym = d.take(7)
+            val amt = r.optDouble("amount", 0.0)
+            if (payKind(r) == "EXTRA") {
+                if (payStatus(r) == "DUE") exD[ym] = (exD[ym] ?: 0.0) + amt
+                else exP[ym] = (exP[ym] ?: 0.0) + amt
+            } else sal[ym] = (sal[ym] ?: 0.0) + amt
+        }
+        val yms = (sal.keys + exP.keys + exD.keys).distinct().sorted()
+
+        val sheet = ModuleUi.card(this)
+        col.addView(sheet)
+        sheet.addView(TextView(this).apply {
+            text = "SALARY & EXTRA INCOME STATEMENT"
+            textSize = 14f; gravity = android.view.Gravity.CENTER
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0F5132"))
+        })
+        sheet.addView(TextView(this).apply {
+            text = code + "  ·  " + dmy(stFrom) + "  to  " + dmy(stTo)
+            textSize = 11.5f; gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(0, dp(3), 0, dp(10))
+        })
+
+        fun cell(t: String, w: Float, hex: String, bold: Boolean, right: Boolean): TextView =
+            TextView(this).apply {
+                text = t; textSize = 11.5f; maxLines = 1
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(hex))
+                gravity = if (right) android.view.Gravity.END else android.view.Gravity.START
+                setPadding(dp(3), dp(6), dp(3), dp(6))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, w)
+            }
+        fun tableRow(a: String, b: String, c: String, d: String, e: String,
+                     head: Boolean = false, foot: Boolean = false, dueRed: Boolean = false): LinearLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                if (head) setBackgroundColor(android.graphics.Color.parseColor("#0B4F2A"))
+                else if (foot) setBackgroundColor(android.graphics.Color.parseColor("#F4F9F6"))
+                val ink = if (head) "#FFFFFF" else "#1C2A33"
+                addView(cell(a, 1.15f, ink, head || foot, false))
+                addView(cell(b, 1f, ink, head || foot, true))
+                addView(cell(c, 0.95f, ink, head || foot, true))
+                addView(cell(d, 0.9f, if (!head && dueRed) "#C62828" else ink, head || foot || dueRed, true))
+                addView(cell(e, 1.05f, ink, true, true))
+            }
+
+        sheet.addView(tableRow("Month", "Salary", "Extra", "Due", "Total", head = true))
+        var tS = 0.0; var tP = 0.0; var tD = 0.0
+        val printRows = ArrayList<com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.Row>()
+        for (ym in yms) {
+            val a = sal[ym] ?: 0.0; val b = exP[ym] ?: 0.0; val c = exD[ym] ?: 0.0
+            tS += a; tP += b; tD += c
+            printRows.add(com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.Row(
+                stMonthLabel(ym), a, b, c))
+            sheet.addView(tableRow(stMonthLabel(ym), money(a), money(b), money(c), money(a + b),
+                dueRed = c > 0.0))
+        }
+        if (yms.isEmpty()) sheet.addView(ModuleUi.body(this, "No payments in this period."))
+        sheet.addView(tableRow("TOTAL", money(tS), money(tP), money(tD), money(tS + tP),
+            foot = true, dueRed = tD > 0.0))
+        if (noDate > 0) sheet.addView(TextView(this).apply {
+            text = "$noDate entry(ies) have no date and are not counted here."
+            textSize = 10.5f
+            setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+            setPadding(0, dp(8), 0, 0)
+        })
+
+        /* 🎨🔒 V1104 (০৫.০৯.২০২৬, TK: *"Print, Back-এ দুটো পাশাপাশি রাখা যায় তো"*)
+           — দুটো বোতাম এখন এক সারিতে সমান চওড়ায়। ⛔ কাজ, রং, লেখা কিছুই
+           বদলায়নি; শুধু জায়গা। ⛔ ছোট পর্দাতেও লেখা ভাঙে না (এক লাইনে বাঁধা)। */
+        col.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            val bPrint = ModuleUi.button(this@StaffProfileActivity, "🖨 Print / PDF") {
+                com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.print(
+                    this@StaffProfileActivity, code, dmy(stFrom), dmy(stTo), printRows)
+            }
+            val bBack = ModuleUi.button(this@StaffProfileActivity, "Back") { salary(code) }
+            for (b in listOf(bPrint, bBack)) {
+                (b as? android.widget.TextView)?.let {
+                    it.setSingleLine(true)
+                    it.ellipsize = android.text.TextUtils.TruncateAt.END
+                }
+                b.minimumWidth = 0
+            }
+            bPrint.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginEnd = dp(5) }
+            bBack.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginStart = dp(5) }
+            addView(bPrint); addView(bBack)
+        })
     }
 
     private fun salOutlineButton(text: String, textHex: String, borderHex: String, onClick: () -> Unit): android.widget.Button =
@@ -1692,7 +3079,9 @@ class StaffProfileActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER
             minWidth = 0
             minimumWidth = 0
-            setPadding(dp(8), dp(13), dp(8), dp(13))
+            // 🟣🔒 V961 (TK: *"প্রতিটা বক্সের সাইজ এত বড় বড় কেন থাকবে"*) —
+            //    উপরে-নিচে ১৩ → ৯dp। ⛔ লেখা · রং · কাজ কিছুই বদলায়নি।
+            setPadding(dp(8), dp(9), dp(8), dp(9))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor(textHex))
             background = android.graphics.drawable.GradientDrawable().apply {
@@ -1745,11 +3134,90 @@ class StaffProfileActivity : AppCompatActivity() {
     /* 🔴🔴🔒 V440 (TK-নির্দেশ ১৮.০৮.২০২৬) — `onClick` দিলে সারিটা চাপ-যোগ্য হয়
        (হালকা ripple + ডান পাশে ">") — নাহলে আগের মতোই স্থির। ⛔ পুরনো সব ডাক
        (Salary ইত্যাদি, onClick ছাড়া) হুবহু আগের মতোই দেখাবে/আচরণ করবে। */
+    /* 💰🔒 V991 (০৩.০৯.২০২৬, TK-নির্দেশ: *"ডিজাইনটা আরো প্রফেশনাল লুক বানাতে
+       হবে"*, ফটো-প্রুফ পাশ) — Extra Income-এর মাথায় সোনালি পট্টি, আর নিচে
+       "PAID" ও "DUE" দুটো আলাদা রঙিন টালিতে।
+       ⛔ শুধু **সাজ** — টাকার অঙ্ক · হিসাব · সেভ/পড়ার নিয়ম এক অক্ষরও বদলায়নি।
+       ⛔ বেতনের বাক্সে হাত পড়েনি, তাই ওই অংশ হুবহু আগের মতোই। */
+    /** "2026-09" → "September 2026" (শুধু দেখানোর জন্য)। */
+    private fun salMonthName(ym: String): String = try {
+        val p = ym.split("-")
+        val names = listOf("January","February","March","April","May","June",
+            "July","August","September","October","November","December")
+        names[p[1].toInt() - 1] + " " + p[0]
+    } catch (_: Throwable) { ym }
+
+    private fun salGoldHeader(title: String, right: String): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(
+                    android.graphics.Color.parseColor("#B45309"),
+                    android.graphics.Color.parseColor("#E0A800")
+                )
+            ).apply { cornerRadius = dp(12).toFloat() }
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) }
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = title; textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                letterSpacing = 0.05f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = right; textSize = 12f
+                setTextColor(android.graphics.Color.parseColor("#FFF3D6"))
+            })
+        }
+
+    /** "PAID" ও "DUE" — পাশাপাশি দুটো রঙিন টালি। */
+    private fun salMoneyTiles(paid: String, due: String, dueRed: Boolean): LinearLayout {
+        fun tile(cap: String, value: String, fill: String, ink: String) =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor(fill))
+                    cornerRadius = dp(12).toFloat()
+                }
+                setPadding(dp(14), dp(11), dp(14), dp(12))
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = cap; textSize = 10f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#6B7A83"))
+                    letterSpacing = 0.12f
+                })
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = value; textSize = 19f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor(ink))
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(4) }
+        }
+        val a = tile("PAID", paid, "#EAF7F0", "#0B5B2F")
+        val b = tile("DUE", due, if (dueRed) "#FDEDEC" else "#F3F5F7", if (dueRed) "#B42318" else "#5B6B81")
+        a.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            .apply { rightMargin = dp(8) }
+        b.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        row.addView(a); row.addView(b)
+        return row
+    }
+
     private fun salaryStatusRow(label: String, value: String, valueColor: String, onClick: (() -> Unit)? = null): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(6), dp(2), dp(6))
+            setPadding(dp(2), dp(4), dp(2), dp(4))   // 🟣 V961: ৬ → ৪dp
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         row.addView(TextView(this).apply {
@@ -2089,6 +3557,511 @@ class StaffProfileActivity : AppCompatActivity() {
         }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🗓️🔒 V1199 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **ATTENDANCE SHEET**
+       (কত তারিখে কত ঘণ্টা, আলাদা পর্দায়)।
+
+       TK-এর কথা (হুবহু): *"কত ঘন্টা কাজ করেছে, কত তারিখে কত ঘন্টা তার হিস্ট্রি
+       যেন আমি আলাদাভাবে দেখতে পারি"* · *"গুগল শিটের মতন চারি সাইডে বক্স"* ·
+       *"ছুটি · ওয়ার্ক ফ্রম হোম · অন্য ব্রাঞ্চে ডিউটি — ঘন্টার ঘরে থাকবে"* ·
+       *"আউট টাইম মিসিং এই লেখাটা আউট টাইমের ঘরে থাকবে"* · *"মাস্টার যেন এখান
+       থেকেই ইন টাইম আউট টাইম এডিট করতে পারে"* · *"WhatsApp-এ শেয়ার ও A4
+       পিডিএফ/প্রিন্ট"*।
+
+       ⛔ ঘণ্টার হিসাব **হুবহু `HourSalary`-রই** — এখানে নতুন কোনো নিয়ম নেই
+          (ছুটি ও Work From Home = ৭ ঘণ্টা · IN/OUT-এর একটা না থাকলে ০)।
+       ⛔ পুরনো `perfShowAttendanceSheet` পর্দাটা **ছোঁয়া হয়নি** — সেটা আগের
+          মতোই চলে; এটা তার পাশে নতুন পর্দা।
+       ⛔ মাস্টারের এডিট ঠিক সেই ঘরেই লেখে যেখানে Fix Attendance লেখে
+          (`wn.notebook_days` · staff_code,work_date) — নতুন কোনো ঘর নয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    private var attSheetRows: List<AttRow> = emptyList()
+    private var attSheetMonth: String = ""
+
+    private data class AttRow(
+        val dateIso: String, val date: String, val inTime: String, val outTime: String,
+        val outMissing: Boolean, val minutes: Int, val hours: String,
+        val tag: String, val tagKind: String
+    )
+
+    /** "10:05" / "10:05:00" → "10.05 AM"; ফাঁকা হলে "—"। */
+    private fun attT12(raw: String): String {
+        val t = raw.trim()
+        if (t.length < 4) return "\u2014"
+        return try {
+            val hh = t.substring(0, 2).toInt(); val mm = t.substring(3, 5)
+            val ap = if (hh >= 12) "PM" else "AM"
+            val h12 = when { hh == 0 -> 12; hh > 12 -> hh - 12; else -> hh }
+            "$h12.$mm $ap"
+        } catch (_: Throwable) { t }
+    }
+
+    private fun attendanceSheet(code: String, ym: String) {
+        val prevBack = backAction
+        backAction = { prevBack() }
+        attSheetMonth = ym
+        val col = ModuleUi.screen(this, "Performance Sheet")   // 📊 V1204
+        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
+        col.addView(TextView(this).apply {
+            text = code + "  \u00b7  " + salaryMonthLabel(ym)
+            textSize = 12f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(dp(2), 0, dp(2), dp(8))
+        })
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(box)
+        box.addView(ModuleUi.body(this, "Loading..."))
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        col.addView(actions)
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.buttonSoft(this, "Back") { backAction() }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        })
+
+        Thread {
+            val from = "$ym-01"
+            val end = try {
+                val p = ym.split("-"); val y = p[0].toInt(); val m = p[1].toInt()
+                if (m >= 12) String.format(Locale.US, "%04d-01-01", y + 1)
+                else String.format(Locale.US, "%04d-%02d-01", y, m + 1)
+            } catch (_: Throwable) { "$ym-31" }
+            val days = try {
+                ModuleAuth.getRowsChecked(
+                    "wn", "notebook_days",
+                    // 📊 V1204 — `outside_calls_manual`-ও এই একই পড়াতেই আসে, নতুন কোনো নেট-কল নয়।
+                    "select=work_date,check_in,check_out,is_leave,leave_reason,is_wfh,is_other_branch,branch,outside_calls_manual" +
+                        "&staff_code=eq.$code&work_date=gte.$from&work_date=lt.$end&order=work_date.asc"
+                )
+            } catch (_: Throwable) { null }
+            val cfg = try {
+                ModuleAuth.getRows("hr", "salary_config", "select=salary_amount&person_code=eq.$code&limit=1")
+            } catch (_: Throwable) { JSONArray() }
+            val prof = try {
+                ModuleAuth.getRows("hr", "staff_profiles",
+                    "select=full_name,branch,link_mobile,address&person_code=eq.$code&limit=1")
+            } catch (_: Throwable) { JSONArray() }
+            val amount = if (cfg.length() > 0) cfg.getJSONObject(0).optDouble("salary_amount", 0.0) else 0.0
+            val pr = if (prof.length() > 0) prof.getJSONObject(0) else JSONObject()
+            val homeBranch = ns(pr, "branch")
+
+            val rows = ArrayList<AttRow>()
+            var worked = 0
+            val arr = if (days != null && days.ok) days.rows else JSONArray()
+            for (i in 0 until arr.length()) {
+                val d = arr.optJSONObject(i) ?: continue
+                val iso = ns(d, "work_date").take(10)
+                val ci = ns(d, "check_in"); val co = ns(d, "check_out")
+                var tag = ""; var kind = ""
+                var mins: Int
+                var outMissing = false
+                when {
+                    d.optBoolean("is_leave", false) -> {
+                        mins = (HourSalary.DAY_HOURS * 60).toInt()
+                        val why = ns(d, "leave_reason")
+                        tag = "LEAVE" + (if (why.isNotBlank()) " ($why)" else ""); kind = "lv"
+                    }
+                    d.optBoolean("is_wfh", false) -> {
+                        mins = (HourSalary.DAY_HOURS * 60).toInt()
+                        tag = "WORK FROM HOME"; kind = "wf"
+                    }
+                    /* 🚌 V1200 — আগে থেকে জানানো "অন্য ব্রাঞ্চে ডিউটি" ⇒ ৭ ঘণ্টা
+                       (হিসাবের নিয়ম হুবহু `HourSalary`-রই)। */
+                    d.optBoolean("is_other_branch", false) -> {
+                        mins = (HourSalary.DAY_HOURS * 60).toInt()
+                        tag = "DUTY \u00b7 " + ns(d, "branch").trim().uppercase(); kind = "br"
+                    }
+                    else -> {
+                        val a = HourSalary.minutesOf(ci); val b = HourSalary.minutesOf(co)
+                        /* ⏰ V1200 (TK-সিদ্ধান্ত) — IN আছে অথচ OUT নেই ⇒ **৭ ঘণ্টা**
+                           (আগে ০ ছিল)। IN-ই না থাকলে আগের মতোই ০। */
+                        if (a != null && b == null) { mins = (HourSalary.DAY_HOURS * 60).toInt(); outMissing = true }
+                        else if (a == null || b == null || b <= a) { mins = 0 }
+                        else mins = b - a
+                        val br = ns(d, "branch")
+                        if (tag.isBlank() && br.isNotBlank() && homeBranch.isNotBlank() &&
+                            !br.trim().equals(homeBranch.trim(), ignoreCase = true)) {
+                            tag = br.trim().uppercase(); kind = "br"
+                        }
+                    }
+                }
+                worked += mins
+                rows.add(AttRow(
+                    iso, dmy(iso),
+                    if (d.optBoolean("is_leave", false) || d.optBoolean("is_wfh", false)) "\u2014" else attT12(ci),
+                    if (d.optBoolean("is_leave", false) || d.optBoolean("is_wfh", false)) "\u2014" else attT12(co),
+                    outMissing, mins, HourSalary.hoursText(mins), tag, kind
+                ))
+            }
+            /* 📊🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — মাসের পারফরম্যান্স।
+               ⛔ গোনার নিয়ম **হুবহু WorkNotebook-এর `fetchStats("month")`-এর মতোই**
+                 (শেষ ১০ অঙ্ক ধরে মেলানো, তিনটে তারিখ-ঘরের যেকোনোটা) — নতুন কোনো
+                 নিয়ম বানানো হয়নি, তাই স্টাফের পর্দা ও এই কাগজ কখনো আলাদা হবে না।
+               ⛔ পড়া ব্যর্থ হলে "…" বসে, মিথ্যা ০ নয়।
+               ⛔ egress: মোট তিনটে ছোট গোনা-কল (count/HEAD), সারি টেনে আনা হয় না। */
+            val perfObj: com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf = run {
+                val mob10 = ns(pr, "link_mobile").filter { it.isDigit() }.takeLast(10)
+                val monthOr = "or(createdAt.gte.$ym-01,date.gte.$ym-01,registrationDate.gte.$ym-01)"
+                fun cnt(table: String, filter: String): String = try {
+                    val r = ModuleAuth.countPublicChecked(table, filter)
+                    if (r.ok) r.count.toString() else "…"
+                } catch (_: Throwable) { "…" }
+                val enqTxt = if (mob10.length != 10) "…"
+                    else cnt("enquiries", "and=(or(createdBy.like.*$mob10,receivedBy.like.*$mob10),$monthOr)")
+                val regTxt = if (mob10.length != 10) "…"
+                    else cnt("patients", "and=(or(registeredBy.like.*$mob10,createdBy.like.*$mob10),$monthOr)")
+                val appTxt = try {
+                    val r = ModuleAuth.getRowsChecked("wn", "call_taps",
+                        "select=id&staff_code=eq.$code&call_date=gte.$from&call_date=lt.$end")
+                    if (r.ok) r.rows.length().toString() else "…"
+                } catch (_: Throwable) { "…" }
+                var outSum = 0
+                for (i in 0 until arr.length()) outSum += arr.optJSONObject(i)?.optInt("outside_calls_manual", 0) ?: 0
+                var lv = 0
+                for (i in 0 until arr.length()) if (arr.optJSONObject(i)?.optBoolean("is_leave", false) == true) lv++
+                val totTxt = if (appTxt == "…") "…" else (appTxt.toInt() + outSum).toString()
+                com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf(
+                    enqTxt, regTxt, appTxt, outSum.toString(), totTxt, lv.toString()
+                )
+            }
+            val res = HourSalary.compute(arr, amount, ym)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                attSheetRows = rows
+                attSheetPerf = perfObj   // 📊 V1204
+                box.removeAllViews()
+                box.addView(attPerfStrip(perfObj))   // 📊 V1204 — কাগজে যা, পর্দাতেও তাই
+                box.addView(attSummary(res, worked))
+                box.addView(attTable(code, rows))
+                actions.removeAllViews()
+                fun act(label: String, colour: String, go: () -> Unit) =
+                    ModuleUi.button(this, label, go).apply {
+                        textSize = 13f
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            cornerRadius = dp(10).toFloat()
+                            setColor(android.graphics.Color.parseColor(colour))
+                        }
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                            .apply { rightMargin = dp(6) }
+                    }
+                actions.addView(act("Print / PDF", "#0B4F2A") { attPrint(code, ym, pr, amount, res, worked) })
+                actions.addView(act("WhatsApp", "#128C7E") { attWhatsApp(code, ym, pr, res) })
+                actions.addView(act("Change month", "#B45309") { attPickMonth(code) })
+            }
+        }.start()
+    }
+
+    private fun attSummary(res: HourSalary.HourPay, worked: Int): LinearLayout {
+        fun cell(label: String, value: String, hex: String) = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(11), dp(10), dp(11))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = label; textSize = 10.5f
+                setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = value; textSize = 16f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(hex))
+                setPadding(0, dp(4), 0, 0)
+            })
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#D9E8DF"))
+            }
+            addView(cell("WORKED", HourSalary.hoursText(worked), "#0A7C3F"))
+            addView(cell("MONTH HOURS", res.monthHours.toInt().toString() + "h", "#16232E"))
+            addView(cell("SALARY", money(res.payable), "#0E6E8C"))
+        }
+    }
+
+    /** Google Sheet-এর মতো — প্রতিটা ঘরের চার দিকেই দাগ (TK-নির্দেশ)। */
+    private fun attTable(code: String, rows: List<AttRow>): LinearLayout {
+        val line = android.graphics.Color.parseColor("#C9D8CF")
+        fun cellBox(text: String, weight: Float, bold: Boolean, hex: String, size: Float): TextView =
+            TextView(this).apply {
+                this.text = text; textSize = size
+                gravity = android.view.Gravity.CENTER
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(hex))
+                setPadding(dp(6), dp(8), dp(6), dp(8))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.TRANSPARENT); setStroke(dp(1), line)
+                }
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight)
+            }
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        wrap.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(android.graphics.Color.parseColor("#0B4F2A"))
+            addView(cellBox("DATE", 1.15f, true, "#FFFFFF", 10.5f))
+            addView(cellBox("IN TIME", 1f, true, "#FFFFFF", 10.5f))
+            addView(cellBox("OUT TIME", 1f, true, "#FFFFFF", 10.5f))
+            addView(cellBox("HOURS", 1.25f, true, "#FFFFFF", 10.5f))
+        })
+        if (rows.isEmpty()) {
+            wrap.addView(ModuleUi.body(this, "No attendance in this month."))
+            return wrap
+        }
+        for (r in rows) {
+            val tr = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setBackgroundColor(android.graphics.Color.WHITE)
+            }
+            tr.addView(cellBox(r.date, 1.15f, true, "#17212B", 12f))
+            tr.addView(cellBox(r.inTime, 1f, false, "#17212B", 12f))
+            tr.addView(
+                if (r.outMissing) cellBox("MISSING", 1f, true, "#C62828", 11.5f)
+                else cellBox(r.outTime, 1f, false, "#17212B", 12f)
+            )
+            val hx = when (r.tagKind) { "lv" -> "#123E8C"; "wf" -> "#8A5A00"; "br" -> "#0A7C3F"; else -> "#17212B" }
+            tr.addView(cellBox(r.hours + (if (r.tag.isBlank()) "" else "\n" + r.tag), 1.25f, true, hx,
+                if (r.tag.isBlank()) 12f else 11f))
+            /* ✏️ V1199 — মাস্টার সারিতে চাপলে ওই দিনের IN/OUT বদলাতে পারেন। */
+            if (ModuleAuth.isMaster) {
+                tr.isClickable = true
+                tr.setOnClickListener { attEditDay(code, r) }
+            }
+            wrap.addView(tr)
+        }
+        return wrap
+    }
+
+    private fun attPickMonth(code: String) {
+        val months = ArrayList<String>()
+        val c = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+        for (i in 0 until 12) {
+            months.add(String.format(Locale.US, "%04d-%02d",
+                c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1))
+            c.add(java.util.Calendar.MONTH, -1)
+        }
+        val labels = months.map { salaryMonthLabel(it) }.toTypedArray()
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Choose month"))
+            .setItems(labels) { _, which -> attendanceSheet(code, months[which]) }
+            .setNegativeButton("Close", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    /** ✏️ মাস্টার ওই দিনের IN / OUT বদলান — ঠিক সেই ঘরেই লেখে যেখানে
+     *  Fix Attendance লেখে (`wn.notebook_days`)। ঘণ্টা নিজে থেকেই ঠিক হয়। */
+    private fun attEditDay(code: String, r: AttRow) {
+        if (!ModuleAuth.isMaster) return
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(4))
+        }
+        fun timeField(label: String, initial: String): Pair<TextView, android.widget.EditText> {
+            val cap = TextView(this).apply {
+                text = label; textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                setPadding(0, dp(8), 0, dp(4))
+            }
+            val f = android.widget.EditText(this).apply {
+                setText(if (initial == "\u2014") "" else initial)
+                hint = "Tap to select time"
+                isFocusable = false; isCursorVisible = false
+                textSize = 14f
+                setPadding(dp(12), dp(11), dp(12), dp(11))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(11).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#E7ECEA"))
+                }
+                setOnClickListener {
+                    val c = java.util.Calendar.getInstance()
+                    android.app.TimePickerDialog(this@StaffProfileActivity, { _, h, mi ->
+                        val ap = if (h >= 12) "PM" else "AM"
+                        val h12 = when { h == 0 -> 12; h > 12 -> h - 12; else -> h }
+                        setText(String.format(Locale.US, "%d.%02d %s", h12, mi, ap))
+                    }, c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE), false).show()
+                }
+            }
+            return Pair(cap, f)
+        }
+        val (inCap, inF) = timeField("IN TIME", r.inTime)
+        val (outCap, outF) = timeField("OUT TIME", r.outTime)
+        box.addView(inCap); box.addView(inF); box.addView(outCap); box.addView(outF)
+        box.addView(TextView(this).apply {
+            text = "Hours will be counted from these two times."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setPadding(dp(2), dp(12), 0, 0)
+        })
+        /** "9.15 AM" → "09:15:00"; ফাঁকা হলে null (বদলাবে না)। */
+        fun to24(v: String): String? {
+            val t = v.trim().uppercase(Locale.US)
+            if (t.isBlank()) return null
+            return try {
+                val pm = t.contains("PM")
+                val core = t.replace("AM", "").replace("PM", "").trim().replace(".", ":")
+                val p = core.split(":")
+                var h = p[0].trim().toInt(); val mi = p[1].trim().toInt()
+                if (pm && h < 12) h += 12
+                if (!pm && h == 12) h = 0
+                String.format(Locale.US, "%02d:%02d:00", h, mi)
+            } catch (_: Throwable) { null }
+        }
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Edit hours  \u00b7  " + r.date))
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                val in24 = to24(inF.text.toString())
+                val out24 = to24(outF.text.toString())
+                if (in24 == null && out24 == null) {
+                    ModuleUi.toast(this, "Nothing to save"); return@setPositiveButton
+                }
+                ModuleUi.toast(this, "Saving...")
+                Thread {
+                    val existing = try {
+                        val rr = ModuleAuth.getRowsChecked("wn", "notebook_days",
+                            "select=*&staff_code=eq.$code&work_date=eq." + r.dateIso + "&limit=1")
+                        if (rr.ok && rr.rows.length() > 0) rr.rows.getJSONObject(0) else null
+                    } catch (_: Throwable) { null }
+                    val row = existing ?: JSONObject()
+                        .put("staff_code", code).put("work_date", r.dateIso)
+                        .put("manual_entries", JSONArray())
+                    if (!row.has("manual_entries") || row.isNull("manual_entries")) row.put("manual_entries", JSONArray())
+                    if (in24 != null) row.put("check_in", in24)
+                    if (out24 != null) row.put("check_out", out24)
+                    row.put("updated_at", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                        .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
+                    var ok = try { ModuleAuth.upsertOnConflict("wn", "notebook_days", row, "staff_code,work_date") } catch (_: Throwable) { false }
+                    if (!ok) ok = try { ModuleAuth.upsert("wn", "notebook_days", row) } catch (_: Throwable) { false }
+                    runOnUiThread {
+                        ModuleUi.toast(this, if (ok) "Saved" else "Could not save — try again")
+                        if (ok) attendanceSheet(code, attSheetMonth)
+                    }
+                }.start()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    /* 📊 V1204 — পর্দার উপরে পারফরম্যান্সের ছোট পট্টি। কাগজের বাক্সটার হুবহু
+       একই ছয়টা ঘর, একই সংখ্যা — তাই পর্দা ও কাগজ কখনো আলাদা হতে পারে না। */
+    private fun attPerfStrip(p: com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf): LinearLayout {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#F4F9F6"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#CFE3D4"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+        }
+        wrap.addView(TextView(this).apply {
+            text = "MONTHLY PERFORMANCE"; textSize = 9.5f
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, dp(4))
+        })
+        fun cell(label: String, v: String): LinearLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = label; textSize = 8.5f
+                setTextColor(android.graphics.Color.parseColor("#6B7280"))
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = v.ifBlank { "-" }; textSize = 15f
+                val bright = (v.toIntOrNull() ?: 0) > 0
+                setTextColor(android.graphics.Color.parseColor(if (bright) "#0B2B59" else "#B9C0C8"))
+                setTypeface(typeface, if (bright) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            })
+        }
+        val r1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        r1.addView(cell("NEW ENQUIRY", p.enquiries)); r1.addView(cell("REGISTRATION", p.registrations))
+        r1.addView(cell("APP CALLS", p.appCalls))
+        val r2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        }
+        r2.addView(cell("OUTSIDE CALLS", p.outsideCalls)); r2.addView(cell("TOTAL CALLS", p.totalCalls))
+        r2.addView(cell("LEAVE DAYS", p.leaveDays))
+        wrap.addView(r1); wrap.addView(r2)
+        return wrap
+    }
+
+    /** 📊 V1204 — এই মাসের পারফরম্যান্স, ছাপা ও WhatsApp দুটোতেই একই সংখ্যা যায়। */
+    private var attSheetPerf: com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf? = null
+
+    private fun attPrintRows(): List<com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Row> =
+        attSheetRows.map {
+            com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Row(
+                it.date, it.inTime, it.outTime, it.outMissing, it.hours, it.tag, it.tagKind
+            )
+        }
+
+    private fun attPrint(code: String, ym: String, pr: JSONObject, amount: Double, res: HourSalary.HourPay, worked: Int) {
+        val html = com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.build(
+            branchName = ns(pr, "branch"),
+            staffName = ns(pr, "full_name").ifBlank { code },
+            staffCode = code,
+            mobile = ns(pr, "link_mobile"),
+            address = ns(pr, "address"),
+            monthLabel = salaryMonthLabel(ym),
+            printedOn = dmy(todayIso()),
+            rows = attPrintRows(),
+            totalHours = HourSalary.hoursText(worked),
+            monthHoursText = res.monthHours.toInt().toString() + "h 00m",
+            salaryText = money(amount),
+            rateText = money(res.ratePerHour),
+            payableText = money(res.payable),
+            perf = attSheetPerf                       // 📊 V1204
+        )
+        com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.print(this, code, salaryMonthLabel(ym), html)
+    }
+
+    private fun attWhatsApp(code: String, ym: String, pr: JSONObject, res: HourSalary.HourPay) {
+        val txt = com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.whatsAppText(
+            ns(pr, "full_name").ifBlank { code }, code, ns(pr, "branch"),
+            salaryMonthLabel(ym), attPrintRows(),
+            HourSalary.hoursText(attSheetRows.sumOf { it.minutes }), money(res.payable),
+            attSheetPerf                              // 📊 V1204
+        )
+        try {
+            val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_TEXT, txt)
+                setPackage("com.whatsapp")
+            }
+            startActivity(i)
+        } catch (_: Throwable) {
+            try {
+                startActivity(android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, txt)
+                })
+            } catch (_: Throwable) { ModuleUi.toast(this, "WhatsApp not found") }
+        }
+    }
+
     /** 🗓️ Google Sheet-এর মতো হাজিরা-খাতা — Date · IN · OUT · Leave, একটা
      *  টেবিলে (TK-নির্দেশ ১৮.০৮.২০২৬)। "Days present"/"Leave days" দুটো
      *  থেকেই এটাই খোলে। */
@@ -2099,7 +4072,7 @@ class StaffProfileActivity : AppCompatActivity() {
         //      এক অক্ষরও বদলায়নি (V509-এ যেভাবে ছিল, ঠিক সেভাবেই)।
         val prevBack = (if (fromPerf) perfListBack else null) ?: backAction
         backAction = { prevBack() }
-        val col = ModuleUi.screen(this, "Attendance Sheet")
+        val col = ModuleUi.screen(this, "Performance Sheet")   // 📊 V1204
         col.addView(TextView(this).apply {
             text = fullName + "  \u00b7  " + perfLabel(month); textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#5B6B81"))
@@ -2155,9 +4128,13 @@ class StaffProfileActivity : AppCompatActivity() {
                         text = t; textSize = 12.5f; setTextColor(android.graphics.Color.parseColor(color))
                         layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, w)
                     }
+                    /* 🔴🔒 V1162 (০৭.০৯.২০২৬, TK-নির্দেশ) — হাজিরার এই তালিকায়
+                       সময় দুটো **কাঁচা ২৪-ঘণ্টার লেখাই** বসত (`09:15` / `09:15:00`),
+                       অথচ প্রকল্পের বাকি সব জায়গায় `9.15 AM`। ⇒ এখন এখানেও এক নিয়ম।
+                       ⛔ ডেটাবেসে আগের মতোই ২৪-ঘণ্টা জমা থাকে — শুধু দেখানোটা বদলাল। */
                     tr.addView(cell(dmy(ns(row, "work_date")), 1.1f, "#123A26"))
-                    tr.addView(cell(ns(row, "check_in").ifBlank { "\u2014" }, 1f, "#0A7C3F"))
-                    tr.addView(cell(ns(row, "check_out").ifBlank { "\u2014" }, 1f, "#B42318"))
+                    tr.addView(cell(attTime12(ns(row, "check_in")).ifBlank { "\u2014" }, 1f, "#0A7C3F"))
+                    tr.addView(cell(attTime12(ns(row, "check_out")).ifBlank { "\u2014" }, 1f, "#B42318"))
                     tr.addView(cell(if (isLeave) "\u2713" else "\u2014", 0.8f, if (isLeave) "#B45309" else "#5B6B81"))
                     sheet.addView(tr)
                     if (i < rows.length() - 1) sheet.addView(android.view.View(this).apply {
@@ -2168,6 +4145,93 @@ class StaffProfileActivity : AppCompatActivity() {
                 box.addView(sheet)
             }
         }.start()
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       💰🔒 V1195 (০৭.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ, হুবহু):
+         *"September আমি 2044 দেই নাই একবারও, তাহলে এখানে ৩ বার কেন দেখাচ্ছে"* ·
+         *"একই পেমেন্ট আমি যখন তিনবার দিব তাহলে আমাকে আটকাবে না কেন?"* ·
+         *"ভুল করে দিয়ে ফেললে সেটা ডিলিট করতে পারছি না কেন?"*
+
+       কোডে মেপে দেখা গিয়েছিল — ঢোকানোর সময় **কোনো ডুপ্লিকেট-পাহারা ছিল না**,
+       আর অঙ্কটা অ্যাপ নিজেই ঘরে বসিয়ে রাখত (V1178-এর ঘণ্টা-হিসাব), তাই না
+       দেখে চাপ পড়লেই সেটা সেভ হয়ে যেত। তিনটেই এখানে সারানো হলো।
+       ⛔ টাকার **হিসাবের নিয়ম** এক অক্ষরও বদলায়নি — শুধু পাহারা যোগ হলো। */
+    private fun salaryAlreadyPaidRow(pays: JSONArray, ym: String): JSONObject? {
+        for (i in 0 until pays.length()) {
+            val p = pays.optJSONObject(i) ?: continue
+            if (payKind(p) == "EXTRA") continue
+            if (salaryPayMonth(p) == ym) return p
+        }
+        return null
+    }
+
+    /** ওই মাস আগে দেওয়া থাকলে **আটকে জিজ্ঞাসা করে**; নইলে সোজা কাজটা করে। */
+    private fun confirmIfMonthPaid(pays: JSONArray, ym: String, go: () -> Unit) {
+        val old = salaryAlreadyPaidRow(pays, ym)
+        if (old == null) { go(); return }
+        val msg = money(old.optDouble("amount", 0.0)) + "  ·  " +
+            ns(old, "mode").ifBlank { "—" } + "  ·  " + dmy(ns(old, "paid_on")) +
+            "\nAlready recorded for this month.\n\nAdd one more payment for " +
+            salaryMonthLabel(ym) + "?"
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, salaryMonthLabel(ym) + " already paid"))
+            .setMessage(msg)
+            .setPositiveButton("Yes, add") { _, _ -> go() }
+            .setNegativeButton("No", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    /** ভুল সারি মোছা — আগে খাতায় নকল, তারপরই আসল সারি। ⛔ শুধু মাস্টার। */
+    private fun deleteSalaryRow(code: String, row: JSONObject, after: () -> Unit) {
+        val id = ns(row, "id")
+        if (id.isBlank()) { ModuleUi.toast(this, "This entry has no id"); return }
+        val title = if (payKind(row) == "EXTRA") "Delete this extra income?" else "Delete this salary payment?"
+        val body = (if (payKind(row) == "EXTRA") "Extra" else salaryMonthLabel(salaryPayMonth(row))) +
+            "  ·  " + money(row.optDouble("amount", 0.0)) + "  ·  " + ns(row, "mode").ifBlank { "—" } +
+            "  ·  " + dmy(ns(row, "paid_on")) +
+            "\nIt will be removed from the total, and who deleted it will be recorded."
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
+            .setMessage(body)
+            .setPositiveButton("Yes, delete") { _, _ ->
+                ModuleUi.toast(this, "Deleting...")
+                Thread {
+                    val log = JSONObject()
+                        .put("id", "sdl_" + System.currentTimeMillis() + "_" + (0..999).random())
+                        .put("original_id", id)
+                        .put("person_code", ns(row, "person_code").ifBlank { code })
+                        .put("for_month", salaryPayMonth(row))
+                        .put("amount", row.optDouble("amount", 0.0))
+                        .put("mode", ns(row, "mode"))
+                        .put("kind", payKind(row))
+                        .put("paid_on", ns(row, "paid_on"))
+                        .put("paid_by", ns(row, "paid_by"))
+                        .put("remark", ns(row, "remark"))
+                        .put("deleted_by", ModuleAuth.personCode)
+                        .put("deleted_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                            .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
+                    /* ⛔ খাতায় লেখা না গেলে **কিছুই মোছা হয় না** — নইলে টাকা
+                       হারিয়ে যেত আর কে মুছল তার কোনো প্রমাণ থাকত না। */
+                    val logged = ModuleAuth.insert("hr", "salary_deleted_log", log)
+                    if (!logged) {
+                        runOnUiThread { ModuleUi.toast(this, "Not deleted — run the V1195 SQL patch first") }
+                        return@Thread
+                    }
+                    val gone = ModuleAuth.deleteRows("hr", "salary_payments", "id=eq." + id)
+                    runOnUiThread {
+                        salaryCacheClear(code)
+                        ModuleUi.toast(this, if (gone) "Deleted" else "Could not delete — try again")
+                        if (gone) after()
+                    }
+                }.start()
+            }
+            .setNegativeButton("No", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
     }
 
     /** "এই মাসের বেতন দিন" — ছোট পূর্ণ-স্ক্রিন ফর্ম: Amount (prefilled=due) · Mode; for_month=এই মাস।
@@ -2227,11 +4291,69 @@ class StaffProfileActivity : AppCompatActivity() {
         for (i in 0 until pays.length()) paidSet.add(salaryPayMonth(pays.getJSONObject(i)))
         val labels = months.map { salaryMonthLabel(it) + (if (paidSet.contains(it)) "  (Paid)" else "  (Due)") }
         val monthSpinner = spinner(labels)
-        val pamt = ModuleUi.numberInput(this, "Amount", allowDecimal = true).apply { if (amount > 0) setText(amount.toLong().toString()) }
+        /* 💰 V1178 — চলতি মাসের ঘণ্টা-হিসাব জানা থাকলে **সেটাই** আগে বসে
+           (TK-র নিয়ম: কম কাজ = কম বেতন)। না জানলে আগের মতোই সেট করা বেতন।
+           ⛔ অঙ্কটা বদলানো যায় — মাস্টারের হাতেই শেষ সিদ্ধান্ত। */
+        /* 💰🔒 V1195 (TK: *"September আমি 2044 দেই নাই একবারও"*) — অঙ্কটা আর
+           **নিজে থেকে বসে না**; ঘরটা ফাঁকাই থাকে, প্রস্তাবটা শুধু নিচে হালকা
+           লেখায় দেখানো হয়। ⇒ না দেখে চাপ পড়লে আর কোনো অঙ্ক সেভ হবে না। */
+        val suggested = hourPayThisMonth ?: amount
+        val pamt = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
         val pmode = spinner(listOf("Cash", "Online"))
-        col.addView(ModuleUi.label(this, "Month")); col.addView(monthSpinner)
-        col.addView(ModuleUi.label(this, "Amount")); col.addView(pamt)
-        col.addView(ModuleUi.label(this, "Mode")); col.addView(pmode)
+        /* 🗓️ V1248 — "কবে দিয়েছি"। ডিফল্ট আজ; চাপ দিলে ক্যালেন্ডার,
+           সর্বোচ্চ আজ পর্যন্ত (ভবিষ্যতের তারিখ নয়)। */
+        var paidOnIso = todayIso()
+        val paidOnBtn = TextView(this).apply {
+            text = salDmy(paidOnIso)
+            textSize = 15.5f
+            setTextColor(android.graphics.Color.parseColor("#101C2E"))
+            isClickable = true
+            setOnClickListener {
+                val c = java.util.Calendar.getInstance()
+                try {
+                    c.set(paidOnIso.substring(0, 4).toInt(),
+                        paidOnIso.substring(5, 7).toInt() - 1,
+                        paidOnIso.substring(8, 10).toInt())
+                } catch (_: Throwable) { }
+                val dlg = android.app.DatePickerDialog(this@StaffProfileActivity, { _, y, m, d ->
+                    paidOnIso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                    text = salDmy(paidOnIso)
+                }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
+                    c.get(java.util.Calendar.DAY_OF_MONTH))
+                try { dlg.datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+                dlg.show()
+            }
+        }
+        /* 🗓️🔒 V1248 (০৯.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ — খাতার সারি ৩৬৯):
+           TK: *"সেলারিটা তাকে আমি আগেই দিয়েছি কিন্তু লিখতে ভুলে গেছিলাম — কিন্তু
+           এখানে আগের ডেট দিয়ে গেল না, কেন এরকম হলো"*।
+           **কারণ (কোডে মেপে):** এই ফর্মে **তারিখের কোনো ঘরই ছিল না**; সেভের সময়
+           সবসময় `paid_on = আজ` বসত। শুধু "কোন মাসের বেতন" বাছা যেত, "কবে দিয়েছি"
+           বাছার উপায় ছিল না। ⇒ এখন **Paid on** ঘরটা বসল — ডিফল্ট আজ, চাপ দিলে
+           পিছনের যেকোনো দিন; **ভবিষ্যতের তারিখ বাছা যায় না**।
+           🎨 সঙ্গে TK-র পাশ-করা প্রুফ অনুযায়ী সাজটাও Extra Income-এর মতো —
+              সোনালি পট্টি · একটাই সাদা কার্ড · ঘরগুলো বক্সে · Paid on ও Mode
+              পাশাপাশি। ⛔ সবগুলোই **আগে থেকে থাকা** সহায়ক (`salGoldHeader` ·
+              `salBoxed` · `salPairRow`) — নতুন কিছু বানানো হয়নি।
+           ⛔ কোন মাস বাছা যাবে · প্রস্তাবিত অঙ্ক · Mode · "আগে দেওয়া মাসে আবার
+              দিলে জিজ্ঞাসা" — কিচ্ছু বদলায়নি; শুধু তারিখটা এখন হাতে বাছা যায়। */
+        val card = ModuleUi.card(this)
+        col.addView(card)
+        card.addView(salGoldHeader("SALARY PAYMENT", ""))
+        card.addView(ModuleUi.label(this, "Month")); card.addView(salBoxed(monthSpinner))
+        card.addView(ModuleUi.label(this, "Amount")); card.addView(salBoxed(pamt))
+        if (suggested > 0) card.addView(TextView(this).apply {
+            text = "Suggested from this month's hours : " + money(suggested)
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+            setPadding(dp(2), dp(6), 0, 0)
+        })
+        val paidOnCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        paidOnCol.addView(ModuleUi.label(this, "Paid on"))
+        paidOnCol.addView(salBoxed(paidOnBtn))
+        val modeCol2 = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        modeCol2.addView(ModuleUi.label(this, "Mode")); modeCol2.addView(salBoxed(pmode))
+        card.addView(salPairRow(paidOnCol, modeCol2))
         /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"Add Payment · Cancel এই দুইটা
            পাশাপাশি থাকবে, একটা যেন আরেকটার গায়ে ঘেঁষে না যায়। 'Add Payment'
            লেখা থাকবে না — 'Salary Payment' হবে।"*
@@ -2255,13 +4377,17 @@ class StaffProfileActivity : AppCompatActivity() {
             val amt = pamt.text.toString().toDoubleOrNull() ?: 0.0
             if (amt <= 0) { ModuleUi.toast(this, "Enter amount"); return@button }
             val ym = months[idx]
-            val row = JSONObject().put("person_code", code).put("paid_on", todayIso())
-                .put("amount", amt).put("mode", pmode.selectedItem.toString())
-                .put("paid_by", ModuleAuth.personCode).put("remark", "").put("for_month", ym)
-            Thread {
-                val ok = ModuleAuth.insert("hr", "salary_payments", row)
-                runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
-            }.start()
+            /* 🛡️ V1195 — ওই মাস আগে দেওয়া থাকলে **আগে জিজ্ঞাসা**, তারপরই সেভ। */
+            confirmIfMonthPaid(pays, ym) {
+                // 🗓️ V1248 — আজকের তারিখের বদলে স্টাফের বাছা তারিখ।
+                val row = JSONObject().put("person_code", code).put("paid_on", paidOnIso)
+                    .put("amount", amt).put("mode", pmode.selectedItem.toString())
+                    .put("paid_by", ModuleAuth.personCode).put("remark", "").put("for_month", ym)
+                Thread {
+                    val ok = ModuleAuth.insert("hr", "salary_payments", row)
+                    runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
+                }.start()
+            }
         }.apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginStart = dp(6)
@@ -2269,7 +4395,7 @@ class StaffProfileActivity : AppCompatActivity() {
         }
         addRow.addView(addCancel)
         addRow.addView(addSave)
-        col.addView(addRow)
+        card.addView(addRow)   // 🎨 V1248 — বোতাম দুটোও একই কার্ডের ভিতরে
     }
 
     /** জয়েনিং মাস থেকে চলতি মাস পর্যন্ত YYYY-MM তালিকা (নতুন-আগে)। join_date না
@@ -2357,6 +4483,46 @@ class StaffProfileActivity : AppCompatActivity() {
      * ⛔ হাতে বসানো Extra (`src_key` ফাঁকা) হলে ফাঁকা ফেরে — তখন কার্ডে চাপ
      *    দিলে কিছুই হয় না, আগের মতোই।
      */
+    /* 🐞🔒 V1029 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"কিসের জন্য পেল সেখানে ক্লিক করলে
+       কোন কাজই হয় না"*) — কারণ (যাচাই করা): চাপার ব্যবস্থাটা কেবল তখনই বসত যখন
+       সারিতে রোগীর সূত্র (`src_key`) লেখা থাকে। যে সারিগুলো হাতে ডেটাবেসে বসানো
+       হয়েছিল, তাদের ওই ঘরটা ফাঁকা — তাই চাপ দিলে কিছুই হত না।
+       ⇒ এখন ঘরটা ফাঁকা হলে **কারণের লেখা থেকেই রোগীর কোড** নেওয়া হয়
+         (`Registration · KNE-22082026-001` → `KNE-22082026-001`), আর সেই কোড
+         দিয়ে রোগীটা খুঁজে নিয়ে চাপার ব্যবস্থা বসে।
+       ⛔ আগের পথটা এক অক্ষরও বদলায়নি — সূত্র থাকলে আগের মতোই সরাসরি চলে। */
+    /* 🧹🔒 V1041 (TK: *"Manually approved by TK এর মানেটা আগে আমাকে একটু বোঝান তো"*)।
+       ⚠️ **দোষ আমার** — ওই লেখাটা আমারই দেওয়া SQL থেকে ডেটাবেসে বসেছিল, TK-এর
+       কাছে ওটার কোনো মানে ছিল না। ⇒ পর্দায় দেখানোর সময় ওটা সোজা ইংরেজিতে
+       বদলে যায়: `Added by hand`।
+       ⛔ ডেটাবেসের একটা অক্ষরও বদলানো হয় না (TK-কে কোনো SQL চালাতে হবে না) —
+          শুধু **দেখানোর সময়** লেখাটা পরিষ্কার করা হয়।
+       ⛔ কোড-খোঁজা (`extraPatientCodeFromReason`) মূল লেখাটাই পড়ে, তাই রোগী
+          চেনার কাজে এটার কোনো প্রভাব নেই। */
+    /* 🔴 V1043 (TK: *"auto unexpected লেখা আছে এক জায়গায় আবার লেখা added by hand"*)
+       — TK ঠিক ধরেছেন: `⏰ AUTO UNEXPECTED · … · Added by hand` এক লাইনে দুটো
+       উল্টো কথা হয়ে যাচ্ছিল (একটা বলে সময়টা অ্যাপ নিজে বুঝেছে, আরেকটা বলে
+       হাতে বসানো)। তাই লেখাটা আর বদলে নয়, **একদম তুলে** দেওয়া হয় — সারিটা
+       তখন অ্যাপের নিজের সারির মতোই দেখায়। */
+    private fun cleanWhy(text: String): String =
+        text.replace(Regex("\\s*[·|-]\\s*Manually approved by TK\\s*", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("\\s*Manually approved by TK\\s*", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
+            .trim('·')
+            .trim()
+
+    private fun extraPatientCodeFromReason(p: JSONObject): String {
+        val why = ns(p, "extra_reason").trim()
+        if (why.isBlank()) return ""
+        for (raw in why.split("·")) {
+            val t = raw.trim()
+            // রোগীর কোড: BRANCH-DDMMYYYY-NNN  (যেমন KNE-22082026-001)
+            if (Regex("^[A-Za-z]{2,4}-\\d{6,8}-\\d{2,4}$").matches(t)) return t
+        }
+        return ""
+    }
+
     private fun extraPatientId(p: JSONObject): String {
         val key = ns(p, "src_key").trim()
         if (!key.startsWith("INC:")) return ""
@@ -2373,6 +4539,10 @@ class StaffProfileActivity : AppCompatActivity() {
      * ⛔ ব্যর্থ হলে কিছুই বদলায় না — আগের মতো শুধু কোডই থাকে।
      * ⛔ নাম/মোবাইল পরে পপ-আপেও ব্যবহার হয়, তাই এখানেই জমা রাখা হয়।
      */
+    // 🟣 V961 — তালিকার কার্ডে দেখানোর জন্য প্রতিটা স্টাফের এক্সট্রা ইনকাম।
+    private var extraPaidByStaff: Map<String, Double> = emptyMap()
+    private var extraDueByStaff: Map<String, Double> = emptyMap()
+
     private val extraPatientCache = HashMap<String, Pair<String, String>>()   // id → (name, mobile)
 
     /**
@@ -2396,10 +4566,90 @@ class StaffProfileActivity : AppCompatActivity() {
      *    এক পয়সাও বদলায় না — এটা শুধু **দেখানোর** কাজ।
      */
     private val extraPatientTiming = HashMap<String, String>()               // id → timeType
+    /* 🕐🔒 V1042 — id → timeSource ("auto" = অ্যাপ কল-তালিকা দেখে নিজে বুঝেছে,
+       "hand" = স্টাফ হাতে বেছেছেন, ফাঁকা = পুরনো সারি, জানা নেই)। */
+    private val extraPatientSrc = HashMap<String, String>()
+    /* 🩺🔒 V1045 (TK: *"নাম মোবাইল নাম্বার এবং রোগের নাম থাকবে"*) — id → রোগ। */
+    private val extraPatientDisease = HashMap<String, String>()
 
-    private fun fillExtraPatientNames(rows: List<Triple<String, TextView?, JSONObject>>) {
-        if (rows.isEmpty()) return
-        val ids = rows.map { it.first }.filter { it.isNotBlank() }.distinct()
+    /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়ের ব্যাজ এক জায়গায়, তাই সব পর্দায় এক লেখা।
+       ⛔ ঘরটা ফাঁকা হলে ব্যাজ হুবহু আগের মতোই থাকে। */
+    private fun timeBadge(timing: String, src: String, longForm: Boolean = false): String {
+        val t = timing.trim()
+        if (!t.equals("Unexpected Time", ignoreCase = true))
+            return if (t.isBlank()) "" else "\uD83D\uDD50 " + t.uppercase()
+        return when (src.trim().lowercase()) {
+            "auto" -> "\u23F0 AUTO UNEXPECTED" + (if (longForm) " TIME" else "")
+            "hand" -> "\u270D\uFE0F UNEXPECTED (BY HAND)"
+            else   -> "\u23F0 UNEXPECTED" + (if (longForm) " TIME" else "")
+        }
+    }
+
+    /* 👤🔒 V1040 — `nameOnly = true` হলে লাইনে শুধু **👤 নাম · মোবাইল** বসে
+       (Pay Extra Income পর্দার জন্য, যেখানে কারণটা উপরের লাইনেই আছে)।
+       ⛔ default `false`, তাই Extra Income History-র লাইন এক অক্ষরও বদলায়নি। */
+    /* 📅🔒 V1049 (TK ডেমো-"ক" পাশ করেছেন, ০৪.০৯.২০২৬) — রোগীর তিনটে ধাপের
+       তারিখ ও সময়: এনকোয়ারি · রেজিস্ট্রেশন · ট্রিটমেন্টের টাকা।
+       ⛔ রেজিস্ট্রেশনের সময় `patients.createdAt` — সেটা আগের পড়াতেই চলে আসে।
+          এনকোয়ারি ও ট্রিটমেন্টের টাকার জন্য **দুটো ছোট পড়া** লাগে, তাই সেগুলো
+          একবারেই (`id=in.(…)`) আনা হয়, প্রতি সারিতে নয়।
+       ⛔ ব্যর্থ হলে কিছুই ভাঙে না — ঐ লাইনটা শুধু বসে না। */
+    private val extraPatientReg = HashMap<String, String>()   // id → registration createdAt
+    private val extraPatientEnq = HashMap<String, String>()   // id → enquiry createdAt
+    private val extraPatientTrt = HashMap<String, String>()   // id → treatment payment createdAt
+    /* 💰 V1050 — রোগী ধরে ধরে টাকার যোগ: [০]=Registration, [১]=Treatment, [২]=অন্য।
+       ⛔ **Total সবসময় এই তিনটের যোগফলই** — উপরে দেখানো অঙ্ক আর নিচের Total
+          কখনো আলাদা হবে না (কম্পিউটারে ঠিক এই নিয়মই, নিয়ম ৬.৬)। */
+    private val xGroupSums = HashMap<String, DoubleArray>()
+    private val xStepBoxes = mutableListOf<Pair<String, LinearLayout>>()
+    /* 🧾🔒 V1155 (TK: *"১৫৬ আর ১৫৭ ফোনে করুন"*) — হাতে-লেখা কারণগুলো রোগী ধরে
+       জমা থাকে, যাতে উপরের লাইন থেকে লেখাটা তুলে দিলেও **কিছু হারিয়ে না যায়** —
+       ওটা নিচে "Other" ধাপের পাশেই বসে (কম্পিউটারে ঠিক এই নিয়মই)। */
+    private val xGroupOther = HashMap<String, MutableList<Pair<String, Double>>>()
+    private val xGroupDue = HashMap<String, Boolean>()      // 💰 V1050 — কিছু বাকি আছে কি
+    private val xGroupState = HashMap<String, String>()     // DUE · PAID · PART DUE
+
+    /** 🔴 V1162 — `"09:15"` বা `"09:15:00"` → `"9.15 AM"`। চেনা না গেলে যা এসেছে
+     *  তাই ফেরে (কখনো ফাঁকা নয়)। ⛔ WorkNotebook-এর `displayTime12()`-এর একই নিয়ম। */
+    private fun attTime12(raw: String): String {
+        val t = raw.trim()
+        if (t.isBlank()) return ""
+        val p = t.split(":")
+        if (p.size != 2 && p.size != 3) return t
+        val h24 = p[0].toIntOrNull() ?: return t
+        val mi = p[1]
+        val ampm = if (h24 < 12) "AM" else "PM"
+        val h12 = when { h24 == 0 -> 12; h24 > 12 -> h24 - 12; else -> h24 }
+        return "$h12.$mi $ampm"
+    }
+
+    /** `2026-08-22T21:14:00Z` → `22/08/2026 : 9.14 PM` (সময় না থাকলে শুধু তারিখ)। */
+    private fun whenText(iso: String): String {
+        val t = iso.trim()
+        if (t.length < 10) return ""
+        val d = t.substring(0, 10).split("-")
+        if (d.size != 3) return ""
+        val date = d[2] + "/" + d[1] + "/" + d[0]
+        if (t.length < 16) return date
+        val hh = t.substring(11, 13).toIntOrNull() ?: return date
+        val mi = t.substring(14, 16)
+        val ap = if (hh < 12) "AM" else "PM"
+        var h12 = hh % 12
+        if (h12 == 0) h12 = 12
+        return date + " : " + h12 + "." + mi + " " + ap   // 🔴 V1158
+    }
+
+    /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — `nameViews`
+       দিলে রোগীর নাম **নিজের আলাদা সারিতে** বসে, আর তখন নিচের লাইনে নামটা আর
+       দ্বিতীয়বার জুড়ে দেওয়া হয় না। ⛔ না দিলে আচরণ হুবহু আগের মতোই। */
+    private fun fillExtraPatientNames(
+        rows: List<Triple<String, TextView?, JSONObject>>,
+        nameOnly: Boolean = false,
+        nameViews: List<Pair<String, TextView>> = emptyList()
+    ) {
+        if (rows.isEmpty() && nameViews.isEmpty()) return
+        val ids = (rows.map { it.first } + nameViews.map { it.first })
+            .filter { it.isNotBlank() }.distinct()
         val need = ids.filter { !extraPatientCache.containsKey(it) }
         /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): লাইনটা এখন **প্রতিবার নতুন করে
            বানানো হয়** (আগে শেষে জুড়ে দেওয়া হত)। কারণ এখন সামনে ⏰ চিহ্নও বসে,
@@ -2407,21 +4657,123 @@ class StaffProfileActivity : AppCompatActivity() {
            ফল: `⏰ UNEXPECTED  ·  Registration · COB-…  ·  NUR ALAM MIYA`
            ⛔ তথ্য সবই আগে থেকেই আনা — নতুন কোনো cloud-read নেই। */
         fun paint() {
+            // 👤 V1044 — নাম নিজের সারিতে
+            for ((pid, v) in nameViews) {
+                val nm = extraPatientCache[pid]?.first.orEmpty().trim()
+                if (nm.isBlank()) continue
+                /* 🩺🔒 V1045 (TK-নির্দেশ) — নাম · মোবাইল · রোগ একসাথে।
+                   ⛔ যেটা জানা নেই সেটা বসেই না, আন্দাজে কিছু লেখা হয় না। */
+                val mb = extraPatientCache[pid]?.second.orEmpty().trim()
+                val ds = extraPatientDisease[pid].orEmpty().trim()
+                /* 🎨🔒 V1183 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু):
+                   *"রোগের নামের পাশে থাকবে Unexpected Time"* ⇒ সময়ের ব্যাজটা
+                   এখন রোগের ঠিক পাশেই বসে। ⛔ নিচের লাইন থেকে ওটা তুলে দেওয়া
+                   হয়েছে (একই কথা দুবার লেখা হত)। ⛔ কোনো নতুন পড়া লাগেনি —
+                   `timeType` আগের ব্যাচ-পড়াতেই আসে। */
+                val tb = timeBadge(
+                    extraPatientTiming[pid].orEmpty(), extraPatientSrc[pid].orEmpty(), longForm = true
+                )
+                val one = "\uD83D\uDC64 " + nm +
+                    (if (mb.isNotBlank()) "   \uD83D\uDCDE " + mb else "") +
+                    (if (ds.isNotBlank()) "   \uD83E\uDE7A " + ds else "") +
+                    (if (tb.isNotBlank()) "   \u00b7   " + tb else "")
+                if (v.text?.toString() != one) v.text = one
+                v.visibility = android.view.View.VISIBLE
+                /* 👤 V1045 — নামের সারিতে চাপ ⇒ ঐ রোগীর পুরো ডিটেলস।
+                   ⛔ কার্ডের নিজের চাপ (ছোট পপ-আপ) আগের মতোই আছে। */
+                v.isClickable = true
+                v.setOnClickListener { openPatientHistory(pid, mb) }
+            }
+            /* 📅 V1050 — ধাপগুলোর তারিখ · সময় · অঙ্ক। */
+            for ((pid, box) in xStepBoxes) {
+                box.removeAllViews()
+                val sums = xGroupSums[pid] ?: doubleArrayOf(0.0, 0.0, 0.0)
+                /* ⛔ `tv()` তালিকা-আঁকার ভিতরের নিজস্ব সহায়ক, এখান থেকে পাওয়া যায় না
+                   (পাহারা ধরিয়ে দিল) — তাই এখানে সোজা TextView বানানো হয়। */
+                fun cell(text: String, size: Float, hex: String, widthDp: Int): TextView =
+                    TextView(this).apply {
+                        this.text = text
+                        textSize = size
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor(hex))
+                        if (widthDp > 0) layoutParams =
+                            LinearLayout.LayoutParams(dp(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    }
+                fun stepRow(label: String, whenIso: String, amt: Double) {
+                    if (whenIso.isBlank() && amt <= 0.0) return
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        setPadding(dp(13), dp(2), dp(2), dp(2))
+                    }
+                    row.addView(cell(label, 11.8f, "#8B98A9", 104))
+                    row.addView(cell(whenText(whenIso).ifBlank { "\u2014" }, 11.8f, "#33404F", 0))
+                    if (amt > 0.0) row.addView(cell("   " + money(amt), 12f, "#C62828", 0))
+                    box.addView(row)
+                }
+                stepRow("Enquiry", extraPatientEnq[pid].orEmpty(), 0.0)
+                stepRow("Registration", extraPatientReg[pid].orEmpty(), sums[0])
+                stepRow("Treatment paid", extraPatientTrt[pid].orEmpty(), sums[1])
+                /* 🧾 V1155 — হাতে-লেখা কারণ: প্রত্যেকটা নিজের সারিতে, লেখা সহ।
+                   ⛔ লেখা জানা না গেলে আগের মতোই শুধু যোগফলের একটা সারি। */
+                val others = xGroupOther[pid].orEmpty()
+                if (others.isNotEmpty()) {
+                    for ((txt, amt) in others) {
+                        val row = LinearLayout(this).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                            setPadding(dp(13), dp(2), dp(2), dp(2))
+                        }
+                        row.addView(cell("Other", 11.8f, "#8B98A9", 104))
+                        row.addView(cell(txt, 11.8f, "#33404F", 0))
+                        if (amt > 0.0) row.addView(cell("   " + money(amt), 12f, "#C62828", 0))
+                        box.addView(row)
+                    }
+                } else if (sums[2] > 0.0) stepRow("Other", "", sums[2])
+            }
+            val shownSeparately = nameViews.map { it.first }.toSet()   // 👤 V1044
+            /* 🧾 V1155 — যে রোগীর ধাপ-বাক্স আঁকা হয়েছে। ⛔ নামের তালিকা ছাড়াও
+               ডাকা হতে পারে (কোড ধরে দেরিতে জোড়া লাগার পথ), তাই দুটোই মেলানো হয়। */
+            val xGrouped = xStepBoxes.map { it.first }.toSet()
             for ((pid, view, row) in rows) {
                 if (view == null) continue
                 val nm = extraPatientCache[pid]?.first.orEmpty().trim()
                 val tt = extraPatientTiming[pid].orEmpty().trim()
-                val why = ns(row, "extra_reason").trim()
+                val why = cleanWhy(ns(row, "extra_reason").trim())
+                if (nameOnly) {
+                    if (nm.isBlank()) continue
+                    val mb = extraPatientCache[pid]?.second.orEmpty().trim()
+                    val one = "\uD83D\uDC64 " + nm + (if (mb.isNotBlank()) "  \u00B7  " + mb else "")
+                    if (view.text?.toString() != one) view.text = one
+                    view.visibility = android.view.View.VISIBLE
+                    continue
+                }
+                /* 🧾🔒 V1155 (TK-নির্দেশ ১৫৬: *"patient ID লাগবে না"* · ১৫৭:
+                   *"unexpected এর আগে আবার Registration কেন থাকবে?"*) — যে বাক্সে
+                   ধাপগুলো নিচে তারিখ-সময় সহ বসে, সেখানে এই লাইনে এখন **শুধু সময়ের
+                   ব্যাজ**। ধাপের নাম ও রোগীর কোড দুটোই নিচে/উপরে আগে থেকেই আছে,
+                   তাই এখানে থাকলে দুবার হত। ⛔ কম্পিউটারে হুবহু এই নিয়মই (V1047·V1048)।
+                   ⛔ হাতে-লেখা কারণ হারায় না — সেটা নিচে "Other" ধাপে বসে।
+                   ⛔ রোগী চেনা না গেলে (বাক্স হয়নি) লাইনটা আগের মতোই থাকে। */
+                /* 🎨 V1183 (TK-নির্দেশ) — সময়ের ব্যাজ এখন **উপরের নামের সারিতে**,
+                   রোগের ঠিক পাশে। তাই এই লাইনটা এখানে আর কিছুই দেখায় না
+                   (নইলে একই কথা দুবার লেখা হত)।
+                   ⛔ লাইনটা মোছা হয়নি — শুধু লুকানো, তাই বাকি সব পথ অটুট। */
+                if (pid in shownSeparately || pid in xGrouped) {
+                    view.text = ""
+                    view.visibility = android.view.View.GONE
+                    continue
+                }
                 if (nm.isBlank() && tt.isBlank()) continue          // এখনো কিছুই আসেনি
                 val parts = mutableListOf<String>()
-                if (tt.isNotBlank()) parts.add(
-                    if (tt.equals("Unexpected Time", ignoreCase = true)) "⏰ UNEXPECTED"
-                    else "🕐 " + tt.uppercase()
-                )
+                /* 🧾 V1046 (TK: *"Registration  UNEXPECTED"*) — নাম যখন নিজের
+                   সারিতে বসে, তখন এই লাইনে আগে **কী কারণে**, তারপর সময়ের ব্যাজ।
+                   ⛔ বাকি সব জায়গায় ক্রমটা আগের মতোই (ব্যাজ আগে)। */
+                val newOrder = pid in shownSeparately
+                if (!newOrder && tt.isNotBlank()) parts.add(timeBadge(tt, extraPatientSrc[pid].orEmpty()))
                 if (why.isNotBlank()) parts.add(why)
                 // ⛔ হাতে-লেখা মন্তব্য থাকলে সেটাও যেন হারিয়ে না যায় (আগের লাইনে ছিল)
                 ns(row, "remark").trim().takeIf { it.isNotBlank() }?.let { parts.add(it) }
-                if (nm.isNotBlank()) parts.add(nm)
+                if (newOrder && tt.isNotBlank()) parts.add(timeBadge(tt, extraPatientSrc[pid].orEmpty()))
+                if (nm.isNotBlank() && pid !in shownSeparately) parts.add(nm)   // 👤 V1044
                 val line = parts.joinToString("  ·  ")
                 if (line.isNotBlank() && view.text?.toString() != line) view.text = line
             }
@@ -2431,7 +4783,7 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val list = need.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
                 val rows2 = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType", order = "id.asc"
+                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType,timeSource,disease,createdAt", order = "id.asc"
                 )
                 if (rows2 != null) {
                     for (i in 0 until rows2.length()) {
@@ -2439,10 +4791,58 @@ class StaffProfileActivity : AppCompatActivity() {
                         val id = o.optString("id", "")
                         if (id.isBlank()) continue
                         extraPatientTiming[id] = o.optString("timeType", "").trim()
+                        extraPatientSrc[id] = o.optString("timeSource", "").trim()   // 🕐 V1042
+                        extraPatientDisease[id] = o.optString("disease", "").trim()   // 🩺 V1045
+                        extraPatientReg[id] = o.optString("createdAt", "").trim()     // 📅 V1050
                         extraPatientCache[id] = Pair(
                             o.optString("name", "").trim(),
                             o.optString("mobile", "").trim()
                         )
+                    }
+                }
+            } catch (_: Throwable) { }
+            /* 📅🔒 V1050 (TK ডেমো-"ক" পাশ) — এনকোয়ারির সময় ও ট্রিটমেন্টের টাকার
+               সময়। দুটোই **একবারেই** আনা হয় (`in.(…)`), প্রতি সারিতে নয়।
+               ⛔ ব্যর্থ হলে কিছুই ভাঙে না — ঐ লাইনটা শুধু বসে না।
+               ⛔ ট্রিটমেন্টের শর্ত V418-এর SQL-এর সাথে হুবহু এক
+                  (`payType='treatment'` ও অঙ্ক > ০), তাই টাকার নিয়ম আর পর্দার
+                  লেখা কখনো আলাদা হবে না। */
+            try {
+                val mobs = ids.mapNotNull { extraPatientCache[it]?.second?.trim() }
+                    .filter { it.length >= 10 }.distinct()
+                if (mobs.isNotEmpty()) {
+                    val inList = mobs.joinToString(",") { java.net.URLEncoder.encode("+91" + it.takeLast(10), "UTF-8") }
+                    val eq = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
+                        "enquiries", "mobile=in.($inList)", 500, "id,mobile,date,createdAt", order = "createdAt.asc")
+                    if (eq != null) {
+                        for (i in 0 until eq.length()) {
+                            val o = eq.optJSONObject(i) ?: continue
+                            val m10 = o.optString("mobile", "").filter { it.isDigit() }.takeLast(10)
+                            if (m10.length != 10) continue
+                            val pid2 = ids.firstOrNull {
+                                extraPatientCache[it]?.second.orEmpty().filter { c -> c.isDigit() }.takeLast(10) == m10
+                            } ?: continue
+                            // সবচেয়ে পুরনোটাই প্রথম কল — তালিকা createdAt.asc, তাই একবারই বসে
+                            if (extraPatientEnq[pid2].isNullOrBlank())
+                                extraPatientEnq[pid2] = o.optString("createdAt", "").ifBlank { o.optString("date", "") }.trim()
+                        }
+                    }
+                }
+            } catch (_: Throwable) { }
+            try {
+                val inIds = ids.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
+                val py = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
+                    "payments", "patientId=in.($inIds)&payType=eq.treatment", 500,
+                    "id,patientId,amount,date,createdAt", order = "createdAt.asc")
+                if (py != null) {
+                    for (i in 0 until py.length()) {
+                        val o = py.optJSONObject(i) ?: continue
+                        val pid2 = o.optString("patientId", "").trim()
+                        if (pid2.isBlank()) continue
+                        val amt = o.optString("amount", "").filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: 0.0
+                        if (amt <= 0.0) continue
+                        if (extraPatientTrt[pid2].isNullOrBlank())
+                            extraPatientTrt[pid2] = o.optString("createdAt", "").ifBlank { o.optString("date", "") }.trim()
                     }
                 }
             } catch (_: Throwable) { }
@@ -2481,11 +4881,14 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val enc = java.net.URLEncoder.encode(pid, "UTF-8")
                 val rows = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType", order = "id.asc")
+                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType,timeSource,disease,createdAt", order = "id.asc")
                 val o = if (rows != null && rows.length() > 0) rows.optJSONObject(0) else null
                 if (o != null) {
                     m = o.optString("mobile", "").trim()
                     extraPatientTiming[pid] = o.optString("timeType", "").trim()
+                    extraPatientSrc[pid] = o.optString("timeSource", "").trim()      // 🕐 V1042
+                    extraPatientDisease[pid] = o.optString("disease", "").trim()     // 🩺 V1045
+                    extraPatientReg[pid] = o.optString("createdAt", "").trim()       // 📅 V1050
                     extraPatientCache[pid] = Pair(o.optString("name", "").trim(), m)
                 }
             } catch (_: Throwable) { }
@@ -2498,7 +4901,7 @@ class StaffProfileActivity : AppCompatActivity() {
         val cached = extraPatientCache[pid]
         val name = cached?.first ?: ""
         val mob = cached?.second ?: ""
-        val why = ns(p, "extra_reason")
+        val why = cleanWhy(ns(p, "extra_reason"))
         val amt = money(p.optDouble("amount", 0.0))
         val on = dmy(ns(p, "paid_on"))
         val status = if (payStatus(p) == "DUE") "DUE (not paid yet)" else "PAID"
@@ -2524,7 +4927,7 @@ class StaffProfileActivity : AppCompatActivity() {
         if (mob.isNotBlank()) sb.append("Mobile:  ").append(mob).append("\n\n")
         // ⏰ সবচেয়ে জরুরি লাইন — এটাই না থাকায় TK কিছু বুঝতে পারতেন না
         if (timing.isNotBlank()) {
-            val shown = if (isUnexpected) "⏰ UNEXPECTED TIME" else "🕐 " + timing.uppercase()
+            val shown = timeBadge(timing, extraPatientSrc[pid].orEmpty(), longForm = true)   // 🕐 V1042
             sb.append("Timing:  ").append(shown).append("\n\n")
         }
         if (why.isNotBlank()) sb.append("For:  ").append(why).append("\n\n")
@@ -2570,16 +4973,134 @@ class StaffProfileActivity : AppCompatActivity() {
             sb.append("\nExtra income is only for unexpected-time enquiries —")
             sb.append("\nplease check this entry.")
         }
+        /* ═══════════════════════════════════════════════════════════════
+           🎨🔒 V1104 (০৫.০৯.২০২৬, TK: *"এটা আরো প্রফেশনাল লুক বানান"* —
+           ফটো-প্রুফ দেখে পাশ) — লেখাগুলো এখন সাজানো কার্ডে: উপরে **টাকার
+           অঙ্ক বড় করে** ও পাশে DUE/PAID ব্যাজ, নিচে সারি ধরে তথ্য, শেষে
+           হলুদ বাক্সে নিয়মটা। TK-এর নির্দেশে **তারিখের পাশে সময়ও**।
+           ⛔ একটাও তথ্য বাদ যায়নি — উপরের `sb`-তে যা যা ছিল সবই আছে।
+           ⛔ দুটো বোতামের কাজ এক অক্ষরও বদলায়নি (Close · Open History)।
+           ⛔ সময় জানা না গেলে শুধু তারিখই বসে (নতুন কোনো ডাক নেই)।
+           ═══════════════════════════════════════════════════════════════ */
+        val isDue = payStatus(p) == "DUE"
+        /* 🕐 V1104 — TK: *"তারিখের পাশে সময় লাগবে"*। সময়টা সারির নিজের
+           `createdAt` থেকে (আগে থেকেই আনা), তাই নতুন কোনো ডাক নেই।
+           ⛔ সময় জানা না গেলে শুধু তারিখই বসে — আগের মতোই। */
+        val dateLine = run {
+            val raw = listOf(p.optString("createdAt", ""), p.optString("created_at", ""))
+                .firstOrNull { it.trim().length >= 16 }.orEmpty().trim()
+            val full = if (raw.length >= 16) whenText(raw) else ""
+            if (full.isNotBlank()) full else on
+        }
+
+        fun xiRow(k: String, v: String, color: String = "#12271E"): View =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(9), 0, dp(9))
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = k; textSize = 12.5f
+                    setTextColor(android.graphics.Color.parseColor("#8494A0"))
+                    layoutParams = LinearLayout.LayoutParams(dp(96), LinearLayout.LayoutParams.WRAP_CONTENT)
+                })
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = v; textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor(color))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+            }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(6), dp(16), 0)
+        }
+        // টাকার বাক্স
+        body.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(android.graphics.Color.parseColor("#F1F8F4"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#DCEDE3"))
+            }
+            addView(LinearLayout(this@StaffProfileActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = "AMOUNT"; textSize = 11f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#5C7568"))
+                })
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = amt; textSize = 25f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0B6B34"))
+                })
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = if (isDue) "DUE" else "PAID"
+                textSize = 11f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(dp(12), dp(6), dp(12), dp(6))
+                setTextColor(android.graphics.Color.parseColor(if (isDue) "#B0392B" else "#0B6B34"))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(20).toFloat()
+                    setColor(android.graphics.Color.parseColor(if (isDue) "#FDECEA" else "#E7F4EC"))
+                    setStroke(dp(1), android.graphics.Color.parseColor(if (isDue) "#F2C6C0" else "#CFE9D8"))
+                }
+            })
+        })
+        // সারিগুলো
+        if (name.isNotBlank()) body.addView(xiRow("Patient", name))
+        if (mob.isNotBlank()) body.addView(xiRow("Mobile", mob, "#1A73E8"))
+        if (timing.isNotBlank()) body.addView(xiRow("Timing",
+            timeBadge(timing, extraPatientSrc[pid].orEmpty(), longForm = true),
+            if (isUnexpected) "#B45309" else "#12271E"))
+        if (why.isNotBlank()) body.addView(xiRow("For", why))
+        if (stageLine.isNotBlank()) body.addView(xiRow("Step", stageLine))
+        body.addView(xiRow("Date", dateLine))
+        // নিয়ম ও টীকা — উপরের `sb`-র শেষ অংশটাই, হুবহু একই লেখা
+        run {
+            val tail = sb.toString().substringAfter("────────────", "").trim()
+            if (tail.isNotBlank()) body.addView(TextView(this).apply {
+                text = tail; textSize = 12.5f
+                setLineSpacing(0f, 1.35f)
+                setTextColor(android.graphics.Color.parseColor("#5B5233"))
+                setPadding(dp(13), dp(11), dp(13), dp(11))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FBF8EF"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#EFE4C7"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(8); bottomMargin = dp(4) }
+            })
+        }
+
         val d = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(
-                this, "Extra income - why?"))
-            .setMessage(sb.toString())
+                this, "💰 Extra Income — why?"))
+            .setView(android.widget.ScrollView(this).apply { addView(body) })
             .setNegativeButton("Close", null)
         d.setPositiveButton("Open History") { _, _ -> openPatientHistory(pid, mob) }
         d.show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
     }
 
-    private fun showAllPayments(code: String, pays: JSONArray) {
+    /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"salary history ·
+       extra income history — এগুলো আলাদা আলাদা রাখতে হবে"*।
+       আগে একটাই বোতাম ছিল আর তালিকায় বেতন ও এক্সট্রা **মেশানো** থাকত
+       ("All Entries")। এখন `only` দিয়ে বাছা যায় — "SALARY" · "EXTRA" · ""(সব)।
+       ⛔ উপরের Summary-র তিনটে সংখ্যা **সবসময় গোটা তালিকা** থেকেই গোনা হয়
+          (`pays`), তাই কোনো অঙ্ক বদলায় না — শুধু নিচের সারিগুলো ছাঁকা হয়। */
+    private fun showAllPayments(code: String, pays: JSONArray, only: String = "") {
+        val shownPays = if (only.isBlank()) pays else org.json.JSONArray().also { out ->
+            for (i in 0 until pays.length()) {
+                val r = pays.optJSONObject(i) ?: continue
+                if (payKind(r) == only) out.put(r)
+            }
+        }
         backAction = { salary(code) }
         val col = ModuleUi.screen(this, "")
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
@@ -2640,7 +5161,8 @@ class StaffProfileActivity : AppCompatActivity() {
                 val src = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
                     timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                 }
-                val out = SimpleDateFormat("dd MMM yyyy", Locale.US).apply {
+                // 🔴 V1158 — TK: সব জায়গায় একই চেহারা (31/12/2026)।
+                val out = SimpleDateFormat("dd/MM/yyyy", Locale.US).apply {
                     timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                 }
                 out.format(src.parse(iso.take(10)) ?: return dmy(iso))
@@ -2699,9 +5221,34 @@ class StaffProfileActivity : AppCompatActivity() {
         col.addView(header)
 
         // ── Summary card ────────────────────────────────────────────────────
+        /* 🔒👁️ V1321 (TK-নির্দেশ ১০.০৯.২০২৬, ডেমো-প্রুফ "B" পাশ) — Salary
+           paid (total) ও Grand total paid ডিফল্টে ডট দিয়ে ঢাকা থাকে, পাশের
+           👁 চাপলে দেখা যায় (দুটোই একসাথে খোলে/বন্ধ হয়)। Extra income
+           paid/due অপরিবর্তিত — সবসময় খোলা। স্ক্রিন নতুন করে খুললে আবার
+           ঢাকা অবস্থা থেকেই শুরু হয় (কোথাও জমা থাকে না)। */
+        var moneyMasked = true
+        val maskedValueViews = mutableListOf<TextView>()
+        val maskedAmounts = mutableListOf<() -> Double>()
+        fun maskText(amt: Double) = if (moneyMasked) "••••••" else money(amt)
+        fun refreshMasked() {
+            for (i in maskedValueViews.indices) maskedValueViews[i].text = maskText(maskedAmounts[i]())
+        }
+        fun eyeToggle(): TextView = tv("👁", 10.5f, muted, gravityValue = android.view.Gravity.CENTER).apply {
+            setPadding(dp(5), dp(3), dp(5), dp(3))
+            background = bg("#EEF3F0", "#DCE6E0", 6)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(6) }
+            isClickable = true; isFocusable = true
+            setOnClickListener { moneyMasked = !moneyMasked; refreshMasked() }
+        }
+        fun hiddenPill(): TextView = tv("🔒 hidden", 8.3f, android.graphics.Color.parseColor("#9A6B00")).apply {
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+            background = bg("#FFF4E5", "#F0D6A6", 20)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(3) }
+        }
         val summary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = bg("#FFFFFF", "#D9E8DF", 15)
+            background = bg("#FFFFFF", "#CFE3D8", 15)
+            elevation = 3f * resources.displayMetrics.density
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(14) }
@@ -2710,7 +5257,10 @@ class StaffProfileActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(11), dp(14), dp(11))
-            background = bg("#075B32", null, 12)
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(android.graphics.Color.parseColor("#075B32"), android.graphics.Color.parseColor("#0A7C3F"))
+            ).apply { cornerRadius = dp(12).toFloat() }
         }
         summaryHead.addView(tv("Summary", 17f, android.graphics.Color.WHITE, bold = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -2730,11 +5280,30 @@ class StaffProfileActivity : AppCompatActivity() {
             addView(tv(label, 10.3f, ink))
             addView(tv(value, 16.5f, valueColor, bold = true).apply { setPadding(0, dp(5), 0, 0) })
         }
+        // 🔒👁️ V1321 — "Salary paid (total)"-এর নিজস্ব বাক্স, ডট + 👁 + hidden ট্যাগসহ
+        val salaryMetricBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(12), dp(8), dp(12))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        salaryMetricBox.addView(tv("Salary paid (total)", 10.3f, ink))
+        salaryMetricBox.addView(hiddenPill())
+        val salaryValueRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dp(5), 0, 0)
+        }
+        val salaryValueTv = tv(maskText(totSalary), 16.5f, green2, bold = true)
+        maskedValueViews.add(salaryValueTv); maskedAmounts.add({ totSalary })
+        salaryValueRow.addView(salaryValueTv)
+        salaryValueRow.addView(eyeToggle())
+        salaryMetricBox.addView(salaryValueRow)
         val metrics = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(6), dp(4), dp(6), 0)
         }
-        metrics.addView(metric("Salary paid (total)", money(totSalary), green2))
+        metrics.addView(salaryMetricBox)
         metrics.addView(divider(vertical = true))
         metrics.addView(metric("Extra income paid", money(totExtra), green2))
         metrics.addView(divider(vertical = true))
@@ -2748,10 +5317,22 @@ class StaffProfileActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(10), dp(16), dp(14))
         }
-        grand.addView(tv("Grand total paid", 14f, ink, bold = true).apply {
+        val grandLabelCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        })
-        grand.addView(tv(money(totSalary + totExtra), 21f, green, bold = true, gravityValue = android.view.Gravity.END))
+        }
+        grandLabelCol.addView(tv("Grand total paid", 14f, ink, bold = true))
+        grandLabelCol.addView(hiddenPill())
+        grand.addView(grandLabelCol)
+        val grandValueTv = tv(maskText(totSalary + totExtra), 21f, green, bold = true, gravityValue = android.view.Gravity.END)
+        maskedValueViews.add(grandValueTv); maskedAmounts.add({ totSalary + totExtra })
+        val grandValueRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        grandValueRow.addView(grandValueTv)
+        grandValueRow.addView(eyeToggle())
+        grand.addView(grandValueRow)
         summary.addView(grand)
         col.addView(summary)
 
@@ -2761,22 +5342,74 @@ class StaffProfileActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(2), 0, dp(2), dp(7))
         }
-        entriesHead.addView(tv("All Entries  (${pays.length()})", 16f, ink, bold = true).apply {
+        val entriesTitle = when (only) {          // 🟣 V961
+            "SALARY" -> "Salary History"
+            "EXTRA" -> "Extra Income History"
+            else -> "All Entries"
+        }
+        entriesHead.addView(tv("$entriesTitle  (${shownPays.length()})", 16f, ink, bold = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         entriesHead.addView(tv("Most recent", 12f, green, false, android.view.Gravity.END))
         col.addView(entriesHead)
 
-        if (pays.length() == 0) {
+        if (shownPays.length() == 0) {          // 🟣 V961
             col.addView(tv("No payments.", 14f, muted).apply { setPadding(dp(4), dp(18), dp(4), dp(18)) })
         }
 
         // 🔴 V511 — কোন সারিতে কোন রোগী; নাম এলে ঐ লাইনগুলোই হালনাগাদ হয়।
+        /* 💰🔒 V1050 (TK ডেমো-"ক") — আঁকার **আগেই** রোগী ধরে ধরে টাকার যোগ।
+           ⛔ ধাপ চেনা হয় `extra_reason`-এর প্রথম শব্দ থেকে — V418-এর SQL ওখানে
+              `Registration` বা `Treatment` লেখে, তাই দুই জায়গার নিয়ম মেলে।
+           ⛔ এক ধাপে একাধিক সারি থাকলে সেগুলো **যোগ** হয়, তাই Total আর উপরের
+              অঙ্ক কখনো আলাদা হবে না (কম্পিউটারে ধরা দোষটা এখানেও ঠিক)। */
+        xStepBoxes.clear(); xGroupSums.clear(); xGroupDue.clear(); xGroupState.clear()
+        xGroupOther.clear()                                   // 🧾 V1155
+        run {
+            val seenCount = HashMap<String, Int>()
+            val dueCount = HashMap<String, Int>()
+            for (k in 0 until shownPays.length()) {
+                val q = shownPays.optJSONObject(k) ?: continue
+                if (payKind(q) != "EXTRA") continue
+                val qp = extraPatientId(q); if (qp.isBlank()) continue
+                val amt = q.optDouble("amount", 0.0)
+                val head = cleanWhy(ns(q, "extra_reason")).trim().substringBefore("·").trim().lowercase()
+                val arr = xGroupSums.getOrPut(qp) { doubleArrayOf(0.0, 0.0, 0.0) }
+                when {
+                    head.startsWith("registration") -> arr[0] += amt
+                    head.startsWith("treatment") -> arr[1] += amt
+                    else -> {
+                        arr[2] += amt
+                        // 🧾 V1155 — লেখাটাও রাখা হয়, নিচে "Other" ধাপে দেখানোর জন্য
+                        val txt = cleanWhy(ns(q, "extra_reason")).trim()
+                        if (txt.isNotBlank())
+                            xGroupOther.getOrPut(qp) { mutableListOf() }.add(Pair(txt, amt))
+                    }
+                }
+                seenCount[qp] = (seenCount[qp] ?: 0) + 1
+                if (payStatus(q) == "DUE") dueCount[qp] = (dueCount[qp] ?: 0) + 1
+            }
+            for ((qp, n) in seenCount) {
+                val d = dueCount[qp] ?: 0
+                xGroupDue[qp] = d > 0
+                xGroupState[qp] = if (d == 0) "PAID" else if (d == n) "DUE" else "PART DUE"
+            }
+        }
+        // 🧾 V1050 — একই রোগীর বাক্স একবারই আঁকা হয়
+        val xDrawn = HashSet<String>()
         val extraRows = mutableListOf<Triple<String, TextView?, JSONObject>>()
+        val extraNameViews = mutableListOf<Pair<String, TextView>>()   // 👤 V1044
+        // 🐞 V1029 — যাদের সূত্র ফাঁকা, শুধু রোগীর কোড আছে
+        val pendingCodeRows = mutableListOf<Triple<String, TextView?, Pair<JSONObject, LinearLayout>>>()
 
         // ── Entry cards. Fixed MODE + DATE columns = one straight line. ────
-        for (i in 0 until pays.length()) {
-            val p = pays.getJSONObject(i)
+        for (i in 0 until shownPays.length()) {          // 🟣 V961
+            val p = shownPays.getJSONObject(i)
+            // 🧾 V1050 — এই রোগীর বাক্স আগেই আঁকা হয়েছে
+            if (payKind(p) == "EXTRA") {
+                val dupPid = extraPatientId(p)
+                if (dupPid.isNotBlank()) { if (!xDrawn.add(dupPid)) continue }
+            }
             val isExtra = payKind(p) == "EXTRA"
             val isDue = isExtra && payStatus(p) == "DUE"
             val amountText = money(p.optDouble("amount", 0.0))
@@ -2788,7 +5421,7 @@ class StaffProfileActivity : AppCompatActivity() {
             }
             val dateText = dmy(ns(p, "paid_on"))
             val leftTitle = if (isExtra) "Extra" else salaryMonthLabel(salaryPayMonth(p))
-            val why = if (isExtra) ns(p, "extra_reason") else ns(p, "remark")
+            val why = if (isExtra) cleanWhy(ns(p, "extra_reason")) else ns(p, "remark")
 
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -2844,13 +5477,53 @@ class StaffProfileActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(dp(86), LinearLayout.LayoutParams.WRAP_CONTENT)
                 maxLines = 1
             })
-            card.addView(top)
+            /* 🧾🔒 V1046 (TK-নির্দেশ: *"আগে নাম, মোবাইল, রোগ · তারপর এর লাইনে
+               Registration UNEXPECTED · তারপর কত টাকা পাবে"*) — Extra সারিতে
+               টাকার সারিটা (`top`) এখন **সবার শেষে** বসে, তাই নিচেই নামানো হলো।
+               ⛔ স্যালারির সারি হুবহু আগের মতোই — সেখানে এখনই বসে। */
+            if (!isExtra) card.addView(top)
+
+            /* 🗑️🔒 V1195 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — ভুল করে বসে যাওয়া সারি
+               **মাস্টার** মুছতে পারেন। ⛔ নিশ্চিত করার প্রশ্নের পরেই · মোছার
+               আগে খাতায় (hr.salary_deleted_log) কে-কখন-কী মুছল লেখা হয়।
+               ⛔ স্টাফ/ডাক্তারের পর্দায় বোতামটা দেখাই যায় না। */
+            if (!isExtra && ModuleAuth.isMaster && ns(p, "id").isNotBlank()) {
+                val delRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.END
+                    setPadding(0, dp(6), 0, 0)
+                }
+                delRow.addView(TextView(this@StaffProfileActivity).apply {
+                    text = "Delete"
+                    textSize = 11.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(danger)
+                    setPadding(dp(14), dp(6), dp(14), dp(6))
+                    background = bg("#FFFFFF", "#E8B4B4", 10)
+                    isClickable = true
+                    setOnClickListener {
+                        deleteSalaryRow(code, p) { salary(code) }
+                    }
+                })
+                card.addView(delRow)
+            }
 
             val detail = when {
                 isExtra && why.isNotBlank() -> why + (ns(p, "remark").takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
                 !isExtra && why.isNotBlank() -> why
                 !isExtra && modeText.equals("HISTORICAL", true) -> "Salary paid - confirmed by Master"
                 else -> ""
+            }
+            /* 👤🔒 V1044 (TK-নির্দেশ) — রোগীর নাম এতদিন লাইনের একদম শেষে কোডের
+               পরে বসত, চোখেই পড়ত না। এখন নিজের সারিতে, মোটা সবুজ লেখায়।
+               ⛔ নাম না জানা গেলে সারিটা দেখাই যায় না (আগের মতোই)। */
+            var nameView: TextView? = null
+            if (isExtra) {
+                nameView = tv("", 13.5f, android.graphics.Color.parseColor("#0F5132"), bold = true).apply {
+                    setPadding(dp(13), dp(5), dp(2), 0)
+                    visibility = android.view.View.GONE
+                }
+                card.addView(nameView)
             }
             var detailView: TextView? = null
             if (detail.isNotBlank()) {
@@ -2860,6 +5533,31 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 card.addView(detailView)
             }
+            /* 🧾🔒 V1050 (TK ডেমো-"ক" পাশ, ০৪.০৯.২০২৬) — **এক রোগী = এক বাক্স**।
+               ধাপগুলো তারিখ-সময় সহ, যে ধাপের জন্য টাকা তার পাশেই অঙ্ক, নিচে Total।
+               ⛔ রোগী চেনা না গেলে সারিটা আগের মতোই একা আঁকা হয় (নিচের `else`)।
+               ⛔ উপরের Summary ও footer ছোঁয়া হয়নি — টাকার হিসাব অপরিবর্তিত। */
+            val gPid = if (isExtra) extraPatientId(p) else ""
+            if (isExtra && gPid.isNotBlank()) {
+                val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                card.addView(box)
+                xStepBoxes.add(Pair(gPid, box))
+                val mineTot = xGroupSums[gPid]?.sum() ?: p.optDouble("amount", 0.0)
+                val foot = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(dp(13), dp(8), dp(2), dp(2))
+                }
+                foot.addView(tv("Total " + money(mineTot), 15f,
+                    if (xGroupDue[gPid] == true) android.graphics.Color.parseColor("#C62828")
+                    else android.graphics.Color.parseColor("#0A7C3F"), bold = true))
+                val statePill = pill(xGroupState[gPid] ?: modeText,
+                    if (xGroupDue[gPid] == true) "DUE" else "PAID")
+                foot.addView(statePill, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { leftMargin = dp(9) })
+                card.addView(foot)
+            } else if (isExtra) card.addView(top)   // 🧾 V1046 — টাকা সবার শেষে
             /* 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK-নির্দেশ) — **কোন রোগীর জন্য এই টাকা।**
                TK-এর কথা: *"staff কিসের জন্য পেমেন্ট পাবে আমি কেন বুঝতে পারছি না।
                যেখানে ডিউ লেখা রয়েছে সেখানে চাপ দিলে যেন আমি বুঝতে পারি, এটা কোন
@@ -2875,16 +5573,66 @@ class StaffProfileActivity : AppCompatActivity() {
             val pid = extraPatientId(p)
             if (isExtra && pid.isNotBlank()) {
                 extraRows.add(Triple(pid, detailView, p))
+                nameView?.let { extraNameViews.add(Pair(pid, it)) }   // 👤 V1044
                 card.isClickable = true
                 card.isFocusable = true
                 card.setOnClickListener { showExtraPatientPopup(p, pid) }
+            } else if (isExtra) {
+                // 🐞 V1029 — সূত্র ফাঁকা: কোড দিয়ে পরে জোড়া লাগানো হবে
+                val cd = extraPatientCodeFromReason(p)
+                if (cd.isNotBlank()) pendingCodeRows.add(Triple(cd, detailView, Pair(p, card)))
             }
             col.addView(card)
         }
 
         // 🔴 V511 — সব সারি আঁকা হয়ে গেছে; এবার রোগীর নামগুলো এনে বসানো হয়
         //   (একটাই ছোট পড়া, ব্যর্থ হলে আগের মতোই শুধু কোড থাকে)।
-        fillExtraPatientNames(extraRows)
+        fillExtraPatientNames(extraRows, nameViews = extraNameViews)   // 👤 V1044
+
+        /* 🐞🔒 V1029 — যে সারিগুলোর সূত্র ফাঁকা, তাদের রোগীর কোড দিয়ে একবারেই
+           রোগীগুলো খুঁজে নেওয়া হয়; পাওয়া গেলে চাপার ব্যবস্থা বসে ও নামও আসে।
+           ⛔ একটাই ছোট পড়া, শুধু দরকার হলে; ব্যর্থ হলে আগের মতোই কিছু বদলায় না। */
+        if (pendingCodeRows.isNotEmpty()) {
+            val codes = pendingCodeRows.map { it.first }.distinct()
+            Thread {
+                val found = try {
+                    val list = codes.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
+                    com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
+                        "patients", "patientId=in.($list)", 500, "id,patientId,name,mobile,timeType",
+                        order = "id.asc"
+                    )
+                } catch (_: Throwable) { null }
+                val byCode = HashMap<String, String>()
+                if (found != null) {
+                    for (i in 0 until found.length()) {
+                        val r = found.optJSONObject(i) ?: continue
+                        val cd = ns(r, "patientId").trim()
+                        val id = ns(r, "id").trim()
+                        if (cd.isBlank() || id.isBlank()) continue
+                        byCode[cd] = id
+                        extraPatientCache[id] = Pair(ns(r, "name").trim(), ns(r, "mobile").trim())
+                        extraPatientTiming[id] = ns(r, "timeType").trim()
+                        extraPatientSrc[id] = ns(r, "timeSource").trim()             // 🕐 V1042
+                        extraPatientDisease[id] = ns(r, "disease").trim()            // 🩺 V1045
+                        extraPatientReg[id] = ns(r, "createdAt").trim()              // 📅 V1050
+                    }
+                }
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    val ready = mutableListOf<Triple<String, TextView?, JSONObject>>()
+                    for ((cd, view, pair) in pendingCodeRows) {
+                        val id = byCode[cd] ?: continue
+                        val row = pair.first
+                        val card = pair.second
+                        card.isClickable = true
+                        card.isFocusable = true
+                        card.setOnClickListener { showExtraPatientPopup(row, id) }
+                        ready.add(Triple(id, view, row))
+                    }
+                    if (ready.isNotEmpty()) fillExtraPatientNames(ready)
+                }
+            }.start()
+        }
 
         // ── Footer summary ──────────────────────────────────────────────────
         val footer = LinearLayout(this).apply {
@@ -2902,7 +5650,7 @@ class StaffProfileActivity : AppCompatActivity() {
             addView(tv(label, 10.5f, android.graphics.Color.parseColor("#D5EEE0")))
             addView(tv(value, 14.5f, android.graphics.Color.WHITE, bold = true).apply { setPadding(0, dp(4), 0, 0) })
         }
-        footer.addView(footerTile("Total Entries", pays.length().toString()))
+        footer.addView(footerTile("Total Entries", shownPays.length().toString()))   // 🟣 V961
         footer.addView(android.view.View(this).apply {
             setBackgroundColor(android.graphics.Color.parseColor("#75A98B"))
             layoutParams = LinearLayout.LayoutParams(dp(1), dp(42)).apply { leftMargin = dp(7); rightMargin = dp(7) }
@@ -2927,25 +5675,121 @@ class StaffProfileActivity : AppCompatActivity() {
     /** 🔵 V416 (TK-নির্দেশ): বেতনের বাইরে দেওয়া বাড়তি টাকা।
      *  ⛔ `kind='EXTRA'` হয়ে জমা হয় ⇒ বেতনের "বাকি কত" হিসাবে কখনো ঢোকে না।
      *  ⛔ `for_month` ফাঁকা রাখা হয় — বাড়তি টাকা কোনো মাসের বেতন নয়। */
+    /* 🎨🔒 V1182 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — Extra Income
+       ফর্মের চেহারা। উপরে সোনালি পট্টি, সবকিছু একটাই সাদা কার্ডে, ঘরগুলো
+       বক্সের ভিতরে, আর "When" ও "Mode" পাশাপাশি।
+       ⛔ যা সেভ হয় তার এক অক্ষরও বদলায়নি — একই সারি, একই ঘর, একই নিয়ম
+          (`Paying now` = PAID, নইলে DUE)। শুধু বসার জায়গা ও সাজ। */
+    private fun salBoxed(v: android.view.View): android.view.View {
+        v.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(11).toFloat()
+            setColor(android.graphics.Color.parseColor("#FBFDFC"))
+            setStroke(dp(1), android.graphics.Color.parseColor("#D6DEE6"))
+        }
+        /* 📏🔒 V1195 (TK-নির্দেশ ও ফটো-প্রুফ পাশ: *"বক্সের উচ্চতা কিছু কিছু এত
+           উচ্চতা কেন করেছেন?"*) — উপরে-নিচের ফাঁক ১২ → ৬dp, আর ঘরের নিজের
+           সবচেয়ে-কম উচ্চতাও কমানো হলো। ⛔ লেখা · রং · কাজ কিছুই বদলায়নি। */
+        v.setPadding(dp(13), dp(6), dp(13), dp(6))
+        if (v is android.widget.EditText) {
+            v.minHeight = dp(34)
+            v.minimumHeight = dp(34)
+        }
+        /* 📏🔒 V1247 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — খাতার সারি ৩৬৮):
+           TK: *"Paying now & Cash — ওই বক্সগুলির উচ্চতা কম করুন"*।
+           **কারণ (মেপে দেখা):** এই দুটো ঘর Spinner। Android-এর নিজের
+           `simple_spinner_dropdown_item` সাজে বন্ধ অবস্থাতেও ভিতরে অনেকটা
+           ফাঁক রাখে, তাই বাক্স দুটো Amount/Reason-এর চেয়ে অনেক লম্বা দেখাত।
+           ⇒ বাইরের উপর-নিচের ফাঁক ৬ → ২dp, আর নিজের সবচেয়ে-কম উচ্চতা ৩৪dp —
+             অর্থাৎ Amount/Reason-এর সমান মাপে নামল।
+           ⛔ **Amount ও Reason-এর বাক্স এক চুলও বদলায়নি** (TK নিজে ধরেছেন যে
+              ওগুলো ঠিকই ছিল — আমার প্রুফেই ভুল আঁকা হয়েছিল, কোডে নয়)।
+           ⛔ লেখা · রং · তালিকা · কী সেভ হয় — কিচ্ছু বদলায়নি; শুধু উচ্চতা।
+           ⛔ `salBoxed` শুধু এই Extra Income ফর্মেই ব্যবহার হয় (মেপে দেখা),
+              তাই অন্য কোনো পর্দার চেহারা ছোঁয়া হয়নি। */
+        if (v is android.widget.Spinner) {
+            v.setPadding(dp(13), dp(2), dp(13), dp(2))
+            v.minimumHeight = dp(34)
+        }
+        return v
+    }
+
     private fun addExtraIncome(code: String) {
         backAction = { salary(code) }
         val col = ModuleUi.screen(this, "Extra Income — $code")
+        val card = ModuleUi.card(this)
+        col.addView(card)
         val amt = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
         val why = ModuleUi.input(this, "Reason (Bonus / Festival / Overtime)")
         val md = spinner(listOf("Cash", "Online"))
         // 🔵 V417 (TK-অনুমোদিত): এখনই দিচ্ছি, নাকি ঠিক করে রাখছি (পরে দেব)।
         val whenSpin = spinner(listOf("Paying now", "Pay later (Due)"))
-        col.addView(ModuleUi.label(this, "Amount")); col.addView(amt)
-        col.addView(ModuleUi.label(this, "Reason")); col.addView(why)
-        col.addView(ModuleUi.label(this, "When")); col.addView(whenSpin)
-        col.addView(ModuleUi.label(this, "Mode")); col.addView(md)
-        col.addView(ModuleUi.button(this, "Save Extra Income") {
+        /* 🗓️🔒 V1273 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — খাতার সারি ৩৯৫):
+           TK: *"Extra income কত তারিখে দেয়া হলো, তারিখ তো এখানে রাখতে হবে ·
+           প্রকৃত টাকা দেয়ার তারিখ · আজকের তারিখ হতে পারে পূর্ববর্তী তারিখও হতে পারে"*।
+           **কারণ (কোডে মেপে):** এই ফর্মে **তারিখের কোনো ঘরই ছিল না** — সেভের
+           সময় সবসময় `paid_on = আজ` বসত। ⇒ আগে দেওয়া বাড়তি টাকা লিখতে গেলে
+           তারিখ আজকেরই হয়ে যেত। হুবহু এই দোষটাই Add Salary ফর্মে ছিল, V1248-এ
+           সারানো হয়েছে — এটা একই দোষের বাকি অর্ধেক (নিয়ম ৭)।
+           ⇒ এখন **Paid on** ঘরটা বসল — ডিফল্ট আজ, চাপ দিলে পিছনের যেকোনো দিন;
+             **ভবিষ্যতের তারিখ বাছা যায় না** (V1248-এর হুবহু একই নিয়ম)।
+           🎨 সাজ Add Salary-র মতোই — "Paid on | Mode" পাশাপাশি, "When" উপরে
+              পুরো চওড়ায় ⇒ দুই পর্দার নিচের সারি এক দেখায় (নিয়ম ৭ক-এর ২)।
+           ⛔ "Pay later (Due)" বাছলে তারিখের ঘরটা লুকোয় — তখনো টাকা দেওয়াই
+              হয়নি, তাই তারিখের কোনো মানে নেই; পরে "দেওয়া হলো" করলে আগের
+              মতোই ওই দিনের তারিখ বসে (`payExtraDue` এক অক্ষরও বদলায়নি)।
+           ⛔ কী সেভ হয় (`kind='EXTRA'` · `for_month` ফাঁকা · status · mode) —
+              কিচ্ছু বদলায়নি, শুধু তারিখটা এখন হাতে বাছা যায়। */
+        var exPaidOnIso = todayIso()
+        val exPaidOnBtn = TextView(this).apply {
+            text = salDmy(exPaidOnIso)
+            textSize = 15.5f
+            setTextColor(android.graphics.Color.parseColor("#101C2E"))
+            isClickable = true
+            setOnClickListener {
+                val c = java.util.Calendar.getInstance()
+                try {
+                    c.set(exPaidOnIso.substring(0, 4).toInt(),
+                        exPaidOnIso.substring(5, 7).toInt() - 1,
+                        exPaidOnIso.substring(8, 10).toInt())
+                } catch (_: Throwable) { }
+                val dlg = android.app.DatePickerDialog(this@StaffProfileActivity, { _, y, mth, d ->
+                    exPaidOnIso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, mth + 1, d)
+                    text = salDmy(exPaidOnIso)
+                }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
+                    c.get(java.util.Calendar.DAY_OF_MONTH))
+                try { dlg.datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+                dlg.show()
+            }
+        }
+        card.addView(salGoldHeader("EXTRA INCOME", ""))
+        card.addView(ModuleUi.label(this, "Amount")); card.addView(salBoxed(amt))
+        card.addView(ModuleUi.label(this, "Reason")); card.addView(salBoxed(why))
+        // 🗓️ V1273 — "When" এখন উপরে পুরো চওড়ায় (আগে Mode-এর পাশে ছিল)।
+        card.addView(ModuleUi.label(this, "When")); card.addView(salBoxed(whenSpin))
+        /* 🎨 V1182 + V1273 — নিচের সারিতে দুটো বাছাই এক লাইনে (Add Salary-র মতো)। */
+        val exPaidOnCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        exPaidOnCol.addView(ModuleUi.label(this, "Paid on")); exPaidOnCol.addView(salBoxed(exPaidOnBtn))
+        val modeCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        modeCol.addView(ModuleUi.label(this, "Mode")); modeCol.addView(salBoxed(md))
+        card.addView(salPairRow(exPaidOnCol, modeCol))
+        /* 🗓️ V1273 — "Pay later (Due)" বাছলে তারিখের ঘরটা লুকোয়। ⛔ ফর্ম খোলার
+           সময় "Paying now"-ই বাছা থাকে, তাই শুরুতে ঘরটা দেখাই যায়। */
+        whenSpin.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                exPaidOnCol.visibility = if (position == 0) android.view.View.VISIBLE else android.view.View.GONE
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) { }
+        }
+        card.addView(ModuleUi.button(this, "Save Extra Income") {
             val v = amt.text.toString().toDoubleOrNull() ?: 0.0
             if (v <= 0.0) { ModuleUi.toast(this, "Enter an amount"); return@button }
             val r = why.text.toString().trim()
             if (r.isEmpty()) { ModuleUi.toast(this, "Enter a reason"); return@button }
             val payingNow = whenSpin.selectedItemPosition == 0
-            val row = JSONObject().put("person_code", code).put("paid_on", todayIso())
+            /* 🗓️ V1273 — "এখনই দিচ্ছি" হলে মাস্টারের বাছা তারিখ; "পরে দেব" হলে
+               আগের মতোই আজ (তখনো টাকা দেওয়াই হয়নি)। */
+            val row = JSONObject().put("person_code", code)
+                .put("paid_on", if (payingNow) exPaidOnIso else todayIso())
                 .put("amount", v).put("mode", if (payingNow) md.selectedItem.toString() else "")
                 .put("paid_by", ModuleAuth.personCode).put("remark", "")
                 .put("for_month", "").put("kind", "EXTRA").put("extra_reason", r)
@@ -3006,7 +5850,27 @@ class StaffProfileActivity : AppCompatActivity() {
             val myRoleKind = if (r.length() > 0) ns(r.getJSONObject(0), "role_kind") else ""
             val salaryAllowed = com.tkbiswas.pilesclinic.native.RoleRules.salaryAppliesToRoleKind(myRoleKind)
             val sc = if (salaryAllowed) ModuleAuth.getRows("hr", "salary_config", "select=*&limit=1") else JSONArray()
-            val pays = if (salaryAllowed) ModuleAuth.getRows("hr", "salary_payments", "select=*&order=paid_on.desc") else JSONArray()
+            /* 🔵🔒 V818 (২৯.০৮.২০২৬, TK-নির্দেশে Egress-এর পূর্ণ যাচাই) —
+               এটা **"My Profile"** পর্দা, অর্থাৎ শুধু নিজের বেতনের হিসাব।
+               কিন্তু পড়াটা ছিল `select=*&order=paid_on.desc` — **কোনো ছাঁকনি
+               নেই, কোনো সীমা নেই**। সার্ভারের নিয়ম (`spay_read`) বলে
+               মাস্টার **সবার** সারি দেখতে পান — তাই মাস্টার নিজের প্রোফাইল
+               খুললেই **সব কর্মীর জীবনের সব বেতন-লেনদেন** নেমে আসত। প্রতি
+               মাসে এটা বাড়তেই থাকত।
+               ⛔ এখন নিজের `person_code` দিয়ে ছাঁকা, সর্বোচ্চ ৩০০ সারি
+                  (২৫ বছরের মাসিক বেতনও ধরে যায়)।
+               ⛔ ঘরগুলো `select=*`-ই রইল — ইচ্ছে করেই। এই সারির অনেকগুলো ঘর
+                  (amount · paid_on · for_month · mode · paid_by · remark ·
+                  extra_reason · kind) নানা জায়গায় পড়া হয়; ঘর ছেঁটে দিলে
+                  কোথাও একটা ফাঁকা দেখানোর ঝুঁকি ছিল। ছাঁকনি + সীমাতেই
+                  আসল সাশ্রয়টা হয়ে যায়, আর কোনো ভালো কাজ নষ্ট হয় না।
+               ⛔ কর্মীর নিজের পর্দায় আচরণ হুবহু আগের মতোই (সার্ভার এমনিতেই
+                  তাঁকে নিজের সারিই দিত)। */
+            val myCode = if (r.length() > 0) ns(r.getJSONObject(0), "person_code") else ""
+            val payScope = if (myCode.isNotBlank()) "&person_code=eq." + (try { java.net.URLEncoder.encode(myCode, "UTF-8").replace("+", "%20") } catch (_: Throwable) { myCode }) else ""
+            val pays = if (salaryAllowed) ModuleAuth.getRows(
+                "hr", "salary_payments", "select=*" + payScope + "&order=paid_on.desc&limit=300"
+            ) else JSONArray()
             runOnUiThread {
                 box.removeAllViews()
                 val p = if (r.length() > 0) r.getJSONObject(0) else JSONObject()
@@ -3052,7 +5916,7 @@ class StaffProfileActivity : AppCompatActivity() {
                  */
                 val myCode = ns(p, "person_code")
                 if (myCode.isNotBlank()) {
-                    box.addView(ModuleUi.button(this, "🗓️ My Attendance Sheet") {
+                    box.addView(ModuleUi.button(this, "My Attendance Sheet") {
                         val ym = SimpleDateFormat("yyyy-MM", Locale.US)
                             .apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
                             .format(java.util.Date())
@@ -3078,9 +5942,152 @@ class StaffProfileActivity : AppCompatActivity() {
         }.start()
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       👥🔒 V746 (২৭.০৮.২০২৬) — **মাস্টার নিজে স্টাফ ও ডাক্তার যোগ / বাদ /
+       ফেরাতে পারবেন** — SQL ছাড়া, নতুন APK ছাড়া।
+       —————————————————————————————————————————————————————————————————
+       ⛔ **একটাও নিয়ম এখানে যাচাই হয় না** — সব সার্ভারে
+          (`00_SQL/V745_STAFF_DOCTOR_FROM_APP.sql`)। ফোনের অ্যাপ বদলে
+          ফেললেও নিয়ম ফাঁকি দেওয়ার পথ নেই।
+       ⛔ **কাউকে কখনো মোছা হয় না** — শুধু নিষ্ক্রিয়, তাই পুরনো রেকর্ডে
+          নাম চিরকাল থাকে আর লগইন নিজে থেকেই বন্ধ হয় (V403)।
+       ⛔ টাকার হিসাব ছোঁয়া হয় না — সেসব মোবাইল ধরে চলে (V308)।
+       ⛔ TK-নির্দেশ: নতুন লেখা ইংরেজিতে।
+       ═══════════════════════════════════════════════════════════════════ */
+    /** নতুন স্টাফ/ডাক্তার — ⛔ সব যাচাই সার্ভারে, এখানে শুধু ঘরগুলো। */
+    private fun addPersonDialog() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(6), dp(18), dp(6))
+        }
+        var role = "staff"
+        /* 🟢🔒 V821 (২৯.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ডেমো-প্রুফ:
+           *"staff doctor পাশাপাশি থাকতে হবে, যেটা সিলেক্ট করবো সেটা হাইলাইট হবে"*)
+
+           **আগে:** দুটো বোতাম উপরে-নিচে, দুটোই একই হালকা সবুজ — কোনটা বাছা
+           হয়েছে বোঝার একমাত্র উপায় ছিল উপরের "Type:  Staff" লেখাটা।
+           **এখন:** পাশাপাশি, আর বাছা বোতামটাই **গাঢ় সবুজ + সাদা লেখা**।
+           ⇒ লেখাটার আর দরকার নেই, তাই তুলে দেওয়া হলো।
+
+           ⛔ রংগুলো নতুন নয় — `MedicinePaymentActivity.setupSaleTypeButtons()`-এর
+              (V805/V806, TK-অনুমোদিত) হুবহু একই দুটো রং, তাই অ্যাপ জুড়ে
+              বাছাই দেখানোর চেহারা একই থাকে।
+           ⛔ `role`-এর মান ("staff" / "doctor") ও নিচের সেভের যুক্তি
+              **এক অক্ষরও বদলায়নি** — শুধু দেখার ভঙ্গি বদলাল। */
+        val pickStaff = ModuleUi.buttonSoft(this, "Staff") { }
+        val pickDoctor = ModuleUi.buttonSoft(this, "Doctor") { }
+        val roleOn = android.graphics.Color.parseColor("#0B6E33")
+        val roleOff = android.graphics.Color.parseColor("#E6F4EC")
+        fun paintRole() {
+            val isStaff = role == "staff"
+            pickStaff.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(if (isStaff) roleOn else roleOff)
+                setStroke(dp(1), roleOn)
+            }
+            pickStaff.setTextColor(if (isStaff) android.graphics.Color.WHITE else roleOn)
+            pickDoctor.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(if (!isStaff) roleOn else roleOff)
+                setStroke(dp(1), roleOn)
+            }
+            pickDoctor.setTextColor(if (!isStaff) android.graphics.Color.WHITE else roleOn)
+        }
+        pickStaff.setOnClickListener { role = "staff"; paintRole() }
+        pickDoctor.setOnClickListener { role = "doctor"; paintRole() }
+        // পাশাপাশি বসানো — দুজনেই সমান চওড়া (weight 1f), মাঝে একটু ফাঁক।
+        val roleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(2), 0, dp(6))
+        }
+        roleRow.addView(pickStaff, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        roleRow.addView(pickDoctor, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = dp(10)
+        })
+        box.addView(roleRow)
+        paintRole()
+
+        box.addView(ModuleUi.body(this, "Full Name"))
+        val etName = ModuleUi.input(this, "Full name")
+        box.addView(etName)
+        box.addView(ModuleUi.body(this, "Mobile (10 digits)"))
+        val etMobile = ModuleUi.input(this, "10-digit mobile")
+        box.addView(etMobile)
+        box.addView(ModuleUi.body(this, "Staff Code"))
+        val etCode = ModuleUi.input(this, "e.g. KNE-KISHAN9")
+        box.addView(etCode)
+        box.addView(ModuleUi.body(this, "Branch"))
+        /* 🔒 V747 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **ব্রাঞ্চ আর হাতে লেখা যাবে না।**
+           আগে বানান একটু এদিক-ওদিক হলে (যেমন "Kisanganj") `BranchCatalog.byName()`
+           চুপচাপ **কিশানগঞ্জ** ধরে নিত — লোকটা ভুল ব্রাঞ্চে বসে যেত, কেউ টেরও
+           পেত না। এখন তালিকা থেকে বেছে নিতে হয়, তাই ভুল বানানের পথই নেই।
+           ⛔ নামগুলো `BranchCatalog` থেকেই আসে — দুই জায়গায় আলাদা হওয়ার ভয় নেই। */
+        val branchNames = com.tkbiswas.pilesclinic.print.BranchCatalog.all.map { it.displayName }
+        val spBranch = spinner(branchNames)
+        box.addView(spBranch)
+
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Add Staff or Doctor"))
+            .setView(android.widget.ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Save", null)   // ⛔ null — নিজেরাই বন্ধ করব
+            .setNegativeButton("Close", null)
+            .create()
+        dlg.show()
+        com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
+        dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val name = etName.text?.toString().orEmpty().trim()
+            val mob = etMobile.text?.toString().orEmpty().filter { c -> c.isDigit() }.takeLast(10)
+            val code = etCode.text?.toString().orEmpty().trim().uppercase()
+            val branch = branchNames.getOrNull(spBranch.selectedItemPosition).orEmpty()
+            // ⛔ এটুকু শুধু স্টাফকে বাঁচাতে — আসল পাহারা সার্ভারেই।
+            if (name.isBlank() || code.isBlank() || branch.isBlank() || mob.length != 10) {
+                android.widget.Toast.makeText(this,
+                    "Please fill name, mobile and code (mobile must be 10 digits)",
+                    android.widget.Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            dlg.dismiss()
+            savePerson(code, mob, name, branch, role)
+        }
+    }
+
+    private fun savePerson(code: String, mobile: String, name: String, branch: String, role: String) {
+        android.widget.Toast.makeText(this, "Saving...", android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val res = com.tkbiswas.pilesclinic.native.PeopleAdminRepository
+                .add(code, mobile, name, branch, role)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val title = if (res.ok) "Added" else "Not done"
+                val body = if (res.ok)
+                    name + "\n" + code + " · " + branch + " · " +
+                        com.tkbiswas.pilesclinic.native.PeopleAdminRepository.roleLabel(role) +
+                        "\n\nThis person can log in right now." +
+                        "\nMobile: " + ModuleUi.fullMobile(mobile) +
+                        "\n" + res.message
+                else res.message
+                val d = androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
+                    .setMessage(body)
+                    .setPositiveButton("OK") { _, _ -> if (res.ok) renderList() }
+                    .create()
+                d.show()
+                com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d)
+            }
+        }.start()
+    }
+
     private fun spinner(items: List<String>): Spinner {
         val sp = Spinner(this)
-        sp.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, items)
+        /* 📏🔒 V1247 — বন্ধ অবস্থার সাজ এখন `simple_spinner_item` (ছোট),
+           আর খোলা তালিকা আগের মতোই `simple_spinner_dropdown_item`।
+           এটাই Android-এর নিজের স্বাভাবিক ধাঁচ — বাক্সের উচ্চতা কমে, কিন্তু
+           বেছে নেওয়ার তালিকা হুবহু আগের মতোই দেখায়।
+           ⛔ কোন কোন বিকল্প থাকবে · কোনটা বাছা আছে · কী সেভ হয় — কিচ্ছু
+              বদলায়নি (`selectedItemPosition` আগের মতোই কাজ করে)। */
+        val ad = ArrayAdapter(this, android.R.layout.simple_spinner_item, items)
+        ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        sp.adapter = ad
         return sp
     }
 }

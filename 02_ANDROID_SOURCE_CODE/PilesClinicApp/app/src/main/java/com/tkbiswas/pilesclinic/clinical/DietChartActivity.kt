@@ -19,8 +19,20 @@ import com.tkbiswas.pilesclinic.native.UppercaseInputUtil
 
 class DietChartActivity : AppCompatActivity() {
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         setContentView(R.layout.activity_diet_chart)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
 
@@ -134,12 +146,18 @@ class DietChartActivity : AppCompatActivity() {
         // 🔴 V430 — লেখা থাকলে "Extra Advice"-ও সঙ্গে যায় (কম্পিউটারের মতোই)।
         val dRem = dietRemarks()
         if (dRem.isNotBlank()) sb.append("\n\n").append(dRem)
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Diet Chart - ${RoleSession.currentPatientName}")
-            putExtra(Intent.EXTRA_TEXT, sb.toString())
-        }
-        startActivity(Intent.createChooser(sendIntent, "Share Diet Chart"))
+        /* 📄🔒 V773 — TK: "share করলে PDF যেতে হবে"। উপরের `sb` (টেক্সট) আর
+           পাঠানো হয় না; একই তথ্য এখন **A4 PDF** হয়ে যায় — ছাপার সময় যে
+           কাগজটা তৈরি হয় (`DietChartHtml.build`) ঠিক সেটাই, তাই ছাপা ও শেয়ার
+           করা কাগজ হুবহু এক। allowPrint = true ⇒ চাইলে সরাসরি ছাপাও যায়।
+           ⛔ বাছাই · সেভ · ছাপা — কিছুই বদলায়নি, শুধু পাঠানোর ধরন। */
+        com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
+            activity = this,
+            html = com.tkbiswas.pilesclinic.print.DietChartHtml.build(dietRemarks()),
+            documentTitle = "Diet Chart",
+            patientName = RoleSession.currentPatientName
+        )   // ⛔ allowPrint দেওয়া হয়নি — এই পর্দায় নিজের "Save & Print" আগে
+            //    থেকেই আছে (Investigation-এর মতোই), তাই ডুপ্লিকেট পথ নয়।
     }
 
     /** TK APPROVED (2026-07-15): printing matters more than just saving — added
@@ -151,6 +169,10 @@ class DietChartActivity : AppCompatActivity() {
         catch (_: Throwable) { "" }
 
     private fun saveDietChart(openPrintAfter: Boolean) {
+        /* 🔴🔒 V786 — রোগী চেনা না গেলে (কল/মেমরির কারণে প্রসেস মরে পর্দা
+           আবার খোলা) এখানেই থেমে যায়। আগে ফাঁকা আইডিতেও সেভ হয়ে যেত আর
+           "saved" লেখা উঠত — ডাক্তারের লেখা চুপচাপ হারাত। */
+        if (RoleSession.blockIfNoPatient(this)) return
         val selected = ClinicalRepository.currentDiet.filter { it.isSelected }
         if (selected.isEmpty()) {
             Toast.makeText(this, "Select at least one diet guideline before saving.", Toast.LENGTH_SHORT).show()
@@ -168,8 +190,10 @@ class DietChartActivity : AppCompatActivity() {
         // প্রিন্টের সব তথ্য ফোনেই আছে, ক্লাউডের কিছু লাগে না। সেভটা আগে
         // ফোনেই লেখা হয়, তারপর পিছনে ক্লাউডে যায়; না গেলে অপেক্ষমাণ
         // তালিকায় জমা থেকে নিজে থেকেই আবার যায়, তাই কিছু হারায় না।
-        Toast.makeText(this@DietChartActivity, "Diet chart saved (${selected.size} item/s).", Toast.LENGTH_SHORT).show()
         val appCtx = applicationContext
+        // 🟡🔒 V708 — Investigation-এর হুবহু একই পাহারা (উপরের ফাইলের ব্যাখ্যা দেখুন)।
+        DuplicateSaveGuard.run(this, pid, "Diet Chart", selectedStr, summary) {
+        Toast.makeText(this@DietChartActivity, "Diet chart saved (${selected.size} item/s).", Toast.LENGTH_SHORT).show()
         com.tkbiswas.pilesclinic.native.BackgroundWork.run {
             ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Diet Chart", selectedStr, summary, createdBy)
         }
@@ -183,5 +207,6 @@ class DietChartActivity : AppCompatActivity() {
             //    ঘরটা ফাঁকা থাকলে কাগজ হুবহু আগের মতোই ছাপে।
             com.tkbiswas.pilesclinic.print.DietChartHtmlPrint.print(this@DietChartActivity, dietRemarks())
         }
+        }   // 🟡 V708 — DuplicateSaveGuard.run ব্লকের শেষ
     }
 }

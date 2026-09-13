@@ -83,7 +83,26 @@ class DashboardActivity : AppCompatActivity() {
             return
         }
 
-        binding.tvWelcome.text = "Welcome, ${user.name}"
+        /* 👤🔒 V1168 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "ক") — TK:
+           *"কাকে ওয়েলকাম জানানো হচ্ছে তার নামটাই তো কেটে গেছে · এখানে স্টাফ
+           কোড নাম্বার থাকবে না, এখানে স্টাফের সম্পূর্ণ নাম থাকবে"*, আর
+           *"welcome এক লাইনে, নিচের লাইনে ফুল নাম"*।
+           ⛔ V1138-এ TK নিজেই এক লাইন চেয়েছিলেন — এখন তিনিই দু'লাইন চাইলেন,
+              তাই XML-এ `maxLines` ১ → ২; লেখাটা আর কাটে না।
+           ⛔ নামটা আসে **ফোনে আগে থেকেই জমানো** স্টাফ-তালিকা থেকে
+              (`CloudStaffDirectory` — দিনে একবার নবায়ন হয়); নতুন কোনো
+              ক্লাউড-পড়া বানানো হয়নি, তাই ফ্রি প্ল্যানে বাড়তি খরচ নেই।
+           ⛔ জমানো তালিকায় না পেলে আগের লেখাটাই (সেশনের নাম) বসে। */
+        renderWelcome(welcomeFullName(user))
+        /* 🧵 তালিকা পুরনো হলে (এক দিনের বেশি) নিঃশব্দে নবায়ন — নাম পাওয়া গেলে
+           সঙ্গে সঙ্গে বসিয়ে দেওয়া হয়। ⛔ ব্যর্থ হলে কিছুই বদলায় না। */
+        BackgroundWork.run {
+            try {
+                CloudStaffDirectory.refreshIfStale(applicationContext)
+                val fresh = welcomeFullName(user)
+                runOnUiThread { if (!isFinishing && !isDestroyed) renderWelcome(fresh) }
+            } catch (_: Throwable) { }
+        }
         val roleLabel = user.displayRole.replaceFirstChar { it.uppercase() }
         binding.tvRoleBranch.text = if (user.branch == "All") roleLabel else "$roleLabel · ${user.branch}"
 
@@ -134,6 +153,17 @@ class DashboardActivity : AppCompatActivity() {
         // every tile looking identical. Grid, labels, icons, click targets and
         // role visibility are all completely unchanged -- only colour + a
         // little shadow depth were added.
+        /* 🔔🔒 V1186 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"Check Up,
+           Enquiry, follow Up এর মতই একটা icon থাকুক"* ও *"এটা প্রত্যেকের হোম
+           স্ক্রিনে ই থাকবে · যে কোন staff, যে কোন ডাক্তার এবং মাস্টার এটা
+           ক্রিয়েট করতে পারবে"* ⇒ তাই তিনটে role-এই দেখা যায়।
+           ⛔ ঘড়ি/ক্যালেন্ডার/ঘণ্টার ইমোজি নয় (TK-র স্থায়ী নিয়ম) — 📌। */
+        tile(binding.tileDoctorReminder, "📌", "Doctor Reminder", listOf("master", "staff", "doctor"), "#E8F4F1", "#C9E7E0", "#0F766E") { startActivity(Intent(this, DoctorReminderActivity::class.java)) }
+        /* 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ) — ঘরটা এখন ☰ মেনুতে
+           (MoreMenuActivity.btnDocDoctorReminder)। Reports/Export-এর মতোই
+           **ঘরের সেটআপ (role/রং/ক্লিক) হুবহু রেখে শুধু লুকানো** হলো, তাই
+           ভবিষ্যতে ফেরাতে হলে এই একটা লাইন সরালেই হয়। */
+        binding.tileDoctorReminder.root.visibility = android.view.View.GONE
         tile(binding.tileEnquiry, "📝", "Enquiry", listOf("master", "staff", "doctor"), "#FFF3E0", "#FFE0B2", "#FFB74D") { startActivity(Intent(this, EnquiryActivity::class.java)) }
         tile(binding.tileFollowUp, "🔁", "Follow-up", listOf("master", "staff", "doctor"), "#E8F5EE", "#C8E6D5", "#0EA25F") { startActivity(Intent(this, FollowUpActivity::class.java)) }
         tile(binding.tileRegistration, "🧾", "Registration", listOf("master", "staff", "doctor"), "#E7EEFB", "#C9D9F5", "#4A78D6") { startActivity(Intent(this, RegistrationActivity::class.java)) }
@@ -243,6 +273,14 @@ class DashboardActivity : AppCompatActivity() {
             startActivity(Intent(this, UserPhotoActivity::class.java))
         }
 
+        // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE: "Dr. Visit" ছাড়া
+        // আর কিছু না — তাই সার্চ বার ও ঘণ্টাও (রোগী/অনুস্মারক দেখা যেত) লুকানো।
+        if (RoleRules.isDoctorVisitOnly(this)) {
+            binding.searchCapsule.visibility = android.view.View.GONE
+            binding.tvBell.visibility = android.view.View.GONE
+            binding.tvBellBadge.visibility = android.view.View.GONE
+        }
+
         showLastCrashIfAny()
     }
 
@@ -310,6 +348,7 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     override fun onResume() {
+        try { PushTokenSync.syncOnLogin(this) } catch (_: Throwable) { }   // 🔔 V1298 push-ঠিকানা ক্লাউডে
         super.onResume()
         // Refresh the header photo after the user sets/changes it.
         val session = NativeSession.current(this) ?: return
@@ -324,11 +363,281 @@ class DashboardActivity : AppCompatActivity() {
         refreshSyncStatus()
         refreshOldAppBanner()
         refreshUnclosedChambers(session)   // 🔒 খাতার সারি B36 → B46 (এখন শুধু লুকায়)
-        refreshBell(session)
-        refreshCallBanner(session)
-        remindPendingRemarks(session)   // 🔒 খাতার সারি B51
+        // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE-এর হোম-পেজে ঘণ্টা,
+        // Pending Calls, Doctor Reminder কার্ড, বা কল-এর পরে Remark-মনে-করানো
+        // পপ-আপ — কোনোটাই আসবে না (এসবে রোগীর নাম/তথ্য থাকে)। বাকি সবার জন্য
+        // এই পাঁচটাই আগের মতো অক্ষত।
+        if (!RoleRules.isDoctorVisitOnly(this)) {
+            refreshBell(session)
+            refreshCallBanner(session)
+            refreshReminderCard(session)    // 🟢 V1144
+            paintDoctorReminders(session)   // 🔔 V1186 — Doctor Note & Reminder
+            remindPendingRemarks(session)   // 🔒 খাতার সারি B51
+        }
         requestNotificationPermissionIfNeeded()
         requestIgnoreBatteryOptimizationsIfNeeded()
+        requestOverlayPermissionIfNeeded()   // 🪟 V845
+        BranchSimHelper.resetSilentNoOnce(this)   // ☎️ V1429 — পুরনো চুপচাপ "সিম নেই" একবার মুছে আবার প্রশ্ন
+        requestDoctorLocationPermissionIfNeeded()   // 🛰️ V1348
+        DoctorLocation.captureIfPossible(this)             // 🛰️ V1348 (isDoctor না হলে নিজেই কিছু করে না)
+    }
+
+    /* 🛰️🔒 V1348 (১১.০৯.২০২৬, TK-নির্দেশ) — উপরের overlay/battery-অনুমতির
+       ধাঁচেই "জীবনে একবারই জিজ্ঞেস, না দিলে আর জ্বালায় না"। ⛔ পার্থক্য:
+       TK-র স্পষ্ট নিষেধ অনুযায়ী **কোনো AlertDialog/ব্যাখ্যা নেই** — সরাসরি
+       ফোনের নিজের অনুমতি-বাক্স, তারপর সম্পূর্ণ চুপচাপ। শুধু role="doctor"।
+       ⛔ ব্যর্থ/বাতিল হলেও কিছুই ভাঙে না — আগের মতোই কোনো লোকেশন জমা হবে না। */
+    private fun requestDoctorLocationPermissionIfNeeded() {
+        try {
+            if (!RoleRules.isDoctor(this)) return
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) return
+            val prefs = getSharedPreferences("piles_clinic_doctor_location_perm", android.content.Context.MODE_PRIVATE)
+            if (prefs.getBoolean("asked_once", false)) return
+            prefs.edit().putBoolean("asked_once", true).apply()
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this,
+                arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION),
+                7341
+            )
+        } catch (_: Throwable) { }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🟢🔒 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ পাশ, বসিয়ে দিন,
+       সাবধানে"*) — হোম পেজেই **Reminders** কার্ড।
+
+       TK-এর কথা: ডাক্তারবাবু যেন হোম পেজ থেকেই দেখতে পান কটা রিমাইন্ডার
+       এসেছে, আর চাপ দিলেই ভিতরে ঢুকে যোগ করতে ও হিস্ট্রি দেখতে পারেন।
+       স্টাফের পর্দাতেও একই কার্ড — ভিতরে "Sent by me" ঘরে নিজের পাঠানোগুলোর
+       অবস্থা দেখা যায়।
+
+       ⛔ XML-এ **এক অক্ষরও যোগ করা হয়নি** — কার্ডটা কোডে বানিয়ে কল-বাকির
+          কার্ডের ঠিক নিচে বসানো হয়, তাই ডাক্তারের ২×২ ছক এক চুলও নড়ে না।
+       ⛔ কিছু না থাকলে কার্ডটা **দেখাই যায় না** (খালি ঘর দেখানো হয় না)।
+       ⛔ পড়াটা সরু — মাত্র তিনটে ঘর, আর পর্দা খোলার সময়েই একবার। */
+    private var reminderCard: android.widget.LinearLayout? = null
+    private var reminderTitle: android.widget.TextView? = null
+    private var reminderLine: android.widget.TextView? = null
+
+    private fun buildReminderCard(): android.widget.LinearLayout? {
+        reminderCard?.let { return it }
+        val anchorView = binding.callBannerCard
+        val parent = anchorView.parent as? android.widget.LinearLayout ?: return null
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setBackgroundColor(android.graphics.Color.parseColor("#FFF6E3"))
+            setPadding(px(12), px(12), px(12), px(12))
+            visibility = android.view.View.GONE
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(px(12), px(11), px(12), 0) }
+        }
+        card.addView(android.widget.TextView(this).apply {
+            text = "\uD83D\uDD14"
+            textSize = 20f
+            gravity = android.view.Gravity.CENTER
+            setBackgroundColor(android.graphics.Color.parseColor("#F7E4B8"))
+            setPadding(px(10), px(8), px(10), px(8))
+        })
+        val mid = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            ).apply { setMargins(px(12), 0, px(8), 0) }
+        }
+        val title = android.widget.TextView(this).apply {
+            textSize = 16.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#8A5B00"))
+        }
+        val line = android.widget.TextView(this).apply {
+            textSize = 12.5f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setTextColor(android.graphics.Color.parseColor("#9A7327"))
+        }
+        mid.addView(title); mid.addView(line)
+        card.addView(mid)
+        card.addView(android.widget.TextView(this).apply {
+            text = "Open \u203A"
+            textSize = 13.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setBackgroundColor(android.graphics.Color.parseColor("#8A5B00"))
+            setPadding(px(12), px(8), px(12), px(8))
+        })
+        card.setOnClickListener {
+            startActivity(Intent(this@DashboardActivity, ReminderActivity::class.java))
+        }
+        parent.addView(card, parent.indexOfChild(anchorView) + 1)
+        reminderCard = card; reminderTitle = title; reminderLine = line
+        return card
+    }
+
+    /**
+     * 🔔🔒 V1186 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — হোম পর্দায়
+     * **Doctor Note & Reminder** কার্ড।
+     *
+     * TK: *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে · সেখানে কোন রুগীর জন্য কে
+     * রিমাইনডার দিচ্ছে কার উদ্দেশ্যে দিচ্ছে সব যেন থাকে"* ও *"পাঠানোর পর
+     * KH MANDAL কে Accept করতে হবে"*।
+     *
+     * ⛔ এটা V1144-এর "Reminders" কার্ড **নয়** — ওটা স্টাফের নিজের কাজের
+     *    রিমাইন্ডার, আলাদা টেবিল, আলাদা কার্ড; দুটোই অটুট থাকে।
+     * ⛔ কিছু না থাকলে কার্ডটা বসেই না (অন্য সব ব্যানারের মতোই)।
+     * ⛔ একটাই সরু পড়া, আর সেটা ব্যাকগ্রাউন্ডে — পর্দা আঁকা থামে না।
+     */
+    private fun paintDoctorReminders(session: NativeUser) {
+        val holder = binding.doctorReminderCard
+        BackgroundWork.run {
+            /* 🙈🔒 V1193 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"আমি তো পাঠালাম, তাহলে
+               অল টাইম আমার হোম স্ক্রিনে কেন দেখাবে"* · *"এটা হাইড রাখার ব্যবস্থা
+               তো রাখতে হবে"*।
+               ⇒ হোম-কার্ডে এখন **শুধু যেগুলো এই ব্যক্তির জন্য অপেক্ষা করছে** —
+                 নিজের পাঠানো নয় · Accept হয়ে গেলে নয় · নিজে Hide করলে নয়।
+               ⛔ Doctor Reminder পর্দা ও History-তে সব আগের মতোই থাকে। */
+            val rows = try { DoctorReminderRepository.waitingFor(session) } catch (_: Throwable) { emptyList() }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (isFinishing || isDestroyed) return@post
+                holder.removeAllViews()
+                if (rows.isEmpty()) { holder.visibility = android.view.View.GONE; return@post }
+                holder.visibility = android.view.View.VISIBLE
+                fun d(v: Int) = (v * resources.displayMetrics.density).toInt()
+                fun bg(fill: String, stroke: String?, r: Int) =
+                    android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = d(r).toFloat()
+                        setColor(android.graphics.Color.parseColor(fill))
+                        if (stroke != null) setStroke(d(1), android.graphics.Color.parseColor(stroke))
+                    }
+                fun t(text: String, size: Float, hex: String, bold: Boolean = false) =
+                    android.widget.TextView(this).apply {
+                        this.text = text; textSize = size
+                        setTextColor(android.graphics.Color.parseColor(hex))
+                        if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    }
+
+                val card = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    background = bg("#FFFFFF", "#E7ECEA", 18)
+                    clipToOutline = true
+                }
+                val head = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setBackgroundColor(android.graphics.Color.parseColor("#0B4F2A"))
+                    setPadding(d(14), d(11), d(14), d(11))
+                }
+                head.addView(t("DOCTOR NOTE & REMINDER", 13.5f, "#FFFFFF", bold = true).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                /* 🙈 V1193 — "Hide": শুধু **এই ব্যক্তির** হোম ও ঘন্টা থেকে সরে যায়;
+                   তালিকা ও History-তে সারিটা অটুট থাকে, কেউ কিছু হারায় না। */
+                head.addView(t("Hide", 11.5f, "#FFFFFF", bold = true).apply {
+                    background = bg("#0B4F2A", "#9FD3B6", 12)
+                    setPadding(d(12), d(5), d(12), d(5))
+                    isClickable = true
+                    setOnClickListener {
+                        BackgroundWork.run {
+                            for (r in rows) try { DoctorReminderRepository.hide(r, session) } catch (_: Throwable) { }
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                if (isFinishing || isDestroyed) return@post
+                                holder.removeAllViews()
+                                holder.visibility = android.view.View.GONE
+                            }
+                        }
+                    }
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { rightMargin = d(9) }
+                })
+                head.addView(t(rows.size.toString(), 12.5f, "#0B4F2A", bold = true).apply {
+                    background = bg("#FFFFFF", null, 20)
+                    setPadding(d(11), d(2), d(11), d(2))
+                })
+                card.addView(head)
+
+                /* ⛔ হোম পর্দায় সর্বোচ্চ তিনটে — বাকিগুলো "View all"-এ। */
+                for (r in rows.take(3)) {
+                    val accepted = r.optString("acceptedAt", "").isNotBlank()
+                    val row = android.widget.LinearLayout(this).apply {
+                        orientation = android.widget.LinearLayout.HORIZONTAL
+                    }
+                    row.addView(android.view.View(this).apply {
+                        setBackgroundColor(android.graphics.Color.parseColor(if (accepted) "#0F766E" else "#E0A800"))
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            d(5), android.widget.LinearLayout.LayoutParams.MATCH_PARENT)
+                    })
+                    val bd = android.widget.LinearLayout(this).apply {
+                        orientation = android.widget.LinearLayout.VERTICAL
+                        setPadding(d(13), d(11), d(13), d(12))
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    }
+                    row.addView(bd)
+                    /* 🩺 V1194 (TK: *"রোগের নাম দরকার তো"*) — নামের পাশে।
+                       ⛔ পুরনো সারিতে ঘরটা ফাঁকা, তখন কিছুই দেখানো হয় না। */
+                    val dis = r.optString("disease", "")
+                    bd.addView(t(r.optString("patientName", "").ifBlank { "Patient" } +
+                        "   " + r.optString("patientMobile", "") +
+                        (if (dis.isNotBlank()) "   ·   $dis" else ""), 13.5f, "#0B2B1C", bold = true))
+                    bd.addView(t(r.optString("note", ""), 12.5f, "#17212B").apply {
+                        background = bg("#F6FAF7", "#E2EDE6", 10)
+                        setPadding(d(10), d(8), d(10), d(8))
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { topMargin = d(6) }
+                    })
+                    bd.addView(t("For  " + r.optString("forName", "").ifBlank { "All doctors" }, 11.5f, "#123E8C", bold = true)
+                        .apply { setPadding(0, d(7), 0, 0) })
+                    val byBranch = r.optString("byBranch", "")
+                    bd.addView(t("By  " + r.optString("byName", "") +
+                        (if (byBranch.isNotBlank()) " · $byBranch" else ""), 11.5f, "#8A5A00", bold = true))
+                    if (accepted) {
+                        bd.addView(t("Accepted", 11.5f, "#0A7C3F", bold = true).apply { setPadding(0, d(6), 0, 0) })
+                    } else {
+                        bd.addView(t("Not accepted yet", 11.5f, "#8A5A00", bold = true).apply { setPadding(0, d(6), 0, 0) })
+                    }
+                    card.addView(row)
+                }
+                card.addView(t("View all", 13f, "#0A5C33", bold = true).apply {
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(d(10), d(12), d(10), d(12))
+                })
+                card.isClickable = true
+                card.setOnClickListener {
+                    startActivity(Intent(this@DashboardActivity, DoctorReminderActivity::class.java))
+                }
+                holder.addView(card)
+            }
+        }
+    }
+
+    private fun refreshReminderCard(session: NativeUser) {
+        val card = buildReminderCard() ?: return
+        val code = session.name
+        if (code.isBlank()) { card.visibility = android.view.View.GONE; return }
+        BackgroundWork.run {
+            val count = ReminderRepository.openCountFor(code)
+            val line = if (count > 0) ReminderRepository.topLineFor(code) else ""
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (count <= 0) { card.visibility = android.view.View.GONE; return@post }
+                reminderTitle?.text = "Reminders " + count
+                reminderLine?.text = line
+                reminderLine?.visibility =
+                    if (line.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
+                card.visibility = android.view.View.VISIBLE
+            }
+        }
     }
 
     /*
@@ -439,6 +748,38 @@ class DashboardActivity : AppCompatActivity() {
     // অনুমতি থাকলে বা আগেই একবার জিজ্ঞাসা করা হয়ে থাকলে কিছুই হয় না। ⛔
     // ব্যর্থ হলেও (কোনো ফোনে এই সিস্টেম-স্ক্রিন না থাকলে) অ্যাপ ক্র্যাশ
     // করবে না — পুরো ফাংশন try/catch-এ ঢাকা।
+    /* 🪟🔒 V845 (৩০.০৮.২০২৬, TK-নির্দেশ) — কল বাজার সময় কল-স্ক্রিনের উপরে
+       কার্ড দেখাতে "Display over other apps" অনুমতি লাগে। এটা special
+       অনুমতি — কোড থেকে দেওয়া যায় না, স্টাফকে **একবার হাতে** চালু করতে হয়।
+
+       ⛔ উপরের `requestIgnoreBatteryOptimizationsIfNeeded()`-এর **হুবহু একই
+          প্রমাণিত ধাঁচ**: জীবনে একবারই জিজ্ঞেস করে, না দিলে আর জ্বালায় না।
+       ⛔ না দিলে **কিচ্ছু ভাঙে না** — আজকের মতোই নোটিফিকেশন আসবে।
+       ⛔ পুরোটা try/catch-এ — কোনো ফোনে এই সিস্টেম-পর্দা না থাকলেও
+          Dashboard কখনো ক্র্যাশ করবে না। */
+    private fun requestOverlayPermissionIfNeeded() {
+        try {
+            if (CallOverlay.allowed(this)) return
+            val prefs = getSharedPreferences("piles_clinic_overlay_perm", android.content.Context.MODE_PRIVATE)
+            if (prefs.getBoolean("asked_once", false)) return
+            prefs.edit().putBoolean("asked_once", true).apply()
+            /* ⛔ প্রজেক্টের নিজের প্রমাণিত ধাঁচ (উপরের crash-log ডায়ালগের
+               হুবহু একই): AlertDialog + PremiumAlert.header/paint। */
+            AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, NoBengali.s("কল এলে রোগীর তথ্য পর্দায় দেখতে")))
+                .setMessage(
+                    NoBengali.s("কল-স্ক্রিনের উপরে রোগীর তথ্য দেখাতে একটা অনুমতি লাগে") +
+                    " — \"Display over other apps\"\n\n" +
+                    NoBengali.s("পরের পর্দায় এই অ্যাপটা বেছে চালু করে দিন") + "\n\n" +
+                    NoBengali.s("না দিলেও কিছু নষ্ট হবে না — আগের মতোই নোটিফিকেশন আসবে।"))
+                .setPositiveButton(NoBengali.s("চালু করি")) { _, _ ->
+                    CallOverlay.openPermissionScreen(this)
+                }
+                .setNegativeButton(NoBengali.s("এখন নয়"), null)
+                .show().also { PremiumAlert.paint(it) }
+        } catch (_: Throwable) { }
+    }
+
     private fun requestIgnoreBatteryOptimizationsIfNeeded() {
         try {
             val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
@@ -523,14 +864,30 @@ class DashboardActivity : AppCompatActivity() {
             /* 🟢🔒 V590 (TK-রিপোর্ট) — আগে শুধু **ঠিক আজকের** কল গোনা হত, তাই
                একদিন বাদ পড়া কল ব্যানার থেকে চিরতরে হারিয়ে যেত। এখন **আজকের ও
                বকেয়া** — দুটোই। ⛔ তারিখ ফাঁকা হলে (কল ঠিক করা নেই) গোনা হয় না। */
-            fun isDue(f: FollowUpItem): Boolean = f.nextFollow.isNotBlank() && f.nextFollow <= today
+            /* 📵🔒 V1331 (১১.০৯.২০২৬, TK-নির্দেশ ও গভীর যাচাই — তালিকা সারি ৪৩৩):
+               TK-রিপোর্ট: স্টাফ কল করে Remark লিখে "আর কল লাগবে না" বলার পরেও
+               লোকটা ব্যানারের সংখ্যায় থেকে যাচ্ছিল। **আসল কারণ (কোডে ধরা):**
+               এই `isDue()`/`overdueFrom()` কখনো `noMoreCalls` দেখত না — অথচ
+               ব্যানারে চাপ দিয়ে যে তালিকা খোলে (`FollowUpActivity.kt:1059`)
+               সেটা ঠিকই বাদ দেয়, আর "আর কল লাগবে না" বোতামের নিজের কথাই
+               ("কল-তালিকা ও ব্যানার থেকে সরে যাবে") এটাই প্রতিশ্রুতি দেয়।
+               ⇒ এখন গোনাতেও একই শর্ত — ব্যানার আর তালিকা সবসময় মিলবে।
+               ⛔ বাকি নিয়ম (আজ + বকেয়া দুটোই গোনা, V590) এক অক্ষরও বদলায়নি। */
+            // 📞 V1403 — কল হয়ে গেলে আর বাকি নয় (FollowUpModel.callPending — তালিকা/নোটিফিকেশনের একই নিয়ম)
+            fun isDue(f: FollowUpItem): Boolean = FollowUpModel.callPending(f, today)
             fun countFrom(items: List<FollowUpItem>?): Int = items?.count { isDue(it) } ?: 0
             fun overdueFrom(items: List<FollowUpItem>?): Int =
-                items?.count { it.nextFollow.isNotBlank() && it.nextFollow < today } ?: 0
+                items?.count { FollowUpModel.callPending(it, today) && it.nextFollow < today } ?: 0   // 📞 V1403
+            // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ) — একই তিনটে cache-পড়া থেকেই
+            // (নতুন কোনো fetch নেই — V509-এর egress-সুরক্ষা অক্ষত) সব আইটেম
+            // জমিয়ে রাখা হচ্ছে, যাতে নিচে ব্রাঞ্চ ধরে ভাঙা যায়।
+            val allDueItems = mutableListOf<FollowUpItem>()
             val instant = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     listOf("Inquiry", "Patient", "Treatment").sumOf { stage ->
-                        countFrom(repo.loadCachedTab(stage, bannerBranch))
+                        val items = repo.loadCachedTab(stage, bannerBranch)
+                        items?.filter { isDue(it) }?.let { allDueItems.addAll(it) }
+                        countFrom(items)
                     }
                 } catch (_: Exception) { 0 }
             }
@@ -548,19 +905,121 @@ class DashboardActivity : AppCompatActivity() {
                 // তাই তাঁর ড্যাশবোর্ডে "calls pending" ব্যানার দেখানো হয় না।
                 if (count > 0 && session.displayRole != "doctor") {
                     binding.tvCallBanner.visibility = android.view.View.VISIBLE
-                    /* 🟢 V590 — বকেয়া থাকলে সংখ্যাটা আলাদা করে বলা হয়, তাই
-                       "কতগুলো জমে গেছে" এক নজরেই বোঝা যায়। */
-                    binding.tvCallBanner.text = if (overdue > 0)
-                        "📞 $count calls pending — $overdue overdue — tap to call"
-                    else "📞 $count calls pending today — tap to call"
+                    // 🎨 V1084 — লেখাটা এখন গোলাপি কার্ডের ভিতরে, তাই কার্ডটাও
+                    //    ঠিক একই সময়ে দেখা যায়/লুকায়। নিয়ম এক অক্ষরও বদলায়নি।
+                    binding.callBannerCard.visibility = android.view.View.VISIBLE
+                    /* ═══════════════════════════════════════════════════
+                       📞🔒 V1115 (০৫.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ):
+                       *"51 Calls Pending, 33 over Due তার পাশের ট্যাপ টু কল —
+                       এটা রাখতে হবে না"* · *"Call icon 2 বার কেন? এখানে
+                       Over due-ও লেখা থাকবে না"*
+                       ⇒ পট্টিতে এখন শুধু **"51 calls pending"**।
+                         · লেখার ভিতরের দ্বিতীয় 📞 বাদ (বাঁয়ে গোল আইকনটা
+                           আগে থেকেই আছে, তাই দুবার দেখাত)
+                         · *"— N overdue"* বাদ
+                         · *"— tap to call"* বাদ (পাশেই **Call now ›** বোতাম)
+                       ⛔ চাপ দিলে আগের মতোই আজকের কলের তালিকা খোলে — কাজের
+                          কিছুই বদলায়নি, শুধু লেখা।
+                       ⛔ `overdue` গোনাটা মোছা হয়নি — অন্য কাজে লাগে। */
+                    // 🎨🔒 V1138 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Pending Calls 49
+                    //    এরকম হবে, একটু বোল্ড হবে"*। ⛔ সংখ্যা · চাপ · দেখা-না-দেখা
+                    //    সবই আগের মতোই — শুধু লেখার ধরন বদলেছে।
+                    binding.tvCallBanner.text = "Pending Calls $count"
                     binding.tvCallBanner.setOnClickListener {
+                        startActivity(Intent(this@DashboardActivity, FollowUpActivity::class.java).putExtra("todayOnly", true))
+                    }
+                    // 🎨 V1084 — TK-এর নকশার "Call now ›" বোতাম, ঠিক একই জায়গায় নিয়ে যায়।
+                    binding.btnCallNow.setOnClickListener {
                         startActivity(Intent(this@DashboardActivity, FollowUpActivity::class.java).putExtra("todayOnly", true))
                     }
                 } else {
                     binding.tvCallBanner.visibility = android.view.View.GONE
+                    binding.callBannerCard.visibility = android.view.View.GONE
                 }
             }
             render(instant)
+
+            // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Master-only
+            // ব্রাঞ্চ-ভিত্তিক ভাঙা। ⛔ নতুন fetch নেই — উপরের `allDueItems`
+            // (একই cache-পড়া) থেকেই ব্রাঞ্চ ধরে গোনা হচ্ছে।
+            // ⛔ সৎ সীমা: স্টাফ-ভিত্তিক ভাঙা সম্ভব না — FollowUpItem-এ কোন
+            // ফলো-আপ কার দায়িত্বে তা রাখা হয় না, শুধু ব্রাঞ্চ আছে।
+            if (session.role == "master" && instant > 0) {
+                val byBranch = allDueItems.groupBy { it.branch.ifBlank { "—" } }
+                    .mapValues { (_, items) ->
+                        Pair(items.size, items.count { it.nextFollow.isNotBlank() && it.nextFollow < today })
+                    }
+                    .toList().sortedByDescending { it.second.first }
+                if (byBranch.size > 1) {   // একটাই ব্রাঞ্চ হলে দেখানোর মানে নেই, ব্যানারই যথেষ্ট
+                    binding.tvCallBreakdownLink.visibility = android.view.View.VISIBLE
+                    var expanded = false
+                    fun buildRows() {
+                        binding.callBreakdownRows.removeAllViews()
+                        val d = resources.displayMetrics.density
+                        for ((branch, nums) in byBranch) {
+                            val (pending, ov) = nums
+                            val row = android.widget.TextView(this@DashboardActivity).apply {
+                                text = "$branch — $pending pending" + (if (ov > 0) " · $ov overdue" else "")
+                                textSize = 12.5f
+                                setTextColor(android.graphics.Color.parseColor(if (ov > 0) "#D92D20" else "#374151"))
+                                setPadding((10 * d).toInt(), (8 * d).toInt(), (10 * d).toInt(), (8 * d).toInt())
+                                setBackgroundColor(android.graphics.Color.WHITE)
+                                isClickable = true; isFocusable = true
+                                setOnClickListener {
+                                    // 🔴🔒 ঠিক যা `showBranchPickerMenu()` (FollowUpActivity.kt) করে —
+                                    // Master-এর ব্রাঞ্চ-বাছাই এই একটাই জায়গায় জমা থাকে
+                                    // (BranchFilterStore), আলাদা কোনো intent-extra পড়া হয় না।
+                                    BranchFilterStore.set(this@DashboardActivity, branch)
+                                    startActivity(
+                                        Intent(this@DashboardActivity, FollowUpActivity::class.java)
+                                            .putExtra("todayOnly", true)
+                                    )
+                                }
+                            }
+                            binding.callBreakdownRows.addView(row)
+                        }
+                    }
+                    binding.tvCallBreakdownLink.setOnClickListener {
+                        expanded = !expanded
+                        if (expanded) { buildRows(); binding.callBreakdownRows.visibility = android.view.View.VISIBLE }
+                        else binding.callBreakdownRows.visibility = android.view.View.GONE
+                        binding.tvCallBreakdownLink.text = if (expanded) "▲ Hide breakdown" else "👁 Breakdown by branch"
+                    }
+                } else {
+                    binding.tvCallBreakdownLink.visibility = android.view.View.GONE
+                    binding.callBreakdownRows.visibility = android.view.View.GONE
+                }
+
+                // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ — "৩+ দিন ওভারডিউ হলে
+                // সরাসরি Master-কেও জানাতে হবে") — একই cache-পড়া ডেটা
+                // পুনর্ব্যবহার (নতুন fetch নেই)। দিনে **একবারই** পাঠানো হয়
+                // (SharedPreferences-এ আজকের তারিখ জমা রেখে) — নইলে Master
+                // Dashboard-এ ফেরার সাথে সাথেই বারবার নোটিশ জমত।
+                try {
+                    val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                        .format(java.util.Date(System.currentTimeMillis() - 3L * 24 * 60 * 60 * 1000))
+                    val badlyOverdue = allDueItems.filter { it.nextFollow.isNotBlank() && it.nextFollow <= threeDaysAgo }
+                    if (badlyOverdue.isNotEmpty()) {
+                        val alertPrefs = getSharedPreferences("piles_clinic_overdue_alert", android.content.Context.MODE_PRIVATE)
+                        val lastSent = alertPrefs.getString("last_sent_date", "")
+                        if (lastSent != today) {
+                            val byBranch2 = badlyOverdue.groupBy { it.branch.ifBlank { "—" } }
+                            val lines = byBranch2.entries.sortedByDescending { it.value.size }
+                                .joinToString("\n") { (br, items) -> "$br — " + items.size + " calls overdue 3+ days" }
+                            BriefingRepository().post(
+                                this@DashboardActivity,
+                                "⚠️ Overdue Follow-up Alert",
+                                lines,
+                                "individual", session.branch, "", session.mobile, session.mobile
+                            )
+                            alertPrefs.edit().putString("last_sent_date", today).apply()
+                        }
+                    }
+                } catch (_: Throwable) { /* এই সতর্কতা কখনো ড্যাশবোর্ড আটকাতে পারবে না */ }
+            } else {
+                binding.tvCallBreakdownLink.visibility = android.view.View.GONE
+                binding.callBreakdownRows.visibility = android.view.View.GONE
+            }
             // ══════════════════════════════════════════════════════════════
             // 🔴🔴💸 V509 (২১.০৮.২০২৬, TK-নির্দেশ — Supabase Egress ১০০% ছুঁয়ে
             //   ফেলার পরে) — **এখানেই ছিল সবচেয়ে বড় ফুটো।**
@@ -589,8 +1048,9 @@ class DashboardActivity : AppCompatActivity() {
             //   • পাহারায় **ব্রাঞ্চের ছাঁকনি বসানো হয়নি** (`null`) — কারণ
             //     V453-এর cross-branch স্টাফ নিজের ব্রাঞ্চের বাইরের সারিও
             //     দেখেন; ছাঁকনি বসালে ওদের বদল ধরা পড়ত না।
-            //   • `fetchTabDelta()` **ব্যবহার করা হয়নি** — delta ৩০ মিনিট
-            //     পর্যন্ত hard-delete মিস করতে পারে, তাতে ব্যানারের সংখ্যা
+            //   • `fetchTabDelta()` **ব্যবহার করা হয়নি** — delta পূর্ণ-রিফ্রেশের
+            //     ব্যবধান পর্যন্ত (V1258 থেকে ৩ ঘণ্টা) hard-delete মিস করতে
+            //     পারে, তাতে ব্যানারের সংখ্যা
             //     আর তালিকার সংখ্যা আলাদা হয়ে যেত (TK-এর ৫৬ বনাম ৪৭-এর
             //     সমস্যার মতোই)। ঝুঁকি নেওয়া হয়নি।
             //   • অন্তত ৩ মিনিটের ফাঁক — পরপর ব্যাক চাপলে ঝড় ওঠে না।
@@ -609,12 +1069,13 @@ class DashboardActivity : AppCompatActivity() {
             //      **চিরকালের জন্য** বাদ পড়ে যেত। প্রকল্পের সব জায়গায় (যেমন
             //      `SupabaseClient`-এর ৭টা জায়গা ও `SessionGuard`) দুটো একসাথেই
             //      মোছা হয় — এখানেও তাই।
-            //   গ) **৩০ মিনিটে একবার জোর করে পূর্ণ গোনা** (`BANNER_FULL_GAP_MS`)।
+            //   গ) **নির্দিষ্ট সময় পরপর জোর করে পূর্ণ গোনা** (`BANNER_FULL_GAP_MS` —
+            //      V1258 থেকে ৩ ঘণ্টা, আগে ৩০ মিনিট)।
             //      `changed()` শুধু `updatedAt` দেখে, তাই **সত্যিকারের ডিলিট**
             //      (Trash → Delete Forever) সে কোনোদিন দেখতে পায় না; সংখ্যাটা
             //      বেশি দেখাতেই থাকত। এই জোর-করা গোনাটা প্রকল্পের প্রমাণিত
             //      নিয়ম (`FollowUpRepository.FU_FULL_REFRESH_INTERVAL_MS`-ও
-            //      ঠিক ৩০ মিনিট, ঠিক এই কারণেই)। এটা নেট-ব্যর্থতা বা মাঝপথে
+            //      ঠিক একই মাপ, ঠিক এই কারণেই — দুটো সবসময় একসাথে বদলাবে)। এটা নেট-ব্যর্থতা বা মাঝপথে
             //      পর্দা বন্ধ হয়ে যাওয়ার ক্ষেত্রেও নিরাপত্তা-জাল।
             //   ঘ) **HEAD-প্রশ্নেরও নিজের ফাঁক** (`BANNER_PROBE_GAP_MS`)।
             //      নইলে কিছু না বদলালে প্রতিবার ব্যাক চাপলেই ৪টা করে প্রশ্ন যেত।
@@ -755,6 +1216,26 @@ class DashboardActivity : AppCompatActivity() {
             show(com.tkbiswas.pilesclinic.native.AppVersionCheck.newerVersionOrZero(this))
             // তারপর পিছনে গিয়ে (দিনে একবার) আবার দেখে নেওয়া
             com.tkbiswas.pilesclinic.native.AppVersionCheck.refresh(this, false) { newer -> show(newer) }
+
+            /* 📱🔒 V771 (২৮.০৮.২০২৬, TK-নির্দেশ: *"আমি কি করে জানবো — App থেকে
+               দেখার ব্যবস্থা রাখুন"*) — এই ফোন নিজের ভার্সনটা মেঘকে জানিয়ে দেয়,
+               যাতে মাস্টার এক পর্দাতেই দেখতে পান কোন ফোনে কোন ভার্সন চলছে।
+               ⚡ দিনে **একবার** (ভার্সন বদলালে সঙ্গে সঙ্গে) — একটাই ছোট্ট ডাক।
+               ⛔ 🧵 আলাদা থ্রেডে; ব্যর্থ হলে চুপচাপ ছেড়ে দেয়, কিছুই আটকায় না।
+               ⛔ পুরনো ভার্সন-সতর্কবার্তার কোড (উপরে) এক অক্ষরও ছোঁয়া হয়নি। */
+            try {
+                /* 🔴 V775 — এখানে `user` নামে কিছু **নেই**। ওটা `onCreate()`-এর
+                   ভিতরের নিজস্ব ভেরিয়েবল (line 79), এই ফাংশনের নয় — V771-এ
+                   আমি ভুল করে ওটাই লিখে ফেলেছিলাম, তাই Android Studio-তে
+                   বিল্ড ভেঙেছিল ("Unresolved reference: user")।
+                   ⇒ এখন সরাসরি সেশন থেকেই নেওয়া হয়, যেভাবে এই ফাইলের
+                     আরও ৪ জায়গায় নেওয়া হয় (line 39 · 258 · 315)। */
+                val mob = NativeSession.current(this)?.mobile.orEmpty()
+                if (mob.isNotBlank()) Thread {
+                    com.tkbiswas.pilesclinic.native.AppVersionReporter
+                        .reportIfDue(applicationContext, mob)
+                }.start()
+            } catch (_: Throwable) { }
         } catch (_: Throwable) { }
     }
 
@@ -810,7 +1291,28 @@ class DashboardActivity : AppCompatActivity() {
             }
         }
         binding.btnSyncRetry.setOnClickListener(retry)
-        binding.syncWarnBanner.setOnClickListener(retry)
+        /* 🟢🔒 V706 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — TK: *"কোন
+           পেশেন্ট এর পেমেন্ট আটকে রয়েছে সেটাই বা আমি জানবো কি করে"*।
+           ⇒ লাল বাক্সে **চাপ দিলে এখন তালিকা** খোলে (নাম · রোগী নম্বর · টাকা ·
+             তারিখ), আর তালিকার নিচেই "Send All" — সেটা হুবহু আগের `retry`-ই
+             চালায়, নতুন কোনো পাঠানোর পথ বানানো হয়নি।
+           ⛔ পাশের ছোট "send" বোতাম (`btnSyncRetry`) আগের মতোই সরাসরি পাঠায় —
+              এক অক্ষরও বদলায়নি, তাই পুরোনো অভ্যাস অটুট।
+           ⛔ দীর্ঘ-চাপের কাজটাও (নিচে, B274) অপরিবর্তিত।
+           ⛔ TK-নির্দেশ: *"বাংলা হবে না, শুধুমাত্র ইংরেজিতে করুন"* ⇒ এই
+              পপ-আপের প্রতিটা লেখা ইংরেজি। */
+        binding.syncWarnBanner.setOnClickListener {
+            lifecycleScope.launch {
+                val items = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try { PendingSyncStatus.details(this@DashboardActivity) }
+                    catch (_: Throwable) { emptyList<PendingSyncStatus.Item>() }
+                }
+                if (isFinishing || isDestroyed) return@launch
+                // কিছু পড়া না গেলে আগের আচরণেই ফেরত — বোতামটা যেন কখনো "মরে" না যায়
+                if (items.isEmpty()) { retry.onClick(binding.syncWarnBanner); return@launch }
+                showPendingListDialog(items, retry)
+            }
+        }
         // 🔒🔒 B274 (02.08.2026, TK-অনুমোদিত): লাল বাক্সে **দীর্ঘ চাপ** দিলে
         // "যায়নি" (স্থায়ীভাবে ব্যর্থ) এন্ট্রিগুলো ছেড়ে দেওয়ার অপশন — শুধু তখনই
         // কাজ করে যখন সত্যিই কিছু "যায়নি" ঘরে আছে (`failedCount > 0`); সচল
@@ -834,6 +1336,88 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
+    /** 🟢🔒 V706 — "Not sent to the cloud" তালিকা। শুধু দেখায়; পাঠানোর কাজটা
+     *  পুরোনো `retry` listener-ই করে। সব লেখা ইংরেজি (TK-নির্দেশ)। */
+    private fun showPendingListDialog(
+        items: List<PendingSyncStatus.Item>,
+        retry: android.view.View.OnClickListener
+    ) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(4), dp(6), dp(4), dp(2))
+        }
+        for (it in items) {
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                setPadding(dp(14), dp(9), dp(14), dp(9))
+            }
+            val left = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            left.addView(android.widget.TextView(this).apply {
+                text = it.name
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#10223A"))
+            })
+            val sub = listOf(it.kind, it.code, it.date).filter { p -> p.isNotBlank() }.joinToString(" · ")
+            left.addView(android.widget.TextView(this).apply {
+                text = sub
+                textSize = 11f
+                setTextColor(android.graphics.Color.parseColor("#5A6B80"))
+            })
+            if (it.why.isNotBlank()) {
+                left.addView(android.widget.TextView(this).apply {
+                    text = it.why
+                    textSize = 10.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    // টাকা পৌঁছে গেছে হলে হলুদ, টাকাই যায়নি হলে লাল
+                    val sent = it.why.startsWith("Money sent")
+                    setTextColor(android.graphics.Color.parseColor(if (sent) "#8A5A00" else "#A02A2A"))
+                    setPadding(dp(7), dp(1), dp(7), dp(1))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(10).toFloat()
+                        setColor(android.graphics.Color.parseColor(if (sent) "#FFF6E5" else "#FDECEA"))
+                    }
+                    val lp = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.topMargin = dp(3)
+                    layoutParams = lp
+                })
+            }
+            row.addView(left)
+            if (it.amount.isNotBlank()) {
+                row.addView(android.widget.TextView(this).apply {
+                    text = it.amount
+                    textSize = 13f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                })
+            }
+            box.addView(row)
+            box.addView(android.view.View(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                setBackgroundColor(android.graphics.Color.parseColor("#EEF2F7"))
+            })
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(box) }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "\u26A0 Not sent to the cloud - ${items.size}"))
+            .setView(scroll)
+            .setPositiveButton("Send All") { _, _ -> retry.onClick(binding.syncWarnBanner) }
+            .setNegativeButton("Close", null)
+            .show().also { dlg ->
+                PremiumAlert.paint(dlg)
+                try { NoBengali.installDialog(dlg) } catch (_: Throwable) { }
+            }
+    }
+
     /** Notification bell: shows unseen-notice count and today's pending-call count.
      *  🆕 (06.08.2026, TK-অনুমোদনে, খাতার সারি — "ঘন্টায় সংখ্যা আছে কিন্তু ভিতরে ফাঁকা"):
      *  আগে সরাসরি Briefing পাতা খুলত, যেখানে শুধু নোটিশ ও (Master-only)
@@ -855,7 +1439,12 @@ class DashboardActivity : AppCompatActivity() {
             val count = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 BellCounter.count(this@DashboardActivity, session)
             }
-            binding.tvBell.text = if (count > 0) "🔔 $count" else "🔔"
+            // 🎨 V1084 — সংখ্যাটা এখন ঘণ্টার পাশের লাল ব্যাজে (TK-এর নকশা)।
+            //    ⛔ ০ হলে ব্যাজ লুকানো, তাই আগের মতোই শুধু "🔔" দেখা যায়।
+            binding.tvBell.text = "🔔"
+            binding.tvBellBadge.text = if (count > 99) "99+" else count.toString()
+            binding.tvBellBadge.visibility =
+                if (count > 0) android.view.View.VISIBLE else android.view.View.GONE
             BellNotifier.onCount(this@DashboardActivity, session, count)
         }
     }
@@ -904,7 +1493,19 @@ class DashboardActivity : AppCompatActivity() {
         // ⛔ `roles`-তালিকা মেলানো আগের মতোই `role` (permission-role) দিয়েই —
         //    তাই Master/Staff/Field-এর ড্যাশবোর্ড এক চুলও বদলায়নি।
         val realRole = NativeSession.current(this)?.displayRole ?: role
-        val allowed = if (realRole == "doctor") label in DOCTOR_DASHBOARD_TILES else role in roles
+        // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE-এর ফোনে শুধু
+        // "Dr. Visit" বাক্সটাই, বাকি সব (role/roles যা-ই বলুক) লুকানো।
+        // ⛔ অন্য কারো ড্যাশবোর্ড এক চুলও বদলায় না — উপরের ডাক্তারের নিয়মের
+        //    (DOCTOR_DASHBOARD_TILES) হুবহু একই কম-ঝুঁকির প্যাটার্নে বসানো হলো।
+        // 🔴 V1401 (১২.০৯.২০২৬ সন্ধ্যা, TK: *"শুধুমাত্র ডক্টর ভিজিটিং আর স্টাফ
+        //    নোটবুক এই দুটি আসার কথা ছিল"*) — **আমার ভুল:** V1380-তে Work Notebook
+        //    (IN TIME/OUT TIME) বাক্সটাও লুকিয়ে ফেলেছিলাম, অথচ TK-র নির্দেশ ছিল
+        //    Dr. Visit + IN/OUT TIME (RoleRules-এর নোটেই লেখা)। এখন দুটোই আসে।
+        val allowed = when {
+            RoleRules.isDoctorVisitOnly(this) -> label == "Dr. Visit" || label == "Work Notebook"
+            realRole == "doctor" -> label in DOCTOR_DASHBOARD_TILES
+            else -> role in roles
+        }
         if (allowed) {
             tile.tvIcon.text = icon
             tile.tvLabel.text = label
@@ -941,6 +1542,49 @@ class DashboardActivity : AppCompatActivity() {
         tile.root.setOnClickListener { onClick() }
     }
 
+    /** ফোনে জমানো তালিকা থেকে সম্পূর্ণ নাম; না পেলে সেশনের লেখাটাই। */
+    private fun welcomeFullName(user: NativeUser): String {
+        val cached = try {
+            CloudStaffDirectory.cachedNameFor(applicationContext, user.mobile)
+        } catch (_: Throwable) { null }
+        return cached?.takeIf { it.isNotBlank() } ?: user.name
+    }
+
+    /** TK-অনুমোদিত "ক": উপরে ছোট করে `Welcome,`, নিচের লাইনে বড় করে পুরো নাম।
+     *  👤🔒 V1426 (১৩.০৯.২০২৬, TK: *"এক লাইনে হবে যত বড় নামই হোক না কেন"*, তালিকা ৫২৮) —
+     *  নাম জায়গায় না আঁটলে (যেমন CHANDANA ROY PR…) "…" নয়: নামের অক্ষর ঠিক ততটুকু
+     *  ছোট হয় যাতে পুরো নাম এক লাইনে আঁটে। ছোট নামে কিছুই বদলায় না। */
+    private fun renderWelcome(fullName: String) {
+        val head = "Welcome,\n"
+        fun build(nameScale: Float): android.text.SpannableStringBuilder {
+            val sp = android.text.SpannableStringBuilder(head + fullName)
+            /* উপরের লাইন — ছোট, হালকা রং, মোটা নয় (XML-এ পুরোটা bold, তাই খোলা হয়)। */
+            sp.setSpan(android.text.style.RelativeSizeSpan(11f / 14f), 0, head.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#CFE8D8")),
+                0, head.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), 0, head.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            /* নিচের লাইন — নামটাই বড়, সাদা ও মোটা। */
+            sp.setSpan(android.text.style.RelativeSizeSpan(nameScale), head.length, sp.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sp
+        }
+        val normalScale = 15f / 14f
+        binding.tvWelcome.text = build(normalScale)
+        binding.tvWelcome.post {
+            val avail = binding.tvWelcome.width - binding.tvWelcome.paddingLeft - binding.tvWelcome.paddingRight
+            if (avail <= 0 || fullName.isBlank()) return@post
+            val paint = android.text.TextPaint(binding.tvWelcome.paint)
+            paint.textSize = binding.tvWelcome.textSize * normalScale
+            val needed = paint.measureText(fullName)
+            if (needed > avail) {
+                val shrunk = (normalScale * avail / needed) * 0.97f
+                binding.tvWelcome.text = build(shrunk.coerceAtLeast(8f / 14f))
+            }
+        }
+    }
+
     private fun confirmLogout() {
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Logout"))
@@ -964,8 +1608,20 @@ class DashboardActivity : AppCompatActivity() {
         /** 🔴🔒 V509 — এত সময় পার হলে **জোর করে** পূর্ণ গোনা, পাহারা যাই বলুক।
          *  কারণ: পাহারা শুধু `updatedAt` দেখে, তাই সত্যিকারের ডিলিট সে ধরতে
          *  পারে না; আর নেট-ব্যর্থতা/মাঝপথে পর্দা বন্ধের ক্ষেত্রেও এটা জাল।
-         *  ⛔ প্রকল্পের প্রমাণিত মাপ — `FollowUpRepository`-র delta-জালও ৩০ মিনিট। */
-        private const val BANNER_FULL_GAP_MS = 30L * 60L * 1000L
+         *  ⛔ প্রকল্পের প্রমাণিত মাপ — `FollowUpRepository`-র delta-জালের সঙ্গে
+         *     **সবসময় এক** রাখতে হবে; নইলে ব্যানারের সংখ্যা আর তালিকার সংখ্যা
+         *     বেমানান হয় (TK-এর "৫৬ বনাম ৪৭"-এর সমস্যা)।
+         *
+         *  📉🔒 V1258 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-প্লানের **ধাপ ৩**) —
+         *     ৩০ মিনিট → **৩ ঘণ্টা**। এই জোর-করা গোনাটা তিনটে পূর্ণ `fetchTab()`
+         *     চালায় (ব্রাঞ্চের ছাঁকনি ছাড়া) — অ্যাপের অন্যতম ভারী পড়া। ব্যবধান
+         *     ৬ গুণ হলে ওই খরচ ৬ ভাগের এক।
+         *  ⛔ সস্তা HEAD-পাহারা (`bannerWatch.changed`) আগের মতোই প্রতিবার চলে —
+         *     তাই নতুন/বদলানো সারি ব্যানারে আগের মতোই দ্রুত ধরা পড়ে; শুধু
+         *     **সত্যিকারের ডিলিট** সরতে সর্বোচ্চ ৩০ মিনিটের বদলে ৩ ঘণ্টা লাগতে
+         *     পারে (TK-কে কাজের আগেই বলা হয়েছে)।
+         *  ⛔ `FollowUpRepository.FU_FULL_REFRESH_INTERVAL_MS`-ও একই টার্নে ৩ ঘণ্টা। */
+        private const val BANNER_FULL_GAP_MS = 3L * 60L * 60L * 1000L
         /** 🔴💸 V509 — ব্যানারের পাহারা ও ঘড়িগুলো **অ্যাপের**, পর্দার নয়:
          *  ফোন ঘোরালে বা পর্দা নতুন করে তৈরি হলেও ফাঁকটা মুছে যায় না।
          *  ⛔ চাবিতে মোবাইল নম্বর + ব্রাঞ্চ দুটোই আছে, তাই অন্য কেউ লগইন করলে
@@ -990,7 +1646,10 @@ class DashboardActivity : AppCompatActivity() {
             "CHECK-UP",       // Check Up  (উপরে-বাঁয়ে)
             "Print",          //           (উপরে-ডানে)
             "Chamber Date",   //           (নিচে-বাঁয়ে)
-            "Payment"         //           (নিচে-ডানে)
+            "Payment",        //           (নিচে-ডানে)
+            // 🔔 V1186 (TK-নির্দেশ): *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে"* —
+            //    তাই ডাক্তারের ছোট তালিকাতেও এটা যোগ হলো।
+            "Doctor Reminder"
             // "Dr. Visit" — 08.08.2026-এ সরানো, এখন Menu-তে (উপরের নোট দেখুন)
         )
     }

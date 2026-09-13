@@ -4,7 +4,7 @@
 
 1. ModuleAuth session persist/reuse fix + JWT reAuth বাগ-ফিক্স (V453, V465)
 2. Password Center — ২২ জনের individual password (TK SQL চালিয়েছেন ✅)
-3. KNE-KISHAN5→KNE-KISHAN6 (SITARA PARBIN) — Android+Web
+3. KNE-KISHAN5→KNE-KISHAN6 — Android+Web
 4. Dr. K.H MANDAL cross-branch checkup — যাচাই করা, আগে থেকেই কাজ করত
 5. JPE-CRP cross-branch (Falakata+Birpara, টাকা বাদে) — Android+Web
 6. Delta-fetch ("শুধু বদলানো অংশ নামুক"):

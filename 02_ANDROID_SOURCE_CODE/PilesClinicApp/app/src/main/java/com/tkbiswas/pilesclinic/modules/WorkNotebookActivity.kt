@@ -130,6 +130,24 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun callTxt(s: JSONObject, key: String): String =
         if (callsOk(s)) s.optInt(key).toString() else "…"
 
+    /**
+     * 🚨🔒 V1187 (০৭.০৯.২০২৬, TK-রিপোর্ট): *"KISHAN-10 & 11 এরা কিছু
+     * রেজিষ্ট্রেশন করেছে … কিন্তু তাদের টা কেন 0 আমাকে যখন Daily Report পাঠায়"*।
+     *
+     * 🔴 **আসল কারণ (কোডে মেপে দেখা, আন্দাজ নয়):** New Enquiry ও Registration-এর
+     *    সংখ্যা মেঘ থেকে পড়া হয়, আর পড়া সফল হলো কিনা সেটা আগে থেকেই
+     *    `enqOk` / `regOk`-এ জানা থাকে (B496)। **পর্দায়** ব্যর্থ হলে "…" দেখানো হয়,
+     *    কিন্তু **WhatsApp-এর রিপোর্টে** ওই পাহারাটা বসানো হয়নি — সেখানে সোজা
+     *    `optInt()` লেখা ছিল, তাই পড়া ব্যর্থ হলেই **"0"** চলে যেত। ⇒ কাজ করা
+     *    সত্ত্বেও মাস্টারের কাছে "০ রেজিস্ট্রেশন" পৌঁছাত।
+     *
+     * ⇒ এখন কল-এর মতোই একই পাহারা: পড়া ব্যর্থ হলে **"…"**, কখনো মিথ্যে "0" নয়।
+     * ⛔ পড়া সফল হলে সংখ্যা হুবহু আগের মতোই — একটাও গোনার নিয়ম বদলায়নি।
+     * ⛔ পর্দার সংখ্যা আগে থেকেই ঠিক ছিল, সেটা ছোঁয়া হয়নি; এখন দুই জায়গা মেলে।
+     */
+    private fun statTxt(s: JSONObject, key: String, okKey: String): String =
+        if (s.optBoolean(okKey, true)) s.optInt(key).toString() else "…"
+
     private fun callTapCode(): String =
         try { ModuleAuth.expectedCode(this) ?: staffCode } catch (_: Throwable) { staffCode }
 
@@ -173,6 +191,36 @@ class WorkNotebookActivity : AppCompatActivity() {
     /** বিকেল ৪:০০ — এর আগে OUT TIME হলে Late। */
     private fun earlyOutBeforeMinutes(): Int = 16 * 60
 
+    /* 🕒🔒 V1244 (০৮.০৯.২০২৬, TK-নির্দেশ ও অনুমোদন — খাতার সারি ৩৬৫):
+       IN TIME-এর মতো **OUT TIME-এও সময়ের সীমা** — দুপুর ১২টা থেকে রাত ৯টা।
+       রাত ২টোয় OUT TIME বসানো আর সম্ভব নয়।
+
+       🏍️ **রূপম বাদ (TK-র হুবহু নির্দেশ):** *"রূপমের জন্য কোনো সময়সীমা
+          থাকবে না, কারণ সে গ্রামে গ্রামে গিয়ে RMP ডাক্তারদের কাছে ভিজিট করে —
+          কোনদিন সন্ধ্যাতে, কোনদিন রাত্রেও বাড়িতে আসতে পারে।"*
+          চেনা হয় প্রকল্পের **আগে থেকে প্রমাণিত** `FieldVisit.isFieldStaff()`
+          দিয়েই — নতুন কোনো তালিকা বা নম্বর বসানো হয়নি।
+
+       ⚠️ যাচাই করে জানানো: TK-র সন্ধ্যা ৭.৩০-এর নিয়মটা (V1166) কোডে **আছে**,
+          কিন্তু ওটা শুধু **মনে করিয়ে দেয়** — আটকায় না। সেটা অপরিবর্তিত রইল;
+          এই সীমাটা তার উপরে বাড়তি।
+       ⛔ ভিতরের সময়ে আচরণ হুবহু আগের মতোই। ⛔ IN TIME-এর নিয়ম ছোঁয়া হয়নি। */
+    private fun outTimeFromMin(): Int = 12 * 60      // দুপুর ১২টা
+    private fun outTimeToMin(): Int = 21 * 60        // রাত ৯টা
+
+    /** OUT TIME এখন দেওয়া যাবে কিনা; না গেলে সৎ বার্তা দেখিয়ে false ফেরে। */
+    private fun outTimeAllowedNow(): Boolean {
+        try {
+            // 🏍️ রূপমের (মাঠে ঘোরা স্টাফ) কোনো সীমা নেই
+            if (com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(this)) return true
+            val c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"))
+            val m = c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+            if (m in outTimeFromMin()..outTimeToMin()) return true
+            ModuleUi.toast(this, "OUT TIME can only be marked between 12:00 PM and 9:00 PM.")
+            return false
+        } catch (_: Throwable) { return true }   // ⛔ সন্দেহ হলে কখনো আটকানো নয়
+    }
+
     /** `"HH:mm"` → মিনিটে। পড়া না গেলে `null`। */
     private fun minutesOf(hhmm: String): Int? = try {
         val p = hhmm.trim().split(":")
@@ -205,6 +253,17 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun money(n: Double): String = "₹" + com.tkbiswas.pilesclinic.native.MoneyFormat.inr(n)
 
     private var quickMarkKind = ""
+
+    /* 🏥🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চে ডিউটি ও
+       Work From Home-এর জন্য তিনটে ছোট মনে-রাখা ঘর।
+       • [dutyBranch]        — IN TIME চাপার সময় স্টাফ **যে ক্লিনিকে দাঁড়িয়ে
+                               ছিলেন** তার নাম; খাতার সারিতে এটাই বসে।
+       • [workedFromHome]    — মাস্টারের অনুমতিতে বাড়ি থেকে হাজিরা কিনা।
+       • [wfhApprovedToday]  — আজকের অনুমতি আছে কিনা, একবার পড়ে রাখা হয়
+                               (`null` = এখনো পড়া হয়নি)। */
+    private var dutyBranch = ""
+    private var workedFromHome = false
+    private var wfhApprovedToday: Boolean? = null
 
     // 🔴🆕🔒 খাতার সারি B440/B441 (TK-নির্দেশ, 05.08.2026 — "প্রতিটা
     // ব্রাঞ্চের নির্দিষ্ট ফোনে সারাদিন যত Incoming Call আসে, স্বয়ংক্রিয়ভাবে
@@ -265,6 +324,77 @@ class WorkNotebookActivity : AppCompatActivity() {
             }
         }
 
+    /* 🛰️🔒 V1156 (০৭.০৯.২০২৬, TK: *"১৩৯ Field Visit Tracking এবার ঠিক করুন"*)।
+       **আসল কারণ (কোডে মেপে পাওয়া):** উপরের অনুমতি-বাক্সটা খোলে শুধু
+       *ক্লিনিকে-আছেন-কিনা* যাচাইয়ের ভিতরে। বাইরে ঘোরা স্টাফ (RUPAM) TK-এর
+       নিজেরই নিয়মে ওই যাচাই এড়িয়ে যান (V650) ⇒ তাঁর ফোনে অনুমতির বাক্স
+       **কোনোদিন উঠতই না** ⇒ GPS-সেবা চুপচাপ ফিরে যেত ⇒ কিলোমিটার চিরকাল ০.০।
+       ⇒ এখন ফিল্ড ভিজিটের জন্য **নিজের একটা অনুমতি-বাক্স**। অনুমতি পেলে
+         গোনা সঙ্গে সঙ্গে চালু, না পেলে Settings-এ যাওয়ার পথ।
+       ⛔ হাজিরা (IN/OUT TIME) এতে **কখনো আটকায় না** — অনুমতি না দিলেও IN TIME
+          আগের মতোই সেভ হয়ে থাকে, শুধু কিলোমিটার গোনা হয় না। */
+    /* 🛰️🔒 V1344 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে fine-অথবা-coarse যেকোনো
+       একটাতেই "granted" বলে "km will now be counted" দেখাত, কিন্তু আসল
+       GPS-সেবা শুধু fine (Precise) ছাড়া চলেই না — "Approximate" বেছে নিলে
+       এই মিথ্যা বার্তার পরেও কিমি চিরকাল ০.০ থেকে যেত (RUPAM-এর ফোনে এটাই
+       ধরা পড়েছে)। এখন শুধু fine granted হলেই "হয়ে গেছে"; শুধু coarse হলে
+       আলাদা, স্পষ্ট বার্তা — Settings থেকে "Precise" চালু করতে বলা হয়। */
+    private val requestFieldLocationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val fine = result[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+            val coarse = result[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (fine) {
+                try { com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this) } catch (_: Throwable) { }
+                ModuleUi.toast(this, "Location allowed - km will now be counted.")
+            } else if (coarse) {
+                inTimeMessage(
+                    "Precise Location needed",
+                    "Only \"Approximate\" location was allowed - km cannot be counted with this.\n\n" +
+                        "Please open Settings, go to Location permission, and choose \"Precise\" " +
+                        "(sometimes called \"Use precise location\"), then try again.",
+                    "#A8281C",
+                    extraLabel = "Open Settings",
+                    extra = { openAppSettings() }
+                )
+            } else {
+                ModuleUi.toast(this, "Without Location permission km cannot be counted.")
+            }
+            try { render() } catch (_: Throwable) { }
+        }
+
+    /**
+     * 🛰️ V1156 — ফিল্ড ভিজিটের গোনা সত্যিই চলতে পারবে কি না, সেটা নিশ্চিত করা।
+     * অনুমতি না থাকলে বাক্স খোলে; বাক্স না উঠলে (আগে "Don't ask again" চাপা
+     * থাকলে) অ্যাপের Settings পাতা।
+     * 🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে শুধু বাইরে ঘোরা স্টাফের
+     * (RUPAM) ফোনে চলত। এখন `tracksAttendanceLocation()`-এর মাধ্যমে সব
+     * আসল স্টাফের (branch-সহ) ফোনেই একই প্রম্পট আসে — ⛔ কখনো বাধ্যতামূলক
+     * নয়, না দিলেও IN TIME/OUT TIME আগের মতোই কাজ করে (TK স্পষ্ট করেছেন)।
+     */
+    private fun ensureFieldLocationReady(fromButton: Boolean) {
+        try {
+            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+            if (!fv.tracksAttendanceLocation(this)) return
+            if (!fv.hasLocationPermission(this)) {
+                try {
+                    requestFieldLocationPermission.launch(
+                        arrayOf(
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                } catch (_: Throwable) { if (fromButton) openAppSettings() }
+                return
+            }
+            // অনুমতি আছে, কিন্তু ফোনের Location সুইচ বন্ধ — ওই পাতাটা খোলা হয়।
+            if (!fv.isLocationOn(this)) { if (fromButton) openLocationSettings(); return }
+            if (fromButton) {
+                try { com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this) } catch (_: Throwable) { }
+                ModuleUi.toast(this, "Location is on - km is being counted.")
+            }
+        } catch (_: Throwable) { }
+    }
+
     /** অ্যাপের নিজের Settings পাতা — সেখান থেকে হাতে অনুমতি দেওয়া যায়। */
     private fun openAppSettings() {
         try {
@@ -317,10 +447,18 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun maybeAskWhichSimIsBranch() {
         if (com.tkbiswas.pilesclinic.native.BranchSimHelper.hasGenuinelyChosenSim(this)) { applyAutoOutsideCalls(); return } // 🔴🔒 B509
         if (com.tkbiswas.pilesclinic.native.BranchSimHelper.hasChamberAnswer(this)) { applyAutoOutsideCalls(); return }
-        val auto = com.tkbiswas.pilesclinic.native.BranchSimHelper.tryAutoDetectChamberNumber(this)
-        if (auto != null) {
-            com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, auto)
-            if (auto) askWhichSimSlot() else applyAutoOutsideCalls()
+        /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-রিপোর্ট — "চেম্বারের সিম লাগানো স্টাফের
+           ফোনেও ব্যানার আসে না") — **আমার দোষ (স্বীকার করছি):** আগে এখানে
+           নিজে-পড়া সিম-নম্বর ব্রাঞ্চের নম্বরের সাথে না মিললে **চুপচাপ "না,
+           এই ফোনে চেম্বারের নম্বর নেই"** লিখে রাখা হতো — স্টাফকে প্রশ্নই না
+           করে। অথচ V633-এই লেখা আছে Android-এর `line1Number` প্রায়ই ভুল/পুরনো
+           নম্বর দেয়। ফলে চেম্বারের সিম-লাগানো ফোনেও "না" বসে যেত, আর কখনো
+           প্রশ্ন আসত না ⇒ কল-ব্যানার ওই ফোনে চিরতরে বন্ধ।
+           **এখন:** নিজে-পড়া নম্বর ব্রাঞ্চের নম্বরের সাথে **মিললে তবেই** "হ্যাঁ"
+           ধরা হয়; না মিললে/না পড়তে পারলে **স্টাফকেই জিজ্ঞাসা** করা হয়। */
+        if (com.tkbiswas.pilesclinic.native.BranchSimHelper.tryAutoDetectChamberNumber(this) == true) {
+            com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, true)
+            askWhichSimSlot()
             return
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -331,7 +469,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                 com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, true)
                 askWhichSimSlot()
             }
-            .setNegativeButton(NoBengali.s("না")) { _, _ ->
+            .setNegativeButton(NoBengali.s("No")) { _, _ ->
                 com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, false)
                 applyAutoOutsideCalls()
             }
@@ -397,7 +535,33 @@ class WorkNotebookActivity : AppCompatActivity() {
             com.tkbiswas.pilesclinic.native.BranchSimHelper.hasChamberAnswer(this)
         if (!resolved) { maybeAskWhichSimIsBranch(); return }
         val n = countTodayIncomingCalls()
-        if (n > 0 && field.text.toString().trim().let { it.isBlank() || it == "0" }) field.setText(n.toString())
+        if (n > 0 && field.text.toString().trim().let { it.isBlank() || it == "0" }) {
+            field.setText(n.toString())
+            pushOutsideCallsSilently(n)
+        }
+    }
+
+    /* 🔴🔒 V909 (৩১.০৮.২০২৬, TK-নির্দেশ: *"আসা কলও চেম্বারের ফোন থেকেই গুনবেন,
+       … ওই নম্বর দিয়ে যে ফোনেই লগ ইন করবে একই রকম দেখাতে হবে"*)
+
+       আগে ক্লিনিকের নম্বরে আসা কলের গোনাটা ক্লাউডে যেত **শুধু স্টাফ সেভ/OUT
+       TIME চাপার পরে**। তার আগে পর্যন্ত অন্য ফোনে ওই ঘর ফাঁকা/০ থাকত — তাই
+       একই আইডিতে দুই ফোনে দুই রকম দেখাত।
+       এখন চেম্বারের ফোন সংখ্যাটা বার করার **সঙ্গে সঙ্গেই** ক্লাউডে বসিয়ে দেয়,
+       তাই যে ফোনেই ওই আইডিতে খোলা হোক, একই সংখ্যা।
+       ⛔ সংখ্যা কখনো কমে না — জমা সংখ্যার চেয়ে বড় হলে তবেই লেখা হয়।
+       ⛔ চুপচাপ — ব্যর্থ হলে কোনো সতর্কবার্তা দেখায় না (স্টাফ কিছু চাপেননি);
+          সেভ/OUT TIME-এর নিজের পথ ও তার বার্তা এক অক্ষরও বদলায়নি। */
+    private fun pushOutsideCallsSilently(n: Int) {
+        try {
+            if (!day.has("work_date")) return
+            if (day.optInt("outside_calls_manual", 0) >= n) return
+            day.put("outside_calls_manual", n)
+            day.put("updated_at", nowIso())
+            val snapshot = try { JSONObject(day.toString()) } catch (_: Throwable) { return }
+            try { saveDayCache() } catch (_: Throwable) { }
+            Thread { try { robustSaveNotebookDay(snapshot) } catch (_: Throwable) { } }.start()
+        } catch (_: Throwable) { }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -412,7 +576,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                 this,
                 NoBengali.s(com.tkbiswas.pilesclinic.native.RoleRules.DOCTOR_NO_ATTENDANCE_MSG),
                 android.widget.Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             finish()
             return
         }
@@ -432,7 +596,13 @@ class WorkNotebookActivity : AppCompatActivity() {
         // কোনো IN/OUT সেভ না-বসে জমা থাকলে সেটা ক্লাউডে বসে যায়), **তারপর আজকের
         // দিন লোড** — তাই "হারানো IN TIME" আর দেখাবে না। ⛔ জমা খালি থাকলে
         // flushPendingNotebook() সঙ্গে সঙ্গে ফিরে আসে (বাড়তি কিছু হয় না)।
-        ModuleUi.ensureSignedIn(this, staffCode) { flushThenLoad() }
+        /* 🔎🔒 V932 — কোন ধাপে আটকাচ্ছে সেটা পর্দায় দেখানোর জন্য (OpenTrace)।
+           ⛔ শুধু একটা ছোট লেখা — কোনো নিয়ম · হিসাব · সেভ কিছুই বদলায়নি। */
+        OpenTrace.step(this, "0. notebook screen started")
+        ModuleUi.ensureSignedIn(this, staffCode) {
+            OpenTrace.step(this, "7. saving pending marks")
+            flushThenLoad()
+        }
     }
 
     // 🔴🆕 V433 (TK-নির্দেশ ১৮.০৮.২০২৬ — "WhatsApp এ একবার পাঠানো হয়ে গেলে আর
@@ -444,7 +614,7 @@ class WorkNotebookActivity : AppCompatActivity() {
     //    "wn_prefs" — markReminderFlag-এর হুবহু একই প্রমাণিত ধরন), Supabase-এ
     //    কোনো নতুন ঘর লেখা হয় না, তাই সেভ ভাঙার কোনো ঝুঁকি নেই।
     // ⛔ তারিখ মিলিয়ে দেখা হয় — পরের দিন নিজে থেকেই আবার বোতাম ফিরে আসে।
-    // ⛔ "না" বললে বোতাম থেকেই যায় — কেউ কখনো আটকা পড়বে না।
+    // ⛔ "No" বললে বোতাম থেকেই যায় — কেউ কখনো আটকা পড়বে না।
     private fun waSentKey(kind: String) = if (kind == "in") "wa_sent_in_date" else "wa_sent_out_date"
 
     private fun isWaSent(kind: String): Boolean = try {
@@ -464,6 +634,10 @@ class WorkNotebookActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        /* 👨‍⚕️ V1032 — পর্দায় ফিরলেই আজকের ডাক্তার-ভিজিটের গোনা নতুন করে
+           (RMP পর্দা থেকে ফিরলে সঙ্গে সঙ্গে সংখ্যাটা মিলে যায়)। পিছনের
+           থ্রেডে চলে, তাই পর্দা এক মুহূর্তও আটকায় না। */
+        loadDocVisitToday()
         val kind = waAskKind
         waAskKind = ""
         if (kind.isBlank() || isWaSent(kind)) return
@@ -471,12 +645,12 @@ class WorkNotebookActivity : AppCompatActivity() {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(
                     this, NoBengali.s("পাঠানো হয়েছে?")))
-                .setMessage(NoBengali.s("WhatsApp-এ পাঠানো হয়ে গেছে?"))
-                .setPositiveButton(NoBengali.s("হ্যাঁ, পাঠানো হয়েছে")) { _, _ ->
+                .setMessage(NoBengali.s("Has it been sent on WhatsApp?"))
+                .setPositiveButton(NoBengali.s("Yes, sent")) { _, _ ->
                     setWaSent(kind)
                     try { render() } catch (_: Throwable) { }
                 }
-                .setNegativeButton(NoBengali.s("না, পাঠানো হয়নি"), null)
+                .setNegativeButton(NoBengali.s("No, not sent"), null)
                 .setCancelable(true)
                 .show().also {
                     try { NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { }
@@ -581,8 +755,39 @@ class WorkNotebookActivity : AppCompatActivity() {
             dayFromCache = false
             dayLoadFailed = false
             saveDayCache()   // 🔴 V511 — আজকের সারিটা এই ফোনে জমা রইল
-            runOnUiThread { dismissWnLoading(); maybeShowQuickMark() }
+            runOnUiThread {
+                dismissWnLoading()
+                /* ⏰ V1166 — জোর-করে-জিজ্ঞাসার পপ-আপটা **আগে** দেখা হয়; সেটা
+                   উঠলে quick-mark পপ-আপ আর দেখানো হয় না (নইলে দুটো পপ-আপ
+                   একটার উপর আরেকটা জমত — নিজে মেপে ধরা)। জোরেরটাই জেতে,
+                   কারণ TK-র নিয়ম: *"জোর করে নোটিফিকেশন দেবে"*। */
+                if (maybeAskOutTime()) { quickMarkKind = ""; render() } else maybeShowQuickMark()
+            }
         }.start()
+    }
+
+    /* ⏰🔒 V1166 (০৭.০৯.২০২৬, TK-নির্দেশ) — সন্ধ্যা ৭.৩০-এর পরে OUT TIME না
+       দেওয়া থাকলে **জোর করে** জিজ্ঞাসা: আর কতক্ষণ থাকবেন ও কেন। বসানো সময়
+       পেরোলে আবার। ⛔ শুধু তখনই, যখন আজ IN TIME দেওয়া আছে কিন্তু OUT নেই —
+       ছুটির দিনে বা না-আসা দিনে কখনো নয়। ⛔ হাজিরার কোনো ঘর এখান থেকে লেখা
+       হয় না; "OUT TIME now" চাপলে প্রকল্পের পুরনো প্রমাণিত পথটাই চলে। */
+    /** @return পপ-আপটা সত্যিই দেখানো হলো কিনা (তাহলে quick-mark আর দেখানো হয় না)। */
+    private fun maybeAskOutTime(): Boolean {
+        try {
+            if (isFinishing || isDestroyed) return false
+            if (day.optBoolean("is_leave", false)) return false
+            val hasIn = ns(day, "check_in").isNotBlank()
+            val hasOut = ns(day, "check_out").isNotBlank()
+            if (!com.tkbiswas.pilesclinic.native.OutTimePrompt.shouldAsk(this, hasIn, hasOut)) return false
+            com.tkbiswas.pilesclinic.native.OutTimePrompt.show(
+                this, staffCode.ifBlank { mobile }, NativeSession.current(this)?.branch.orEmpty(), mobile
+            ) {
+                /* "OUT TIME now" ⇒ প্রকল্পের পুরনো প্রমাণিত পথ — quick-mark পপ-আপ।
+                   ⛔ নতুন কোনো সেভ-পথ বানানো হয়নি। */
+                quickMarkKind = "out"; maybeShowQuickMark()
+            }
+            return true
+        } catch (_: Throwable) { return false }
     }
 
     // 🔵 (07.08.2026) — খোলার সময় স্পষ্ট ফিডব্যাক, যাতে পর্দা ফাঁকা/জমে না
@@ -605,11 +810,26 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun showWnRetry() {
         try {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("আবার চেষ্টা করুন")))
-                .setMessage(NoBengali.s("আজকের তথ্য এখন আনা গেল না। OUT TIME নিরাপদে বসাতে আজকের তথ্যটা দরকার (নইলে আগের IN TIME মুছে যেতে পারত)। একবার আবার চেষ্টা করুন।"))
+            /* 🔤🔒 V832 (২৯.০৮.২০২৬, TK-নির্দেশ: *"ঝুঁকিহীনভাবে যেগুলি করা
+               যাবে শুধুমাত্র সেগুলি করুন"*) — V728-এ এই লেখাগুলো বাংলা রাখা
+               হয়েছিল **একটাই কারণে**: তখন ইংরেজি লেখাটা হিন্দি-তালিকার চাবি
+               হয়ে গিয়ে অন্য পর্দার লেখা ভুল করে হিন্দি করে দিতে পারত।
+               ⇒ **V730-এ হিন্দি পুরোটাই তুলে দেওয়া হয়েছে** (যাচাই করে দেখা:
+                 HINDI-তালিকার ৩৫৩টা মানের একটাতেও আর দেবনাগরী নেই)।
+               ⇒ তাই সেই ঝুঁকিটা **আর নেই**, আর এই লেখাগুলো ইংরেজি করা যায়।
+               ⛔ ইংরেজি লেখাটা **নিজে বানানো হয়নি** — `NoBengali`-র নিজের
+                  অনুবাদ ("Try Again" · "Close") হুবহু বসানো হলো, তাই
+                  কিশানগঞ্জের স্টাফ আগে যা দেখতেন **হুবহু তাই** দেখবেন।
+               ⛔ পপ-আপের রং যাচাই করা হয়েছে — `PremiumAlert.severityOf()`-এর
+                  লাল/হলুদ কোনো শব্দই পুরনো বা নতুন শিরোনামে নেই ⇒ **রং এক**।
+               ⛔ এগুলো **জমা/তুলনার মান নয়** — শুধু পর্দায় দেখানোর লেখা
+                  (`অন্য কারণ` ও `হ্যাঁ` ইচ্ছাকৃতভাবে বাংলাই রইল, ওগুলো
+                  ডেটাবেসে জমা হয় / কোডে মিলিয়ে দেখা হয়)। */
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("Try Again")))
+                .setMessage(NoBengali.s("Today's information could not be loaded. It is required to save OUT TIME safely; otherwise the previous IN TIME could be lost. Please try again."))
                 .setCancelable(true)
-                .setPositiveButton(NoBengali.s("🔄 আবার চেষ্টা")) { _, _ -> loadDay() }
-                .setNegativeButton(NoBengali.s("বন্ধ")) { _, _ -> render() }
+                .setPositiveButton(NoBengali.s("🔄 Try Again")) { _, _ -> loadDay() }
+                .setNegativeButton(NoBengali.s("Close")) { _, _ -> render() }
                 .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) {} }
         } catch (_: Throwable) {}
     }
@@ -685,9 +905,11 @@ class WorkNotebookActivity : AppCompatActivity() {
                               // ⛔ কাউকে আটকায় না; শুধু লিখে রাখে।
                               // 🔒 সময়টা **এখনই** ধরা — অপেক্ষা করতে হলেও খাতায়
                               //    চাপার সময়টাই বসবে, পরের সময় নয়।
+                              if (!outTimeAllowedNow()) { render(); return@checkEmptyFieldsThenOut }   // 🕒 V1244
                               val outAt = nowTime()
                               withPlaceNote { placeNote ->
                                 day.put("check_out", outAt); markReminderFlag("out", true)
+                                stopFieldVisitIfRunning()   // 🏍️ V968
                                 if (placeNote.isNotBlank()) {
                                     val old = ns(day, "check_out_reason")
                                     day.put("check_out_reason", if (old.isBlank()) placeNote else "$old · $placeNote")
@@ -707,8 +929,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                                             text.append("OUT TIME ").append(displayTime12(ns(day, "check_out")).ifBlank { "-" }).append("\n")
                                             // 🔴 V509: ক্লিনিকের বাইরে থেকে দিলে তবেই এই লাইন।
                                             if (placeNote.isNotBlank()) text.append("⚠️ ").append(placeNote).append("\n")
-                                            text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                                                .append("\nRegistration: ").append(s.optInt("registrations"))
+                                            text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                                                .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                                             // ⚠️ সৎ সীমাবদ্ধতা: নোটিফিকেশন থেকে দ্রুত
                                             // OUT TIME করলে "Today Patient" ফর্মের
                                             // লাইভ ঘর থেকে পড়া যায় না (এই পথে ফর্ম
@@ -719,6 +941,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                                                 .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                                                 .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                                                 .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                                                .append(docVisitLine())
                                             val notesTxt = ns(day, "day_note").trim()
                                             if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                                             submit("daily", todayIso(), s, text.toString())
@@ -754,7 +977,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                     applicationContext, quickMarkKind, hour, minute
                 )
             } catch (_: Throwable) { }
-            val label = String.format(java.util.Locale.US, "%02d:%02d", hour, minute)
+            // 🔴 V1158 — দেখানোর ঘড়ি সবসময় "2.30 PM" ধাঁচে (২৪-ঘণ্টা নয়)।
+            val label = displayTime12(String.format(java.util.Locale.US, "%02d:%02d", hour, minute))
             android.widget.Toast.makeText(this, NoBengali.s("ঠিক আছে, $label-এ আবার মনে করানো হবে"), android.widget.Toast.LENGTH_LONG).show()
             finish()
         }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), false).show()
@@ -834,15 +1058,51 @@ class WorkNotebookActivity : AppCompatActivity() {
     //   ব্রাঞ্চে নোটিশ (Briefing target=branch → সবাই দেখবে), WhatsApp জোর।
     // ⛔ পুরনো একটাও টেবিল/হিসাব বদলায়নি — নতুন wn.leave_requests-এ লেখা।
     private var pendingLeaveDate: String = ""
+    private var pendingLeaveToDate: String = ""
+    // 🏖️🔒 V1336 (11.09.2026, TK-নির্দেশ) — একসাথে একাধিক দিনের ছুটি চাওয়া
+    // যায়, প্রতিটা দিন পুরনো নিয়মেই (মাসে-৪, একই-দিনে-দুজন, চেম্বার-দিন)
+    // আলাদাভাবে যাচাই হয়ে confirmed/pending ঠিক হয় — একদিনের আবেদন আগের
+    // মতোই একদম অপরিবর্তিত থাকে (From=To হলে পুরনো পথই চলে)।
     private fun applyLeaveFlow() {
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
         pendingLeaveDate = todayIso()
+        pendingLeaveToDate = todayIso()
+        /* 🏖️🔒 V740 — চেম্বার-দিনের তালিকা **আলাদা থ্রেডে** আগেভাগে এনে রাখি।
+           ⚠️ মূল থ্রেডে মেঘে গেলে Android অ্যাপ থামিয়ে দেয়, তাই এভাবে।
+           ⛔ না এলেও কিছু ভাঙে না — বাঁধা তালিকাই কাজ করে। */
+        val leaveBranch = NativeSession.current(this)?.branch ?: ""
+        Thread {
+            try { com.tkbiswas.pilesclinic.native.LeaveChamberDays.preload(leaveBranch) } catch (_: Throwable) { }
+        }.start()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(10), dp(20), dp(4)) }
         box.addView(TextView(this).apply {
-            text = NoBengali.s("কোন তারিখে ছুটি"); textSize = 11f
+            text = NoBengali.s("From (কোন তারিখ থেকে ছুটি)"); textSize = 11f
             setTextColor(android.graphics.Color.parseColor("#6B7280")); setPadding(0, 0, 0, dp(4))
         })
+        /* 🏖️🔒 V740 (TK-অনুমোদিত ডেমো-প্রুফ) — চেম্বারের দিন বাছলে **আগেই**
+           জানিয়ে দেওয়া হয়, স্টাফ পাঠানোর পরে অবাক হবেন না।
+           ⛔ আটকানো হয় না — TK-এর সিদ্ধান্ত "২": আটকাবে, তবে অনুমতি চাওয়া যাবে।
+           ⛔ লেখা ইংরেজিতে (TK-নির্দেশ)। ⛔ `isChamberDateNoNet` কখনো নেটে যায় না।
+           ⛔ এখানেই ঘোষণা — নিচের তারিখ-বাছার listener এটা ব্যবহার করে, আর
+              Kotlin-এ স্থানীয় ফাংশন ব্যবহারের আগে ঘোষণা করতেই হয়। */
+        val chamberWarn = TextView(this).apply {
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#B42318"))
+            setPadding(0, 0, 0, dp(8))
+            visibility = android.view.View.GONE
+        }
+        fun refreshChamberWarn() {
+            val isCh = try {
+                com.tkbiswas.pilesclinic.native.LeaveChamberDays
+                    .isChamberDateNoNet(leaveBranch, pendingLeaveDate)
+            } catch (_: Throwable) { false }
+            chamberWarn.visibility =
+                if (isCh) android.view.View.VISIBLE else android.view.View.GONE
+            if (isCh) chamberWarn.text =
+                "Chamber day — doctor sits. Master's permission will be needed."
+        }
+
         val dateTv = TextView(this).apply {
             text = dotDate(pendingLeaveDate); textSize = 15f
             setTextColor(android.graphics.Color.parseColor("#0A5C33")); setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -853,6 +1113,8 @@ class WorkNotebookActivity : AppCompatActivity() {
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             lp.bottomMargin = dp(10); layoutParams = lp
         }
+        // 🏖️ V1336 — "To" দেখানোর জন্য আগেভাগে ঘোষণা (নিচে dateTv-এর listener এটা ব্যবহার করে)
+        lateinit var toDateTv: TextView
         dateTv.setOnClickListener {
             val cal = java.util.Calendar.getInstance()
             val parts = pendingLeaveDate.split("-")
@@ -860,11 +1122,68 @@ class WorkNotebookActivity : AppCompatActivity() {
             val dpd = android.app.DatePickerDialog(this, { _, y, mo, dd ->
                 pendingLeaveDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, mo + 1, dd)
                 dateTv.text = dotDate(pendingLeaveDate)
+                refreshChamberWarn()   // 🏖️ V740
+                // 🏖️ V1336 — From, To-এর পরে চলে গেলে To-ও এগিয়ে দিই, নইলে "শেষ তারিখ শুরুর আগে" হয়ে যেত
+                // ⛔ toDateTv ততক্ষণে সবসময়ই বসানো থাকে — dateTv-এর ক্লিক
+                // শুধু dialog দেখানোর পরে (নিচে toDateTv তৈরি হয়ে যাওয়ার পরে)
+                // ব্যবহারকারী চাপলেই চলে, তাই lateinit-এর নিরাপদ ধরে-নেওয়া।
+                if (pendingLeaveToDate < pendingLeaveDate) {
+                    pendingLeaveToDate = pendingLeaveDate
+                    toDateTv.text = dotDate(pendingLeaveToDate)
+                }
             }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
             try { dpd.datePicker.minDate = System.currentTimeMillis() - 60000 } catch (_: Throwable) { }
+            /* 🏖️🔒 V740 (২৭.০৮.২০২৬, TK-নির্দেশ) — **১০ দিনের সীমা**।
+               TK: *"দশদিন আগে থেকেও যেন সে ইনফর্ম করতে পারে"* — অর্থাৎ ১০ দিন
+               পর্যন্ত আগাম বলে রাখার সুবিধা। তাই বাছার পর্দাতেই সীমা বসানো হলো,
+               স্টাফ ভুল দিন বেছে ফেলে পরে "হবে না" শুনবেন না।
+               ⛔ আজকের ছুটি নেওয়া আগের মতোই খোলা (minDate বদলায়নি)। */
+            try {
+                dpd.datePicker.maxDate =
+                    System.currentTimeMillis() + 10L * 24L * 60L * 60L * 1000L
+            } catch (_: Throwable) { }
             dpd.show()
         }
         box.addView(dateTv)
+        box.addView(chamberWarn)
+        refreshChamberWarn()
+        box.addView(TextView(this).apply {
+            text = NoBengali.s("To (একদিনের ছুটি হলে From-এর মতোই রাখুন)"); textSize = 11f
+            setTextColor(android.graphics.Color.parseColor("#6B7280")); setPadding(0, dp(8), 0, dp(4))
+        })
+        toDateTv = TextView(this).apply {
+            text = dotDate(pendingLeaveToDate); textSize = 15f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33")); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(12), dp(11), dp(12), dp(11)); isClickable = true
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#EAF6EE")); setStroke(1, android.graphics.Color.parseColor("#BFE0CB")); cornerRadius = dp(9).toFloat()
+            }
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.bottomMargin = dp(10); layoutParams = lp
+        }
+        toDateTv.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            val parts = pendingLeaveToDate.split("-")
+            try { cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt()) } catch (_: Throwable) { }
+            val dpd = android.app.DatePickerDialog(this, { _, y, mo, dd ->
+                val picked = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, mo + 1, dd)
+                // ⛔ V1336 — To কখনো From-এর আগে হতে পারবে না
+                pendingLeaveToDate = if (picked < pendingLeaveDate) pendingLeaveDate else picked
+                toDateTv.text = dotDate(pendingLeaveToDate)
+            }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
+            try {
+                val fromParts = pendingLeaveDate.split("-")
+                val fromCal = java.util.Calendar.getInstance()
+                fromCal.set(fromParts[0].toInt(), fromParts[1].toInt() - 1, fromParts[2].toInt())
+                dpd.datePicker.minDate = fromCal.timeInMillis
+            } catch (_: Throwable) { }
+            try {
+                dpd.datePicker.maxDate =
+                    System.currentTimeMillis() + 10L * 24L * 60L * 60L * 1000L
+            } catch (_: Throwable) { }
+            dpd.show()
+        }
+        box.addView(toDateTv)
         val input = ModuleUi.input(this, "Reason (e.g. Sick, Personal, Festival)")
         fun chip(icon: String, label: String): LinearLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
@@ -888,21 +1207,90 @@ class WorkNotebookActivity : AppCompatActivity() {
         box.addView(chip("🎉", "Festival"))
         box.addView(spacedField(input))
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("🏖️ ছুটির আবেদন")))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("🏖️ Apply for Leave")))
             .setView(box)
             .setPositiveButton(NoBengali.s("ছুটির আবেদন করুন")) { _, _ ->
                 val reason = input.text.toString().trim()
                 if (reason.isBlank()) { ModuleUi.toast(this, "Reason required"); return@setPositiveButton }
-                submitLeaveApplication(pendingLeaveDate, reason)
+                submitLeaveRange(pendingLeaveDate, pendingLeaveToDate, reason)
             }
             .setNegativeButton("Cancel", null)
             .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
     }
 
+    // 🏖️🔒 V1336 — একদিনের ফলাফল বহনকারী ছোট ক্লাস (range আর একদিন — দুটোতেই একই কোর ব্যবহার হয়)
+    private data class LeaveDayOutcome(val date: String, val status: String, val needPretty: String, val ok: Boolean)
+
     private fun submitLeaveApplication(leaveDate: String, reason: String) {
+        submitLeaveRange(leaveDate, leaveDate, reason)
+    }
+
+    // 🏖️🔒 V1336 (11.09.2026, TK-নির্দেশ) — একসাথে একাধিক দিনের ছুটি।
+    // From..To-এর প্রতিটা দিন পুরনো নিয়মেই (নিচের processLeaveDay) আলাদাভাবে
+    // যাচাই হয়, তারপর একটাই মিলিত ফলাফল দেখানো হয়। From==To (একদিন) হলে
+    // ফলাফল-বার্তা ও WhatsApp শেয়ার আগের একদিনের ফরম্যাটের মতোই থাকে।
+    private fun submitLeaveRange(fromDate: String, toDate: String, reason: String) {
         ModuleUi.toast(this, "Checking...")
         val br = NativeSession.current(this)?.branch ?: ""
         Thread {
+            val dates = mutableListOf<String>()
+            try {
+                val cal = java.util.Calendar.getInstance()
+                val p = fromDate.split("-"); cal.set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt())
+                val toCal = java.util.Calendar.getInstance()
+                val q = toDate.split("-"); toCal.set(q[0].toInt(), q[1].toInt() - 1, q[2].toInt())
+                var guard = 0
+                // ⛔ guard<40 — সর্বোচ্চ দিন-বাছার সীমা (১০ দিন আগাম) নিজেই ছোট রাখে, এটা শুধু অসীম-লুপ ঠেকানোর সুরক্ষা
+                while (!cal.after(toCal) && guard < 40) {
+                    dates.add(String.format(java.util.Locale.US, "%04d-%02d-%02d",
+                        cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH)))
+                    cal.add(java.util.Calendar.DAY_OF_MONTH, 1); guard++
+                }
+            } catch (_: Throwable) { }
+            if (dates.isEmpty()) dates.add(fromDate)
+            val outcomes = dates.map { processLeaveDay(it, reason, br) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val confirmed = outcomes.filter { it.ok && it.status == "confirmed" }
+                val pending = outcomes.filter { it.ok && it.status == "pending" }
+                val failed = outcomes.count { !it.ok }
+                if (confirmed.any { it.date == todayIso() }) {
+                    day.put("is_leave", true); day.put("leave_reason", reason)
+                    markReminderFlag("in", true); markReminderFlag("out", true)
+                }
+                if (outcomes.isNotEmpty() && failed == outcomes.size) {
+                    ModuleUi.toast(this, "Net সমস্যা — আবার চেষ্টা করুন"); return@runOnUiThread
+                }
+                if (dates.size == 1) {
+                    // ⛔ একদিনের আবেদন — আগের মতোই একদম অপরিবর্তিত বার্তা/ব্যবহার
+                    val o = outcomes.first()
+                    if (o.status == "confirmed") {
+                        val shareText = "🏖️ Leave\nStaff: $staffCode\nBranch: $br\nDate: " + dotDate(o.date) + "\nReason: " + reason
+                        com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, shareText) { render() }
+                    } else {
+                        ModuleUi.toast(this, NoBengali.s("ছুটির অনুরোধ পাঠানো হয়েছে — Pending"))
+                        render()
+                    }
+                    return@runOnUiThread
+                }
+                val msg = StringBuilder()
+                if (confirmed.isNotEmpty()) msg.append("✅ ${confirmed.joinToString(", ") { dotDate(it.date) }} — auto-approved\n")
+                pending.forEach { msg.append("⏳ ${dotDate(it.date)} — needs Master's approval (${it.needPretty})\n") }
+                if (failed > 0) msg.append("⚠️ $failed day(s) failed — please retry\n")
+                ModuleUi.toast(this, NoBengali.s(msg.toString().trim()))
+                if (confirmed.isNotEmpty()) {
+                    val shareText = "🏖️ Leave\nStaff: $staffCode\nBranch: $br\nDates: " +
+                        confirmed.joinToString(", ") { dotDate(it.date) } + "\nReason: " + reason +
+                        if (pending.isNotEmpty()) "\n(+ ${pending.size} day(s) pending Master approval)" else ""
+                    com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, shareText) { render() }
+                } else {
+                    render()
+                }
+            }
+        }.start()
+    }
+
+    private fun processLeaveDay(leaveDate: String, reason: String, br: String): LeaveDayOutcome {
             val enc = { s: String -> try { java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20") } catch (_: Throwable) { s } }
             val ym = leaveDate.substring(0, 7)
             // ⛔ B618 ঠিক (11.08.2026): আগে উপরের সীমা "$ym-32" ছিল — Postgres date কলামে
@@ -923,10 +1311,29 @@ class WorkNotebookActivity : AppCompatActivity() {
                 ModuleAuth.getRows("wn", "leave_requests",
                     "select=id&branch=eq.${enc(br)}&leave_date=eq.$leaveDate&status=eq.confirmed&staff_code=neq.${enc(staffCode)}").length() > 0
             } catch (_: Throwable) { false }
+            /* 🏖️🔒 V740 (২৭.০৮.২০২৬, TK-নির্দেশ) — **চেম্বারের দিনে ছুটি নেই**।
+               TK: *"চেম্বারের তারিখের দিন অন্তত কেউ ছুটি পাবে না।"* এবং পরে —
+               চেম্বারের দিনে *"আটকাবে, কিন্তু মাস্টারের অনুমতি চাইতে পারবে"* (TK "২")।
+               ⇒ তাই অন্য দুটো নিয়মের মতোই **pending** করা হয়, একদম বন্ধ নয়।
+               ⛔ পুরনো দুটো নিয়ম (৪ দিন · একই দিনে দুজন) এক অক্ষরও বদলায়নি।
+               ⛔ ব্রাঞ্চ চেনা না গেলে `isChamberDate` **false** দেয় — অচেনা
+                  কারণে কারও ছুটি আটকে যায় না। */
+            val chamberDay = try {
+                com.tkbiswas.pilesclinic.native.LeaveChamberDays.isChamberDate(br, leaveDate)
+            } catch (_: Throwable) { false }
             val needList = mutableListOf<String>()
             if (monthCount >= 4) needList.add("5th")
             if (conflict) needList.add("conflict")
+            if (chamberDay) needList.add("chamber")
             val needReason = needList.joinToString("+")
+            val needPretty = needList.joinToString(" + ") {
+                when (it) {
+                    "chamber" -> "Chamber day"
+                    "conflict" -> "Colleague on leave"
+                    "5th" -> "5th day this month"
+                    else -> it
+                }
+            }
             val status = if (needReason.isEmpty()) "confirmed" else "pending"
             val row = JSONObject()
                 .put("staff_code", staffCode).put("staff_mobile", mobile).put("staff_name", staffCode)
@@ -956,28 +1363,159 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // ছোট-হাতের "key :" লাইন খোঁজে আর leave_date ISO ধরে টেবিলে মেলায় — তাই
                     // Android-এ পাঠানো এই বার্তাও পরিষ্কার ISO লাইন রাখি, যাতে কম্পিউটার থেকেও
                     // (মাস্টার/ডাক্তার) Android-এর ছুটি Approve করা যায়।
-                    val rmsg = "Staff : ${staffCode.ifBlank { mobile }}\nBranch : $br\nLeave date : " + leaveDate +
-                        "\nReason : " + reason + "\nNeed : " + needReason
+                    /* 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট) — আগে এখানে কাঁচা ISO
+                       (`2026-09-05`) লেখা হত **ইচ্ছে করেই**, কারণ কম্পিউটারের
+                       approval-বেল ওই লাইনটা পড়ে। এখন কম্পিউটারের পড়ার কোড
+                       (`wlv1IsoDate`) বিন্দু-ধাঁচও বোঝে, তাই মানুষের জন্য
+                       `05.09.2026` লেখা যায়। পুরনো অনুরোধগুলোও আগের মতোই চলে। */
+                    val rmsg = "Staff : ${staffCode.ifBlank { mobile }}\nBranch : $br\nLeave date : " + dotDate(leaveDate) +
+                        /* 🏖️🔒 V740 — কারণটা **পড়ার মতো ইংরেজিতে**। ⛔ "Need" লাইনটা
+                           কেউ মেশিনে পড়ে না (যাচাই করা — ওয়েব শুধু Staff · Leave date ·
+                           Branch · Reason পড়ে), তাই এটা বদলানো নিরাপদ, আর এতে
+                           **ফোন ও কম্পিউটার দুই জায়গাতেই** একই লেখা দেখায়। */
+                        "\nReason : " + reason + "\nNeed : " + needPretty
                     com.tkbiswas.pilesclinic.native.BriefingRepository().post(this, "Leave request", rmsg, "branch", br, "", mobile)
                 } catch (_: Throwable) { }
                 // 🔵 B618: এই pending তারিখ লোকালে রাখি — পরে Approve হলে স্টাফের
                 // ফোনে WhatsApp জোর করে খোলা হবে (checkPendingLeaves)।
                 try { addPendingLeaveDate(leaveDate) } catch (_: Throwable) { }
             }
+            return LeaveDayOutcome(leaveDate, status, needPretty, ok)
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🏖️🔒 V740 (২৭.০৮.২০২৬) — **আগাম নেওয়া ছুটি দেখা ও বাতিল করা**
+       —————————————————————————————————————————————————————————————————
+       TK: *"নিজেই বাতিল করতে পারবে — তাহলে ওই দিনটা অন্য সহকর্মীর জন্য খালি
+       হয়ে যাবে, আর তার ৪ দিনের হিসাবেও ফেরত আসবে।"*
+
+       ⛔ **আজ ও তার পরের** ছুটিই দেখানো/বাতিল করা যায় — পুরনো দিনের হাজিরার
+          হিসাব কেউ বদলাতে পারবে না।
+       ⛔ বাতিল করলে `status = 'cancelled'` বসে। পুরনো গোনার শর্ত
+          `status=eq.confirmed`, তাই ওই দিনটা **নিজে থেকেই** ৪ দিনের হিসাব ও
+          "একই দিনে দুজন"-এর হিসাব — দুটো থেকেই বেরিয়ে যায়। **নতুন কোনো
+          হিসাব লেখার দরকারই হয়নি**, তাই পুরনো কিছু ভাঙার ঝুঁকিও নেই।
+       ⛔ ছুটি মঞ্জুর হয়ে থাকলে হাজিরা-খাতার `is_leave`-ও ফিরিয়ে দেওয়া হয়,
+          নইলে খাতায় ভুল করে "LEAVE" লেখা থেকে যেত।
+       ⛔ শুধু **নিজের** সারি — `staff_code` নিজেরটাই পাঠানো হয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun upcomingLeaveScreen() {
+        ModuleUi.toast(this, "Loading...")
+        Thread {
+            val encQ = { x: String -> try { java.net.URLEncoder.encode(x, "UTF-8").replace("+", "%20") } catch (_: Throwable) { x } }
+            val rows = try {
+                ModuleAuth.getRows("wn", "leave_requests",
+                    "select=id,leave_date,status,reason&staff_code=eq." + encQ(staffCode) +
+                        "&leave_date=gte." + todayIso() + "&order=leave_date.asc")
+            } catch (_: Throwable) { org.json.JSONArray() }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                if (!ok) { ModuleUi.toast(this, "Net সমস্যা — আবার চেষ্টা করুন"); return@runOnUiThread }
-                if (status == "confirmed") {
-                    if (leaveDate == todayIso()) {
-                        day.put("is_leave", true); day.put("leave_reason", reason)
-                        markReminderFlag("in", true); markReminderFlag("out", true)
-                    }
-                    val shareText = "🏖️ Leave\nStaff: $staffCode\nBranch: $br\nDate: " + dotDate(leaveDate) + "\nReason: " + reason
-                    com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, shareText) { render() }
-                } else {
-                    ModuleUi.toast(this, NoBengali.s("ছুটির অনুরোধ পাঠানো হয়েছে — Pending"))
-                    render()
+                val dm = resources.displayMetrics.density
+                fun dpx(v: Int) = (v * dm).toInt()
+                val box = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dpx(20), dpx(8), dpx(20), dpx(4))
                 }
+                var shown = 0
+                for (i in 0 until rows.length()) {
+                    val r = rows.optJSONObject(i)
+                    if (r != null) {
+                        val st = r.optString("status", "")
+                        // ⛔ শুধু চালু ছুটি — বাতিল/নামঞ্জুর হয়ে যাওয়াগুলো দেখিয়ে লাভ নেই
+                        if (st == "confirmed" || st == "pending") {
+                            shown++
+                            val dt = r.optString("leave_date", "")
+                            val rid = r.optString("id", "")
+                            box.addView(TextView(this).apply {
+                                text = dotDate(dt) + "  ·  " +
+                                    (if (st == "confirmed") "Approved" else "Waiting for Master")
+                                textSize = 14f
+                                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                                setTextColor(android.graphics.Color.parseColor(
+                                    if (st == "confirmed") "#0A5C33" else "#9A5B00"))
+                                setPadding(0, dpx(10), 0, 0)
+                            })
+                            val why = r.optString("reason", "")
+                            if (why.isNotBlank()) box.addView(TextView(this).apply {
+                                text = why; textSize = 11.5f
+                                setTextColor(android.graphics.Color.parseColor("#6B7280"))
+                            })
+                            box.addView(ModuleUi.buttonSoft(this, "Cancel this leave") {
+                                confirmCancelUpcomingLeave(rid, dt, st)
+                            })
+                        }
+                    }
+                }
+                if (shown == 0) box.addView(TextView(this).apply {
+                    text = "No upcoming leave."
+                    textSize = 13f
+                    setTextColor(android.graphics.Color.parseColor("#6B7280"))
+                    setPadding(0, dpx(8), 0, dpx(8))
+                })
+                val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "My Upcoming Leave"))
+                    .setView(android.widget.ScrollView(this).apply { addView(box) })
+                    .setPositiveButton("Close", null)
+                    .create()
+                dlg.show()
+                try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
+                try {
+                    NoBengali.installDialog(dlg)
+                    com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
+                } catch (_: Throwable) { }
+            }
+        }.start()
+    }
+
+    private fun confirmCancelUpcomingLeave(id: String, dateIso: String, status: String) {
+        if (id.isBlank()) { ModuleUi.toast(this, "Could not read this leave"); return }
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Cancel Leave"))
+            .setMessage("Cancel leave on " + dotDate(dateIso) + "?\n\n" +
+                "The day becomes free for a colleague, and it comes back to your monthly count.")
+            .setPositiveButton("Yes, cancel") { _, _ -> doCancelUpcomingLeave(id, dateIso, status) }
+            .setNegativeButton("Keep it", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
+        try {
+            NoBengali.installDialog(dlg)
+            com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
+        } catch (_: Throwable) { }
+    }
+
+    private fun doCancelUpcomingLeave(id: String, dateIso: String, status: String) {
+        ModuleUi.toast(this, "Cancelling...")
+        Thread {
+            val encQ = { x: String -> try { java.net.URLEncoder.encode(x, "UTF-8").replace("+", "%20") } catch (_: Throwable) { x } }
+            val patch = org.json.JSONObject()
+                .put("status", "cancelled")
+                .put("decided_by", mobile)
+                .put("decided_at", nowIso())
+                .put("updated_at", nowIso())
+            val ok = try {
+                ModuleAuth.update("wn", "leave_requests", "id=eq." + encQ(id), patch)
+            } catch (_: Throwable) { false }
+            // ⛔ মঞ্জুর হয়ে থাকলে হাজিরা-খাতার "LEAVE" চিহ্নটাও ফিরিয়ে দিই,
+            //    নইলে খাতায় ভুল করে ছুটি লেখা থেকে যেত।
+            if (ok && status == "confirmed") {
+                try {
+                    val ndRow = org.json.JSONObject()
+                        .put("staff_code", staffCode).put("staff_mobile", mobile)
+                        .put("work_date", dateIso).put("is_leave", false)
+                        .put("leave_reason", "").put("updated_at", nowIso())
+                    ModuleAuth.upsertOnConflict("wn", "notebook_days", ndRow, "staff_code,work_date")
+                } catch (_: Throwable) { }
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (!ok) { ModuleUi.toast(this, "Net problem — try again"); return@runOnUiThread }
+                ModuleUi.toast(this, "Leave cancelled")
+                // আজকের ছুটি বাতিল হলে পর্দার আজকের অবস্থাও ঠিক করে দিই
+                if (dateIso == todayIso()) {
+                    try { day.put("is_leave", false); day.put("leave_reason", "") } catch (_: Throwable) { }
+                }
+                render()
             }
         }.start()
     }
@@ -1040,22 +1578,80 @@ class WorkNotebookActivity : AppCompatActivity() {
     // ফাংশন ডাকা হয়, তাই কখনো আলাদা হবে না। ⛔ ব্যর্থ হলেও (নেট না থাকলে)
     // নিঃশব্দে বাদ — IN TIME সেভ হওয়াটা কখনো এর জন্য আটকায় না।
     private fun afterInTimeMarked(then: () -> Unit) {
+        // 🏍️🔒 V968 — Field Visit বাছা থাকলে এখান থেকেই গোনা শুরু। দুটো IN TIME
+        //    পথেই (বোতাম ও নোটিফিকেশন) এই ফাংশনই ডাকা হয়, তাই কখনো আলাদা হবে না।
+        try {
+            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+            /* 🏍️🔒 V977 (০২.০৯.২০২৬, TK-নির্দেশ) — *"IN TIME চাপলেই GPS চালু হয়ে
+               যাবে"* · *"ফিল্ডে যাবে কি না, সমস্ত কথা জিজ্ঞাসা করার দরকার নেই,
+               একটা বিভ্রান্ত হয়ে যেতে পারে"* ⇒ At Chamber / Field Visit বাছাইটা
+               তুলে দেওয়া হলো; IN TIME-এই গোনা শুরু।
+               🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে এখানে `isFieldStaff`
+               (শুধু RUPAM) ছিল। TK এখন সব আসল স্টাফের (branch-সহ) ফোনেই
+               IN TIME থেকে OUT TIME পর্যন্ত লোকেশন-অন প্রম্পট চেয়েছেন —
+               `tracksAttendanceLocation()`-এ বদলানো হলো। ডাক্তারের কোনো
+               IN TIME নেই বলে এই পথ তাঁর জন্য চলেই না (আলাদা ব্যবস্থা)। */
+            if (fv.tracksAttendanceLocation(this) && !fv.isRunning(this)) {
+                fv.startDay(this, staffCode.ifBlank { mobile }, branch)
+                com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this)
+                /* 🔴🔒 V1076 (০৪.০৯.২০২৬, TK-নির্দেশ: *"In time চাপলেই যেন কাজ হয়"*)
+                   — এতদিন `startDay()` দিনের সারিটা **শুধু ফোনের ভিতরে** বসাত;
+                   সার্ভারে সারিটা লিখত GPS-সেবা, চালু হওয়ার ৩ মিনিট পর। Location
+                   অনুমতি না থাকলে Android ওই সেবাটাই চালাতে দেয় না ⇒ সার্ভারে
+                   একটাও সারি যেত না ⇒ TK-এর Field Visit Tracking ফাঁকা থাকত
+                   (খাতার সারি ১৩৯ ও ১৭৭ — TK দুবার বলেছেন)।
+                   ⇒ এখন IN TIME চাপার সঙ্গে সঙ্গেই সার্ভারে সারিটা বসে।
+                   ⛔ ব্যাকগ্রাউন্ডে, তাই IN TIME সেভ হওয়া এর জন্য থমকায় না;
+                      নেট না থাকলে নিঃশব্দে বাদ, GPS-সেবা পরে আবার লিখবে।
+                   ⛔ `upsert` (staff_code + work_date) — একই দিনে দুবার চাপলেও
+                      দ্বিতীয় সারি তৈরি হয় না, পুরনোটাই হালনাগাদ হয়। */
+                val fvCtx = applicationContext
+                Thread { try { fv.push(fvCtx, ended = false, auto = false) } catch (_: Throwable) { } }.start()
+                /* 🛰️ V1156 — গোনা শুরু হলো, কিন্তু অনুমতি না থাকলে একটাও
+                   অবস্থান আসবে না। তাই এখানেই একবার অনুমতি চাওয়া হয়।
+                   ⛔ IN TIME ইতিমধ্যেই সেভ — এই বাক্স তাতে হাত দেয় না। */
+                ensureFieldLocationReady(fromButton = false)
+            }
+        } catch (_: Throwable) { }
         try {
             // 🎨🔒 B513 (06.08.2026, TK-নির্দেশ — "সম্পূর্ণ প্রজেক্টে
             // যেখানে যেখানে নোটিফিকেশন প্লেইন-টেক্সট, প্রফেশনাল বানাতে
             // হবে") — এক লম্বা বাক্যের বদলে এখন সাজানো, লাইন-বাই-লাইন
             // (DeletePermission.kt/ChamberReopenPermission.kt-এর মতোই
             // প্রমাণিত ধরন) — Staff/Branch/Time আলাদা লাইনে, ইমোজি-সহ।
+            /* 🏥 V1179 (TK-নির্দেশ) — অন্য ব্রাঞ্চে ডিউটি করলে মাস্টারের
+               নোটিশেও **সেই ব্রাঞ্চই** লেখা থাকে, নইলে দুই পর্দায় দু'রকম
+               হত। বাড়ি থেকে কাজ হলে সেটাও এক লাইনে বলা থাকে।
+               ⛔ শিরোনাম "Staff IN TIME" অটুট (B467-এর নিয়ম)। */
+            val whereLine = when {
+                workedFromHome -> "🏥 Branch : $branch\n🏠 Work From Home (Master approved)"
+                dutyBranch.isNotBlank() && !dutyBranch.equals(branch, true) ->
+                    "🏥 Branch : $dutyBranch\n🔄 On duty from $branch"
+                else -> "🏥 Branch : $branch"
+            }
             val msg = "👤 Staff : ${staffCode.ifBlank { mobile }}\n" +
-                "🏥 Branch : $branch\n" +
-                "🕐 Time : " + displayTime12(ns(day, "check_in"))
+                whereLine + "\n" +
+                "Time : " + displayTime12(ns(day, "check_in"))
             // ⛔ শিরোনাম ঠিক "Staff IN TIME"-ই রাখা হলো (ইমোজি যোগ করা
             // হয়নি) — `BriefingActivity.kt`-এর `AUTO_DELETE_ON_SEEN_TITLES`
             // এই হুবহু শব্দ মিলিয়ে "দেখা হলে নিজে থেকে মুছে যাওয়া"
             // ব্যবস্থা চালায় (B467); শিরোনাম বদলালে সেটা ভেঙে যেত।
-            com.tkbiswas.pilesclinic.native.BriefingRepository().post(
-                this, "Staff IN TIME", msg, "role", branch, "master", mobile
-            )
+            /* 🔴🔒 V1362 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট) — এই কলটা
+               `afterInTimeMarked` UI-থ্রেডেই চলে (উপরের `fv.push()`-এর মতোই),
+               আর `post()` ভিতরে সরাসরি নেটওয়ার্ক-কল করে (`SupabaseClient.upsert`)
+               — Android মেইন থ্রেডে নেট-কাজ **সবসময়ই** ব্যর্থ করে দেয়
+               (NetworkOnMainThreadException), যা এখানেই চুপচাপ ধরা পড়ত। ফল:
+               Master-এর "Staff IN TIME" খবর **কখনোই সরাসরি পৌঁছাত না** — সবসময়
+               জমা হয়ে পরের সিঙ্কের অপেক্ষায় থাকত, তাই দেরি হতোই।
+               ⇒ এখন উপরের `fv.push()`-এর একই প্রমাণিত ধরনে পিছনের সুতোয়। */
+            val briefCtx = applicationContext
+            Thread {
+                try {
+                    com.tkbiswas.pilesclinic.native.BriefingRepository().post(
+                        briefCtx, "Staff IN TIME", msg, "role", branch, "master", mobile
+                    )
+                } catch (_: Throwable) { }
+            }.start()
         } catch (_: Throwable) { }
         waAskKind = "in"   // 🔴 V433 — ফিরে এলে একবার জিজ্ঞাসা: পাঠানো হয়েছে?
         com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, inTimeShareText()) { then() }
@@ -1091,12 +1687,18 @@ class WorkNotebookActivity : AppCompatActivity() {
                     .append("\nStaff: $staffCode\n")
                 text.append("IN TIME- ").append(displayTime12(ns(day, "check_in")).ifBlank { "-" }).append("\n")
                 text.append("OUT TIME ").append(displayTime12(ns(day, "check_out")).ifBlank { "-" }).append("\n")
-                text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                    .append("\nRegistration: ").append(s.optInt("registrations"))
+                text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                    .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                     .append("\nToday Patient: ").append(s.optInt("patients"))
                     .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                     .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                     .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                    .append(docVisitLine())
+                /* 👨‍⚕️🔒 V1032 (TK-নির্দেশ: *"কতজন ডাক্তারের কাছে ভিজিট করেছে
+                   তাকে ম্যানুয়ালি এন্ট্রি করতে হয়েছে"*) — এখন নিজে থেকে গোনা হয়।
+                   ⛔ লাইনটা **শুধু তখনই** বসে যখন আজ অন্তত একজনের কাছে যাওয়া
+                      হয়েছে; নইলে রিপোর্ট হুবহু আগের মতোই থাকে। ⛔ কোনো পুরনো
+                      সংখ্যা/লাইন ছোঁয়া হয়নি; পড়া ব্যর্থ হলেও কিছু বদলায় না। */
                 val notesTxt = ns(day, "day_note").trim()
                 if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                 waAskKind = "out"   // 🔴 V433 — ফিরে এলে একবার জিজ্ঞাসা: পাঠানো হয়েছে?
@@ -1219,7 +1821,9 @@ class WorkNotebookActivity : AppCompatActivity() {
         h.postDelayed({ deliver("Location not verified") }, 15_000L)
         try {
             val user = com.tkbiswas.pilesclinic.native.NativeSession.current(this)
-            com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch) { p ->
+            /* 🏥 V1179 — অন্য ব্রাঞ্চে ডিউটি করলেও "বাইরে থেকে" লেখা উঠবে না
+               (৫টা ক্লিনিকের যেকোনোটার কাছে থাকলেই ভিতরে ধরা হয়)। */
+            com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch, anyBranch = true) { p ->
                 deliver(
                     when {
                         p.ok -> ""     // ভিতরেই আছেন — রিপোর্টে বাড়তি কিছু লেখার দরকার নেই
@@ -1307,9 +1911,11 @@ class WorkNotebookActivity : AppCompatActivity() {
               // ⛔ GPS না পাওয়া / অনুমতি নেই / সময় শেষ — কোনো অবস্থাতেই OUT TIME
               //    আটকায় না; তখন শুধু "Location not verified" লেখা থাকে।
               // 🔒 সময়টা **এখনই** ধরা — অপেক্ষা করতে হলেও খাতায় চাপার সময়টাই বসবে।
+              if (!outTimeAllowedNow()) return@checkEmptyFieldsThenOut   // 🕒 V1244
               val outAt = nowTime()
               withPlaceNote { placeNote ->
                 day.put("check_out", outAt)
+                stopFieldVisitIfRunning()   // 🏍️ V968
                 // 🔴 V509: জায়গার কথাটা আলাদা কোনো নতুন কলামে নয় — **আগে থেকেই
                 // থাকা** `check_out_reason` ঘরেই জুড়ে দেওয়া হয়। তাই নতুন কোনো
                 // SQL/ডেটাবেস পরিবর্তন লাগে না (পুরনো ফোনেও ভাঙবে না)।
@@ -1326,12 +1932,13 @@ class WorkNotebookActivity : AppCompatActivity() {
                             // 🔴 V509: ক্লিনিকের ভিতর থেকে দিলে এই লাইনটা আসেই না —
                             // শুধু বাইরে থেকে বা যাচাই করা না গেলে দেখা যায়।
                             if (placeNote.isNotBlank()) text.append("⚠️ ").append(placeNote).append("\n")
-                            text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                                .append("\nRegistration: ").append(s.optInt("registrations"))
+                            text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                                .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                                 .append("\nToday Patient: ").append(patientsField.text.toString().trim().ifBlank { "0" })
                                 .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                                 .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                                 .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                                .append(docVisitLine())
                             val notesTxt = notesField.text.toString().trim()
                             if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                             submit("daily", todayIso(), s, text.toString())
@@ -1395,7 +2002,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             row.addView(TextView(this).apply { text = "›"; textSize = 18f; setTextColor(android.graphics.Color.parseColor("#9CA3AF")) })
             return row
         }
-        val optOffice = optionRow("🕐", "Office time over", "অফিস টাইম শেষ")
+        val optOffice = optionRow("⏳", "Office time over", "অফিস টাইম শেষ")
         optOffice.setOnClickListener { finishWithReason("Office time over") }
         box.addView(optOffice)
         // 🔴🆕🔒 B466 (TK-নির্দেশ — "Office Time সিলেক্ট করলে প্রশ্ন আসার
@@ -1428,7 +2035,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         val input = ModuleUi.input(this, NoBengali.s("কেন বাড়ি যাচ্ছেন লিখুন"))
         lateinit var prDlg: androidx.appcompat.app.AlertDialog
         prDlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("কেন ব্যক্তিগত কাজে যাচ্ছেন?")))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("Why are you leaving for personal work?")))
             .setView(input)
             .setPositiveButton("Save") { _, _ ->
                 val r = input.text.toString().trim()
@@ -1488,14 +2095,14 @@ class WorkNotebookActivity : AppCompatActivity() {
         else null
         lateinit var missDlg: androidx.appcompat.app.AlertDialog
         missDlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("⚠️ কিছু ঘর ফাঁকা আছে")))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("⚠️ Some fields are empty")))
             .setView(box)
-            .setPositiveButton(NoBengali.s("ভরে OUT TIME বসান")) { _, _ ->
+            .setPositiveButton(NoBengali.s("Fill & mark OUT TIME")) { _, _ ->
                 ocInput?.text?.toString()?.toIntOrNull()?.let { day.put("outside_calls_manual", it) }
                 noteInput?.text?.toString()?.let { day.put("day_note", it) }
                 then()
             }
-            .setNegativeButton(NoBengali.s("এড়িয়ে যান")) { _, _ -> then() }
+            .setNegativeButton(NoBengali.s("Skip")) { _, _ -> then() }
             .setOnCancelListener { then() }
             .show()
         try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(missDlg) } catch (_: Throwable) { }
@@ -1537,7 +2144,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                         this,
                         NoBengali.s("⚠️ এখনই ক্লাউডে সেভ হয়নি (ফোনে জমা আছে, নেট এলে নিজে বসে যাবে)। এখনই ইন্টারনেট/ওয়াইফাই চেক করে আবার বোতাম চাপুন।"),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
         }.start()
@@ -1619,10 +2226,54 @@ class WorkNotebookActivity : AppCompatActivity() {
             return
         }
 
+        // 🟢🔒🔒 V650 (২৫.০৮.২০২৬, TK-নির্দেশ, দুই দফা প্রশ্ন করে নিশ্চিত হওয়া
+        // — "জলপাইগুড়ির স্টাফ, RMP-দের কাছে ফিল্ড-ভিজিটে যান, চেম্বারে সপ্তাহে
+        // ২ দিন — ফিল্ডে থাকলে IN TIME নিতে পারেন না") — **আসল কারণ:** IN
+        // TIME-এ GPS-পাহারা আছে (ক্লিনিকের কাছাকাছি না থাকলে সম্পূর্ণ আটকে
+        // যায়) — এটাই তাঁকে আটকাচ্ছিল। TK-এর স্পষ্ট, নির্দিষ্ট নির্দেশ:
+        // "GPS সম্পূর্ণভাবে বন্ধ, শুধু আঙুলের ছাপ/পাসওয়ার্ড", আর "শুধু এই
+        // নির্দিষ্ট স্টাফের নম্বর ধরে" — কোনো সাধারণ টগল না, শুধু এই একজনের
+        // জন্যই। তাই এখানে একটা ছোট, নাম-করা allowlist — একটা মাত্র জায়গায়,
+        // স্পষ্ট মন্তব্যসহ; TK নিজে না বললে কখনো বাড়ানো যাবে না।
+        // (V869 — কল-ব্যানারের পুরোনো লগইন-তালিকাটা TK-এর নির্দেশে মুছে
+        //  ফেলা হয়েছে, তাই সেই তুলনাটা এখান থেকে বাদ। এই GPS-ছাড়টা
+        //  সম্পূর্ণ আলাদা জিনিস — TK-এর নিজের নির্দেশে, অক্ষত।)
+        // ⛔ বাকি সব স্টাফের জন্য GPS-পাহারা আগের মতোই অক্ষত (নিচের `else`
+        //    শাখা, ধাপ ৩)। ⛔ আঙুলের ছাপ/পাসওয়ার্ড এই স্টাফের জন্যও অক্ষত —
+        //    শুধু GPS-ধাপটাই বাদ, নিরাপত্তার বাকি সবকটা স্তর একই থাকে।
+        // 🟢🔒 V1377 (১২.০৯.২০২৬, TK-নির্দেশ "RUPAM যা ছিল তাই থাক") — কোচবিহারের
+        // ARMAN HOQUE-ও যোগ হলো, RUPAM-এর হুবহু একই ভূমিকায়।
+        val gpsExemptMobiles = setOf("8167096595", "9883884394")   // জলপাইগুড়ি RUPAM ও কোচবিহার ARMAN, RMP field-visit — TK-নির্দেশ ২৫.০৮.২০২৬ ও ১২.০৯.২০২৬
+        val myDigits = (user?.mobile ?: "").filter { it.isDigit() }.takeLast(10)
+        if (gpsExemptMobiles.contains(myDigits)) {
+            startBiometricThenSaveInTime(onSaved)
+            return
+        }
+
+        /* 🏠🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ) — **Work From Home।**
+           TK: *"সে যদি Work from Home করতে চায় তার ব্যাবস্থা যেন থাকে এবং
+           মাস্টারের অনুমতি নেওয়া জরুরী"*। ⇒ মাস্টার **আজকের দিনের জন্য**
+           অনুমতি দিয়ে থাকলে GPS-ধাপটা বাদ যায়; বাকি সব ধাপ (আঙুলের ছাপ ·
+           সার্ভারে সেভ) হুবহু আগের মতোই থাকে।
+           ⛔ অনুমতি না থাকলে এক চুলও ছাড় নেই — নিচের GPS-পাহারাই চলে।
+           ⛔ মেঘ থেকে একবারই পড়া হয় (এই পর্দা যতক্ষণ খোলা), তাই বাড়তি খরচ নেই। */
+        val cachedWfh = wfhApprovedToday
+        if (cachedWfh == true) { dutyBranch = ""; workedFromHome = true; startBiometricThenSaveInTime(onSaved); return }
+        if (cachedWfh == null) {
+            android.widget.Toast.makeText(this, "Checking...", android.widget.Toast.LENGTH_SHORT).show()
+            Thread {
+                val ok = try {
+                    com.tkbiswas.pilesclinic.native.WfhRequests.approvedToday(user?.mobile ?: "")
+                } catch (_: Throwable) { false }
+                runOnUiThread { wfhApprovedToday = ok; startInTimeFlow(onSaved) }
+            }.start()
+            return
+        }
+
         // ধাপ ৩ — ক্লিনিকে আছেন কিনা (GPS)
         // 🔤 V519 (TK-নির্দেশ): এই পর্দার লেখা সব ব্রাঞ্চেই ইংরেজি।
         android.widget.Toast.makeText(this, "Checking whether you are at the clinic...", android.widget.Toast.LENGTH_SHORT).show()
-        com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch) { presence ->
+        com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch, anyBranch = true) { presence ->
             if (!presence.ok) {
                 /* 🔴🔴🔒 V519 (TK-রিপোর্ট): অনুমতি না থাকলে আগে শুধু বার্তা দেখাত,
                    আর "আবার চেষ্টা" চাপলেও হুবহু একই বার্তা — কারণ অ্যাপ অনুমতি
@@ -1651,18 +2302,105 @@ class WorkNotebookActivity : AppCompatActivity() {
                 /* ফোনের Location বন্ধ থাকলেও স্টাফ আটকে যেতেন — এখন সরাসরি
                    Location-এর পাতায় যাওয়ার বোতাম আছে। */
                 val offSwitch = presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.LOCATION_OFF
+                /* 🏠🔒 V1179 (TK-নির্দেশ) — ক্লিনিকের বাইরে থাকলে এখান থেকেই
+                   **Work From Home** চাওয়া যায়। ⛔ চাওয়া মানে পাওয়া নয় —
+                   মাস্টার Approve না করা পর্যন্ত IN TIME হবে না।
+                   ⛔ Location বন্ধ থাকলে ওই বোতামটা আগের মতোই "Open Settings"
+                      থাকে (নইলে স্টাফ Location চালু করার পথটাই হারাতেন)। */
+                val canAskWfh = !offSwitch &&
+                    (presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.OUTSIDE ||
+                        presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.TIMEOUT)
                 inTimeMessage("At the clinic?", presence.message, "#A8281C",
                     retry = if (canRetry) ({ startInTimeFlow(onSaved) }) else null,
-                    extraLabel = if (offSwitch) "Open Settings" else null,
-                    extra = if (offSwitch) ({ openLocationSettings() }) else null)
+                    extraLabel = if (offSwitch) "Open Settings" else if (canAskWfh) "🏠 Work From Home" else null,
+                    extra = if (offSwitch) ({ openLocationSettings() })
+                            else if (canAskWfh) ({ askWorkFromHome(onSaved) }) else null)
                 return@check
             }
+            /* 🏥 V1179 — কোন ক্লিনিকে দাঁড়িয়ে আছেন সেটা মনে রাখা হয়;
+               সেভের পরে খাতার সারিতে **ওই ব্রাঞ্চই** বসবে (নিজের ব্রাঞ্চ নয়)। */
+            dutyBranch = presence.atBranch
+            workedFromHome = false
             /* 🟢🔒 V529 (২২.০৮.২০২৬, TK-নির্দেশ: **"STAFF এর intime দেওয়ার
                সময় থাকুক"**) — V528-এ এই ধাপটা তুলে দেওয়া হয়েছিল; TK বলার পর
                সেটা git থেকে **অক্ষরে অক্ষরে** ফিরিয়ে আনা হয়েছে।
                ⇒ আঙুলের ছাপ এখন **ঠিক তিন জায়গায়** — Login · IN TIME · Refund।
                ⛔ ভবিষ্যতে এই ব্লক সরানো যাবে না, TK নিজে না বললে। */
-            // ধাপ ৪ — আঙুলের ছাপ
+            // ধাপ ৪ — আঙুলের ছাপ (+ ধাপ ৫ সেভ) — এখন `startBiometricThenSaveInTime()`-এ,
+            // যাতে V650-এর GPS-exempt পথও এই একই, প্রমাণিত ধাপটাই ব্যবহার করে।
+            startBiometricThenSaveInTime(onSaved)
+        }
+    }
+
+    /**
+     * ধাপ ৪ (আঙুলের ছাপ) + ধাপ ৫ (সার্ভারে সেভ) — GPS-পাহারা পেরিয়ে আসা সাধারণ
+     * পথ, আর V650-এর নাম-করা GPS-exempt পথ — দুটোই এই একই ফাংশন ব্যবহার করে,
+     * তাই নিরাপত্তার এই শেষ স্তরটা (আঙুল/পাসওয়ার্ড) কখনো আলাদা হয়ে যেতে
+     * পারে না।
+     */
+    /**
+     * 🏠🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"তাছাড়া সে যদি Work from
+     * Home করতে চায় তার ব্যাবস্থা যেন থাকে এবং মাস্টারের অনুমতি নেওয়া জরুরী
+     * Work From Home এর ক্ষেত্রে"*।
+     *
+     * স্টাফ কারণ লিখে অনুরোধ পাঠান — অনুরোধটা মাস্টারের Briefing পর্দায়
+     * "PENDING WORK FROM HOME REQUESTS"-এ বসে। মাস্টার Approve করলে স্টাফের
+     * ফোনে নোটিশ যায়, আর তখন IN TIME চাপলে GPS-ধাপটা বাদ পড়ে।
+     * ⛔ এই বাক্স থেকে হাজিরা **বসে না** — শুধু অনুরোধ যায়।
+     */
+    private fun askWorkFromHome(onSaved: () -> Unit) {
+        val user = com.tkbiswas.pilesclinic.native.NativeSession.current(this)
+        val input = android.widget.EditText(this).apply {
+            hint = "Why are you working from home today?"
+            setSingleLine(false)
+            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 14), ModuleUi.dp(this@WorkNotebookActivity, 12),
+                ModuleUi.dp(this@WorkNotebookActivity, 14), ModuleUi.dp(this@WorkNotebookActivity, 12))
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 18), ModuleUi.dp(this@WorkNotebookActivity, 6),
+                ModuleUi.dp(this@WorkNotebookActivity, 18), 0)
+            addView(input)
+        }
+        try {
+            val d = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🏠 Work From Home"))
+                .setView(box)
+                .setPositiveButton("Ask Master", null)
+                .setNegativeButton("Close", null)
+                .create()
+            d.show()
+            com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d)
+            d.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val reason = input.text.toString().trim()
+                if (reason.isBlank()) {
+                    android.widget.Toast.makeText(this, "Please write the reason", android.widget.Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                d.dismiss()
+                android.widget.Toast.makeText(this, "Sending...", android.widget.Toast.LENGTH_SHORT).show()
+                Thread {
+                    val msg = com.tkbiswas.pilesclinic.native.WfhRequests.request(
+                        applicationContext,
+                        user?.mobile ?: "", staffCode,
+                        (user?.name ?: "").ifBlank { staffCode },
+                        user?.branch ?: "", reason
+                    )
+                    runOnUiThread {
+                        /* মাস্টার ইতিমধ্যে অনুমতি দিয়ে থাকলে সঙ্গে সঙ্গেই হাজিরা
+                           বসানো যায় — স্টাফকে আর অপেক্ষা করতে হয় না। */
+                        wfhApprovedToday = null
+                        inTimeMessage("🏠 Work From Home", msg, "#0B2B59",
+                            retry = { startInTimeFlow(onSaved) })
+                    }
+                }.start()
+            }
+        } catch (_: Throwable) {
+            android.widget.Toast.makeText(this, "Could not open", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun startBiometricThenSaveInTime(onSaved: () -> Unit) {
             /* 🔴🔒 V500 (২১.০৮.২০২৬) — TK-এর স্পষ্ট সিদ্ধান্ত:
                আমি জানিয়েছিলাম, হাজিরায় ফোনের PIN খুলে দিলে কেউ সহকর্মীকে
                PIN বলে দিয়ে হাজিরা বসিয়ে নিতে পারে (আর সেই হাজিরাতেই বেতন
@@ -1670,7 +2408,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                ⇒ তাই হাজিরাতেও এখন `promptUnlock()` — **আঙুল অথবা ফোনের
                  পাসওয়ার্ড**, অ্যাপ খোলার মতোই এক নিয়ম।
                ⛔ ক্লিনিকে আছেন কিনা (GPS) যাচাই আগের মতোই আছে — সেটাই এখন
-                 সবচেয়ে শক্ত পাহারা। */
+                 সবচেয়ে শক্ত পাহারা (V650-এর নাম-করা exempt-স্টাফ বাদে)। */
             com.tkbiswas.pilesclinic.native.BiometricGate.promptUnlock(
                 this,
                 // 🔤 V509 (২১.০৮.২০২৬, TK-নির্দেশ "এই ধরনের বাংলা থাকবে না"):
@@ -1686,6 +2424,10 @@ class WorkNotebookActivity : AppCompatActivity() {
                         r == BiometricGate.Reason.LOCKOUT
                     val notEnrolled = r == BiometricGate.Reason.NONE_ENROLLED
                     inTimeMessage("Fingerprint", bio.message, "#A8281C",
+                        // 🔒 V650 — পুরনো আচরণ অক্ষত রাখতে আবার পুরো
+                        // `startInTimeFlow()` থেকেই শুরু হয় (GPS-ধাপসহ,
+                        // সাধারণ স্টাফের জন্য) — exempt স্টাফের জন্যও ঠিকই
+                        // কাজ করে (তালিকায় থাকলে আবার সরাসরি এখানেই ফেরত আসবেন)।
                         retry = if (canRetry) ({ startInTimeFlow(onSaved) }) else null,
                         extraLabel = if (notEnrolled) "Open Settings" else null,
                         extra = if (notEnrolled) ({
@@ -1696,7 +2438,6 @@ class WorkNotebookActivity : AppCompatActivity() {
                 // ধাপ ৫ — সার্ভারে atomic সেভ
                 saveInTimeOnServer(onSaved)
             }
-        }
     }
 
     /** ধাপ ৫ — সার্ভারই সব ঠিক করে; অ্যাপ কিছু পাঠায় না, কিছু ঠিকও করে না। */
@@ -1710,6 +2451,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                         // পর্দার তথ্য সার্ভারের সত্যি দিয়ে মিলিয়ে নেওয়া
                         if (res.checkIn.isNotBlank()) day.put("check_in", res.checkIn)
                         markReminderFlag("in", true)
+                        noteDutyBranch(res.branch)
                         android.widget.Toast.makeText(this,
                             res.message.ifBlank { "Attendance done." },   // 🔤 V519
                             android.widget.Toast.LENGTH_LONG).show()
@@ -1722,6 +2464,11 @@ class WorkNotebookActivity : AppCompatActivity() {
                     }
                     AttendanceRepository.Status.NOT_STAFF ->
                         inTimeMessage("IN TIME", res.message, "#0B2B59")
+                    /* 🕒🔒 V1243 (TK-নির্দেশ) — চেম্বারের সময়ের বাইরে হাজিরা নয়।
+                       ⛔ "আবার চেষ্টা করুন" বোতাম নেই — বারবার চেপে লাভ নেই,
+                          সময় হলে তবেই হবে। */
+                    AttendanceRepository.Status.OUTSIDE_HOURS ->
+                        inTimeMessage("IN TIME", res.message, "#A8281C")
                     AttendanceRepository.Status.INACTIVE, AttendanceRepository.Status.SUSPENDED -> {
                         // মাস্টার বন্ধ করে দিয়েছেন — সার্ভারই জানাল (TK §১১)
                         inTimeMessage("Account closed", res.message, "#A8281C")   // 🔤 V519
@@ -1732,6 +2479,329 @@ class WorkNotebookActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    /**
+     * 🏥🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ) — **অন্য ব্রাঞ্চে ডিউটি করলে
+     * খাতার সারিতে সেই ব্রাঞ্চই বসে।**
+     *
+     * সার্ভারের `wn.mark_check_in()` ব্রাঞ্চ নেয় `hr.staff_profiles.branch`
+     * থেকে — অর্থাৎ স্টাফের **নিজের** ব্রাঞ্চ। তাই কোচবিহারে ডিউটি করা
+     * জলপাইগুড়ির স্টাফের হাজিরা জলপাইগুড়ির নামেই বসত।
+     * ⇒ IN TIME চাপার সময় GPS যে ক্লিনিক চিনেছে ([dutyBranch]) সেটা আলাদা
+     *   হলে সঙ্গে সঙ্গে সারিটার `branch` ঘরটা ঠিক করে দেওয়া হয়।
+     *
+     * ⛔ শুধু `branch` ঘরটাই লেখা হয় (upsert-এ যে ঘরগুলো পাঠানো হয় কেবল
+     *    সেগুলোই বদলায়) — `check_in` · `check_out` · `is_leave` কিছুই ছোঁয়া হয় না।
+     * ⛔ এক রকম হলে একটাও নেট-কল হয় না।
+     * ⛔ `wn.notebook_days`-এর `branch` ঘরটা প্রকল্পের কোথাও ছাঁকনি বা
+     *    হিসাবে ব্যবহার হয় না (মেপে দেখা হয়েছে), তাই বেতন/হাজিরার কোনো
+     *    হিসাব এতে বদলায় না — এটা শুধু **তথ্য**।
+     */
+    /* ═══════════════════════════════════════════════════════════════════
+       📌🔒 V1200 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **PLAN MY DAY**
+       TK: *"work from home / work on another branch — স্টাফ এরকম যেন আগে থেকে
+       বিবেচনা করে নিতে পারে, আর সেই ক্ষেত্রে ৭ ঘন্টা ধরা হবে"*।
+       ⇒ ⋮ → Plan My Day: আজ **বা আগামী** যেকোনো দিন বেছে —
+          · 🏠 Work From Home — মাস্টারের অনুমতি লাগে (আগের নিয়মই)
+          · 🚌 অন্য ব্রাঞ্চে ডিউটি — **শুধু জানানো** (TK-সিদ্ধান্ত), অনুমতি নয়
+       ⛔ কোনো পুরনো পথ বদলায়নি — একই `wfh_requests` টেবিল, শুধু `kind`,
+          `toBranch` ও ইচ্ছে-মতো তারিখ যোগ হলো।
+       ═══════════════════════════════════════════════════════════════════ */
+    private var todayPlan: JSONObject? = null
+    private var todayPlanLoaded = false
+
+    /** আজকের প্ল্যান একবার পড়ে রাখা — পর্দা যতক্ষণ খোলা, আর পড়া হয় না। */
+    private fun loadTodayPlan() {
+        if (todayPlanLoaded) return
+        todayPlanLoaded = true
+        val mob = mobile
+        Thread {
+            val p = try {
+                com.tkbiswas.pilesclinic.native.WfhRequests.planFor(mob, todayIso())
+            } catch (_: Throwable) { null }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (p != null) { todayPlan = p; render() }
+            }
+        }.start()
+    }
+
+    /** IN TIME-এর উপরের পট্টি — প্ল্যান না থাকলে `null` (কিছুই বসে না)। */
+    private fun todayPlanCard(): LinearLayout? {
+        loadTodayPlan()
+        val p = todayPlan ?: return null
+        val kind = p.optString("kind", com.tkbiswas.pilesclinic.native.WfhRequests.KIND_WFH)
+        val status = p.optString("status", "")
+        val branchTo = p.optString("toBranch", "")
+        val isBranch = kind == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH
+        val approved = status == com.tkbiswas.pilesclinic.native.WfhRequests.STATUS_APPROVED
+        if (status == com.tkbiswas.pilesclinic.native.WfhRequests.STATUS_REJECTED) return null
+        val fill = if (isBranch) "#E8F6ED" else "#FFF6E6"
+        val stroke = if (isBranch) "#BFE3CD" else "#F0DCA8"
+        val ink = if (isBranch) "#0A5C33" else "#8A5A00"
+        val title = if (isBranch) "Today's plan — Duty at " + branchTo.uppercase()
+                    else "Today's plan — Work From Home"
+        val sub = when {
+            isBranch -> "You told this in advance \u00b7 counted as 7 hours"
+            approved -> "Approved by Master \u00b7 counted as 7 hours"
+            else -> "Waiting for Master's approval"
+        }
+        val d = resources.displayMetrics.density
+        fun dpx(v: Int) = (v * d).toInt()
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpx(14), dpx(12), dpx(14), dpx(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(14).toFloat()
+                setColor(android.graphics.Color.parseColor(fill))
+                setStroke(dpx(1), android.graphics.Color.parseColor(stroke))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dpx(10) }
+            addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                text = if (isBranch) "🚌" else "🏠"; textSize = 18f
+                setPadding(0, 0, dpx(12), 0)
+            })
+            addView(LinearLayout(this@WorkNotebookActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                    text = title; textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor(ink))
+                })
+                addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                    text = sub; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor(ink))
+                    setPadding(0, dpx(3), 0, 0)
+                })
+            })
+            addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                text = if (isBranch || approved) "PLANNED" else "WAITING"
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(dpx(11), dpx(5), dpx(11), dpx(5))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dpx(10).toFloat()
+                    setColor(android.graphics.Color.parseColor(if (isBranch) "#0A7C3F" else "#B45309"))
+                }
+            })
+        }
+    }
+
+    private fun planMyDayFlow() {
+        var pickedDate = todayIso()
+        var pickedKind = com.tkbiswas.pilesclinic.native.WfhRequests.KIND_WFH
+        var pickedBranch = ""
+        val d = resources.displayMetrics.density
+        fun dpx(v: Int) = (v * d).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpx(20), dpx(8), dpx(20), dpx(4))
+        }
+        fun cap(t: String) = android.widget.TextView(this).apply {
+            text = t; textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+            setPadding(0, dpx(10), 0, dpx(4))
+        }
+        val dateLine = android.widget.TextView(this).apply {
+            text = dotDate(pickedDate); textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+            isClickable = true
+            setPadding(dpx(12), dpx(11), dpx(12), dpx(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(11).toFloat()
+                setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                setStroke(dpx(1), android.graphics.Color.parseColor("#E7ECEA"))
+            }
+            setOnClickListener {
+                val c = java.util.Calendar.getInstance()
+                val dp = android.app.DatePickerDialog(this@WorkNotebookActivity, { _, y, m, dd ->
+                    pickedDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, dd)
+                    text = dotDate(pickedDate)
+                }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH), c.get(java.util.Calendar.DAY_OF_MONTH))
+                /* ⛔ অতীতের দিন বাছা যায় না — "আগে থেকে" পরিকল্পনার মানেই থাকত না। */
+                try { dp.datePicker.minDate = System.currentTimeMillis() - 1000 } catch (_: Throwable) { }
+                dp.show()
+            }
+        }
+        val kindLine = android.widget.TextView(this).apply {
+            text = "🏠  Work From Home"; textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+            isClickable = true
+            setPadding(dpx(12), dpx(11), dpx(12), dpx(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(11).toFloat()
+                setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                setStroke(dpx(1), android.graphics.Color.parseColor("#E7ECEA"))
+            }
+        }
+        val branchLine = android.widget.TextView(this).apply {
+            text = "Not chosen"; textSize = 15f
+            setTextColor(android.graphics.Color.parseColor("#8A93A0"))
+            isClickable = true
+            visibility = android.view.View.GONE
+            setPadding(dpx(12), dpx(11), dpx(12), dpx(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(11).toFloat()
+                setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                setStroke(dpx(1), android.graphics.Color.parseColor("#E7ECEA"))
+            }
+        }
+        val branchCap = cap("WHICH BRANCH").apply { visibility = android.view.View.GONE }
+        val branches = try {
+            com.tkbiswas.pilesclinic.native.ClinicLocations.ALL.map { it.displayName }
+        } catch (_: Throwable) { emptyList() }
+        branchLine.setOnClickListener {
+            if (branches.isEmpty()) { ModuleUi.toast(this, "Branch list not found"); return@setOnClickListener }
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Which branch"))
+                .setItems(branches.toTypedArray()) { _, w ->
+                    pickedBranch = branches[w]
+                    branchLine.text = pickedBranch
+                    branchLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+                }
+                .setNegativeButton("Close", null).create()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        }
+        kindLine.setOnClickListener {
+            val items = arrayOf("🏠  Work From Home", "🚌  Duty at another branch")
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "What is the plan"))
+                .setItems(items) { _, w ->
+                    pickedKind = if (w == 0) com.tkbiswas.pilesclinic.native.WfhRequests.KIND_WFH
+                                 else com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH
+                    kindLine.text = items[w]
+                    val show = (w == 1)
+                    branchCap.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+                    branchLine.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+                }
+                .setNegativeButton("Close", null).create()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        }
+        box.addView(cap("WHICH DAY")); box.addView(dateLine)
+        box.addView(cap("WHAT")); box.addView(kindLine)
+        box.addView(branchCap); box.addView(branchLine)
+        box.addView(android.widget.TextView(this).apply {
+            text = "Work From Home — master's approval needed.\n" +
+                "Duty at another branch — no approval, master is only informed.\n" +
+                "Both days are counted as 7 hours."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#8A5A00"))
+            setPadding(dpx(2), dpx(12), 0, 0)
+        })
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "📌 Plan My Day"))
+            .setView(box)
+            .setPositiveButton("Send") { _, _ ->
+                if (pickedKind == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH && pickedBranch.isBlank()) {
+                    ModuleUi.toast(this, "Choose the branch"); return@setPositiveButton
+                }
+                ModuleUi.toast(this, "Sending...")
+                val mob = mobile
+                val br = NativeSession.current(this)?.branch ?: ""
+                val nm = NativeSession.current(this)?.name ?: staffCode
+                val dateP = pickedDate; val kindP = pickedKind; val toBr = pickedBranch
+                Thread {
+                    val msg = com.tkbiswas.pilesclinic.native.WfhRequests.request(
+                        this, mob, staffCode, nm, br,
+                        if (kindP == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH)
+                            "Duty at " + toBr else "Work from home",
+                        dateP, kindP, toBr
+                    )
+                    runOnUiThread {
+                        ModuleUi.toast(this, msg)
+                        todayPlanLoaded = false; todayPlan = null
+                        render()
+                    }
+                }.start()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    private fun noteDutyBranch(homeBranch: String) {
+        /* 🏠🔒 V1180 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Work from Home… মাস্টার
+           অনুমতি দিলে সেটা 7 ঘন্টাই হিসাব করা হবে, কম বেশি হিসাবে সেদিনের জন্য
+           হবে না"* (সকাল ১০টা–বিকেল ৫টা)। ⇒ ওই দিনের সারিতে `is_wfh` বসে, আর
+           বেতনের ঘণ্টা-হিসাব সেটা দেখেই **৭ ঘণ্টা** ধরে।
+           ⛔ স্টাফের আসল IN/OUT TIME মোছা হয় না — রেকর্ড হিসেবে থেকেই যায়;
+              শুধু বেতনের গোনায় ওই দিনটা ৭ ঘণ্টা।
+           ⛔ `is_wfh` ঘরটা ডেটাবেসে না থাকলেও হাজিরা ভাঙে না — নিচের
+              `writeNotebookRowWithoutOptionalColumns()` ওটা বাদ দিয়ে আবার পাঠায়। */
+        if (workedFromHome) {
+            val codeW = staffCode
+            val dateW = todayIso()
+            Thread {
+                try {
+                    robustSaveNotebookDay(
+                        JSONObject().put("staff_code", codeW).put("work_date", dateW).put("is_wfh", true)
+                    )
+                } catch (_: Throwable) { }
+            }.start()
+            try {
+                android.widget.Toast.makeText(this,
+                    "Work From Home today - counted as 7 hours",
+                    android.widget.Toast.LENGTH_LONG).show()
+            } catch (_: Throwable) { }
+            return
+        }
+        /* 🚌🔒 V1200 (TK-সিদ্ধান্ত) — আগে থেকে জানানো "অন্য ব্রাঞ্চে ডিউটি" হলে
+           ওই দিনের সারিতে `is_other_branch` বসে ⇒ বেতনের হিসাবে **৭ ঘণ্টা**।
+           ⛔ ঘরটা কেবল **প্ল্যান থাকলেই** বসে; এমনি অন্য ব্রাঞ্চে গেলে আগের
+              নিয়মই (আসল IN/OUT ধরে ঘণ্টা)। */
+        run {
+            val pl = todayPlan
+            if (pl != null &&
+                pl.optString("kind", "") == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH &&
+                pl.optString("status", "") == com.tkbiswas.pilesclinic.native.WfhRequests.STATUS_APPROVED) {
+                val toBr = pl.optString("toBranch", "").ifBlank { dutyBranch }
+                val codeB = staffCode
+                val dateB = todayIso()
+                try { day.put("branch", toBr); day.put("is_other_branch", true) } catch (_: Throwable) { }
+                Thread {
+                    try {
+                        robustSaveNotebookDay(
+                            JSONObject().put("staff_code", codeB).put("work_date", dateB)
+                                .put("branch", toBr).put("is_other_branch", true)
+                        )
+                    } catch (_: Throwable) { }
+                }.start()
+                try {
+                    android.widget.Toast.makeText(this,
+                        "Duty at " + toBr + " today - counted as 7 hours",
+                        android.widget.Toast.LENGTH_LONG).show()
+                } catch (_: Throwable) { }
+                return
+            }
+        }
+        val duty = dutyBranch
+        if (duty.isBlank()) return
+        if (duty.equals(homeBranch.ifBlank { NativeSession.current(this)?.branch ?: "" }, ignoreCase = true)) return
+        try { day.put("branch", duty) } catch (_: Throwable) { }
+        val code = staffCode
+        val date = todayIso()
+        Thread {
+            try {
+                robustSaveNotebookDay(
+                    JSONObject().put("staff_code", code).put("work_date", date).put("branch", duty)
+                )
+            } catch (_: Throwable) { }
+        }.start()
+        try {
+            android.widget.Toast.makeText(this, "Duty branch today: " + duty, android.widget.Toast.LENGTH_LONG).show()
+        } catch (_: Throwable) { }
     }
 
     private fun writeNotebookRow(row: JSONObject): Boolean {
@@ -1747,7 +2817,9 @@ class WorkNotebookActivity : AppCompatActivity() {
      *  পরে সেটা পূর্ণ তথ্যসহ আবার বসতে পারে। */
     private fun writeNotebookRowWithoutOptionalColumns(row: JSONObject): Boolean {
         // টেবিলে না-থাকতে পারা ঐচ্ছিক ঘর (আসল হাজিরার জন্য জরুরি নয়)।
-        val optional = listOf("check_out_reason")
+        /* 🏠 V1180 — `is_wfh` ঘরটাও ঐচ্ছিক ধরা হলো: TK এখনো V1180-এর SQL
+           না চালালে ওই ঘর ছাড়াই সারিটা বসবে, তাই IN/OUT TIME কখনো হারাবে না। */
+        val optional = listOf("check_out_reason", "is_wfh", "is_other_branch")   // 🚌 V1200
         if (optional.none { row.has(it) }) return false
         val slim = try { JSONObject(row.toString()) } catch (_: Throwable) { return false }
         optional.forEach { slim.remove(it) }
@@ -1773,20 +2845,41 @@ class WorkNotebookActivity : AppCompatActivity() {
         val pend = WnNotebookQueue.pending(this)
         if (pend.isEmpty()) return
         if (!ModuleAuth.isSignedIn) { try { ModuleAuth.signInCurrentSession(this) } catch (_: Throwable) { } }
+        /* 🔎🔒 V1006 (০৩.০৯.২০২৬) — জমে থাকা মার্ক অনেকগুলো হলে এই অংশটাই
+           মিনিটখানেক নিতে পারে। আগে পর্দায় কিছুই বোঝা যেত না; এখন কত নম্বরটা
+           চলছে সেটা "Opening…" পর্দাতেই দেখা যায়।
+           ⛔ কাজের ক্রম · সেভ · থ্রেড কিছুই বদলায়নি — শুধু একটা লেখা। */
+        var i = 0
         for (r in pend) {
+            i += 1
+            OpenTrace.step(this, "7. saving pending marks  ($i/${pend.size})")
             if (writeNotebookRow(r)) WnNotebookQueue.remove(this, r)
         }
     }
 
     // 🔵 আগে জমা-থাকা দিন বসাও, তারপর আজকের দিন লোড করো — তাই স্ক্রিনে ঠিক তথ্যই দেখায়।
     private fun flushThenLoad() {
-        Thread { flushPendingNotebook(); runOnUiThread { loadDay(); checkPendingLeaves() } }.start()
+        /* 🔎🔒 V932 — শেষ দুটো ধাপও চিহ্নিত, যাতে "লগইন হয়ে গেল কিন্তু পর্দা
+           আঁকতে গিয়ে আটকাল" — এই অবস্থাটাও ধরা পড়ে।
+           ⛔ কাজের ক্রম · থ্রেড · সেভ কিছুই বদলায়নি। */
+        Thread {
+            flushPendingNotebook()
+            runOnUiThread {
+                OpenTrace.step(this, "8. drawing the day")
+                loadDay()
+                checkPendingLeaves()
+                OpenTrace.done(this)
+            }
+        }.start()
     }
 
     // 🔴 B321 (03.08.2026, TK-অনুমোদিত মকআপ — "লক করে রাখুন") — সবুজ গ্রেডিয়েন্ট
     // হিরো হেডার, Staff Profile (B308)/Income & Expense (B312)-এর একই প্রমাণিত
     // প্যাটার্ন এখানেও (শুধু এই ফাইলে যোগ, অন্য মডিউল ছোঁয়া হয়নি)।
-    private fun hero(title: String, subtitle: String, titleSize: Float = 19f): LinearLayout {
+    /* 📌 V1200 (TK-নির্দেশ: *"plan my day — এটা উপরে ডান সাইডের ৩ ডট থাকবে,
+       তার মধ্যে এটা থাকবে"*) — পট্টির ডানদিকে ⋮; `menu` না দিলে হুবহু আগের চেহারা। */
+    private fun hero(title: String, subtitle: String, titleSize: Float = 19f,
+                     menu: List<Pair<String, () -> Unit>> = emptyList()): LinearLayout {
         val h = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(ModuleUi.dp(this@WorkNotebookActivity, 16), ModuleUi.dp(this@WorkNotebookActivity, 16),
@@ -1807,6 +2900,33 @@ class WorkNotebookActivity : AppCompatActivity() {
             text = subtitle; textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#E8F5EC"))
             setPadding(0, ModuleUi.dp(this@WorkNotebookActivity, 3), 0, 0)
+        })
+        if (menu.isEmpty()) return h
+        // ⋮ থাকলে শিরোনাম আর ⋮ পাশাপাশি বসে (লেখা এক অক্ষরও বদলায় না)
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        while (h.childCount > 0) {
+            val v = h.getChildAt(0); h.removeViewAt(0); texts.addView(v)
+        }
+        h.orientation = LinearLayout.HORIZONTAL
+        h.gravity = android.view.Gravity.CENTER_VERTICAL
+        h.addView(texts)
+        h.addView(android.widget.TextView(this).apply {
+            text = "⋮"; textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 16), 0, ModuleUi.dp(this@WorkNotebookActivity, 12), 0)   // 🔎 V1254
+            isClickable = true
+            setOnClickListener { v ->
+                try {
+                    val pm = android.widget.PopupMenu(this@WorkNotebookActivity, v)
+                    menu.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+                    pm.setOnMenuItemClickListener { mi -> menu.getOrNull(mi.itemId)?.second?.invoke(); true }
+                    pm.show()
+                } catch (_: Throwable) { menu.firstOrNull()?.second?.invoke() }
+            }
         })
         return h
     }
@@ -1830,6 +2950,31 @@ class WorkNotebookActivity : AppCompatActivity() {
     // ছোট বাক্সের গ্রিড: প্রতিটা ঘর (Enquiry/Registration/Today Patient/
     // App Calls/রিসিভ ফোন/Total call) এখন একটা ছোট, বর্ডার-করা বাক্সে
     // — উপরে ছোট লেবেল, নিচে বড় সংখ্যা/ইনপুট। শুধু এই ফাইলে ব্যবহৃত।
+
+    /* 🔆🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"যেগুলো দিল সেগুলো উজ্জ্বলতা
+       কম থাকলে ঠিক আছে, কিন্তু যেখানে সংখ্যা আছে সেগুলোর উজ্জ্বলতা বেশি হতে হবে —
+       আজকের কল ০ হলে কম, আজকের পেশেন্ট ২ হলে বেশি"*।
+       ⇒ ঘরের সংখ্যাটা ০-র বেশি হলে গাঢ় ও বোল্ড; ০ বা ফাঁকা বা "…" হলে হালকা ধূসর।
+       ⛔ কোনো সংখ্যা বদলায় না — শুধু রং। EditText-এও চলে, তাই স্টাফ টাইপ করার
+         সঙ্গে সঙ্গেই রং বদলায় (TextWatcher)। */
+    private fun brightIfNonZero(tv: TextView) {
+        fun paint() {
+            val t = tv.text?.toString()?.trim() ?: ""
+            val bright = (t.replace(",", "").toDoubleOrNull() ?: 0.0) > 0.0
+            tv.setTextColor(android.graphics.Color.parseColor(if (bright) "#0B2B59" else "#B9C0C8"))
+            tv.typeface = android.graphics.Typeface.create(
+                android.graphics.Typeface.DEFAULT,
+                if (bright) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
+            )
+        }
+        paint()
+        tv.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { paint() }
+        })
+    }
+
     private fun gridCell(label: String, valueView: View): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1850,6 +2995,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             if (valueView is TextView) {
                 valueView.textSize = 16f; valueView.setPadding(0, 0, 0, 0); valueView.background = null
                 valueView.setTypeface(valueView.typeface, android.graphics.Typeface.BOLD)
+                brightIfNonZero(valueView)   // 🔆 V1204
             }
             addView(valueView)
         }
@@ -1899,14 +3045,19 @@ class WorkNotebookActivity : AppCompatActivity() {
     // নয়)। "YYYY-MM-DD" থেকে "DD.MM.YYYY"।
     private fun dotDate(iso: String): String {
         val p = iso.split("-")
-        return if (p.size == 3) "${p[2]}.${p[1]}.${p[0]}" else iso
+        return if (p.size == 3) "${p[2]}/${p[1]}/${p[0]}" else iso   // 🔴 V1158
     }
 
     /** "HH:mm" (২৪-ঘণ্টা, ডাটাবেসে যেভাবে থাকে) থেকে "h.mm AM/PM" — TK-এর
      *  নমুনার হুবহু ফরম্যাট ("9.30 AM")। */
     private fun displayTime12(hhmm: String): String {
         if (hhmm.isBlank()) return ""
-        val p = hhmm.split(":"); if (p.size != 2) return hhmm
+        /* 🔴🔒 V1162 (০৭.০৯.২০২৬, TK: *"টাইম-পিকারের ভিতরের ২৪-ঘণ্টার ঘর"*)।
+           **মেপে পাওয়া দোষ:** "Fix Attendance" দিয়ে সময় শুধরালে ঘরে বসে
+           `HH:mm:ss` (তিন টুকরো), অথচ এখানে শর্ত ছিল ঠিক দুই টুকরো ⇒ ওই
+           সারিগুলো পর্দায় ও WhatsApp-এ কাঁচা **09:15:00** হয়ে দেখাত।
+           ⇒ এখন দুই ও তিন টুকরো দুটোই চেনে। ⛔ জমা লেখায় হাত পড়েনি। */
+        val p = hhmm.split(":"); if (p.size != 2 && p.size != 3) return hhmm
         val h24 = p[0].toIntOrNull() ?: return hhmm
         val m = p[1]
         val ampm = if (h24 < 12) "AM" else "PM"
@@ -1914,15 +3065,16 @@ class WorkNotebookActivity : AppCompatActivity() {
         return "$h12.$m $ampm"
     }
 
-    /** এখনকার সময় "6.30pm" স্টাইলে — TK-এর নমুনার রিপোর্ট-হেডারের ঠিক
-     *  ফরম্যাটে (লোয়ারকেস, ফাঁকা জায়গা ছাড়া)। */
+    /** এখনকার সময় "6.30 PM" স্টাইলে। 🔴 V1158 — TK-এর নতুন নমুনা
+     *  ("31/12/2026 : 3.15 PM") অনুযায়ী AM/PM বড় হাতে ও আগে একটা ফাঁক। */
     private fun shareTimeLabel(): String {
         val cal = java.util.Calendar.getInstance()
         val h24 = cal.get(java.util.Calendar.HOUR_OF_DAY)
         val m = cal.get(java.util.Calendar.MINUTE)
-        val ampm = if (h24 < 12) "am" else "pm"
+        // 🔴 V1158 — TK-এর লক করা নিয়ম: AM/PM বড় হাতে, অঙ্কের পরে একটা ফাঁক।
+        val ampm = if (h24 < 12) "AM" else "PM"
         val h12 = when { h24 == 0 -> 12; h24 > 12 -> h24 - 12; else -> h24 }
-        return String.format(Locale.US, "%d.%02d%s", h12, m, ampm)
+        return String.format(Locale.US, "%d.%02d %s", h12, m, ampm)
     }
 
     // 🔴 B329 — Daily Report-এর "Notes:" এখন Work Entries-এর "what you did"
@@ -1978,11 +3130,216 @@ class WorkNotebookActivity : AppCompatActivity() {
     // খোলার নির্ভরযোগ্যতা।
     private fun numericField(hint: String): EditText = ModuleUi.numberInput(this, hint)
 
+    /* 👨‍⚕️🔒 V1032 (০৪.০৯.২০২৬, TK-নির্দেশ: *"কতজন ডাক্তারের কাছে ভিজিট করেছে
+       তাকে ম্যানুয়ালি এন্ট্রি করতে হয়েছে"*) — আজকের ডাক্তার-ভিজিট নিজে থেকে গোনা।
+
+       🔒 **নিজের যাচাইয়ে ধরা দুটো দোষ, তাই এই ধরনটাই নেওয়া হলো:**
+       ১) প্রথমে গোনাটা রিপোর্ট পাঠানোর ঠিক আগে **মূল থ্রেডে** করা হয়েছিল —
+          নেট ধীর হলে পর্দা ৪ সেকেন্ড আটকে থাকত (TK: *"স্লো হয়ে যায়"*)।
+       ২) দিনের রিপোর্ট **পাঁচ জায়গায়** তৈরি হয়; একটাতে বসালে বাকি পথে
+          লাইনটা উঠত না — TK কখনো দেখতেন, কখনো না।
+       ⇒ এখন পর্দা খোলার সময় **একবারই**, পিছনের থ্রেডে গোনা হয় ও এখানে জমা
+         থাকে; প্রতিটা রিপোর্ট শুধু এই সংখ্যাটাই পড়ে। কোথাও অপেক্ষা নেই।
+       ⛔ উত্তর না এলে `-1` থাকে ⇒ লাইনটা ওঠেই না, রিপোর্ট হুবহু আগের মতোই। */
+    @Volatile private var docVisitToday = -1
+    /* 👨‍⚕️🔒 V1334 (TK-নির্দেশ "খ") — ফিল্ড-স্টাফের (RUPAM) MARK VISIT-এ
+       গোনা আজকের আসল সংখ্যা। শুধু ফিল্ড-স্টাফের বেলায়ই ভরা হয় (নিচে
+       `loadDocVisitToday()`); অন্য কারো জন্য -1-ই থেকে যায়, কিছুই বদলায় না। */
+    @Volatile private var fieldVisitDocToday = -1
+
+    private fun loadDocVisitToday() {
+        try {
+            val meMob = mobile
+            val code = staffCode.ifBlank { mobile }
+            val isField = com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(meMob)
+            Thread {
+                val n = try {
+                    com.tkbiswas.pilesclinic.native.DoctorVisitDayCount.todayCount(meMob)
+                } catch (_: Throwable) { -1 }
+                docVisitToday = n
+                if (isField) {
+                    fieldVisitDocToday = try {
+                        com.tkbiswas.pilesclinic.native.FieldVisit.todayMarkVisitCount(code)
+                    } catch (_: Throwable) { -1 }
+                }
+            }.start()
+        } catch (_: Throwable) { }
+    }
+
+    /** রিপোর্টে বসানোর লাইন — গোনা না হলে (বা শূন্য হলে) ফাঁকা।
+     *  🔒 V1334 (TK-নির্দেশ "খ", তালিকা সারি ৪৩৪) — ফিল্ড-স্টাফের (RUPAM)
+     *  বেলায় এখন MARK VISIT-এ গোনা আসল সংখ্যাই বসে (পুরনো call-history-
+     *  ভিত্তিক গোনা তাঁর জন্য কখনো সঠিক ছিল না — তিনি ফোন করেন না, সরাসরি
+     *  গিয়ে দেখা করেন)। বাকি সব স্টাফের রিপোর্ট এক অক্ষরও বদলায়নি। */
+    private fun docVisitLine(): String =
+        if (com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(mobile))
+            (if (fieldVisitDocToday > 0) "\nDoctor Visit: " + fieldVisitDocToday else "")
+        else if (docVisitToday > 0) "\nDoctor Visit: " + docVisitToday else ""
+
+
+    /* 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ) — **ফিল্ড ভিজিট (শুধু RUPAM)।**
+       TK: *"শুধু বাইরে ঘোরা স্টাফদের জন্য"* · *"RUPAM নিজে চাপবে"*।
+       ⛔ অন্য কোনো স্টাফের পর্দায় এই বোতাম বা কার্ড একটুও ওঠে না — নিচের
+          `FieldVisit.isFieldStaff()` ছাড়া কিছুই আঁকা হয় না।
+       ⛔ পুরনো IN/OUT TIME-এর সেভ-লজিক এক অক্ষরও বদলায়নি; এটা শুধু পাশে বসা
+          বাড়তি গোনা, ব্যর্থ হলেও হাজিরা আটকায় না। */
+    private fun addFieldVisitPicker(form: LinearLayout) {
+        if (!com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(this)) return
+        val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+        if (fv.chosenMode(this).isBlank()) fv.chooseMode(this, fv.MODE_CHAMBER)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 8) }
+        }
+        lateinit var paint: () -> Unit
+        val btnChamber = ModuleUi.buttonSoft(this, "At Chamber") {
+            fv.chooseMode(this, fv.MODE_CHAMBER); paint()
+        }
+        val btnField = ModuleUi.buttonSoft(this, "Field Visit") {
+            fv.chooseMode(this, fv.MODE_FIELD); paint()
+        }
+        for (b in listOf(btnChamber, btnField)) {
+            b.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply {
+                    leftMargin = ModuleUi.dp(this@WorkNotebookActivity, 3)
+                    rightMargin = ModuleUi.dp(this@WorkNotebookActivity, 3)
+                }
+        }
+        paint = {
+            val field = fv.chosenMode(this) == fv.MODE_FIELD
+            val on = android.graphics.Color.parseColor("#0F3D6B")
+            val off = android.graphics.Color.parseColor("#EFF3F8")
+            val onTx = android.graphics.Color.WHITE
+            val offTx = android.graphics.Color.parseColor("#63748C")
+            btnChamber.backgroundTintList = android.content.res.ColorStateList.valueOf(if (field) off else on)
+            btnChamber.setTextColor(if (field) offTx else onTx)
+            btnField.backgroundTintList = android.content.res.ColorStateList.valueOf(if (field) on else off)
+            btnField.setTextColor(if (field) onTx else offTx)
+        }
+        paint()
+        row.addView(btnChamber); row.addView(btnField)
+        form.addView(row)
+        form.addView(ModuleUi.body(this,
+            "Select Field Visit only when you are going out on the bike. Location stays on until you mark OUT TIME."))
+    }
+
+    /** IN TIME হয়ে যাওয়ার পরে — চলতে থাকা লোকেশন-গোনার কার্ড।
+     * 🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে শুধু ফিল্ড-স্টাফের (RUPAM)
+     * জন্য ছিল, এখন সব আসল স্টাফের জন্য। শিরোনাম ফিল্ড-স্টাফের বেলায় আগের
+     * মতোই "FIELD VISIT", বাকি সবার বেলায় "ATTENDANCE LOCATION" — কারণ
+     * বাকিদের বাইক নিয়ে ঘোরা নেই, শুধু হাজিরার সময়টুকু লোকেশন-অন থাকে। */
+    private fun addFieldVisitRunningCard(form: LinearLayout) {
+        val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+        resumeFieldVisitIfNeeded()
+        if (!fv.tracksAttendanceLocation(this) || !fv.isRunning(this)) return
+        val isField = fv.isFieldStaff(this)
+        form.addView(TextView(this).apply {
+            text = if (isField) "FIELD VISIT  ·  RUNNING" else "ATTENDANCE LOCATION  ·  RUNNING"
+            textSize = 12.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0E6E8C"))
+        })
+        val started = fv.startedAt(this)
+        /* ⚠️🔒 V1032 (০৪.০৯.২০২৬, TK-রিপোর্ট: রুপম সারাদিন ঘুরেছেন অথচ
+           Field Visit Tracking ফাঁকা, কিলোমিটারও নেই)। **আসল কারণ (যাচাই
+           করা):** ফোন একটাও অবস্থান না দিলে দূরত্ব গোনাই শুরু হয় না — অথচ
+           এই লাইনটা সবসময় "Location on" লিখত, তাই স্টাফ ভাবতেন সব ঠিক আছে।
+           ⇒ এখন অবস্থান না এলে **লাল সতর্কতা** ওঠে, স্টাফ সঙ্গে সঙ্গে বুঝবেন।
+           ⛔ হাজিরা · গোনা · সেভ — কিছুই ছোঁয়া হয়নি, শুধু সত্যি কথাটা দেখানো। */
+        val gotFix = fv.hasFix(this)
+        form.addView(ModuleUi.body(this,
+            "Hours " + fv.hoursText(started, System.currentTimeMillis()) +
+                "   ·   Distance " + fv.kmText(fv.distanceMeters(this)) +
+                (if (gotFix) "   ·   Location on" else "")))
+        if (!gotFix) {
+            form.addView(TextView(this).apply {
+                text = "\u26A0\uFE0F LOCATION NOT WORKING - km is NOT being counted.\n" +
+                    "Tap FIX LOCATION below, then allow Location for this app."
+                textSize = 12.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#B42318"))
+                setPadding(
+                    ModuleUi.dp(this@WorkNotebookActivity, 10), ModuleUi.dp(this@WorkNotebookActivity, 8),
+                    ModuleUi.dp(this@WorkNotebookActivity, 10), ModuleUi.dp(this@WorkNotebookActivity, 8)
+                )
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = ModuleUi.dp(this@WorkNotebookActivity, 10).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FDECEA"))
+                    setStroke(ModuleUi.dp(this@WorkNotebookActivity, 1), android.graphics.Color.parseColor("#F2C6C0"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
+            })
+            /* 🛰️🔒 V1156 — V1032-এ শুধু **লেখা** ছিল *"অনুমতি দিয়ে আবার
+               চেষ্টা করুন"*, অথচ অনুমতি দেওয়ার কোনো পথই স্টাফের সামনে খুলত না
+               (অনুমতির বাক্স এই স্টাফের ফোনে কোনোদিন ওঠেই না — উপরে কারণ লেখা)।
+               ⇒ এখন একটা বোতাম: দরকার মতো অনুমতির বাক্স · Location-এর পাতা ·
+                 অ্যাপের Settings — যেটা লাগে সেটাই খোলে। */
+            form.addView(ModuleUi.buttonSoft(this, "FIX LOCATION") {
+                ensureFieldLocationReady(fromButton = true)
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
+            })
+        }
+        // 🛰️🔒 V1346 — RMP Doctors/MARK VISIT এখনো শুধু আসল ফিল্ড-স্টাফের
+        // (RUPAM) জন্য — সাধারণ হাজিরা-লোকেশন সবার জন্য হলেও এই বোতাম নয়।
+        if (isField) form.addView(ModuleUi.buttonSoft(this, "RMP Doctors - mark visits") {
+            startActivity(android.content.Intent(this, FieldVisitActivity::class.java))
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
+        })
+    }
+
+    /* 🏍️🔒 V968 (নিজে ধরা, TK-কে পাঠানোর আগেই) — **দুটো ফাঁক ঢাকা:**
+       ১) ফোন রিস্টার্ট হলে বা Android সেবাটা মেরে ফেললে গোনা থেমে যেত আর
+          কেউ আর চালু করত না ⇒ পর্দা খুললেই আবার চালু হয় (একই দিনের হিসাব
+          ফোনেই জমা থাকে, তাই কিছু হারায় না)।
+       ২) রাত ১২টায় নিজে-বন্ধ হওয়ার কাজটা সেবাটা বেঁচে থাকলে তবেই হত ⇒ এখন
+          পর্দা খুললেও দেখা হয়, দিন পেরিয়ে গেলে সঙ্গে সঙ্গে বন্ধ ও AUTO CLOSED।
+       ⛔ হাজিরার (IN/OUT TIME) কোনো লজিক এখানেও ছোঁয়া হয়নি। */
+    private fun resumeFieldVisitIfNeeded() {
+        // 🏍️🔒 V1364 — এই একই যাচাই এখন `FieldVisitControl.resumeIfNeeded()`-এ
+        // (শেয়ার্ড, একই নিয়ম) — অ্যাপের যেকোনো পর্দা খোলার সময়ও চলে।
+        // এখানে ডাকাটা রয়ে গেছে (দুবার চালানো নিরাপদ, idempotent), যাতে এই
+        // পর্দা খোলার মুহূর্তেই কার্ডটা সঙ্গে সঙ্গে সঠিক অবস্থা দেখায়।
+        com.tkbiswas.pilesclinic.native.FieldVisitControl.resumeIfNeeded(this)
+    }
+
+    /** OUT TIME বসার সঙ্গে সঙ্গে গোনা বন্ধ ও শেষ হিসাব ক্লাউডে। */
+    private fun stopFieldVisitIfRunning() {
+        try {
+            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+            if (!fv.isRunning(this)) return
+            fv.endDay(this, auto = false)
+            com.tkbiswas.pilesclinic.native.FieldVisitControl.stop(this)
+            val ctx = applicationContext
+            Thread { fv.push(ctx, ended = true, auto = false) }.start()
+        } catch (_: Throwable) { }
+    }
+
     private fun render() {
         backAction = { finish() }
         val isKishanganjStaff = (NativeSession.current(this)?.branch ?: "").trim().lowercase() == "kishanganj"
         val col = ModuleUi.screen(this, "")
-        col.addView(hero(if (isKishanganjStaff) "🗒️ Today Work" else "🗒️ Today Work / আজকের কাজ", todayIso() + " · " + staffCode, 14f))
+        col.addView(hero(
+            if (isKishanganjStaff) "🗒️ Today Work" else "🗒️ Today Work / আজকের কাজ",
+            todayIso() + " · " + staffCode, 14f,
+            /* ⋮🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"monthly report · my reports —
+               উপরে ডান সাইডে এলজি থ্রি ডটের মধ্যে থাকবে"*। নিচের ছোট নীল লিংক
+               দুটো তুলে দিয়ে এখানে বসানো হলো — খোলা পর্দা দুটো এক অক্ষরও বদলায়নি। */
+            listOf(
+                "📌 Plan My Day" to { planMyDayFlow() },
+                "📊 Monthly Report" to { report("monthly", todayIso().substring(0, 7)) },
+                "🗂️ My Reports" to { history() }
+            )
+        ))
 
         val form = ModuleUi.card(this); col.addView(form)
 
@@ -2025,13 +3382,13 @@ class WorkNotebookActivity : AppCompatActivity() {
                 // বাতিল হয়। ⛔ বাতিলের সেভ-লজিক (is_leave/flag/saveDay) একটুও বদলায়নি।
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Cancel Leave"))
-                    .setMessage(NoBengali.s("ভুল করে ছুটি দিয়েছিলেন? ছুটি বাতিল করে আজকের হাজিরা আবার চালু করবেন?"))
-                    .setPositiveButton(NoBengali.s("হ্যাঁ, বাতিল করুন")) { _, _ ->
+                    .setMessage(NoBengali.s("Marked leave by mistake? Cancel the leave and resume today's attendance?"))
+                    .setPositiveButton(NoBengali.s("Yes, Cancel")) { _, _ ->
                         day.put("is_leave", false); day.put("leave_reason", "")
                         markReminderFlag("in", false); markReminderFlag("out", false)
                         saveDay { render() }
                     }
-                    .setNegativeButton(NoBengali.s("না"), null)
+                    .setNegativeButton(NoBengali.s("No"), null)
                     .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) {} }
             }
             cancelLeaveBtn.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -2078,6 +3435,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                         .apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
                     form.addView(outBtn)
                     form.addView(ModuleUi.body(this, "✅ IN TIME ${timeWithLate(ns(day, "check_in"))}"))
+                    // 🏍️ V968 — চলতে থাকা ফিল্ড ভিজিটের হিসাব (শুধু RUPAM)।
+                    addFieldVisitRunningCard(form)
                     // 🔴 V432 (TK-রিপোর্ট ১৮.০৮.২০২৬) — WhatsApp খোলার পরে ব্যাক
                     //    করে এলে আগে আর পাঠানোর কোনো উপায় ছিল না। এখন এই বোতামে
                     //    চাপলেই **সেই একই বার্তাটাই** আবার খোলে।
@@ -2133,10 +3492,20 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // স্থানীয় গণনা (আজ এই ফোনে কতবার কল-বোতাম চাপা
                     // হয়েছে) সাথে সাথেই দেখানো হয়, তারপর ক্লাউড থেকে
                     // মিলিয়ে/সংশোধন করে নেওয়া হয় (নিচের fetchStats-এ)।
-                    try {
-                        val localCalls = ModuleAuth.localCallTapCount(this, callTapCode(), todayIso())
-                        if (localCalls > 0) appVal.text = localCalls.toString()
-                    } catch (_: Throwable) { }
+                    /* 🔴🔒 V907 (৩১.০৮.২০২৬, JPE-CRP-এর রিপোর্ট, TK-নির্দেশ:
+                       *"যাতে দুটো ফোনে একই দেখায় … এটাও আবার অরিজিনাল সংখ্যা"*)
+
+                       এখানে আগে **এই ফোনে জমা গোনাটা** সঙ্গে সঙ্গে বসিয়ে দেওয়া
+                       হত (B503), আর নিচে ক্লাউডের সঙ্গে **বড়টা** নেওয়া হত
+                       (V590)। ফল: একই আইডি দুটো ফোনে খুললে দু'রকম সংখ্যা —
+                       যে ফোন ক্লাউড পড়তে পারেনি সে শুধু নিজের গোনা দেখাত
+                       (JPE-CRP-এর ছবিতে ৪ বনাম ১৫)।
+                       এখন **একটাই সত্য — ক্লাউডের `wn.call_taps`**; পড়া না গেলে
+                       সংখ্যা নয়, "…" থাকে (ভুল সংখ্যার চেয়ে সৎ)। ⇒ যত ফোনেই
+                       খোলা হোক, সংখ্যা এক।
+                       ⛔ কম্পিউটারের অ্যাপ (`notebook.js`) আগে থেকেই শুধু ক্লাউডই
+                          পড়ে — এই বদলে তিন জায়গা এক নিয়মে এল।
+                       ⛔ ফোনে-জমা গোনাটা মুছে ফেলা হয়নি; শুধু আর দেখানো হয় না। */
 
                     applyAutoOutsideCalls()
 
@@ -2199,18 +3568,15 @@ class WorkNotebookActivity : AppCompatActivity() {
                                     হয় — কারণ এইমাত্র করা কলটা ক্লাউডে পৌঁছাতে
                                     কয়েক সেকেন্ড লাগতে পারে, তখন ক্লাউড কম বলত।
                                ⛔ দুটোই মিলিয়ে: গোনা **কখনো কমে যায় না**। */
+                            /* 🔴🔒 V907 — শুধু ক্লাউডের সংখ্যাই (উপরের টীকা)। */
                             val cloudCalls = s.optInt("appCalls")
-                            val phoneCalls = try {
-                                ModuleAuth.localCallTapCount(this@WorkNotebookActivity, callTapCode(), todayIso())
-                            } catch (_: Throwable) { 0 }
-                            appCallsNow = if (callsOk(s))
-                                maxOf(cloudCalls, phoneCalls) else maxOf(phoneCalls, appCallsNow)
+                            if (callsOk(s)) appCallsNow = cloudCalls
                             /* 🔴 V593 — আগে এই লাইনটা **শর্ত ছাড়াই** বসত, তাই
                                পড়া ব্যর্থ হলে "…"-এর জায়গায় সাফ **0** লেখা হয়ে
                                যেত (অথচ পাশের New Enquiry তখন "…" দেখাত)।
                                এখন: পড়া সফল হলে, বা এই ফোনেই কল চাপা থাকলে
                                তবেই সংখ্যা — নইলে "…" আগের মতোই থাকে। */
-                            if (callsOk(s) || appCallsNow > 0) {
+                            if (callsOk(s)) {
                                 appVal.text = appCallsNow.toString()
                                 refreshTotal()
                             }
@@ -2224,7 +3590,14 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // ১২টা পার হলে IN TIME লুকিয়ে যায় — শুধু ছোট নোটিশ ও Mark As Leave
                     // থাকে (রাত/বিকেলে ভুল করে IN দেখানো বন্ধ)। ⛔ IN TIME চাপার
                     // সেভ-লজিক এক অক্ষরও বদলায়নি।
+                    /* 📌🔒 V1200 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — আগে থেকে ঠিক করা
+                       থাকলে সেদিনের প্ল্যানটা **IN TIME বোতামের ঠিক উপরে**।
+                       ⛔ প্ল্যান না থাকলে কিছুই বসে না (পর্দা হুবহু আগের মতো)। */
+                    todayPlanCard()?.let { form.addView(it) }
                     if (inTimeWindowOpen()) {
+                        // 🏍️ V977 — TK-নির্দেশে বাছাইয়ের সারিটা আর দেখানো হয় না
+                        //    (IN TIME চাপলেই নিজে থেকে চালু)। ⛔ ফাংশনটা মোছা
+                        //    হয়নি (প্রজেক্ট-নিয়ম), শুধু আর ডাকা হয় না।
                         val inBtn = ModuleUi.button(this, "IN TIME") {
                             // 🔒 V496: একই নতুন পথ (উপরের startInTimeFlow দেখুন)।
                             startInTimeFlow { afterInTimeMarked { render() } }
@@ -2246,6 +3619,16 @@ class WorkNotebookActivity : AppCompatActivity() {
                     markLeaveBtn.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                         .apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
                     form.addView(markLeaveBtn)
+                    /* 🏖️🔒 V740 (২৭.০৮.২০২৬, TK-নির্দেশ) — **নিজের ছুটি নিজে বাতিল**।
+                       TK-এর সিদ্ধান্ত "১": *"নিজেই বাতিল করতে পারবে — তাহলে ওই দিনটা
+                       অন্য সহকর্মীর জন্য খালি হয়ে যাবে, আর তার ৪ দিনের হিসাবেও ফেরত আসবে।"*
+                       ⛔ এতদিন পাশের "Cancel Leave" শুধু **আজকের** ছুটি ফেরাত;
+                          আগাম নেওয়া ছুটি ফেরানোর কোনো পথ ছিল না।
+                       ⛔ পুরনো "Cancel Leave" বোতাম এক অক্ষরও বদলায়নি। */
+                    val myLeaveBtn = ModuleUi.buttonSoft(this, "My Upcoming Leave") { upcomingLeaveScreen() }
+                    myLeaveBtn.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                        .apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
+                    form.addView(myLeaveBtn)
                 }
             }
         }
@@ -2264,9 +3647,8 @@ class WorkNotebookActivity : AppCompatActivity() {
             isClickable = true; isFocusable = true
             setOnClickListener { onClick() }
         }
-        linksRow.addView(smallLink("📊 Monthly Report") { report("monthly", todayIso().substring(0, 7)) })
-        linksRow.addView(smallLink("🗂️ My Reports") { history() })
-        col.addView(linksRow)
+        /* ⋮ V1204 — দুটো লিংকই এখন উপরের ⋮ মেনুতে (TK-নির্দেশ)। `smallLink`
+           ও `linksRow` মোছা হয়নি (TK-নিয়ম: নিজে থেকে কোড মোছা হয় না)। */
     }
 
     // 🔴 B342 — Daily-র জন্য এখন একটাই বোতাম: (১) Outside Calls/Notes সেভ,
@@ -2290,12 +3672,13 @@ class WorkNotebookActivity : AppCompatActivity() {
                         text.append("IN TIME- ").append(displayTime12(ns(day, "check_in")).ifBlank { "-" }).append("\n")
                         text.append("OUT TIME ").append(displayTime12(ns(day, "check_out")).ifBlank { "-" }).append("\n")
                     }
-                    text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                        .append("\nRegistration: ").append(s.optInt("registrations"))
+                    text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                        .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                         .append("\nToday Patient: ").append(patientsField.text.toString().trim().ifBlank { "0" })
                         .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                         .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                         .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                        .append(docVisitLine())
                     val notesTxt = notesField.text.toString().trim()
                     if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                     val finalText = text.toString()
@@ -2375,6 +3758,42 @@ class WorkNotebookActivity : AppCompatActivity() {
             val dateFilter = if (mode == "day") "createdAt=gte.$key" else "createdAt=gte.$key-01&createdAt=lt.$key-32"
             // 🔴 V509: `date` ঘরের জন্য সত্যিকারের সীমা (পরের মাসের ১ তারিখ)।
             val monthEnd = monthEndExclusive(key)
+            /* 🚨🔒 V1188 (০৭.০৯.২০২৬, TK-রিপোর্ট: *"KISHAN-10 & 11 এরা কিছু
+               রেজিষ্ট্রেশন করেছে … কিন্তু তাদের টা কেন 0"* এবং TK-এর সঠিক আপত্তি
+               *"আপনি আবার নেট দুর্বল বলছেন, আমার প্রতিটা চেম্বারে হাই স্পিডের
+               ইন্টারনেট লাগানো"*)।
+
+               🔴 **প্রথমে প্রমাণ (আন্দাজ নয়):** TK-র পাঠানো রিপোর্টে **App Calls: 0**
+                  লেখা ছিল — "…" নয়। ওই ঘরটা পড়া ব্যর্থ হলে "…" দেখায় (V590)।
+                  ⇒ **পড়াগুলো সফলই হয়েছিল**, নেটের কোনো দোষ ছিল না। সার্ভার সত্যিই
+                  ০ ফেরত দিয়েছে — অর্থাৎ **ছাঁকনিটাই মিলছিল না**। আমার আগের
+                  "নেট দুর্বল" কথাটা ভুল ছিল।
+
+               🔴 **দুটো অমিল কোডে মেপে বের করা হলো — কম্পিউটারের নিজের নিয়মের
+                  সঙ্গে মিলিয়ে (`notebook.js`-এর `autoStats`):**
+                  ① **নম্বর মেলানো** — কম্পিউটার `mobEq()` দিয়ে **শেষ ১০ অঙ্ক** মেলায়,
+                     তাই "+919883605917" আর "9883605917" একই ধরা হয়। ফোনে ছিল হুবহু
+                     `eq.` — সারিটা অন্য ধাঁচে সেভ হলে (কম্পিউটার থেকে করা
+                     রেজিস্ট্রেশন, পুরনো সারি) কখনোই মিলত না ⇒ ০।
+                  ② **তারিখের ঘর** — কম্পিউটার `createdAt` **অথবা** `date` **অথবা**
+                     `registrationDate` — তিনটের যেকোনোটা দেখে। ফোনে ছিল শুধু
+                     `createdAt`। পুরনো সারি আবার সেভ হলে `createdAt`-এ **আসল
+                     পুরনো সময়ই** থেকে যায় (V868-এর নিয়ম), তাই আজ কাজ করেও আজকের
+                     গোনায় ঢুকত না ⇒ ০।
+
+               ⇒ এখন ফোনেও ঠিক কম্পিউটারের নিয়ম: শেষ ১০ অঙ্ক ধরে মেলানো, আর
+                 তিনটে তারিখ-ঘরের যেকোনোটা। ⛔ কাকে গোনা হবে (নিজের করা কাজ) —
+                 সেই নিয়ম এক অক্ষরও বদলায়নি, শুধু মেলানোর ধরনটা উদার হলো।
+               ⛔ নতুন ছাঁকনি কোনো কারণে সার্ভার না বুঝলে **আগের হুবহু ছাঁকনিতেই**
+                 আবার চেষ্টা হয় (নিচে `countBoth`) — তাই আগের চেয়ে খারাপ কিছু
+                 কখনো হতে পারে না। */
+            val me10 = mobile.filter { it.isDigit() }.takeLast(10)
+            val dayOr = if (mode == "day")
+                "or(createdAt.gte.$key,date.eq.$key,registrationDate.eq.$key)"
+            else "or(createdAt.gte.$key-01,date.gte.$key-01,registrationDate.gte.$key-01)"
+            val mineEnqNew = "and=(or(createdBy.like.*$me10,receivedBy.like.*$me10),$dayOr)"
+            val minePatNew = "and=(or(registeredBy.like.*$me10,createdBy.like.*$me10),$dayOr)"
+            val minePayNew = "and=(or(receivedBy.like.*$me10,createdBy.like.*$me10),$dayOr)"
             val mineEnq = "or=(createdBy.eq.$mobile,receivedBy.eq.$mobile)&$dateFilter"
             val minePat = "or=(registeredBy.eq.$mobile,createdBy.eq.$mobile)&$dateFilter"
             val minePay = "or=(receivedBy.eq.$mobile,createdBy.eq.$mobile)&$dateFilter"
@@ -2382,13 +3801,21 @@ class WorkNotebookActivity : AppCompatActivity() {
             // নেটওয়ার্ক ব্যর্থ হলে সংখ্যাটা "জিরো" না দেখিয়ে "…" দেখানো
             // হয় (নিচে loadStats()-এ), যাতে আসল ডেটা মুছে গেছে বলে ভুল
             // ধারণা না হয়।
-            val enqR = ModuleAuth.countPublicChecked("enquiries", mineEnq)
-            val regR = ModuleAuth.countPublicChecked("patients", minePat)
+            /* 🛡 V1188 — নতুন (উদার) ছাঁকনি আগে; সার্ভার না বুঝলে পুরনোটা।
+               ⛔ তাই সবচেয়ে খারাপ ক্ষেত্রেও আগের সংখ্যাটাই আসে, কম নয়। */
+            fun countBoth(table: String, wide: String, old: String): ModuleAuth.CountResult {
+                val r = ModuleAuth.countPublicChecked(table, wide)
+                return if (r.ok) r else ModuleAuth.countPublicChecked(table, old)
+            }
+            val enqR = countBoth("enquiries", mineEnqNew, mineEnq)
+            val regR = countBoth("patients", minePatNew, minePat)
             val enq = enqR.count
             val reg = regR.count
             // AUDIT FIX (2026-08-06): use the checked sum so a network failure
             // shows "…" instead of a misleading ₹0 (see loadStats/report below).
-            val collR = ModuleAuth.sumPublicChecked("payments", minePay, "amount")
+            val collR = ModuleAuth.sumPublicChecked("payments", minePayNew, "amount").let {
+                if (it.ok) it else ModuleAuth.sumPublicChecked("payments", minePay, "amount")
+            }
             val coll = collR.sum
             /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ: *"App থেকে অনেকগুলো কল
                আমার সামনেই করলো, কিন্তু এখন সব 0 কেন দেখাচ্ছে?"*)
@@ -2582,8 +4009,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                     }
                     addView(TextView(this@WorkNotebookActivity).apply { text = label; textSize = 9.5f; setTextColor(android.graphics.Color.parseColor("#6B7280")) })
                     addView(TextView(this@WorkNotebookActivity).apply {
-                        text = value; textSize = 15f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(android.graphics.Color.parseColor("#0B2B59"))
+                        text = value; textSize = 15f
+                        brightIfNonZero(this)   // 🔆 V1204 — ০ হলে ফিকে, ০-র বেশি হলে গাঢ়
                     })
                 }
                 var idx = 0
@@ -2625,7 +4052,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                     .apply { marginStart = ModuleUi.dp(this@WorkNotebookActivity, 6) }
                 btnRow.addView(submitBtn); btnRow.addView(shareBtn)
                 out.addView(btnRow)
-                col.addView(ModuleUi.button(this, "Back") { render() })
+                bottomBack(col) { render() }   // ⬇️ V1204
             }
         }
     }
@@ -2650,8 +4077,49 @@ class WorkNotebookActivity : AppCompatActivity() {
                 ok = ModuleAuth.insert("wn", "work_reports", row)
                 if (!ok) { attempt++; if (attempt < 3) try { Thread.sleep(1200) } catch (_: Throwable) { } }
             }
-            runOnUiThread { ModuleUi.toast(this, if (ok) "Submitted to Master" else "সেভ হয়নি — একটু পরে আবার Submit চাপুন"); render() }
+            /* 🔔🔒 V1204 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"মান্থলি রিপোর্ট স্টাফ যখন
+               সাবমিট করে, স্টাফকে দেখাচ্ছে সাবমিট সাকসেসফুল, কিন্তু মাস্টার মানে
+               আমার কাছে তো আসেই না — না হোয়াটসঅ্যাপে, না অ্যাপের কোন নোটিফিকেশন"*।
+               🔬 কোডে মেপে দেখা — কথাটা সত্যি ছিল: এই ফাংশনটা শুধু `wn.work_reports`-এ
+                  সারিটা বসাত, মাস্টারের জন্য কোনো নোটিশই যেত না।
+               ⇒ TK-র সিদ্ধান্ত *"দুটোই চাই"* মেনে: (১) মাস্টারের ঘন্টায় নোটিশ
+                 (BriefingRepository-র সেই পুরনো প্রমাণিত পথ, MoneyHandover যেটা
+                 ব্যবহার করে), (২) সাবমিটের পরেই WhatsApp/Share শিট নিজে থেকে খোলে।
+               ⛔ সেভ ব্যর্থ হলে কোনোটাই হয় না — মিথ্যা "পাঠানো হয়েছে" নয়। */
+            if (ok) try {
+                val who = NativeSession.current(this)?.name ?: staffCode
+                val br = NativeSession.current(this)?.branch ?: ""
+                com.tkbiswas.pilesclinic.native.BriefingRepository().post(
+                    this,
+                    if (type == "daily") "Daily Report submitted" else "Monthly Report submitted",
+                    who + " · " + staffCode + (if (br.isBlank()) "" else " · " + br) + " · " + key,
+                    "role", br, "master", "", ""
+                )
+            } catch (_: Throwable) { }
+            runOnUiThread {
+                ModuleUi.toast(this, if (ok) "Submitted to Master" else "সেভ হয়নি — একটু পরে আবার Submit চাপুন")
+                render()
+                /* 💬 V1204 — TK: *"WhatsApp খুলতে হবে জোর করে"*। সাধারণ Share-শিট নয়,
+                   WhatsAppMessageChooser-এর প্রমাণিত পথ (Personal/Business বেছে
+                   সরাসরি WhatsApp-ই খোলে)। WhatsApp না থাকলে সৎ বার্তা দেখায়। */
+                if (ok) try {
+                    com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, summary)
+                } catch (_: Throwable) { }
+            }
         }.start()
+    }
+
+
+    /* ⬇️🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ): *"ব্যাক বটম সব সময় ডিসপ্লের নিচেতে
+       থাকবে"*। Doctor Reminder-এর হুবহু একই পথ — ScrollView-কে fillViewport
+       করে উপরে ওজন-১ ফাঁকা জায়গা, তাই বোতামটা সবসময় পর্দার নিচে বসে; লেখা
+       বড় হলে স্বাভাবিকভাবেই নিচে নেমে যায়, কখনো ঢাকা পড়ে না। */
+    private fun bottomBack(col: LinearLayout, onClick: () -> Unit) {
+        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
+        col.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.button(this, "Back") { onClick() })
     }
 
     private fun shareText(text: String) {
@@ -2671,9 +4139,27 @@ class WorkNotebookActivity : AppCompatActivity() {
         val col = ModuleUi.screen(this, "")
         col.addView(hero("My Reports", staffCode))
         val box = ModuleUi.card(this); col.addView(box); box.addView(ModuleUi.body(this, "Loading..."))
-        col.addView(ModuleUi.button(this, "Back") { render() })
+        bottomBack(col) { render() }   // ⬇️ V1204
         Thread {
-            val r = ModuleAuth.getRows("wn", "work_reports", "select=*&order=submitted_at.desc")
+            /* 🔵🔒 V818 (২৯.০৮.২০২৬, TK-নির্দেশে Egress-এর পূর্ণ যাচাই) —
+               আগে এখানে ছিল `select=*` **কোনো সীমা ও কোনো ছাঁকনি ছাড়া**।
+               ফল: এই পর্দা খুললেই ওই স্টাফের (মাস্টার হলে **সবার**) জীবনের
+               **সব রিপোর্ট, সব সংস্করণ** নামত — সঙ্গে সবচেয়ে ভারী দুটো ঘর
+               `auto_stats` (jsonb) আর `manual_summary` (স্টাফের লেখা পুরো
+               কথা), অথচ এই পর্দা ওদুটোর **একটাও ব্যবহার করে না**।
+               ⛔ এখন শুধু যে চারটে ঘর সত্যিই পড়া হয় সেগুলোই আসে
+                  (`period_key` · `version` · `accepted` · `seen_at`), নিজের
+                  কোড দিয়ে ছাঁকা, আর সর্বোচ্চ ৪০০ সারি (কয়েক বছরের রিপোর্টও
+                  এতে ধরে যায়)।
+               ⛔ পর্দায় দেখানো এক অক্ষরও বদলায়নি — গোনা · সংস্করণ · অবস্থা
+                  সবই ঠিক ওই একই ঘরগুলো থেকেই হয়। ওয়েবে (`notebook.js`)
+                  আগে থেকেই `limit(100)` বসানো ছিল, ফোনেই বাকি ছিল। */
+            val myScope = if (staffCode.isNotBlank()) "&staff_code=eq." + (try { java.net.URLEncoder.encode(staffCode, "UTF-8").replace("+", "%20") } catch (_: Throwable) { staffCode }) else ""
+            val r = ModuleAuth.getRows(
+                "wn", "work_reports",
+                "select=period_key,version,accepted,seen_at" + myScope +
+                    "&order=submitted_at.desc&limit=400"
+            )
             runOnUiThread {
                 box.removeAllViews()
                 if (r.length() == 0) { box.addView(ModuleUi.body(this, "No reports yet.")); return@runOnUiThread }

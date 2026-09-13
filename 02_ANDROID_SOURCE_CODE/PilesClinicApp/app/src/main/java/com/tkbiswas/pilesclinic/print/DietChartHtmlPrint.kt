@@ -54,7 +54,7 @@ object DietChartHtmlPrint {
                     val adapter = view.createPrintDocumentAdapter(jobName)
                     pm.print(
                         jobName, adapter,
-                        PrintAttributes.Builder()
+                        com.tkbiswas.pilesclinic.native.PrintQuality.builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .build()
@@ -80,10 +80,18 @@ object DietChartHtml {
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     /** ওয়েবের `wlv1AddrTwo` — থানা-চিহ্নের আগে লাইন-ব্রেক, নইলে এক লাইনে। */
-    private fun addr2(a: String): String {
+    private fun addr2(aRaw: String): String {
+        val a = aRaw.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (a.isBlank()) return "-"
         val u = a.uppercase()
-        val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION")
+        // 🟢🔒 V1135 (০৬.০৯.২০২৬ — TK: *"অ্যান্ড্রয়েড থেকে যত ধরনের প্রিন্ট
+        // আউট হয়, একই জিনিস একই মডেল কম্পিউটার থেকেও হতে হবে"* — মিলিয়ে দেখতে
+        // গিয়ে ধরা পড়ল): ওয়েবের `wlv1AddrTwo` বাংলা **"থানা"** শব্দেও লাইন ভাঙে,
+        // অথচ এই চারটে ছাপার কাগজে সেটা বাদ ছিল ⇒ একই ঠিকানা কম্পিউটারে দুই
+        // লাইনে, ফোনে এক লাইনে ছাপত। অ্যাপের বাকি আটটা জায়গায় শব্দটা আগে থেকেই আছে।
+        // ⛔ ইংরেজি চিহ্নগুলো বড় হাতেই থাকল (উপরে `u` বড় হাতে করা), তাই আগের
+        //    আচরণ এক অক্ষরও বদলায়নি — শুধু বাংলা শব্দটা যোগ হলো।
+        val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION", "থানা")
         var idx = -1
         for (m in markers) { val k = u.indexOf(m); if (k > 0 && (idx == -1 || k < idx)) idx = k }
         if (idx <= 0) return esc(a)
@@ -101,7 +109,7 @@ object DietChartHtml {
     /** ওয়েবের `wlv1DietA4Css()`-এর হুবহু নকল। */
     private fun css(): String = """
 @page{size:A4;margin:0}
-*{margin:0;padding:0;box-sizing:border-box}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{font-family:Arial,"Noto Sans Bengali","Noto Sans Devanagari",sans-serif;color:#15231C;background:#fff}
 .sheet{width:210mm;height:297mm;padding:7mm 8mm 6mm;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .wm{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);width:105mm;opacity:.05;z-index:0;pointer-events:none}
@@ -185,7 +193,7 @@ body{font-family:Arial,"Noto Sans Bengali","Noto Sans Devanagari",sans-serif;col
         // PrintMappers.patientAgeSex()-এর হুবহু একই নিয়ম (Age / Sex)
         val ageSex = listOf(RoleSession.currentPatientAge.trim(), RoleSession.currentPatientSex.trim())
             .filter { it.isNotBlank() }.joinToString(" / ").ifBlank { "-" }
-        val dateStr = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
+        val dateStr = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
             .format(java.util.Date())
 
         val remarkBlock = if (remarks.isBlank()) "" else
@@ -195,7 +203,7 @@ body{font-family:Arial,"Noto Sans Bengali","Noto Sans Devanagari",sans-serif;col
             "<img class=\"wm\" src=\"${info.logoAssetPath}\">" +
             "<div class=\"head\"><img src=\"${info.logoAssetPath}\"><div class=\"hc\">" +
             "<h1>${esc(info.clinicName)}</h1>$brLine<div class=\"rule\"></div>" +
-            "<div class=\"ad\">${esc(info.addressLine)} &nbsp;|&nbsp; Mob: ${esc(info.phoneLine)}</div>" +
+            "<div class=\"ad\">${esc(info.addressLine)} &nbsp;|&nbsp; Mob: ${esc(info.phoneLine)} &nbsp;|&nbsp; Helpline: ${esc(BranchCatalog.HELPLINE)}</div>" +
             "<div class=\"tag\"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b>" +
             "<span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div></div></div><div class=\"sep\"></div>" +
             "<div class=\"title\"><b>DIET &amp; LIFESTYLE CHART</b><span>PILES &nbsp;·&nbsp; FISSURE &nbsp;·&nbsp; FISTULA</span></div>" +

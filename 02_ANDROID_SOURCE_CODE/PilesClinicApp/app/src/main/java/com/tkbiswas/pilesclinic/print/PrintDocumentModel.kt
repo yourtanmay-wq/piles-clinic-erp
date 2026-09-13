@@ -24,7 +24,25 @@ data class PrintSection(
     // else that reads this model breaks.
     val rxDosage: List<String>? = null,
     val rxFrequency: List<String>? = null,
-    val rxDuration: List<String>? = null
+    val rxDuration: List<String>? = null,
+    /* 💊🔒 V723 (২৭.০৮.২০২৬, ডা. কে. এইচ. মণ্ডলের রিপোর্ট, TK ডেমো-প্রুফে
+       **প্রস্তাব ১** অনুমোদন করেছেন):
+
+       **সমস্যা:** ওষুধ যোগ করার সময় Instruction ঘরে লেখা (যেমন LAXALL-এর
+       "WITH LWW") সেভ হত, কিন্তু **ছাপা কাগজে কোথাও আসত না** — তাই কোন ওষুধ
+       গরম জলের সঙ্গে, কোনটা মধু দিয়ে খেতে হবে রোগী জানতে পারতেন না।
+
+       **কারণ (কোড ধরে):** `PrintMappers.prescription()` লেখাটা শুধু পুরোনো
+       `lines`-এ জুড়ত (`[WITH LWW]`), অথচ A4 ছকটা ছাপে `rxNames · rxDosage ·
+       rxFrequency · rxDuration` — Instruction-এর কোনো ঘর ছকে ছিলই না।
+
+       **সমাধান:** এই নতুন ঘরটা। ছাপায় লেখাটা **ওষুধের নামের ঠিক নিচে ছোট
+       হরফে** বসে (TK-অনুমোদিত প্রস্তাব ১) — তাই **ছকের একটাও কলামের চওড়া
+       বদলায়নি**, লম্বা নাম ভেঙে যাওয়ার ঝুঁকিও তৈরি হয়নি।
+
+       ⛔ ঐচ্ছিক (`null` ডিফল্ট) — তাই আগের প্রতিটা ডাক এক অক্ষরও না বদলে চলে;
+          যেসব কাগজে Instruction নেই, সেগুলো হুবহু আগের মতোই ছাপে। */
+    val rxInstructions: List<String>? = null
 )
 
 /**
@@ -75,4 +93,25 @@ object PrintDataHolder {
     // Registration, etc.) leaves this null and is completely unaffected.
     var prebuiltFile: java.io.File? = null
     var prebuiltTitle: String? = null
+
+    /* 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ: *"টাকা বুঝিয়ে দেয়ার সিস্টেমটা এই
+       পর্দাতে রাখুন"*) — Chamber Register যখন এই পর্দায় আসে, তখন সেই দিনের
+       ব্রাঞ্চ · তারিখ · টাকার অঙ্কগুলোও সাথে আসে, আর পর্দায় "MONEY HANDOVER"
+       ঘরটা দেখা যায়।
+       ⛔ অন্য প্রতিটা কাগজ এই ঘরগুলো কখনো বসায় না ⇒ তাদের পর্দা হুবহু আগের
+          মতোই থাকে (ঘরটা লুকানো)। ব্যবহারের সাথে সাথেই মুছে ফেলা হয়, যাতে
+          পরের কাগজে ভুল করে থেকে না যায়। */
+    var handoverBranch: String = ""
+    var handoverDate: String = ""
+    var handoverFees: Double = 0.0
+    var handoverCash: Double = 0.0
+    var handoverOnline: Double = 0.0
+    var handoverRefund: Double = 0.0
+    var handoverTotal: Double = 0.0
+
+    fun clearHandover() {
+        handoverBranch = ""; handoverDate = ""
+        handoverFees = 0.0; handoverCash = 0.0; handoverOnline = 0.0
+        handoverRefund = 0.0; handoverTotal = 0.0
+    }
 }

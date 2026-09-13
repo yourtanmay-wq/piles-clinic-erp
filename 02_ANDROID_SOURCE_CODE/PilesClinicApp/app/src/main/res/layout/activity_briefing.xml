@@ -128,6 +128,16 @@
             android:orientation="vertical"
             android:visibility="gone" />
 
+        <!-- 🏠 V1179 (07.09.2026, TK-order): Master's pending "Work From Home"
+             approvals, built in Kotlin (BriefingActivity.loadWfhRequests()).
+             GONE by default like leaveRequestsContainer just above. -->
+        <LinearLayout
+            android:id="@+id/wfhRequestsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone" />
+
         <!-- TK-REQUESTED ADDITION (2026-07-24): Master-only "Visit Fee Missing"
              visibility section, built dynamically in Kotlin
              (BriefingActivity.loadMissingVisitFees()). Same GONE-by-default

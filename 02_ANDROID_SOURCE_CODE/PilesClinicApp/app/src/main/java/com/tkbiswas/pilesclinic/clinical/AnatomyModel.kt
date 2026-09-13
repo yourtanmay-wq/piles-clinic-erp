@@ -56,11 +56,52 @@ object AnatomyModel {
     const val KIND_RING  = "ring"
     const val KIND_ARROW = "arrow"
     const val KIND_BULGE = "bulge"
+    /* 🔴🔒 V793 (২৮.০৮.২০২৬, TK-নির্দেশ) — **ফিশারের ফাটল।**
+       TK: *"ফিসারের দাগটা যেন আমি বেকা আঁকতে পারি … আঙুল দিয়ে যেখানে ঘষা
+       দিব সেখানে যেন দাগ হয়ে যায়, যাতে বোঝা যায় এই বরাবর আপনার ফিসার
+       হয়েছে।"* ⇒ আঙুলের পুরো পথটা `pts`-এ জমা হয় (নালীর মতোই), তাই দাগ
+       ঠিক সেই বাঁক ধরেই বসে। ⛔ পুরোনো কোনো ধরন বদলায়নি — এটা নতুন। */
+    const val KIND_FISSURE = "fis"
 
     /** ফোলানোর সীমা — এর বেশি টানলে ছবি ভেঙে যায়, তাই আটকানো। */
     const val BULGE_MAX = 0.92
     const val RADIUS_MAX = 42.0
     const val RADIUS_MIN = 3.0
+
+    /**
+     * 🟢🔒 V626 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ অনুমোদিত) — *"পাইলস তো
+     * আর সব জায়গায় হয় না... মলদ্বারে মাংসটা খুলতে হবে, ছবির অন্যান্য
+     * জায়গায় চাপলে যেন না ফোলে"*।
+     *
+     * ⛔ মাংসের **আকৃতি/মাপ** (`drawLump()`, `bulgeFromDrag()`) এক অক্ষরও
+     *    বদলানো হয়নি — TK স্পষ্ট বলেছেন *"বর্তমান কোডে যেমন হয় ঠিক তেমনি
+     *    থাকতে হবে"*। এখানে শুধু **কোথায়** কাজ করবে সেটা আটকানো হলো।
+     *
+     * কেন্দ্র (⊕, `AnatomyClock.centreOf`) থেকে এই দূরত্বের (শতকরা মাপে)
+     * মধ্যে ছুঁলে তবেই ফোলা যায় — নইলে কিছুই আঁকা হয় না।
+     * ⚠️ ওয়েবের `WLV1_ANAT_BULGE_ZONE`-এর হুবহু একই সংখ্যা।
+     */
+    const val BULGE_ZONE_RADIUS = 25.0
+
+    /**
+     * 🟢🔒 V631 (২৪.০৮.২০২৬, TK-রিপোর্ট "পাইলসের মাংস তো এবার ফোলানি যাচ্ছে
+     * না") — **আসল কারণ ধরা পড়ল:** ছবি বর্গাকার নয় (যেমন anat26 — ৪০৮×৬২৮,
+     * লম্বায় বেশি), অথচ V626-এ দূরত্ব x ও y-কে সমান ধরে মাপা হয়েছিল। ফলে
+     * "২৫% ব্যাসার্ধ" আসলে একটা **উপবৃত্ত** (ellipse) হয়ে গিয়েছিল, বৃত্তাকার
+     * নয় — তাই বৃত্তের চারপাশে অনেক বাস্তবসম্মত জায়গাতেও (১০টা, ১১টা...)
+     * "না" বলছিল।
+     *
+     * সমাধান: `tractCm()`-এর (V564) **প্রমাণিত একই কৌশল** — y-দূরত্বকে
+     * ছবির অনুপাতে (aspect = height÷width) গুণ করে x-এর একই মাপে আনা হয়,
+     * তারপর দূরত্ব মাপা হয়। এখন সীমাটা সত্যিকারের বৃত্তাকার এলাকা।
+     * ⛔ মাংসের আকৃতি/মাপ (drawLump/bulgeFromDrag) এখনো এক অক্ষরও বদলায়নি।
+     * ⚠️ ওয়েবের `wlv1AnatWithinBulgeZone()`-এর হুবহু একই সংশোধন।
+     */
+    fun withinBulgeZone(x: Double, y: Double, cx: Double, cy: Double, aspect: Double): Boolean {
+        val dx = x - cx
+        val dy = (y - cy) * aspect
+        return Math.hypot(dx, dy) <= BULGE_ZONE_RADIUS
+    }
 
     /* 🔵🔒 V571 (২২.০৮.২০২৬, TK-নির্দেশ) — আগে এখানে `pushFactor()` ছিল, যেটা
        ছবির পিক্সেল বাইরের দিকে ঠেলে "ফোলা" বানাত। TK ছবি পাঠিয়ে বললেন সেটা
@@ -223,7 +264,9 @@ object AnatomyModel {
         for (m in board.marks) {
             if (out.isNotEmpty()) out.append('|')
             when (m.kind) {
-                KIND_TRACT, KIND_PEN -> {
+                /* 🔴🔒 V793 — ফিশারও আঙুলের **পুরো পথ** হিসেবেই জমা হয়
+                   (নালী/কলমের মতোই), তাই বাঁকটা হুবহু ফেরে। */
+                KIND_TRACT, KIND_PEN, KIND_FISSURE -> {
                     out.append(m.kind).append(':')
                     out.append(m.pts.joinToString(";") { "${n1(it.first)},${n1(it.second)}" })
                 }
@@ -261,7 +304,7 @@ object AnatomyModel {
             val kind = t.substring(0, c)
             val body = t.substring(c + 1)
             when (kind) {
-                KIND_TRACT, KIND_PEN -> {
+                KIND_TRACT, KIND_PEN, KIND_FISSURE -> {
                     val pts = body.split(";").mapNotNull { p ->
                         val a = p.split(",")
                         if (a.size < 2) null else {

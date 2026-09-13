@@ -21,12 +21,12 @@ object HistoryDetailModel {
     data class Group(val key: String, val title: String, val questions: List<Question>)
 
     val GROUPS = listOf(
-        Group("bleed", "🩸 রক্তপাতের ইতিহাস", listOf(
+        Group("bleed", "🩸 রক্তপাতের History", listOf(
             Question("color", "রঙ", listOf("টকটকে লাল", "কালচে")),
             Question("time", "সময়", listOf("মলের আগে", "মলের সাথে মিশে", "মলের পরে", "যখন তখন")),
             Question("amount", "পরিমাণ", listOf("অল্প", "অনেক"))
         )),
-        Group("pain", "😣 ব্যথার ইতিহাস", listOf(
+        Group("pain", "😣 ব্যথার History", listOf(
             Question("type", "ব্যথার ধরন", listOf("তীক্ষ্ণ কাটাকাটা", "দপদপ করা")),
             Question("time", "সময়", listOf(
                 "মলত্যাগের সময় তীব্র হয় ও পরে কয়েক ঘন্টা থাকে",
@@ -34,7 +34,7 @@ object HistoryDetailModel {
             )),
             Question("severity", "তীব্রতা", listOf("মৃদু", "মাঝারি", "তীব্র"))
         )),
-        Group("lump", "🫃 ফোলা / মাংসপিণ্ডের ইতিহাস", listOf(
+        Group("lump", "🫃 ফোলা / মাংসপিণ্ডের History", listOf(
             Question("state", "", listOf(
                 "নিজে থেকে ভেতরে চলে যায় (Spontaneous)",
                 "ঠেলে ঢুকিয়ে দিতে হয় (Manual)",
@@ -42,7 +42,7 @@ object HistoryDetailModel {
                 "হঠাৎ তীব্র ব্যথাসহ শক্ত হয়ে ফুলে গেছে"
             ))
         )),
-        Group("fluid", "💧 পুঁজ / জল পড়ার ইতিহাস", listOf(
+        Group("fluid", "💧 পুঁজ / জল পড়ার History", listOf(
             Question("type", "তরলের ধরন", listOf("শুধু পুঁজ", "রক্তযুক্ত পুঁজ", "পাতলা জল")),
             Question("smell", "গন্ধ", listOf("দুর্গন্ধযুক্ত", "স্বাভাবিক")),
             Question("opening", "পায়ুপথের কাছে ছোট ছিদ্র", listOf("দেখা যায়", "দেখা যায় না"))

@@ -37,6 +37,14 @@ class PilesClinicApplication : Application() {
         super.onCreate()
         appContext = applicationContext
 
+        /* 🔴🔒 V721 (২৭.০৮.২০২৬) — ফোনে কল এলে/মেমরি কম পড়লে Android অ্যাপের
+           প্রসেস বন্ধ করে দেয়; পরে পর্দা আবার খুললেও **রোগীর তথ্য (নাম ·
+           ব্রাঞ্চ · ঠিকানা …) মেমরি থেকে মুছে যেত** — তখন ছাপা কাগজে সব `"-"`
+           আর ভুল ব্রাঞ্চের হেডার আসত। এখানে একবারই ফিরিয়ে আনা হয়।
+           ⛔ মেমরিতে রোগী থাকলে কিছুই করে না · ৩০ মিনিটের বেশি পুরোনো হলে
+              ফেরানো হয় না · কোনো ক্লাউড-কল নেই (RoleSession.kt দ্রষ্টব্য)। */
+        try { com.tkbiswas.pilesclinic.clinical.RoleSession.restoreIfEmpty() } catch (_: Throwable) { }
+
         Thread.setDefaultUncaughtExceptionHandler(
             CrashHandler(this, Thread.getDefaultUncaughtExceptionHandler())
         )
@@ -119,6 +127,11 @@ class PilesClinicApplication : Application() {
             //   মাস্টারের ফোন কিনা; স্টাফ/ডাক্তারের ফোনে কিছুই হয় না।
             //   ⛔ কেউ বাকি না থাকলে কোনো নোটিফিকেশনই আসে না।
             com.tkbiswas.pilesclinic.native.MasterOutTimeScheduler.scheduleNext(this)
+            // 🛰️🔒 V1345 (১১.০৯.২০২৬, TK-নির্দেশ) — দুপুর ৩টায় মাস্টারকে জানানো
+            //   কোন ফিল্ড-স্টাফের লোকেশন আজ ৪৫ মিনিটেরও বেশি সময় ধরে
+            //   হালনাগাদ হচ্ছে না। ⛔ MasterOutTimeScheduler-এর থেকে সম্পূর্ণ
+            //   আলাদা, স্বাধীন চেইন — উপরেরটা ছোঁয়া হয়নি।
+            com.tkbiswas.pilesclinic.native.FieldVisitAlertScheduler.scheduleNext(this)
             // 🆕 B467 (05.08.2026, TK-নির্দেশ) — অপঠিত Briefing/Notice থাকলে
             // ১০ মিনিট পরপর জোরপূর্বক নোটিফিকেশন (একই প্রমাণিত chain-প্যাটার্ন)।
             com.tkbiswas.pilesclinic.native.BriefingReminderScheduler.start(this)
@@ -126,6 +139,13 @@ class PilesClinicApplication : Application() {
             // আগে সন্ধ্যা ৫টায় ব্রাঞ্চ-স্টাফকে একবার মনে করিয়ে দেয় (মাস্টারকে নয়)।
             // একই প্রমাণিত WorkManager-chain প্যাটার্ন; দিনে একবারই বাজে।
             com.tkbiswas.pilesclinic.native.ExpectedTomorrowReminderScheduler.scheduleNext(this)
+            // 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ) — Doctor Note & Reminder:
+            // ডাক্তার Doctor Checkup-এর History পাতায় ভবিষ্যতের একটা নোট +
+            // তারিখ বসালে, সেই তারিখের আগের দিন সন্ধ্যা ৫টায় শুধু ডাক্তারকেই
+            // একবার মনে করিয়ে দেওয়া হয়। একই প্রমাণিত WorkManager-chain
+            // প্যাটার্ন; দিনে একবারই বাজে। ⛔ ভিতরে নিজেই দেখে নেয় role
+            // "doctor" কিনা — স্টাফ/মাস্টারের ফোনে কিছুই হয় না।
+            com.tkbiswas.pilesclinic.native.DoctorReminderScheduler.scheduleNext(this)
             // 🚨 TK'S ORDER (2026-07-27): "অ্যাপ্লিকেশন বন্ধ থাকলেও... ইন্টারনেট অন
             // থাকলেই ব্যাকগ্রাউন্ডে লোডিং ও আপডেটের কাজ চলতে থাকবে।"
             // The old background job only PUSHED unsent records up; nothing ever
@@ -220,6 +240,14 @@ class PilesClinicApplication : Application() {
             override fun onActivityStarted(activity: Activity) {
                 visibleScreens += 1
                 try { SessionGuardBridge.onForeground(applicationContext, activity) } catch (_: Throwable) { }
+                /* 🏍️🔒 V1364 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট, তালিকা ৪৬২-ঝ) —
+                   ফিল্ড ভিজিটের GPS-সেবা OEM-এর ব্যাটারি-ব্যবস্থাপনায় মরে গেলে
+                   আগে শুধু `Work Notebook` পর্দা খুললে তবেই আবার চালু হত।
+                   এখন **মানুষ নিজে অ্যাপের যেকোনো পর্দা খুললেই** (এই একমাত্র
+                   জায়গা, উপরের নোট দ্রষ্টব্য) একই যাচাই চলে — সেটাই
+                   `startForegroundService()`-এর জন্য সবচেয়ে নিরাপদ ও পূর্ণ-
+                   অনুমতির মুহূর্ত। ⛔ হাজিরার কোনো লজিক ছোঁয়া হয়নি। */
+                try { com.tkbiswas.pilesclinic.native.FieldVisitControl.resumeIfNeeded(applicationContext) } catch (_: Throwable) { }
             }
             // 🩺 V496 (TK §৩): অ্যাপ **পুরোপুরি** পিছনে গেলে ডাক্তারের তালা আবার লাগে।
             // এক পর্দা থেকে অন্য পর্দায় গেলে লাগে না (নইলে কাজ করা যেত না) —

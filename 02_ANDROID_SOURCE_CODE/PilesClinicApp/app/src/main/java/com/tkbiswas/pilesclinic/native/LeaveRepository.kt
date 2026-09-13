@@ -25,7 +25,7 @@ object LeaveRepository {
         return f.format(java.util.Date())
     }
     private fun enc(s: String) = try { java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20") } catch (_: Throwable) { s }
-    private fun dotDate(iso: String): String = try { val p = iso.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (_: Throwable) { iso }
+    private fun dotDate(iso: String): String = try { val p = iso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (_: Throwable) { iso }
 
     /** master → সব pending; ব্রাঞ্চ-ডাক্তার → শুধু নিজের ব্রাঞ্চের pending।
      *  (RLS পড়া খোলা — অ্যাপ ব্রাঞ্চ ধরে ছাঁকে।) */

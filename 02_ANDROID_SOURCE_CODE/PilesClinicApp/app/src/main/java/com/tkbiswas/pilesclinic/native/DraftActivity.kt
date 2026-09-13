@@ -52,9 +52,25 @@ class DraftActivity : AppCompatActivity() {
         binding.btnEnqReject.setOnClickListener { showList("Enquiry Reject List", "enqReject", buckets?.enqReject) }
         binding.btnVisitReject.setOnClickListener { showList("Visit Reject List", "visitReject", buckets?.visitReject) }
         binding.btnNotComplete.setOnClickListener { showList("Incomplete Patient", "notComplete", buckets?.notComplete) }
+        // 🟢🔒 V644 (২৫.০৮.২০২৬, TK-নির্দেশ) — একই প্যাটার্ন, নতুন bucket।
+        binding.btnRunningTreatment.setOnClickListener { showList("Running Patient", "runningTreatment", buckets?.runningTreatment) }
         binding.btnComplete.setOnClickListener { showList("Complete Patient", "complete", buckets?.complete) }
         binding.btnUnexpectedTime.setOnClickListener { showList("Unexpected Time Calls", "unexpectedTime", buckets?.unexpectedTime) }
+        /* 📊🔒 V824 (২৯.০৮.২০২৬, TK-নির্দেশ: *"শুধুমাত্র মাস্টারের জন্য…
+           আমার যে ব্রাঞ্চ সিলেক্ট করা থাকবে শুধুমাত্র সেই ব্রাঞ্চের"*) —
+           "Yearly Registration"। ⛔ স্টাফ ও ডাক্তারের পর্দায় সারিটা
+           একেবারেই থাকে না (XML-এ ডিফল্ট `gone`), তাই তাঁদের জন্য এক
+           অক্ষরও বদলায়নি। */
+        if (user.role == "master") {
+            binding.btnYearlyReg.visibility = View.VISIBLE
+            binding.tvYearlyRegSub.text = YearlyRegistration.currentYear()
+            binding.btnYearlyReg.setOnClickListener { openYearlyReg() }
+        } else {
+            binding.btnYearlyReg.visibility = View.GONE
+        }
         binding.btnRefunded.setOnClickListener { showList("Refunded", "refunded", buckets?.refunded) }
+        // 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — একই প্যাটার্ন, নতুন bucket।
+        binding.btnReturnVisit.setOnClickListener { showList("Return Visit List", "returnVisit", buckets?.returnVisit) }
 
         // TK-REPORTED (2026-07-18): these 6 buttons were still showing the
         // app theme's default navy (never explicitly styled, unlike the
@@ -189,9 +205,15 @@ class DraftActivity : AppCompatActivity() {
         binding.tvCountEnqReject.text = b.enqReject.size.toString()
         binding.tvCountVisitReject.text = b.visitReject.size.toString()
         binding.tvCountNotComplete.text = b.notComplete.size.toString()
+        // 🟢🔒 V644 (২৫.০৮.২০২৬, TK-নির্দেশ) — একই প্যাটার্ন, নতুন bucket।
+        binding.tvCountRunningTreatment.text = b.runningTreatment.size.toString()
         binding.tvCountComplete.text = b.complete.size.toString()
         binding.tvCountUnexpected.text = b.unexpectedTime.size.toString()
         binding.tvCountRefunded.text = b.refunded.size.toString()
+        // 🟢🔒 V621 — একই প্যাটার্ন।
+        binding.tvCountReturnVisit.text = b.returnVisit.size.toString()
+        // 📊🔒 V824 — একই প্যাটার্ন, নতুন ঘর (শুধু মাস্টারের পর্দায় দেখা যায়)।
+        binding.tvCountYearlyReg.text = YearlyRegistration.countedOf(b.yearlyReg).toString()
     }
 
     private fun load() {
@@ -236,6 +258,28 @@ class DraftActivity : AppCompatActivity() {
             }
             renderBuckets(b)
         }
+    }
+
+    /**
+     * 📊🔒 V824 — বিস্তারিত পর্দা: মাসভিত্তিক হিসাব + রোগীর তালিকা, পাশে
+     * Skip / Undo। ⛔ তালিকাটা **ইতিমধ্যে হিসাব-করা** সারি নিয়েই যায় —
+     * নতুন কোনো ক্লাউড-পড়া হয় না।
+     */
+    private fun openYearlyReg() {
+        val rows = buckets?.yearlyReg
+        if (rows == null) {
+            Toast.makeText(this, "Still loading — please wait", Toast.LENGTH_SHORT).show()
+            return
+        }
+        startActivity(
+            android.content.Intent(this, YearlyRegistrationActivity::class.java)
+                .putExtra("branch", shownBranch())
+                .putExtra("year", YearlyRegistration.currentYear())
+                .putExtra("entries", ArrayList(rows))
+                // 🆕 V852 — "কতজন বাদ পড়ল ও কেন" (তালিকাতেও নেই, গোনাতেও নেই)।
+                .putExtra("outDemo", buckets?.yearlyOutDemo ?: 0)
+                .putExtra("outNoDate", buckets?.yearlyOutNoDate ?: 0)
+        )
     }
 
     // V215 (§18): `bucket` + branch/date এখন সঙ্গে পাঠানো হয় যাতে DraftListActivity

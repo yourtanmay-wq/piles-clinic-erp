@@ -78,13 +78,63 @@ object BranchSimHelper {
     // স্টাফদের কাজ থামবে না।
     fun hasChamberAnswer(context: Context): Boolean = prefs(context).contains("has_chamber_number")
 
+    /* 🔴🔒 V908 (৩১.০৮.২০২৬, JPE-CRP-এর রিপোর্ট — TK: *"চেম্বারের ফোনে
+       ক্লিনিকের সিম আছে"*)। **এখানেই আসল দোষ ছিল:** উপরের grandfather-লাইনটা
+       স্টাফের **নিজের সাফ উত্তরের আগে** বসত। তাই যে ফোনে পুরনো (নিঃশব্দে বসা)
+       সিম-বাছাই জমা ছিল, সেখানে স্টাফ *"না, এই ফোনে চেম্বারের নম্বর নেই"*
+       বললেও এই ঘর **হ্যাঁ**-ই বলত ⇒ ব্যক্তিগত ফোনের নিজের কলও
+       "Superfone/Clinic Number Call"-এ গোনা হয়ে যেত (B509-এ TK ঠিক এই কথাই
+       বলেছিলেন — *"না বলেছে, তারপরও কাউন্টিং করছে"*)।
+       **এখন নিয়ম:** স্টাফ একবার উত্তর দিয়ে থাকলে **সেই উত্তরই চূড়ান্ত**;
+       grandfather শুধু তখনই, যখন কোনো উত্তরই দেওয়া হয়নি।
+       ⛔ যে ফোনে "হ্যাঁ" আছে, তার আচরণ এক অক্ষরও বদলায়নি। */
     fun hasChamberNumber(context: Context): Boolean {
+        val p = prefs(context)
+        if (p.contains("has_chamber_number")) return p.getBoolean("has_chamber_number", false)
         if (hasGenuinelyChosenSim(context)) return true // grandfathered — সত্যিই একাধিক SIM থেকে হাতে বেছেছেন
-        return prefs(context).getBoolean("has_chamber_number", false)
+        return false
     }
 
     fun saveHasChamberNumber(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean("has_chamber_number", value).apply()
+    }
+
+    /** 🟢🔒 V619 (২৪.০৮.২০২৬, TK-রিপোর্ট — নিজের/Master-এর ফোনে, যেখানে
+     *  চেম্বারের নম্বর আছে বলে কখনো জানানোই হয়নি, তাও কল-নোটিফিকেশন
+     *  দেখাচ্ছিল) — `hasGenuinelyChosenSim()`/`hasChamberNumber()`
+     *  Dialer-এর কল-লগ **দেখানোর** জন্য ইচ্ছাকৃতভাবে নরম (পুরনো এক-সিম
+     *  ফোনে নিঃশব্দে grandfather করে, `hasChamberAnswer()` থাকলেই যথেষ্ট
+     *  ধরে — আসল উত্তর হ্যাঁ না না তা না দেখেই)। এটা Dialer-এর জন্য ঠিক
+     *  ছিল, কিন্তু কল-শনাক্তকরণ/নোটিফিকেশনের জন্য **অনেক বেশি নরম** —
+     *  TK স্পষ্ট বলেছিলেন "শুধু যারা আগেই হ্যাঁ বলেছে"। এই ফাংশনটা তাই
+     *  সরাসরি **আসল সংরক্ষিত হ্যাঁ/না** পড়ে, grandfather-ছাড় ছাড়াই —
+     *  শুধু (ক) সত্যিই একাধিক SIM থেকে হাতে-বাছা (`savedSlot >= 0`,
+     *  এটা নিজেই দ্ব্যর্থহীন "হ্যাঁ"), অথবা (খ) প্রশ্নের উত্তরে সত্যিই
+     *  "হ্যাঁ" বলা হয়েছে (raw বুলিয়ান, কোনো ছাড় ছাড়া) — এই দুটোতেই
+     *  শুধু true। ⛔ Dialer-এর কল-লগ দেখানোর নিয়ম এক অক্ষরও বদলায়নি —
+     *  এই নতুন ফাংশনটা শুধু নতুনভাবে যোগ হলো, কেউ ডাকছে না মানে কিছু
+     *  বদলায় না। */
+    fun hasExplicitlyConfirmedChamberSim(context: Context): Boolean {
+        if (savedSlot(context) >= 0) return true
+        return hasChamberAnswer(context) && prefs(context).getBoolean("has_chamber_number", false)
+    }
+
+    /* 🔴🔒 V1429 (১৩.০৯.২০২৬, যাচাইকারীর ধরা ফাঁক) — V1427 শুধু **ভবিষ্যতের** চুপচাপ "না"
+       বন্ধ করেছিল; যে ফোনে পুরনো auto-detect ইতিমধ্যে "না" লিখে রেখেছে (TK-র রিপোর্টের
+       ঠিক সেই ফোনগুলো) সেখানে ব্যানার তবু বন্ধই থাকত। ফোনে "সত্যিকারের না" আর "চুপচাপ না"
+       আলাদা করে রাখা নেই — তাই **একবারই** (এই বিল্ডে প্রথম Home খোলার সময়): উত্তর "না" অথচ
+       কোনো SIM-স্লট বাছা নেই ⇒ উত্তরটা মুছে দেওয়া হয়, স্টাফকে আবার একবার প্রশ্ন করা হবে
+       (Dialer/Work Notebook/Call ID Banner সেটআপ — যেটা আগে খোলে)। সত্যিই "না" হলে আবার
+       "না" বললেই শেষ। ⛔ "হ্যাঁ" বা হাতে-বাছা স্লট ছোঁয়া হয় না। ⛔ দ্বিতীয়বার আর চলে না। */
+    fun resetSilentNoOnce(context: Context) {
+        try {
+            val p = prefs(context)
+            if (p.getBoolean("v1429_silent_no_reset", false)) return
+            p.edit().putBoolean("v1429_silent_no_reset", true).apply()
+            if (p.contains("has_chamber_number") && !p.getBoolean("has_chamber_number", false) && savedSlot(context) < 0) {
+                p.edit().remove("has_chamber_number").apply()
+            }
+        } catch (_: Throwable) { }
     }
 
     fun clearChamberAnswer(context: Context) {
@@ -178,7 +228,9 @@ object BranchSimHelper {
         // Notebook দুটোতেই শেয়ার হয় (B488)।
         // 🔴🔒 B491 (06.08.2026) — আসল কারণ Call Log অনুমতি ছিল, এই গেট
         // না — TK লাইভ টেস্টে নিশ্চিত করার পরে আবার চালু।
-        if (hasChamberAnswer(context) && !hasGenuinelyChosenSim(context) && !hasChamberNumber(context)) return out // 🔴🔒 B509
+        /* 🔴🔒 V908 — সাফ "না" এখন সিম-বাছাইকেও হারায় (উপরের টীকা দেখুন)।
+           ⇒ ব্যক্তিগত ফোনের কল আর ক্লিনিকের গোনায় ঢোকে না। */
+        if (hasChamberAnswer(context) && !hasChamberNumber(context)) return out // 🔴🔒 B509 · V908
         try {
             val midnight = java.util.Calendar.getInstance().apply {
                 set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
@@ -219,6 +271,63 @@ object BranchSimHelper {
         return out
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       ☎️🔒 V963 (০১.০৯.২০২৬, TK-এর লক করা নির্দেশ) — TK: *"চেম্বার এর ফোনে যখন
+       ফোন আসবে তখন স্টাফ এর কোন হাত থাকবে না, এটা অটোমেটিক অ্যাপ counting
+       করবে"* · *"প্রথম কলটাই ধরবেন"* · *"দিনের দিন, বড়জোর তারপরের দিন"*।
+
+       এই ঘরটা একটা নম্বরের **সবচেয়ে প্রথম কলের সময়** ফেরত দেয় — ব্রাঞ্চের
+       SIM-এর কল-লগ থেকে, গত ৩ দিনের মধ্যে (ইনকামিং · আউটগোয়িং · মিসড
+       তিনটেই, কারণ TK-এর নিয়মে আউটগোয়িং কলও গোনা হয়)।
+       ⇒ রাত ১০টার কল পরের দিন দুপুরে ফর্মে তুললেও **ওই কলের সময়টাই** ধরা হয়।
+
+       ⛔ ক্লাউডে একটাও অনুরোধ নেই — পুরোটাই ফোনের নিজের Call Log পড়া।
+       ⛔ উপরের `fetchTodayCallLog()`-এর **হুবহু একই** নিরাপত্তা-গেট: অনুমতি
+          নেই ⇒ কিছু নয় · এই ফোনে চেম্বারের নম্বর নেই বলে জানানো থাকলে ⇒ কিছু
+          নয় (ব্যক্তিগত কল কখনো গোনায় ঢুকবে না) · ব্রাঞ্চের SIM বাছা থাকলে
+          শুধু সেই SIM-এর কল।
+       ⛔ না পাওয়া গেলে `null` — তখন ডাকা জায়গাটা আগের নিয়মেই চলে।
+       ═══════════════════════════════════════════════════════════════════ */
+    private const val CALL_LOOKBACK_DAYS = 3L
+
+    fun firstCallTimeMs(context: Context, mobile: String): Long? {
+        if (!hasCallLogPermission(context)) return null
+        if (hasChamberAnswer(context) && !hasChamberNumber(context)) return null
+        val digits = mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) return null
+        return try {
+            val since = System.currentTimeMillis() - CALL_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L
+            val branchSubIdsSet = branchSubIds(context)
+            var earliest: Long? = null
+            context.contentResolver.query(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                arrayOf(
+                    android.provider.CallLog.Calls.NUMBER,
+                    android.provider.CallLog.Calls.DATE,
+                    android.provider.CallLog.Calls.PHONE_ACCOUNT_ID
+                ),
+                "${android.provider.CallLog.Calls.DATE} >= ?",
+                arrayOf(since.toString()),
+                "${android.provider.CallLog.Calls.DATE} ASC"
+            )?.use { c ->
+                val numIdx = c.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
+                val dateIdx = c.getColumnIndex(android.provider.CallLog.Calls.DATE)
+                val accIdx = c.getColumnIndex(android.provider.CallLog.Calls.PHONE_ACCOUNT_ID)
+                while (c.moveToNext()) {
+                    if (branchSubIdsSet.isNotEmpty()) {
+                        val acc = if (accIdx >= 0) c.getString(accIdx) else null
+                        if (acc != null && branchSubIdsSet.none { acc.contains(it) }) continue
+                    }
+                    val num = (if (numIdx >= 0) c.getString(numIdx) else null) ?: continue
+                    if (num.filter { ch -> ch.isDigit() }.takeLast(10) != digits) continue
+                    val dateMs = if (dateIdx >= 0) c.getLong(dateIdx) else 0L
+                    if (dateMs > 0L) { earliest = dateMs; break }   // ASC — প্রথমটাই সবচেয়ে পুরনো
+                }
+            }
+            earliest
+        } catch (_: Throwable) { null }
+    }
+
     /**
      * 🆕🔒 খাতার সারি — Dialer → Missed ট্যাব (TK-নির্দেশ, 05.08.2026 —
      * "বেল-নোটিফিকেশন হবে, ফিরতি কল বাকি মনে করাবে")। একটা মিসড কল
@@ -229,6 +338,93 @@ object BranchSimHelper {
      * যায় না, তাই `BellCounter.count()`-এ যোগ করলেও কোটার উপর কোনো চাপ
      * পড়ে না।
      */
+    /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Truecaller-এর মতো:
+       কল এলে ব্যানারে এই নম্বরের **শেষ Missed · শেষ Outgoing · শেষ Incoming**
+       কখন হয়েছিল ("10 min ago" · "1 day ago" · তারিখ)।
+       ⛔ পুরোটাই **এই ফোনের নিজের Call Log** থেকে — ক্লাউডে একটাও অনুরোধ নেই
+          (ফ্রি-প্ল্যানে শূন্য চাপ), Truecaller-ও ঠিক এভাবেই দেখায়।
+       ⛔ উপরের `fetchTodayCallLog()`-এর **হুবহু একই** নিরাপত্তা-গেট: অনুমতি
+          নেই ⇒ ফাঁকা · এই ফোনে চেম্বারের নম্বর নেই বলা থাকলে ⇒ ফাঁকা ·
+          ব্রাঞ্চের SIM বাছা থাকলে শুধু সেই SIM-এর কল।
+       ⛔ কল বাজার সময় ব্যাকগ্রাউন্ড থ্রেডে একবারই পড়া হয় (CallNotifyManager),
+          মূল থ্রেড কখনো আটকায় না; সর্বোচ্চ ৩০০ সারি দেখা হয়। */
+    data class CallHistory(
+        val missedMs: Long = 0L,
+        val outgoingMs: Long = 0L,
+        val incomingMs: Long = 0L
+    ) {
+        /** সবচেয়ে নতুনটা আগে — (লেবেল, কখন) জোড়া; না থাকলে ফাঁকা তালিকা। */
+        fun rows(now: Long = System.currentTimeMillis()): List<Pair<String, String>> =
+            listOf("Missed" to missedMs, "Outgoing" to outgoingMs, "Incoming" to incomingMs)
+                .filter { it.second > 0L }
+                .sortedByDescending { it.second }
+                .map { it.first to agoText(it.second, now) }
+    }
+
+    fun lastCallsByType(context: Context, mobile: String): CallHistory {
+        if (!hasCallLogPermission(context)) return CallHistory()
+        if (hasChamberAnswer(context) && !hasChamberNumber(context)) return CallHistory()
+        val digits = mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) return CallHistory()
+        return try {
+            val branchSubIdsSet = branchSubIds(context)
+            var missed = 0L; var outgoing = 0L; var incoming = 0L
+            var seen = 0
+            context.contentResolver.query(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                arrayOf(
+                    android.provider.CallLog.Calls.NUMBER,
+                    android.provider.CallLog.Calls.TYPE,
+                    android.provider.CallLog.Calls.DATE,
+                    android.provider.CallLog.Calls.PHONE_ACCOUNT_ID
+                ),
+                "${android.provider.CallLog.Calls.NUMBER} LIKE ?",
+                arrayOf("%$digits"),
+                "${android.provider.CallLog.Calls.DATE} DESC"
+            )?.use { c ->
+                val numIdx = c.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
+                val typeIdx = c.getColumnIndex(android.provider.CallLog.Calls.TYPE)
+                val dateIdx = c.getColumnIndex(android.provider.CallLog.Calls.DATE)
+                val accIdx = c.getColumnIndex(android.provider.CallLog.Calls.PHONE_ACCOUNT_ID)
+                while (c.moveToNext() && seen < 300) {
+                    seen++
+                    if (branchSubIdsSet.isNotEmpty()) {
+                        val acc = if (accIdx >= 0) c.getString(accIdx) else null
+                        if (acc != null && branchSubIdsSet.none { acc.contains(it) }) continue
+                    }
+                    val num = (if (numIdx >= 0) c.getString(numIdx) else null) ?: continue
+                    if (num.filter { ch -> ch.isDigit() }.takeLast(10) != digits) continue
+                    val type = if (typeIdx >= 0) c.getInt(typeIdx) else 0
+                    val dateMs = if (dateIdx >= 0) c.getLong(dateIdx) else 0L
+                    if (dateMs <= 0L) continue
+                    when (type) {
+                        android.provider.CallLog.Calls.MISSED_TYPE,
+                        android.provider.CallLog.Calls.REJECTED_TYPE -> if (missed == 0L) missed = dateMs
+                        android.provider.CallLog.Calls.OUTGOING_TYPE -> if (outgoing == 0L) outgoing = dateMs
+                        android.provider.CallLog.Calls.INCOMING_TYPE -> if (incoming == 0L) incoming = dateMs
+                    }
+                    if (missed > 0L && outgoing > 0L && incoming > 0L) break   // তিনটেই পাওয়া গেছে
+                }
+            }
+            CallHistory(missed, outgoing, incoming)
+        } catch (_: Throwable) { CallHistory() }
+    }
+
+    /** "Just now" · "10 min ago" · "3 hr ago" · "1 day ago" · তার বেশি হলে তারিখ (dd/MM/yyyy)। */
+    fun agoText(ms: Long, now: Long = System.currentTimeMillis()): String {
+        val diff = now - ms
+        if (diff < 0L) return DateUtil.displayWithTime(java.util.Date(ms))
+        val min = diff / 60_000L
+        val hr = diff / 3_600_000L
+        return when {
+            min < 1L -> "Just now"
+            min < 60L -> "$min min ago"
+            hr < 24L -> "$hr hr ago"
+            hr < 48L -> "1 day ago"
+            else -> java.text.SimpleDateFormat(DateUtil.DISPLAY_DATE, java.util.Locale.US).format(java.util.Date(ms))
+        }
+    }
+
     fun countPendingMissedCallbacks(context: Context): Int {
         return try {
             pendingMissedCallbackNumbers(context).size

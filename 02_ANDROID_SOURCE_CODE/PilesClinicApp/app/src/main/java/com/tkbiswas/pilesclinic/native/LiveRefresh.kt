@@ -125,6 +125,8 @@ object LiveRefresh {
         private var key: String = ""
         /** সর্বশেষ কোন সময় পর্যন্ত দেখা হয়েছে (UTC, Supabase-এর ধাঁচে)। */
         private var since: String = ""
+        /** 🔴 V1360 — একই মুহূর্ত, ফোনের ঘড়িতে (ফোন থেকে লেখা সারির ধাঁচে)। */
+        private var sinceLocal: String = ""
 
         /**
          * @return গতবারের পরে সত্যিই কিছু বদলেছে কি না (দেওয়া টেবিলগুলোর
@@ -138,10 +140,12 @@ object LiveRefresh {
                 if (key != newKey) {
                     key = newKey
                     since = stampNow()
+                    sinceLocal = localStampNow()
                     return false
                 }
-                if (since.isBlank()) {
+                if (since.isBlank() || sinceLocal.isBlank()) {
                     since = stampNow()
+                    sinceLocal = localStampNow()
                     return false
                 }
                 val branchPart =
@@ -157,9 +161,24 @@ object LiveRefresh {
                 // আসল বদল যেন হারিয়ে না যায়।
                 var anyChanged = false
                 var anyKnown = false
+                /* 🔴🔒 V1360 (১১.০৯.২০২৬, পুরো প্রজেক্ট যাচাইয়ে ধরা — Payment/Follow-up
+                   পর্দা "সেভের পরে ধীর"): ফোন থেকে লেখা সারির `updatedAt` আর এই
+                   পাহারাদারের `since` — দুটো **দু'রকম ঘড়িতে** লেখা (ফোনেরটা ভারতের
+                   সময়, এখানেরটা UTC — ৫.৫ ঘণ্টা এগিয়ে)। তাই এই ফোনে যেকোনো সেভের
+                   পরে **৫.৫ ঘণ্টা ধরে প্রতি ৩০ সেকেন্ডে** "নতুন কিছু বদলেছে" ধরা পড়ত
+                   ⇒ প্রতিবার পুরো তালিকা আবার নামত (নেট খরচ + ধীর)।
+                   ⇒ এখন দু'রকম সারি দু'রকম মাপে দেখা হয়, একই ছোট প্রশ্নে:
+                      · কম্পিউটারের লেখা (UTC): since-এর পরে **কিন্তু এখনকার UTC-র
+                        মধ্যে** — ফোনের সারি এই সীমায় পড়েই না (৫.৫ ঘণ্টা এগিয়ে)।
+                      · ফোনের লেখা (ভারতের সময়): ফোনের ঘড়ির since-এর পরে।
+                   ⛔ একটাও সারি নামে না (আগের মতোই শুধু গোনা) · সময়-ঘরের লেখা
+                      কোথাও বদলানো হয়নি · বদল সত্যিই হলে আগের মতোই ধরা পড়ে। */
+                val upperUtc = utcStampPlus(60_000L)
                 for (table in tables) {
                     val n = try {
-                        SupabaseClient.fetchCount(table, "updatedAt=gt." + enc(since) + branchPart)
+                        SupabaseClient.fetchCount(table,
+                            "or=(and(updatedAt.gt." + enc(since) + ",updatedAt.lte." + enc(upperUtc) + ")," +
+                                "updatedAt.gt." + enc(sinceLocal) + ")" + branchPart)
                     } catch (_: Throwable) { -1 }
                     if (n < 0) continue
                     anyKnown = true
@@ -171,6 +190,7 @@ object LiveRefresh {
                 if (!anyChanged) return false
                 // সত্যিই বদলেছে — এবার থেকে এই সময়ের পরের বদলগুলোই খোঁজা হবে।
                 since = stampNow()
+                sinceLocal = localStampNow()
                 return true
             } catch (_: Throwable) {
                 return false
@@ -186,6 +206,19 @@ object LiveRefresh {
             java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
                 .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
                 .format(java.util.Date(System.currentTimeMillis() - SAFETY_BACK_MS))
+        } catch (_: Throwable) { "" }
+
+        /** 🔴 V1360 — ফোনের ঘড়িতে একই মুহূর্ত (ফোন থেকে লেখা সারির ধাঁচে; কেবল তুলনার জন্য)। */
+        private fun localStampNow(): String = try {
+            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                .format(java.util.Date(System.currentTimeMillis() - SAFETY_BACK_MS))
+        } catch (_: Throwable) { "" }
+
+        /** 🔴 V1360 — কম্পিউটারের (UTC) লেখার উপরের সীমা: এখনকার UTC + সামান্য। */
+        private fun utcStampPlus(aheadMs: Long): String = try {
+            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                .format(java.util.Date(System.currentTimeMillis() + aheadMs))
         } catch (_: Throwable) { "" }
     }
 }

@@ -37,6 +37,10 @@ class ReportsActivity : AppCompatActivity() {
         }
 
         binding.btnBack.setOnClickListener { finish() }
+        // 🔍 V1284 (তালিকা সারি ৪১০) — মাস্টারের Duplicate Check পর্দা (শুধু দেখা)
+        binding.cardDupCheck.setOnClickListener {
+            startActivity(android.content.Intent(this, DuplicateCheckActivity::class.java))
+        }
 
         /* 🔴🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ) — **উপরের তিনটে বাক্সে চাপ দিলে
            এতদিন কিছুই হত না।**
@@ -333,7 +337,7 @@ class ReportsActivity : AppCompatActivity() {
         // ── প্রতিটা পেমেন্ট নিজের সাদা কার্ডে ──
         if (rows.isEmpty()) {
             body.addView(android.widget.TextView(this).apply {
-                text = "আজ কোনো লেনদেন নেই।"; textSize = 13f
+                text = NoBengali.s("আজ কোনো লেনদেন নেই।"); textSize = 13f
                 setTextColor(android.graphics.Color.parseColor("#667085"))
                 setPadding(dp(4), dp(10), dp(4), dp(10))
             })
@@ -629,6 +633,7 @@ class ReportsActivity : AppCompatActivity() {
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         close.setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): এই পপ-আপে বাংলা লেখা ("কোনো
         // এন্ট্রি নেই" গোছের) আছে, কিন্তু পাহারা ছিল না।
         PremiumAlert.paint(dialog)
@@ -693,6 +698,7 @@ class ReportsActivity : AppCompatActivity() {
         dialog2.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         close.setOnClickListener { dialog2.dismiss() }
         dialog2.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog2) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): এই পপ-আপে বাংলা লেখা ("কোনো
         // এন্ট্রি নেই" গোছের) আছে, কিন্তু পাহারা ছিল না।
         PremiumAlert.paint(dialog2)

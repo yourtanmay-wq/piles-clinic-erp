@@ -52,7 +52,13 @@ object ClinicPresence {
         val ok: Boolean,
         val reason: Reason,
         val message: String,
-        val distanceMeters: Int? = null
+        val distanceMeters: Int? = null,
+        /* 🏥🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ — *"কোন staff যদি অন্য ব্রাঞ্চে গিয়ে
+           ডিউটি করতে যায় সেটার ব্যাবস্থা কি করা যায়"*): স্টাফ **যে ব্রাঞ্চের
+           ক্লিনিকে দাঁড়িয়ে আছেন** তার নাম (যেমন "Cooch Behar")। শুধু
+           `anyBranch = true` দিয়ে ডাকলে ভরে; নইলে আগের মতোই ফাঁকা, তাই
+           পুরনো কোনো caller-এর কিছু বদলায় না। */
+        val atBranch: String = ""
     )
 
     /** কত সেকেন্ড পর্যন্ত অবস্থানের জন্য অপেক্ষা করা হবে। */
@@ -121,7 +127,25 @@ object ClinicPresence {
      * এখনকার অবস্থান নিয়ে ক্লিনিকে আছেন কিনা দেখে। **ঠিক একবার** [onResult] ডাকে।
      * ফল পাওয়ামাত্র GPS বন্ধ করে দেওয়া হয়।
      */
-    fun check(activity: AppCompatActivity, branchName: String?, onResult: (Outcome) -> Unit) {
+    /**
+     * 🏥🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ) — **অন্য ব্রাঞ্চে গিয়ে ডিউটি।**
+     *
+     * TK-এর রিপোর্ট: *"আজকে Jalpaiguri staff CRP Coochbehar ক্লিনিকে এসেছিল এবং
+     * ডিউটি করেছে কিন্তু সে Intime চাপতে পারে নাই"*।
+     *
+     * **আসল কারণ (কোডে মেপে দেখা, আন্দাজ নয়):** এই ফাংশন এতদিন শুধু স্টাফের
+     * **নিজের** ব্রাঞ্চের পিন থেকে দূরত্ব মাপত। জলপাইগুড়ি (26.536368, 88.720920)
+     * আর কোচবিহারের (26.327655, 89.442545) মাঝে প্রায় ৭৩ কিমি, ছাড় মাত্র
+     * ১৫০ মিটার ⇒ কোচবিহারে দাঁড়িয়ে জলপাইগুড়ির স্টাফ সবসময় `OUTSIDE` পড়তেন,
+     * IN TIME সম্পূর্ণ আটকে যেত।
+     *
+     * ⇒ [anyBranch] `true` দিলে **৫টা ব্রাঞ্চের যেকোনো একটার** কাছে থাকলেই পাশ,
+     *   আর কোন ক্লিনিকে দাঁড়িয়ে আছেন সেটা [Outcome.atBranch]-এ ফেরত আসে।
+     * ⛔ ডিফল্ট `false` — অর্থাৎ যে caller এটা চায় না তার আচরণ **এক অক্ষরও**
+     *   বদলায়নি। দূরত্বের হিসাব · GPS পাহারা · নকল-অবস্থান ধরা · সময়সীমা —
+     *   সব হুবহু আগের।
+     */
+    fun check(activity: AppCompatActivity, branchName: String?, anyBranch: Boolean = false, onResult: (Outcome) -> Unit) {
         val point = ClinicLocations.forBranchName(branchName)
         if (point == null) {
             onResult(Outcome(false, Reason.UNKNOWN_BRANCH, messageFor(Reason.UNKNOWN_BRANCH, null, null)))
@@ -168,14 +192,30 @@ object ClinicPresence {
             if (isMock(loc)) { finish(Outcome(false, Reason.MOCK_DETECTED, messageFor(Reason.MOCK_DETECTED, point, null))); return }
             val acc = if (loc.hasAccuracy()) loc.accuracy else Float.MAX_VALUE
             if (acc > MAX_ACCURACY_M) return          // আরও ভালো ফলের অপেক্ষা
-            val target = Location("clinic").apply {
-                latitude = point.lat!!; longitude = point.lng!!
+            /* 🏥 V1179 — `anyBranch=false` হলে আগের মতোই **শুধু নিজের ব্রাঞ্চ**;
+               `true` হলে ৫টা ব্রাঞ্চের প্রত্যেকটার দূরত্ব মেপে সবচেয়ে কাছেরটা
+               ধরা হয়। ⛔ দুই ক্ষেত্রেই মাপার নিয়ম হুবহু এক। */
+            val homePoint: ClinicLocations.ClinicPoint = point
+            val candidates: List<ClinicLocations.ClinicPoint> =
+                if (anyBranch) ClinicLocations.ALL.filter { it.isConfigured }
+                else listOf(homePoint)
+            var bestPoint: ClinicLocations.ClinicPoint = homePoint
+            var bestDist = Int.MAX_VALUE
+            for (c in candidates) {
+                val target = Location("clinic").apply {
+                    latitude = c.lat!!; longitude = c.lng!!
+                }
+                val dd = loc.distanceTo(target).toInt()
+                if (dd < bestDist) { bestDist = dd; bestPoint = c }
             }
-            val d = loc.distanceTo(target).toInt()
-            if (d <= point.radiusMeters) {
-                finish(Outcome(true, Reason.INSIDE, "", d))
+            if (bestDist == Int.MAX_VALUE) {
+                finish(Outcome(false, Reason.NOT_CONFIGURED, messageFor(Reason.NOT_CONFIGURED, homePoint, null)))
+                return
+            }
+            if (bestDist <= bestPoint.radiusMeters) {
+                finish(Outcome(true, Reason.INSIDE, "", bestDist, bestPoint.displayName))
             } else {
-                finish(Outcome(false, Reason.OUTSIDE, messageFor(Reason.OUTSIDE, point, d), d))
+                finish(Outcome(false, Reason.OUTSIDE, messageFor(Reason.OUTSIDE, bestPoint, bestDist), bestDist))
             }
         }
 

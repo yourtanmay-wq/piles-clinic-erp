@@ -66,6 +66,7 @@ class BriefingActivity : AppCompatActivity() {
             // 🔒 খাতার সারি B100 (TK, 29.07.2026 রাত ১১.১০): মাস্টার এখান থেকেই
             // এক চাপে স্টাফের ডিলিট-অনুরোধ অনুমোদন করতে পারবেন।
             onApproveDelete = { confirmApproveDelete(it) },
+            onReject = { confirmReject(it) },   // 🟢 V1134 — TK: "আমি অনুমতি না দিলে কোনটা চাপব?"
             // 🔴 B281 (02.08.2026, TK-রিপোর্ট): Refund request নোটিশ থেকেই
             // সরাসরি Approve/Reject করা যাবে, আলাদা ড্রপডাউন খুঁজতে হবে না।
             onApproveRefund = { confirmApproveRefund(it) },
@@ -77,6 +78,10 @@ class BriefingActivity : AppCompatActivity() {
             //    রোগীর পাতা সরাসরি খোলে। ⛔ নতুন পথ বানানো হয়নি: ফোন করার
             //    পরে যে পথে রেকর্ড খোলা হয় (`checkNumberAfterCall`), হুবহু সেটাই।
             onViewRecord = { item, digits -> openRecordForNumber(item, digits) },
+            // 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — ⚠️ Overdue Follow-up
+            //    Alert-এ Reply-র বদলে View, আর View চাপলে ওই ব্রাঞ্চের
+            //    ৩+ দিন দেরি হওয়া কলগুলোই খোলে।
+            onViewOverdue = { item -> openOverdueAlert(item) },
             isMaster = session.role == "master",
             // 🆕 (07.08.2026) — কার্ডে টিক পড়লে/উঠলে নিচের "একসাথে অনুমোদন" বার হালনাগাদ।
             onSelectChanged = { refreshBulkBar() }
@@ -129,6 +134,7 @@ class BriefingActivity : AppCompatActivity() {
         // V216 (§13): Refund request approval — Master-only, no-op অন্য role-এ।
         loadRefundRequests()
         loadLeaveRequests()   // 🔵 B618: master/ব্রাঞ্চ-ডাক্তারের ছুটি-অনুমোদন
+        loadWfhRequests()     // 🏠 V1179: Work From Home-এর অনুমোদন
         // TK-REQUESTED ADDITION (2026-07-24): "Visit Fee Missing"
         // visibility -- Master-only, read-only, no-op for any non-Master
         // role.
@@ -161,7 +167,10 @@ class BriefingActivity : AppCompatActivity() {
                 val cal = java.util.Calendar.getInstance()
                 android.app.TimePickerDialog(this, { _, hour, minute ->
                     try { BriefingReminderScheduler.scheduleExactTime(this, hour, minute) } catch (_: Throwable) { }
-                    val label = String.format(java.util.Locale.US, "%02d:%02d", hour, minute)
+                    // 🔴 V1158 — দেখানোর ঘড়ি সবসময় "2.30 PM" ধাঁচে (২৪-ঘণ্টা নয়)।
+                    val ap12 = if (hour < 12) "AM" else "PM"
+                    val h12 = when { hour == 0 -> 12; hour > 12 -> hour - 12; else -> hour }
+                    val label = String.format(java.util.Locale.US, "%d.%02d %s", h12, minute, ap12)
                     Toast.makeText(this, "OK, will remind you again at $label", Toast.LENGTH_LONG).show()
                 }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), false).show()
             }
@@ -181,6 +190,7 @@ class BriefingActivity : AppCompatActivity() {
         loadSalaryDue()   // 🟢 B629: Master ও Doctor-এর Salary Due মনে করানো
         loadRefundRequests()   // V216 (§13)
         loadLeaveRequests()    // 🔵 B618
+        loadWfhRequests()      // 🏠 V1179
         loadMissingVisitFees()
         loadPendingRemarks()   // 🔒 খাতার সারি B51
         // 🆕 B467 (05.08.2026, TK-নির্দেশ — "কলিং অপশন খুলে যাওয়ার পরে যখন
@@ -201,6 +211,55 @@ class BriefingActivity : AppCompatActivity() {
     private fun handleBriefingNumberTap(digits: String) {
         pendingCallCheckNumber = digits
         CallChooser.open(this, digits)
+    }
+
+    /**
+     * 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — ⚠️ **Overdue Follow-up
+     * Alert-এর "View"।**
+     *
+     * TK-এর কথা (হুবহু): *"Overdue Call Alert এ Reply কেন আসবে, সেখানে
+     * View থাকতে হবে, আর View তে চাপলে যেন দেখা যায়।"*
+     * TK-এর বাছা: **শুধু ওই ৩+ দিন দেরি হওয়া লোকগুলোই** (নোটিশে যত জন
+     * লেখা, ঠিক তত জন) — ব্রাঞ্চের সব Overdue নয়।
+     *
+     * নোটিশের লেখা ঠিক এই ধাঁচের (DashboardActivity যেভাবে বানায়):
+     *   Jalpaiguri \u2014 9 calls overdue 3+ days
+     *   Cooch Behar \u2014 4 calls overdue 3+ days
+     * তাই প্রতি লাইনের "\u2014"-এর আগের অংশটাই ব্রাঞ্চের নাম।
+     * একটা ব্রাঞ্চ থাকলে সোজা খোলে; একাধিক থাকলে কোনটা দেখবেন জিজ্ঞাসা করা
+     * হয় (নিজে থেকে একটা বেছে নেওয়া হয় না)।
+     */
+    private fun openOverdueAlert(item: Briefing) {
+        val dash = "\u2014"
+        val branches = item.message.lines()
+            .mapNotNull { line ->
+                if (!line.contains(dash)) null
+                else line.substringBefore(dash).trim().takeIf { it.isNotBlank() && it != dash }
+            }
+            .distinct()
+        when {
+            branches.isEmpty() -> openOverdue3Plus("")
+            branches.size == 1 -> openOverdue3Plus(branches[0])
+            else -> androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "\u23F0 Overdue 3+ Days"))
+                .setItems(branches.toTypedArray()) { _, i -> openOverdue3Plus(branches[i]) }
+                .setNegativeButton("Cancel", null)
+                .show().also { PremiumAlert.paint(it) }
+        }
+    }
+
+    /** 🟢🔒 V692 — ব্রাঞ্চের ছাঁকনি বসিয়ে Follow-up পর্দা খোলা, ৩+ দিন
+     *  দেরি হওয়া মোডে। ⛔ নতুন কোনো পর্দা বানানো হয়নি — ড্যাশবোর্ডের
+     *  "N calls pending today" যে পথে যায়, হুবহু সেই পথ ও সেই পর্দা;
+     *  শুধু ছাঁকনিটা "আজ"-এর বদলে "৩+ দিন দেরি"। */
+    private fun openOverdue3Plus(branch: String) {
+        if (branch.isNotBlank()) {
+            try { BranchFilterStore.set(this, branch) } catch (_: Throwable) { }
+        }
+        startActivity(
+            android.content.Intent(this, FollowUpActivity::class.java)
+                .putExtra("overdue3Plus", true)
+        )
     }
 
     /**
@@ -256,6 +315,12 @@ class BriefingActivity : AppCompatActivity() {
         else
             android.content.Intent(this, FollowUpActivity::class.java)
                 .putExtra("focusCardMobile", digits)
+                /* 🏷️🔒 V1254 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৫) —
+                   TK: *"কোন নম্বরটা Enquiry-তে নতুন এসেছে বুঝতে পারি না"*।
+                   কার্ডটা চেনানোর ছোট ট্যাগের লেখাটা এখান থেকেই যায় (৬ সেকেন্ড
+                   থাকে — TK-র নিজের সিদ্ধান্ত)। ⛔ অন্য পথ থেকে এলে ট্যাগ যায় না,
+                   তখন আগের মতোই শুধু হাইলাইট — বানানো লেখা কখনো বসে না। */
+                .putExtra("focusCardTag", if (isEnquiry) "NEW ENQUIRY" else "NEW REGISTRATION")
         try { startActivity(next) } catch (_: Throwable) { }
     }
 
@@ -319,7 +384,7 @@ class BriefingActivity : AppCompatActivity() {
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
         box.addView(TextView(this).apply {
-            text = "📞 Remark Pending (${pending.size})"
+            text = "REMARK PENDING (${pending.size})"
             textSize = 14f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.WHITE)
@@ -372,9 +437,14 @@ class BriefingActivity : AppCompatActivity() {
         // the fresh fetch below finishes.
         val cachePrefs = getSharedPreferences("piles_clinic_briefing_cache", MODE_PRIVATE)
         var hasCache = false
+        /* 🟢🔒 V997 — জমা কাঁচা সারিগুলো নিচের স্মার্ট পড়াতেও লাগে
+           (মিলে গেলে একটা সারিও নামে না), তাই এখানে ধরে রাখা হলো।
+           ⛔ পাওয়া না গেলে `null` — তখন আগের মতোই পুরো পড়া। */
+        var cachedRaw: org.json.JSONArray? = null
         try {
             val json = cachePrefs.getString("rows", null)
             if (!json.isNullOrBlank()) {
+                cachedRaw = try { org.json.JSONArray(json) } catch (_: Throwable) { null }
                 val cachedItems = repository.parseForUser(org.json.JSONArray(json), user)
                 if (cachedItems.isNotEmpty()) {
                     hasCache = true
@@ -391,7 +461,7 @@ class BriefingActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             val rawRows = try {
-                withContext(Dispatchers.IO) { repository.fetchRaw() }
+                withContext(Dispatchers.IO) { repository.fetchRawSmart(cachedRaw) }
             } catch (_: Throwable) { null }
             binding.progressLoad.visibility = View.GONE
             if (rawRows == null) {
@@ -470,14 +540,14 @@ class BriefingActivity : AppCompatActivity() {
             box.visibility = View.VISIBLE
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
-            val backdateTitle = "⏳ Pending Backdate Payment Requests (${requests.size})"
+            val backdateTitle = "PENDING BACKDATE PAYMENTS (${requests.size})"
             val backdateRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$backdateTitle  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#B8860B"))
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = backdateRowsBox.visibility != View.VISIBLE; backdateRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$backdateTitle  ${if (opening) "▲" else "▼"}" }
             })
@@ -574,16 +644,18 @@ class BriefingActivity : AppCompatActivity() {
         val box = binding.backdateGrantsContainer
         val grantsBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         box.addView(TextView(this).apply {
-            text = "🔑 Backdate Payment Permissions  ▼"
+            text = "BACKDATE PERMISSIONS  ▼"
             textSize = 14f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
+            // 🎨🔒 V1141 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"ব্যাকডেট পারমিশনের কালার
+            //    বেগুনি করুন"*। ⛔ শুধু রঙ; ভিতরের কিছুই বদলায়নি।
             setTextColor(android.graphics.Color.WHITE)
-            setBackgroundColor(android.graphics.Color.parseColor("#5B3A9E"))
+            setBackgroundColor(android.graphics.Color.parseColor("#6A1B9A"))
             setPadding(dp(16), dp(12), dp(16), dp(12))
             setOnClickListener {
                 val opening = grantsBox.visibility != View.VISIBLE
                 grantsBox.visibility = if (opening) View.VISIBLE else View.GONE
-                text = "🔑 Backdate Payment Permissions  ${if (opening) "▲" else "▼"}"
+                text = "BACKDATE PERMISSIONS  ${if (opening) "▲" else "▼"}"
             }
         })
 
@@ -593,15 +665,16 @@ class BriefingActivity : AppCompatActivity() {
             setBackgroundColor(android.graphics.Color.WHITE)
             setPadding(dp(16), dp(14), dp(16), dp(14))
         }
-        formCard.addView(TextView(this).apply {
-            text = "Grant new permission"; textSize = 13f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#10223A"))
-        })
+        /* 📄🔒 V1177 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Grant New
+           Permission উপরে লেখার দরকার নেই"* (উপরের বেগুনি পট্টিতেই
+           "BACKDATE PERMISSIONS" লেখা আছে)। ⛔ শুধু লেখাটা বাদ, ফর্ম অটুট। */
         fun field(hint: String): EditText = EditText(this).apply {
             this.hint = hint; textSize = 13f
             setPadding(dp(10), dp(10), dp(10), dp(10))
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+            // ⌨️🔒 V756 — এই ঘরগুলো পপ-আপ খোলার সময় বানানো হয়, তাই পর্দার
+            //    পাহারা পৌঁছাত না। এখানেই বন্ধ করা হলো।
+            try { NoAutofill.harden(this) } catch (_: Throwable) { }
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             lp.topMargin = dp(8)
             layoutParams = lp
@@ -624,25 +697,142 @@ class BriefingActivity : AppCompatActivity() {
                 // 🔴 TK-নির্দেশ (05.08.2026 রাত — "স্টাফের সাথে ডাক্তাররা কি করছে
                 // ওখানে") — এখন শুধু "staff" রোলই এই তালিকায়, Doctor/Field
                 // Officer/Master বাদ। ব্যাকডেট-পেমেন্ট পারমিশন শুধু স্টাফের জন্যই।
-                val accounts = StaffDirectory.allAccounts().filter { it.role == "staff" }.sortedBy { it.name }
+                val targetField = this
+                /* 📋 V755 (২৭.০৮.২০২৬) — **অ্যাপ থেকে যোগ করা স্টাফও এই তালিকায়**।
+                   ⚠️ V746-এ অ্যাপ থেকে স্টাফ যোগ করার সুবিধা এল, কিন্তু এই তালিকা
+                      শুধু বাঁধা তালিকা দেখত ⇒ নতুন স্টাফ এখানে আসতই না।
+                   ⛔ `cachedAccounts` কখনো নেটে যায় না (শুধু ফোনে জমানোটা)।
+                   ⛔ একই মোবাইল দুবার এলে একবারই থাকে। */
+                val builtIn = StaffDirectory.allAccounts().filter { it.role == "staff" }
+                val fromCloud = try {
+                    CloudStaffDirectory.cachedAccounts(applicationContext)
+                        .filter { it.role == "staff" }
+                } catch (_: Throwable) { emptyList() }
+                val accounts = (builtIn + fromCloud)
+                    .distinctBy { StaffDirectory.normalizeMobile(it.mobile) }
+                    .sortedBy { it.name.uppercase() }
                 if (accounts.isEmpty()) {
                     Toast.makeText(this@BriefingActivity, "No staff found", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                val labels = accounts.map { "${it.name}  ·  ${it.branch}  ·  ${it.role.uppercase()}" }.toTypedArray()
-                AlertDialog.Builder(this@BriefingActivity)
-                    .setCustomTitle(PremiumAlert.header(this@BriefingActivity, "SELECT STAFF"))
-                    .setItems(labels) { dialog, which ->
-                        val acc = accounts[which]
-                        setText("${acc.name}  ·  ${acc.mobile}")
-                        dialog.dismiss()
+
+                /* 🎨🔒 V755 (TK-অনুমোদিত ডিজাইন **C**, ডেমো ফটো দেখে বাছা) —
+                   *"এটা এখনো কেন সাদা মিঠা, প্রফেশনাল বানাতে হবে"*
+                   আগে সাধারণ `setItems()` ছিল — শুধু সাদা পটভূমিতে এক লাইন লেখা।
+                   এখন: উপরে **খোঁজার ঘর**, তারপর প্রতি সারিতে সবুজ বিন্দু · নাম
+                   (মোটা) · ডানে ব্রাঞ্চ · নিচে মোবাইল — মাঝে হালকা দাগ।
+                   ⛔ ডিজাইনটা প্রজেক্টের **নিজের প্রমাণিত ধাঁচেই** (Saved RMP
+                      পর্দার মতো: EditText + ListView + BaseAdapter), নতুন কোনো
+                      লাইব্রেরি বা XML লাগেনি।
+                   ⛔ বাছার পরে কী বসে (`নাম · মোবাইল`) — **এক অক্ষরও বদলায়নি**,
+                      তাই সেভের পুরনো কোড (শেষ ১০ অঙ্ক) আগের মতোই চলে। */
+                val d = resources.displayMetrics.density
+                fun px(v: Int) = (v * d).toInt()
+                val box = LinearLayout(this@BriefingActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(px(14), px(8), px(14), 0)
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                }
+                val search = EditText(this@BriefingActivity).apply {
+                    hint = "Search staff or branch"
+                    inputType = android.text.InputType.TYPE_CLASS_TEXT
+                    maxLines = 1
+                    textSize = 14f
+                    setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+                    setPadding(px(12), px(10), px(12), px(10))
+                    try { NoAutofill.harden(this) } catch (_: Throwable) { }
+                }
+                val listView = android.widget.ListView(this@BriefingActivity).apply {
+                    divider = android.graphics.drawable.ColorDrawable(
+                        android.graphics.Color.parseColor("#EDF1F4"))
+                    dividerHeight = 1
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    isFastScrollEnabled = accounts.size > 30
+                }
+                box.addView(search, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+                box.addView(listView, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, px(360)).apply { topMargin = px(10) })
+
+                var shown = accounts
+                fun draw(query: String) {
+                    val q = query.trim().lowercase(java.util.Locale.US)
+                    shown = if (q.isBlank()) accounts else accounts.filter {
+                        (it.name + " " + it.branch + " " + it.mobile).lowercase(java.util.Locale.US).contains(q)
                     }
-                    .show().also { PremiumAlert.paint(it) }
+                    listView.adapter = object : android.widget.BaseAdapter() {
+                        override fun getCount(): Int = shown.size
+                        override fun getItem(position: Int): Any = shown[position]
+                        override fun getItemId(position: Int): Long = position.toLong()
+                        override fun getView(
+                            position: Int, convertView: View?, parent: android.view.ViewGroup?
+                        ): View {
+                            val acc = shown[position]
+                            return LinearLayout(this@BriefingActivity).apply {
+                                orientation = LinearLayout.VERTICAL
+                                setPadding(px(6), px(13), px(6), px(13))
+                                addView(LinearLayout(this@BriefingActivity).apply {
+                                    orientation = LinearLayout.HORIZONTAL
+                                    gravity = android.view.Gravity.CENTER_VERTICAL
+                                    addView(View(this@BriefingActivity).apply {
+                                        background = android.graphics.drawable.GradientDrawable().apply {
+                                            shape = android.graphics.drawable.GradientDrawable.OVAL
+                                            setColor(android.graphics.Color.parseColor("#118452"))
+                                        }
+                                    }, LinearLayout.LayoutParams(px(8), px(8)).apply { marginEnd = px(9) })
+                                    addView(TextView(this@BriefingActivity).apply {
+                                        text = acc.name.trim().uppercase()
+                                        textSize = 16f
+                                        setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                                        setTextColor(android.graphics.Color.parseColor("#17312A"))
+                                        maxLines = 1
+                                    }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                                    addView(TextView(this@BriefingActivity).apply {
+                                        text = acc.branch
+                                        textSize = 12.5f
+                                        setTextColor(android.graphics.Color.parseColor("#7A8A82"))
+                                    })
+                                })
+                                addView(TextView(this@BriefingActivity).apply {
+                                    text = acc.mobile
+                                    textSize = 13.5f
+                                    setTextColor(android.graphics.Color.parseColor("#5C6B64"))
+                                    setPadding(px(17), px(3), 0, 0)
+                                })
+                            }
+                        }
+                    }
+                }
+                draw("")
+                search.addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                    override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                    override fun afterTextChanged(s: android.text.Editable) { draw(s.toString()) }
+                })
+
+                val dlg = AlertDialog.Builder(this@BriefingActivity)
+                    .setCustomTitle(PremiumAlert.header(this@BriefingActivity, "SELECT STAFF"))
+                    .setView(box)
+                    .setNegativeButton("Close", null)
+                    .create()
+                listView.setOnItemClickListener { _, _, position, _ ->
+                    val acc = shown.getOrNull(position) ?: return@setOnItemClickListener
+                    // ⛔ যা বসে তা আগের মতোই — "নাম · মোবাইল"।
+                    targetField.setText("${acc.name}  ·  ${acc.mobile}")
+                    dlg.dismiss()
+                }
+                dlg.show()
+                PremiumAlert.paint(dlg)
             }
         }
-        val startDateInput = field("Start date (tap to pick)").apply { isFocusable = false }
-        val endDateInput = field("End date (tap to pick)").apply { isFocusable = false }
-        val noteInput = field("Reason / note (optional)")
+        /* 📄 V1177 — পাশাপাশি বসায় লেখা ছোট: "Start date" · "End date"। */
+        val startDateInput = field("Start date").apply { isFocusable = false }
+        val endDateInput = field("End date").apply { isFocusable = false }
+        /* 📄🔒 V1177 (TK-নির্দেশ) — *"Reason এর দরকার নেই"*।
+           ⛔ ঘরটা মোছা হয়নি (প্রকল্প-নিয়ম: নিজে থেকে কোড মোছা হয় না) — শুধু
+              **দেখানো বন্ধ**, আর সেভে ফাঁকা লেখা যায়। নিচের `grantBackdate(...)`
+              কল এক অক্ষরও বদলায়নি, তাই ভবিষ্যতে ফেরাতে চাইলে এক লাইনেই ফেরে। */
+        val noteInput = field("Reason / note (optional)").apply { visibility = View.GONE }
         fun pickDateInto(target: EditText) {
             val cal = java.util.Calendar.getInstance()
             android.app.DatePickerDialog(this, { _, y, m, dd ->
@@ -651,7 +841,21 @@ class BriefingActivity : AppCompatActivity() {
         }
         startDateInput.setOnClickListener { pickDateInto(startDateInput) }
         endDateInput.setOnClickListener { pickDateInto(endDateInput) }
-        formCard.addView(staffMobileInput); formCard.addView(startDateInput); formCard.addView(endDateInput); formCard.addView(noteInput)
+        formCard.addView(staffMobileInput)
+        /* 📄🔒 V1177 (TK-নির্দেশ) — *"start date & End Date পাশাপাশি
+           রাখুন"*: দুটো ঘর এক সারিতে, সমান চওড়া। ⛔ ঘরের id · ক্যালেন্ডার ·
+           সেভ — কিচ্ছু বদলায়নি, শুধু বসার জায়গা। */
+        formCard.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            addView(startDateInput, LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(endDateInput, LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(8) })
+        })
+        formCard.addView(noteInput)
         val grantBtn = TextView(this).apply {
             text = "✅ Grant Permission"
             textSize = 12.5f
@@ -821,7 +1025,27 @@ class BriefingActivity : AppCompatActivity() {
                 )
                 val want = child.measuredHeight
                 val cap = (resources.displayMetrics.heightPixels * 0.62f).toInt()
-                val target = if (want in 1 until cap) want else cap
+                /* 🔴🔴🔒 V705 (২৬.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — কিষানগঞ্জের ফোনে
+                   নোটিশ বোর্ডের উপরে **পর্দার প্রায় ২/৩ জুড়ে সাদা ফাঁকা**)।
+                   **আসল কারণ (কোড ধরে যাচাই):** স্টাফের ফোনে উপরের আটটা খোপই
+                   GONE (সবগুলোই Master-only বা pending-only), তাই `want` = ০।
+                   কিন্তু পুরোনো লাইনটা ছিল `if (want in 1 until cap) want else cap` —
+                   ০ ওই সীমার বাইরে পড়ায় `cap`-ই বসত, অর্থাৎ **ফাঁকা খোপগুলোকে
+                   জোর করে পর্দার ৬২% উঁচু** করে দেওয়া হত। Master-এর ফোনে খোপ
+                   থাকে বলে (want > 0) সেখানে চোখে পড়ত না — তাই এতদিন ধরা পড়েনি।
+                   ⇒ কিছুই না থাকলে এখন আগের স্বাভাবিক `wrap_content`-এ ফেরত
+                     (উচ্চতা ০), তাই তালিকা একদম উপর থেকেই শুরু হয়।
+                   ⛔ `wrap_content` বসানো হচ্ছে, স্থির ০ নয় — নইলে ভিতরে নতুন
+                      খোপ এলে ছেলেটার layout আর হত না, শোনার কাজটাও (
+                      `installPanelsScrollClamp`) চালু হত না, খোপ চিরতরে
+                      লুকিয়ে যেত।
+                   ⛔ ভরা অবস্থার নিয়ম (দরকারমতো উচ্চতা, তবে ৬২%-এর বেশি নয়)
+                      এক অক্ষরও বদলায়নি। */
+                val target = when {
+                    want <= 0 -> android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                    want < cap -> want
+                    else -> cap
+                }
                 val lp = sv.layoutParams
                 // ⛔ একই মান আবার বসালে layout-এর অসীম চক্র তৈরি হতে পারত,
                 //    তাই সত্যিই বদলালে তবেই বসানো হয়।
@@ -871,14 +1095,14 @@ class BriefingActivity : AppCompatActivity() {
             box.visibility = View.VISIBLE
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
-            val refundTitle = "💸 Pending Refund Requests (${requests.size})"
+            val refundTitle = "PENDING REFUND REQUESTS (${requests.size})"
             val refundRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$refundTitle  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#B23A2E"))
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = refundRowsBox.visibility != View.VISIBLE; refundRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$refundTitle  ${if (opening) "▲" else "▼"}" }
             })
@@ -970,6 +1194,106 @@ class BriefingActivity : AppCompatActivity() {
     // ছুটি-অনুরোধ — Refund তালিকার হুবহু ধরন (loadRefundRequests-এর নকল)।
     // ⛔ wn.leave_requests পড়তে/লিখতে module-লগইন লাগে, তাই ensureSignedIn-এর
     // ভিতরে। অন্য কোনো সেকশন/আচরণ ছোঁয়া হয়নি — নতুন container-এ আঁকা।
+    /**
+     * 🏠🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"সে যদি Work from Home
+     * করতে চায় তার ব্যাবস্থা যেন থাকে এবং মাস্টারের অনুমতি নেওয়া জরুরী"*।
+     *
+     * `loadLeaveRequests()`-এর হুবহু একই ধরন (নতুন কোনো ছাঁদ তৈরি করা হয়নি) —
+     * শুধু নিজের container-এ আঁকা, তাই ছুটির সেকশনটা এক অক্ষরও বদলায়নি।
+     * ⛔ শুধু **আজকের** অপেক্ষমাণ অনুরোধ দেখায় — Work From Home একদিনের অনুমতি।
+     */
+    private fun loadWfhRequests() {
+        val canApprove = user.role == "master" || user.displayRole == "doctor"
+        if (!canApprove) { binding.wfhRequestsContainer.visibility = View.GONE; return }
+        lifecycleScope.launch {
+            val requests = withContext(Dispatchers.IO) {
+                try { com.tkbiswas.pilesclinic.native.WfhRequests.pendingToday() }
+                catch (_: Exception) { emptyList<org.json.JSONObject>() }
+            }
+            val box = binding.wfhRequestsContainer
+            box.removeAllViews()
+            if (requests.isEmpty()) { box.visibility = View.GONE; return@launch }
+            box.visibility = View.VISIBLE
+            val d = resources.displayMetrics.density
+            fun dp(v: Int) = (v * d).toInt()
+            val wfhTitle = "PENDING WORK FROM HOME REQUESTS (${requests.size})"
+            val wfhRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+            box.addView(TextView(this@BriefingActivity).apply {
+                text = "$wfhTitle  ▼"; textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                setOnClickListener { val opening = wfhRowsBox.visibility != View.VISIBLE; wfhRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$wfhTitle  ${if (opening) "▲" else "▼"}" }
+            })
+            for (req in requests) {
+                val staffName = req.optString("staffName", "").ifBlank {
+                    req.optString("staffCode", "").ifBlank { req.optString("staffMobile", "") }
+                }
+                val branch = req.optString("branch", "")
+                val date = req.optString("workDate", "")
+                val reason = req.optString("reason", "").ifBlank { "—" }
+                val dotted = try { val p = date.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (_: Throwable) { date }
+                val row = LinearLayout(this@BriefingActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    setPadding(dp(16), dp(14), dp(16), dp(14))
+                }
+                row.addView(TextView(this@BriefingActivity).apply {
+                    text = "$staffName · $branch"; textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#10223A"))
+                })
+                row.addView(TextView(this@BriefingActivity).apply {
+                    text = "Date: $dotted · Reason: $reason"; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor("#5b6b81"))
+                    setPadding(0, dp(4), 0, 0)
+                })
+                val btnRow = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+                val approveBtn = TextView(this@BriefingActivity).apply {
+                    text = "✅ Approve"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                    setBackgroundColor(android.graphics.Color.parseColor("#0C9E33"))
+                    setPadding(dp(18), dp(10), dp(18), dp(10))
+                }
+                val rejectBtn = TextView(this@BriefingActivity).apply {
+                    text = "❌ Reject"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                    setBackgroundColor(android.graphics.Color.parseColor("#7A1F3D"))
+                    setPadding(dp(18), dp(10), dp(18), dp(10))
+                    val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.marginStart = dp(12); layoutParams = lp
+                }
+                fun decide(approve: Boolean) {
+                    approveBtn.isEnabled = false; rejectBtn.isEnabled = false
+                    lifecycleScope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            com.tkbiswas.pilesclinic.native.WfhRequests.decide(
+                                this@BriefingActivity, req, approve, user.mobile, user.name.ifBlank { user.mobile }
+                            )
+                        }
+                        Toast.makeText(this@BriefingActivity,
+                            if (ok) (if (approve) "Work From Home Approved" else "Work From Home Rejected")
+                            else "Failed — check net", Toast.LENGTH_SHORT).show()
+                        if (ok) loadWfhRequests() else { approveBtn.isEnabled = true; rejectBtn.isEnabled = true }
+                    }
+                }
+                approveBtn.setOnClickListener { decide(true) }
+                rejectBtn.setOnClickListener { decide(false) }
+                btnRow.addView(approveBtn); btnRow.addView(rejectBtn)
+                row.addView(btnRow)
+                wfhRowsBox.addView(row)
+                wfhRowsBox.addView(View(this@BriefingActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                    setBackgroundColor(android.graphics.Color.parseColor("#E0E0E0"))
+                })
+            }
+            box.addView(wfhRowsBox)
+        }
+    }
+
     private fun loadLeaveRequests() {
         val canApprove = user.role == "master" || user.displayRole == "doctor"
         if (!canApprove) { binding.leaveRequestsContainer.visibility = View.GONE; return }
@@ -992,13 +1316,13 @@ class BriefingActivity : AppCompatActivity() {
                 box.visibility = View.VISIBLE
                 val d = resources.displayMetrics.density
                 fun dp(v: Int) = (v * d).toInt()
-                val leaveTitle = "🏖️ Pending Leave Requests (${requests.length()})"
+                val leaveTitle = "PENDING LEAVE REQUESTS (${requests.length()})"
                 val leaveRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
                 box.addView(TextView(this@BriefingActivity).apply {
                     text = "$leaveTitle  ▼"; textSize = 14f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextColor(android.graphics.Color.WHITE)
-                    setBackgroundColor(android.graphics.Color.parseColor("#0B6B3A"))
+                    setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                     setPadding(dp(16), dp(12), dp(16), dp(12))
                     setOnClickListener { val opening = leaveRowsBox.visibility != View.VISIBLE; leaveRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$leaveTitle  ${if (opening) "▲" else "▼"}" }
                 })
@@ -1008,8 +1332,16 @@ class BriefingActivity : AppCompatActivity() {
                     val branch = req.s("branch")
                     val date = req.s("leave_date")
                     val reason = req.s("reason").ifBlank { "—" }
-                    val need = req.s("need_reason").ifBlank { "-" }
-                    val dotted = try { val p = date.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (_: Throwable) { date }
+                    /* 🏖️🔒 V740 (২৭.০৮.২০২৬) — কারণটা মাস্টারের পড়ার মতো ইংরেজিতে।
+                       আগে সাংকেতিক লেখা যেত ("5th+conflict")। ⛔ ডেটাবেসে যা লেখা
+                       আছে তা এক অক্ষরও বদলায়নি — শুধু দেখানোর ভাষা। */
+                    val needRaw = req.s("need_reason")
+                    val need = if (needRaw.isBlank()) "-" else buildList {
+                        if (needRaw.contains("chamber")) add("Chamber day")
+                        if (needRaw.contains("conflict")) add("Colleague on leave")
+                        if (needRaw.contains("5th")) add("5th day this month")
+                    }.joinToString(" + ").ifBlank { needRaw }
+                    val dotted = try { val p = date.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (_: Throwable) { date }
                     val row = LinearLayout(this@BriefingActivity).apply {
                         orientation = LinearLayout.VERTICAL
                         setBackgroundColor(android.graphics.Color.WHITE)
@@ -1094,17 +1426,38 @@ class BriefingActivity : AppCompatActivity() {
             val box = binding.salaryDueContainer
             box.removeAllViews()
             if (due.isEmpty()) { box.visibility = View.GONE; return@launch }
+            /* 🔔🔒 V1164 (০৭.০৯.২০২৬, TK-নির্দেশ: *"Salary Due সব সময় কেন থাকবে?
+               দিনে একবার দেখালো ঠিক আছে চলবে, কিন্তু সারা জীবন কেন থেকে যায়"*) —
+               পট্টিটা এখন **দিনে একবারই** ওঠে। একবার দেখানো হয়ে গেলে ওই দিনের
+               মতো আর ওঠে না; পরদিন আবার ওঠে।
+               ⛔ **নতুন কেউ বাকির তালিকায় ঢুকলে সঙ্গে সঙ্গেই আবার ওঠে** — সংখ্যাটাও
+                  মনে রাখা হয়, তাই নতুন বাকি কখনো চাপা পড়ে না।
+               ⛔ টাকার কোনো হিসাব · তালিকা · Pay Salary-র পথ কিচ্ছু বদলায়নি —
+                  শুধু কবে দেখানো হবে সেটুকু।
+               ⛔ চিহ্নটা ফোনের ভিতরেই থাকে (SharedPreferences), ক্লাউডে কিছু যায় না। */
+            run {
+                val today = FollowUpModel.today()
+                val pref = getSharedPreferences("piles_salary_due_banner", MODE_PRIVATE)
+                val seenDate = pref.getString("date", "").orEmpty()
+                val seenCount = pref.getInt("count", 0)
+                // আজ দেখানো হয়ে গেছে **আর** নতুন কেউ যোগ হয়নি ⇒ আজ আর নয়।
+                if (seenDate == today && due.size <= seenCount) { box.visibility = View.GONE; return@launch }
+                pref.edit().putString("date", today).putInt("count", due.size).apply()
+            }
             box.visibility = View.VISIBLE
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
-            val title = "💰 Salary Due (${due.size})"
+            val title = "SALARY DUE (${due.size})"
             val rowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$title  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#0A7C3F"))
+                // 🎨🔒 V1141 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Salary Due-তে
+                //    গ্রীন কালার সরিয়ে হলুদ কালার দিন"*। ⛔ শুধু রঙ; তালিকা · গোনা ·
+                //    চাপ কিচ্ছু বদলায়নি।
+                setTextColor(android.graphics.Color.parseColor("#3D2B00"))
+                setBackgroundColor(android.graphics.Color.parseColor("#F0B429"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = rowsBox.visibility != View.VISIBLE; rowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$title  ${if (opening) "▲" else "▼"}" }
             })
@@ -1121,7 +1474,10 @@ class BriefingActivity : AppCompatActivity() {
                     setTextColor(android.graphics.Color.parseColor("#10223A"))
                 })
                 row.addView(TextView(this@BriefingActivity).apply {
-                    text = "Salary day " + item.salaryDay + " · due this month · ₹" + "%,.0f".format(item.amount)
+                    // 💰 V1198 — কোন মাসের বেতন, সেটা এখন লেখাতেই থাকে
+                    text = "Salary day " + item.salaryDay + " · " +
+                        (if (item.forMonthLabel.isNotBlank()) item.forMonthLabel + " due" else "due") +
+                        " · ₹" + "%,.0f".format(item.amount)
                     textSize = 11.5f
                     setTextColor(android.graphics.Color.parseColor("#B42318"))
                     setPadding(0, dp(4), 0, 0)
@@ -1223,7 +1579,8 @@ class BriefingActivity : AppCompatActivity() {
                         text = com.tkbiswas.pilesclinic.modules.IeRequests.describe(
                             req,
                             { n -> "₹" + "%,.0f".format(n) },
-                            { iso -> try { val p = iso.split("-"); if (p.size == 3) "${p[2]}/${p[1]}/${p[0]}" else iso } catch (_: Exception) { iso } }
+                            // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): স্ল্যাশ ছিল, এখন বিন্দু।
+                            { iso -> com.tkbiswas.pilesclinic.native.DateUtil.display(iso) }
                         )
                         textSize = 13f
                         setTextColor(android.graphics.Color.parseColor("#10223A"))
@@ -1284,14 +1641,14 @@ class BriefingActivity : AppCompatActivity() {
             }
 
             if (requests.isNotEmpty()) {
-            val editTitle = "🔒 Pending Payment Edit Requests (${requests.size})"
+            val editTitle = "PENDING PAYMENT EDIT REQUESTS (${requests.size})"
             val editRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$editTitle  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#B8860B"))
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = editRowsBox.visibility != View.VISIBLE; editRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$editTitle  ${if (opening) "▲" else "▼"}" }
             })
@@ -1506,7 +1863,7 @@ class BriefingActivity : AppCompatActivity() {
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
             box.addView(TextView(this@BriefingActivity).apply {
-                text = "⚠️ Visit Fee Missing (${missing.size})"
+                text = "VISIT FEE MISSING (${missing.size})"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
@@ -1647,7 +2004,7 @@ class BriefingActivity : AppCompatActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
-                            BriefingRepository().addReply(item.id, "✅ Reopened by $who", user.mobile)
+                            BriefingRepository().addReply(this@BriefingActivity, item.id, "✅ Reopened by $who", user.mobile)
                             BriefingRepository().deleteOrHide(item.id, user)
                         } catch (_: Throwable) { }
                     }
@@ -1662,7 +2019,7 @@ class BriefingActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) {
                     try {
                         val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
-                        BriefingRepository().addReply(item.id, "❌ Rejected by $who", user.mobile)
+                        BriefingRepository().addReply(this@BriefingActivity, item.id, "❌ Rejected by $who", user.mobile)
                         BriefingRepository().deleteOrHide(item.id, user)
                     } catch (_: Throwable) { }
                 }
@@ -1695,7 +2052,8 @@ class BriefingActivity : AppCompatActivity() {
         if (ids.isEmpty()) return
         val chosen = adapter.itemsSnapshot().filter { ids.contains(it.id) }
         // শুধু "Delete request" — বাকি ধরনের অনুরোধ বাদ (উপরের নোট দেখুন)।
-        val deletable = chosen.filter { it.title.contains("Delete request", ignoreCase = true) }
+        // 🔴🔒 V697 — একসাথে-অনুমোদনেও রিপ্লাই-নোটিশ বাদ (উপরের একই নিয়ম)।
+        val deletable = chosen.filter { !BriefingModel.isReplyNotice(it.title) && it.title.contains("Delete request", ignoreCase = true) }
         val skipped = chosen.size - deletable.size
         if (deletable.isEmpty()) {
             Toast.makeText(this, "This request type cannot be approved in bulk — open and review one at a time.", Toast.LENGTH_LONG).show()
@@ -1731,8 +2089,9 @@ class BriefingActivity : AppCompatActivity() {
                             try {
                                 val note = if (result == "OK") "✅ Approved & deleted by $who"
                                            else "ℹ️ Record was already deleted — closed by $who"
-                                BriefingRepository().addReply(item.id, note, user.mobile)
-                                BriefingRepository().deleteOrHide(item.id, user)
+                                BriefingRepository().addReply(this@BriefingActivity, item.id, note, user.mobile)
+                                // 🔴🔒 V666 — এখন context দেওয়া হচ্ছে, ব্যর্থ হলে রিট্রাই-জমা হয়।
+                                BriefingRepository().deleteOrHide(item.id, user, this@BriefingActivity)
                             } catch (_: Throwable) { }
                         }
                     } else failed++
@@ -1743,7 +2102,7 @@ class BriefingActivity : AppCompatActivity() {
                     this@BriefingActivity,
                     "$done request(s) approved." + (if (failed > 0) " · $failed request(s) failed — please try again." else ""),
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 try { dlg.dismiss() } catch (_: Throwable) { }
                 loadList()
             }
@@ -1761,7 +2120,10 @@ class BriefingActivity : AppCompatActivity() {
         // dismiss হয়। ⛔ ডিলিট/Trash/অনুমতির আসল লজিক এক অক্ষরও বদলায়নি।
         val dlg = AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Approve & Delete?"))
-            .setMessage(item.message + NoBengali.s("\n\n⚠️ অনুমোদন দিলে রেকর্ডটা Trash Bin-এ চলে যাবে (পরে ফেরানো যাবে)।"))
+            /* 📄 V1177 — শুধু দরকারি তিন লাইন (TK-অনুমোদিত প্রুফ)।
+               ⛔ `item.message` অক্ষত, তাই নিচের Approve আগের মতোই চলে। */
+            .setMessage(DeletePermission.shortSummary(item.message) +
+                NoBengali.s("\n\nGoes to Trash — can be restored."))
             .setPositiveButton("Approve & Delete", null)
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
@@ -1795,8 +2157,9 @@ class BriefingActivity : AppCompatActivity() {
                             val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
                             val note = if (result == "OK") "✅ Approved & deleted by $who"
                                        else "ℹ️ Record was already deleted — closed by $who"
-                            BriefingRepository().addReply(item.id, note, user.mobile)
-                            BriefingRepository().deleteOrHide(item.id, user)
+                            BriefingRepository().addReply(this@BriefingActivity, item.id, note, user.mobile)
+                            // 🔴🔒 V666 — এখন context দেওয়া হচ্ছে, ব্যর্থ হলে রিট্রাই-জমা হয়।
+                            BriefingRepository().deleteOrHide(item.id, user, this@BriefingActivity)
                         } catch (_: Throwable) { }
                     }
                     loadList()
@@ -1846,7 +2209,7 @@ class BriefingActivity : AppCompatActivity() {
             if (rows.length() == 0) {
                 AlertDialog.Builder(this@BriefingActivity)
                     .setCustomTitle(PremiumAlert.header(this@BriefingActivity, "Not found"))
-                    .setMessage(NoBengali.s("$patientCode-এর জন্য এখন আর কোনো Pending Refund নেই — হয়তো আগেই Approve/Reject হয়ে গেছে, বা অন্য ফোন থেকে এখনো ক্লাউডে পৌঁছায়নি।"))
+                    .setMessage(NoBengali.s(" has no Pending Refund now — it may already be Approved/Rejected, or has not reached the cloud from the other phone yet."))
                     .setPositiveButton("Mark notice done") { _, _ ->
                         lifecycleScope.launch {
                             withContext(Dispatchers.IO) { try { BriefingRepository().deleteOrHide(item.id, user) } catch (_: Throwable) { } }
@@ -1895,12 +2258,12 @@ class BriefingActivity : AppCompatActivity() {
                 this@BriefingActivity,
                 if (ok) (if (approve) "Refund Approved" else "Refund Rejected") else "Failed — check connection",
                 Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             if (ok) {
                 withContext(Dispatchers.IO) {
                     try {
                         val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
-                        BriefingRepository().addReply(item.id, "${if (approve) "\u2705 Approved" else "\u274c Rejected"} by $who", user.mobile)
+                        BriefingRepository().addReply(this@BriefingActivity, item.id, "${if (approve) "\u2705 Approved" else "\u274c Rejected"} by $who", user.mobile)
                         BriefingRepository().deleteOrHide(item.id, user)
                     } catch (_: Throwable) { }
                 }
@@ -1908,6 +2271,47 @@ class BriefingActivity : AppCompatActivity() {
             }
             onDone()
         }
+    }
+
+    /* 🟢🔒 V1134 (০৬.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"আমি যদি অনুমতি
+       না দেই, অর্থাৎ এপ্রুভ না করি, তাহলে আমাকে কোনটা চাপতে হবে?"*
+
+       আগে "না" বলার কোনো বোতামই ছিল না — Close চাপলে শুধু নোটিশটা বোর্ড থেকে
+       সরত, আর স্টাফ জানতেই পারতেন না মাস্টার রাজি হননি।
+
+       ⇒ এখন **Reject**: টাকা/রেকর্ড কিচ্ছু মোছে না, স্টাফের কাছে উত্তর যায়
+         (অ্যাপের নিজের প্রমাণিত রিপ্লাই-পথেই — নতুন টেবিল বা SQL লাগে না),
+         তারপর অনুরোধটা বোর্ড থেকে সরে যায়।
+       ⛔ উত্তর পাঠানো না গেলে অনুরোধটা **সরানো হয় না** — নইলে স্টাফ কিছু
+          না জেনেই অপেক্ষা করতেন। */
+    private fun confirmReject(item: Briefing) {
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Reject this request?"))
+            .setMessage(
+                item.title.ifBlank { "Request" } +
+                "\n\n\u26d4 Nothing will be deleted. The staff who asked will be told it was rejected."
+            )
+            .setPositiveButton("Reject") { _, _ ->
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) {
+                        try {
+                            val told = repository.addReply(
+                                this@BriefingActivity, item.id,
+                                "Rejected by Master \u2014 nothing was deleted.", user.mobile
+                            )
+                            if (told) repository.deleteOrHide(item.id, user) else false
+                        } catch (_: Throwable) { false }
+                    }
+                    Toast.makeText(
+                        this@BriefingActivity,
+                        if (ok) "Rejected" else "Failed \u2014 check connection",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    if (ok) loadList()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
     }
 
     private fun confirmDelete(item: Briefing) {
@@ -1995,26 +2399,93 @@ class BriefingActivity : AppCompatActivity() {
         // (NotificationsActivity-র ➕ → openCompose) ব্যবহারকারী তালিকাটা
         // পড়েনই না; তখন অটো-সিন/অটো-হাইড করলে না-পড়া নোটিশ হারিয়ে যেত।
         if (intent.getBooleanExtra("openCompose", false)) return
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val seenIds = mutableListOf<String>()
-                val hideIds = mutableListOf<String>()
-                val titleById = HashMap<String, String>()
+        /* 👁️ V753 — **তালিকাটা পড়া হয় এখানেই (মূল থ্রেডে), আলাদা থ্রেডে নয়।**
+           কারণ ঠিক এই ফাংশনের পরের লাইনেই `parseForUser(rawRows)` দিয়ে পর্দা
+           আঁকা হয়। আগে পুরো কাজটা `launch(Dispatchers.IO)`-র ভিতরে ছিল, তাই
+           `seen`-এ নাম বসার **আগেই** পর্দা আঁকা হয়ে যেত ⇒ সংখ্যা পুরনোই থাকত।
+           ⛔ এখানে **কোনো নেট-কল নেই** — শুধু JSON পড়া, তাই মূল থ্রেডে নিরাপদ।
+              নেটের কাজগুলো (নিচে) আগের মতোই আলাদা থ্রেডেই হয়। */
+        val seenIds = mutableListOf<String>()
+        /** ⚡ V756 — প্রতিটা নোটিশের **আগের** seen-তালিকা, যাতে মেঘ থেকে আবার
+         *  টানতে না হয় (`markSeenWithRow`)। */
+        val seenPayload = HashMap<String, org.json.JSONArray>()
+        val hideIds = mutableListOf<String>()
+        val titleById = HashMap<String, String>()
+        try {
                 for (i in 0 until rawRows.length()) {
                     val row = rawRows.optJSONObject(i) ?: continue
                     val id = row.optString("id")
                     if (id.isBlank() || autoClearedThisSession.contains(id)) continue
                     if (BriefingModel.isDeletedForMe(row, user.mobile)) continue        // আগেই সরানো
-                    if (!BriefingModel.targetsHit(row, user.mobile, user.role, user.branch)) continue // আমাকে target নয় (নিজের পাঠানো) — বাদ
+                    /* 👁️🔒 V753 (২৭.০৮.২০২৬, TK-সিদ্ধান্ত "১" — *"seen by 0 কেন
+                       দেখাচ্ছে? আমি নিজেই তো কয়েকবার সিন করেছি"*)
+
+                       **আসল কারণ (কোড ধরে যাচাই):** `targetsHit()` শুধু তাঁকেই
+                       মেলায় যাঁর উদ্দেশ্যে নোটিশটা পাঠানো — ব্রাঞ্চ/ভূমিকা/মোবাইল
+                       ধরে। মাস্টারের ব্রাঞ্চ **"All"**, তাই "Birpara" বা
+                       "Cooch Behar"-এর নোটিশে কখনোই মেলে না ⇒ তিনি যতবারই পড়ুন,
+                       নাম বসত না, চিরকাল "Seen by 0" থাকত।
+
+                       ⚠️ **শুধু মাস্টারের জন্যই বদল** — স্টাফের পথে এক অক্ষরও নয়।
+                       ⛔ আর **শুধু "seen"** — তালিকা থেকে সরানো (`hideForMe`)
+                          আগের মতোই শুধু target-করা নোটিশে; নইলে অন্য ব্রাঞ্চের
+                          নোটিশ মাস্টারের চোখের আড়ালে চলে যেত। */
+                    val isMasterUser = user.role.equals("master", ignoreCase = true)
+                    val mine = BriefingModel.targetsHit(row, user.mobile, user.role, user.branch)
+                    if (!mine && !isMasterUser) continue // আমাকে target নয় (নিজের পাঠানো) — বাদ
                     // (ক) সবগুলোই "seen" — ঘন্টা ও ১০-মিনিটের রিমাইন্ডার থামাতে।
-                    if (!BriefingModel.hasSeen(row, user.mobile)) seenIds.add(id)
+                    /* ⚡🔒 V756 — **খরচের পাহারা (নিজের কাজ যাচাই করে ধরা)।**
+                       V753-এ মাস্টারের জন্য সব নোটিশ "seen" হতে শুরু করেছিল।
+                       কিন্তু নোটিশ **৫০০০ পর্যন্ত** আনা হয় (BriefingRepository),
+                       আর প্রতি "seen"-এ নেট-কল হয় ⇒ Supabase free প্ল্যানে
+                       বিপুল অকারণ খরচের ঝুঁকি ছিল।
+                       এখন দুটো বাঁধন:
+                         ১. যেগুলো **পর্দায় সত্যিই দেখা যায়** শুধু সেগুলোই
+                            (`visibleForUser`) — অদৃশ্য পুরনো নোটিশ নয়।
+                         ২. একবারে **সর্বোচ্চ ৬০টা** — বাকিগুলো পরের বার।
+                       ⛔ TK-এর নিয়ম: *"supabase free প্ল্যানে ঝুঁকি থাকলে আগে
+                          আমাকে বলবেন"* — তাই ঝুঁকিটা তৈরিই হতে দেওয়া হলো না। */
+                    if (!BriefingModel.hasSeen(row, user.mobile) &&
+                        seenIds.size < 60 &&
+                        repository.visibleForUser(row, user)) {
+                        // ⛔ মূল `seen` তালিকাটা **কপি করে** রাখি — ঠিক নিচেই
+                        //    নামটা বসানো হয়, তাই পরে ব্যবহার করলে দুবার বসত।
+                        val before = org.json.JSONArray()
+                        try {
+                            val cur = row.optJSONArray("seen") ?: org.json.JSONArray()
+                            for (k in 0 until cur.length()) before.put(cur.get(k))
+                        } catch (_: Throwable) { }
+                        seenPayload[id] = before
+                        seenIds.add(id)
+                        /* 👁️ V753 — এই সারিটার নিজের `seen` তালিকাতেও **এখনই**
+                           নামটা বসিয়ে দিই। কারণ ঠিক নিচেই `parseForUser(rawRows)`
+                           দিয়ে পর্দাটা আঁকা হয় — মেঘে লেখা শেষ হওয়ার **আগেই**।
+                           না বসালে এই বারের পর্দায় পুরনো সংখ্যাই থাকত (TK-এর
+                           রিপোর্ট: *"আমি নিজেই তো কয়েকবার সিন করেছি"*)।
+                           ⛔ শুধু এই বারের দেখানোর জন্য — আসল লেখা নিচের
+                              `repository.markSeen()`-ই করে, তাই দুবার লেখা হয় না। */
+                        try {
+                            val arr = row.optJSONArray("seen") ?: org.json.JSONArray()
+                            arr.put(BriefingModel.mob(user.mobile))
+                            row.put("seen", arr)
+                        } catch (_: Throwable) { }
+                    }
                     // (খ) অ্যাকশন লাগে না এমনগুলোই শুধু নিজের তালিকা থেকে সরানো।
-                    if (!needsMasterApproval(row.optString("title"))) {
+                    if (mine && !needsMasterApproval(row.optString("title"))) {
                         hideIds.add(id); titleById[id] = row.optString("title")
                     }
                 }
+        } catch (_: Throwable) { }
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
                 for (id in seenIds) {
-                    try { repository.markSeen(id, user.mobile) } catch (_: Throwable) { }
+                    // ⚡ V756 — সারিটা হাতেই আছে, তাই মেঘ থেকে আর টানা হয় না
+                    //    (আগে প্রতি নোটিশে ২টো নেট-কল হত, এখন ১টা)।
+                    val before = seenPayload[id]
+                    try {
+                        if (before != null) repository.markSeenWithRow(id, before, user.mobile)
+                        else repository.markSeen(id, user.mobile)
+                    } catch (_: Throwable) { }
                 }
                 for (id in hideIds) {
                     autoClearedThisSession.add(id)
@@ -2077,7 +2548,7 @@ class BriefingActivity : AppCompatActivity() {
                     return@setPositiveButton
                 }
                 lifecycleScope.launch {
-                    val ok = withContext(Dispatchers.IO) { repository.addReply(item.id, text, user.mobile) }
+                    val ok = withContext(Dispatchers.IO) { repository.addReply(this@BriefingActivity, item.id, text, user.mobile) }
                     Toast.makeText(this@BriefingActivity, if (ok) "Reply sent" else "Failed — check connection", Toast.LENGTH_SHORT).show()
                     if (ok) loadList()
                 }
@@ -2291,7 +2762,7 @@ class BriefingActivity : AppCompatActivity() {
             if (text.isBlank()) { replyInput.requestFocus(); return@setOnClickListener }
             sendBtn.isEnabled = false
             lifecycleScope.launch {
-                val ok = withContext(Dispatchers.IO) { repository.addReply(item.id, text, user.mobile) }
+                val ok = withContext(Dispatchers.IO) { repository.addReply(this@BriefingActivity, item.id, text, user.mobile) }
                 sendBtn.isEnabled = true
                 if (ok) {
                     replyInput.setText("")
@@ -2311,6 +2782,7 @@ class BriefingActivity : AppCompatActivity() {
         chatDialog = AlertDialog.Builder(this).setView(root).create()
         chatDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         chatDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(chatDialog) } catch (_: Throwable) { }   // 🤫 V774
         chatDialog.window?.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
@@ -2459,6 +2931,7 @@ class BriefingActivity : AppCompatActivity() {
             }
         }
         postDlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(postDlg) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒🔒 খাতার সারি B181 (TK, 30.07.2026 — "সম্পূর্ণ প্রজেক্ট ব্যবহার
         // করার সময় কেন এখনো অনেক জায়গায় বাংলা আসছে?")। **আসল কারণ:** পপ-আপের
         // নিজের আলাদা উইন্ডো থাকে, তাই পর্দার সাধারণ পাহারা সেখানে পৌঁছায় না —

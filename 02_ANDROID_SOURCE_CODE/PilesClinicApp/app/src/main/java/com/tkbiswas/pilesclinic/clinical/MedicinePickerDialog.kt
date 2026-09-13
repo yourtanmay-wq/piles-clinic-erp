@@ -269,7 +269,7 @@ object MedicinePickerDialog {
                     AlertDialog.Builder(activity).setTitle("Choose More Information")
                         .setMultiChoiceItems(labels, checks) { _, i, checked -> if (checked) chosen.add(keys[i]) else chosen.remove(keys[i]) }
                         .setPositiveButton("Apply") { _, _ -> PrescriptionOptionsStore.saveSelectedFields(activity, chosen) }
-                        .setNegativeButton("Cancel", null).show()
+                        .setNegativeButton("Cancel", null).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             })
             card.addView(TextView(activity).apply {
@@ -545,10 +545,13 @@ object MedicinePickerDialog {
             //   লেখা ছিল, সেটাতেই দেখাত)। এখন Dose-এর পাশেই When-এর ঘর।
             //   ⛔ সেভ করার নিয়ম আগেরটাই — `selectedFreq` আগে থেকেই ছিল, কেবল
             //      ভরার উপায় ছিল না; তাই পুরনো কোনো হিসাব/ডিফল্ট বদলায়নি।
-            val prefilled = selected[name] ?: ClinicalRepository.rxDoseFor(name)
-            val (preDose, preWhenSaved) = ClinicalRepository.splitDoseAndFrequency(prefilled)
-            // 🔵 V548: মনে-রাখা লেখায় When হারিয়ে গেলে প্রজেক্টের আদত When
-            val preWhen = preWhenSaved.ifBlank { ClinicalRepository.rxWhenFor(name) }
+            // 🍯 V956: Dose ও When এখন আলাদা ঘর থেকে আসে, তাই "After Food with
+            //   Honey"-এর মতো লেখা হুবহু ফিরে আসে (আগে ভেঙে যেত)।
+            val liveEdit = selected[name]
+            val (preDose, preWhen) = if (liveEdit != null) {
+                val split = ClinicalRepository.splitDoseAndFrequency(liveEdit)
+                Pair(split.first, split.second.ifBlank { ClinicalRepository.rxWhenFor(name) })
+            } else ClinicalRepository.rxDoseWhenFor(name)
             val doseInput = EditText(activity).apply {
                 setText(preDose)
                 textSize = 13f; background = null; setPadding(0, 0, 0, 0)
@@ -605,7 +608,7 @@ object MedicinePickerDialog {
                     selectedNote.remove(name)
                     selectedType.remove(name)
                 } else {
-                    selected[name] = doseInput.text.toString().trim().ifBlank { ClinicalRepository.rxDoseFor(name) }
+                    selected[name] = doseInput.text.toString().trim().ifBlank { ClinicalRepository.rxDoseWhenFor(name).first }  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                     selectedType[name] = ClinicalRepository.rxTypeFor(name)
                     if (showExtraFields) {
                         // V425: টিক দিলে When-এর ঘরে সেভ করা ডিফল্টটাই বসে।
@@ -699,7 +702,7 @@ object MedicinePickerDialog {
             } else {
                 names.forEach { nm ->
                     if (!selected.containsKey(nm)) {
-                        selected[nm] = ClinicalRepository.rxDoseFor(nm)
+                        selected[nm] = ClinicalRepository.rxDoseWhenFor(nm).first  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                         selectedType[nm] = ClinicalRepository.rxTypeFor(nm)
                         if (showExtraFields) selectedDays[nm] = ClinicalRepository.rxDaysFor(nm)
                     }
@@ -740,7 +743,7 @@ object MedicinePickerDialog {
                 return false
             }
             selected.forEach { (name, dose) ->
-                val finalDose = dose.trim().ifBlank { ClinicalRepository.rxDoseFor(name) }
+                val finalDose = dose.trim().ifBlank { ClinicalRepository.rxDoseWhenFor(name).first }  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                 val finalType = selectedType[name].orEmpty()
                 val finalDays = if (showExtraFields) (selectedDays[name]?.trim()?.ifBlank { ClinicalRepository.rxDaysFor(name) } ?: ClinicalRepository.rxDaysFor(name)) else ClinicalRepository.DEFAULT_DURATION
                 val effectiveList = targetList ?: (if (listType == "allopathic") ClinicalRepository.currentSlip else ClinicalRepository.currentPrescription)
@@ -753,7 +756,8 @@ object MedicinePickerDialog {
                 val (dosePart, autoFreqSaved) = if (typedFreq.isBlank())
                     ClinicalRepository.splitDoseAndFrequency(finalDose) else Pair(finalDose, "")
                 // 🔵 V548: সেভের সময়ও একই নিয়ম — When যেন ফাঁকা না ছাপে
-                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxWhenFor(name) }
+                // 🍯 V956: আগে মনে-রাখা When (মধু/মাখনসহ) অগ্রাধিকার পায়।
+                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxDoseWhenFor(name).second }
                 ClinicalRepository.rememberPermanentDefault(
                     activity.applicationContext,
                     name,
@@ -814,6 +818,7 @@ object MedicinePickerDialog {
 
         rebuild()
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // Same screen/design: if a newer permanent default exists (for example
         // after reinstall or a change on another phone), quietly repaint only
         // the existing rows when the small cloud refresh completes.
@@ -872,7 +877,7 @@ object MedicinePickerDialog {
             })
             addNewCard.setOnClickListener {
                 ClinicalRepository.learnMedicine(trimmed, listType)
-                selected[trimmed] = ClinicalRepository.rxDoseFor(trimmed)
+                selected[trimmed] = ClinicalRepository.rxDoseWhenFor(trimmed).first  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                 rebuildRows(activity, container, baseList, listType, query, selected, accent, buildRow)
             }
             container.addView(addNewCard)
@@ -975,6 +980,19 @@ object MedicinePickerDialog {
         box.addView(name)
         box.addView(doseRow)
         box.addView(note)
+        // 🟢🔒🔒 V662 (২৫.০৮.২০২৬, TK-নির্দেশ, রেগে গিয়ে রিপোর্ট — "একটা মেডিসিন
+        // Add করার পরে আরেকটা লেখার অপশন নেই কেন... তিনি চাইলে দশটা মেডিসিনের
+        // জন্য লিখতে পারে") — কতগুলো যোগ হলো, সেটা দেখানোর ছোট লেখা।
+        val addedLabel = TextView(activity).apply {
+            text = ""; textSize = 12.5f
+            setTextColor(Color.parseColor("#0A7C3F"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            visibility = android.view.View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = px(8) }
+        }
+        box.addView(addedLabel)
 
         /* 🔵🔒 V545 (TK-নির্দেশ) — *"কোন মেডিসিনের নাম যখন টাইপ করে লিখব,
            ডোজের ঘর অটো ডিফল্ট থাকবে তো? আমি যদি চাই সেই ক্ষেত্রেই পরিবর্তন
@@ -1008,12 +1026,10 @@ object MedicinePickerDialog {
                 if (nm.isEmpty()) return
                 fillingDefaults = true
                 try {
-                    val (dDose, dWhen) = ClinicalRepository.splitDoseAndFrequency(
-                        ClinicalRepository.rxDoseFor(nm)
-                    )
+                    // 🍯 V956: Dose ও When নিজের নিজের ঘর থেকে — মধু/মাখনের লেখাও টেকে।
+                    val (dDose, dWhen) = ClinicalRepository.rxDoseWhenFor(nm)
                     if (!touchedDose) dose.setText(dDose)
-                    // 🔵 V548: মনে-রাখা লেখায় When হারিয়ে গেলে প্রজেক্টের আদত When
-                    if (!touchedWhen) frequency.setText(dWhen.ifBlank { ClinicalRepository.rxWhenFor(nm) })
+                    if (!touchedWhen) frequency.setText(dWhen)
                     if (!touchedDays) days.setText(ClinicalRepository.rxDaysFor(nm))
                     if (currentType.isBlank()) {
                         val t = ClinicalRepository.rxTypeFor(nm)
@@ -1029,7 +1045,11 @@ object MedicinePickerDialog {
             .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(activity, "💊 Add Medicine (Outside List)"))
             .setView(box)
             .setPositiveButton("Add", null)
-            .setNegativeButton("Cancel", null)
+            // 🟢🔒 V662 (২৫.০৮.২০২৬) — "Cancel" থেকে "Done"-এ বদলানো হলো,
+            // কারণ এখন প্রতিটা "Add"-এই সাথে সাথে তালিকায় বসে যায় (আগের
+            // মতো পুরো পপ-আপ বাতিল করার কিছু নেই) — এই বোতাম এখন শুধু
+            // বন্ধ করে। ⛔ id/আচরণ (বন্ধ করা) এক অক্ষরও বদলায়নি, শুধু লেখা।
+            .setNegativeButton("Done", null)
             .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -1041,7 +1061,7 @@ object MedicinePickerDialog {
                     typeChip.requestFocus()
                     return@setOnClickListener
                 }
-                val medDose = dose.text.toString().trim().ifBlank { ClinicalRepository.rxDoseFor(medName) }
+                val medDose = dose.text.toString().trim().ifBlank { ClinicalRepository.rxDoseWhenFor(medName).first }  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                 ClinicalRepository.learnMedicine(medName, listType)
                 val finalDays = days.text.toString().trim().ifBlank { ClinicalRepository.rxDaysFor(medName) }
                 val targetList = targetListOverride ?: (if (listType == "allopathic") ClinicalRepository.currentSlip else ClinicalRepository.currentPrescription)
@@ -1050,7 +1070,9 @@ object MedicinePickerDialog {
                 val typedFreq = frequency.text.toString().trim()
                 val (dosePart, autoFreqSaved) = if (typedFreq.isBlank())
                     ClinicalRepository.splitDoseAndFrequency(medDose) else Pair(medDose, "")
-                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxWhenFor(medName) }   // 🔵 V548
+                // 🍯 V956: When ফাঁকা রাখলে ওষুধটার **মনে-রাখা** When-ই বসে
+                //   (মধু/মাখনসহ), শুধু কিছুই জমা না থাকলে আদত তালিকার লেখা।
+                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxDoseWhenFor(medName).second }
                 ClinicalRepository.rememberPermanentDefault(
                     activity.applicationContext,
                     medName,
@@ -1071,9 +1093,24 @@ object MedicinePickerDialog {
                     medicineType = currentType
                 )
                 val outDup = targetList.indexOfFirst { it.name.trim().equals(medName.trim(), ignoreCase = true) }
+                val wasUpdate = outDup >= 0
                 if (outDup >= 0) targetList[outDup] = outEntry else targetList.add(outEntry)
                 onAdded()
-                dialog.dismiss()
+                // 🟢🔒🔒 V662 (২৫.০৮.২০২৬, TK-নির্দেশ) — আগে এখানে `dialog.dismiss()`
+                // ছিল — একটা ওষুধ Add করলেই পপ-আপ বন্ধ হয়ে যেত, পরের ওষুধ
+                // লিখতে হলে আবার নতুন করে "Add Medicine (Outside List)"
+                // খুলতে হতো। TK: *"তিনি চাইলে দশটা মেডিসিনের জন্য লিখতে
+                // পারে"* — এখন পপ-আপ **খোলাই থাকে**, ঘরগুলো ফাঁকা হয়ে পরের
+                // ওষুধ লেখার জন্য প্রস্তুত হয়, ডাক্তার যতগুলো লাগবে
+                // একটার-পর-একটা লিখতে পারবেন। "Cancel"-এ চাপলে বন্ধ হয় —
+                // ততক্ষণে যা যোগ হয়েছে তা সবই থেকে যায় (প্রতিটা Add-এই
+                // তালিকায় বসে যাচ্ছে, তাই কিছু হারানোর ঝুঁকি নেই)।
+                name.setText(""); dose.setText(""); frequency.setText(""); days.setText(""); note.setText("")
+                touchedDose = false; touchedWhen = false; touchedDays = false
+                currentType = ""; typeChip.text = "Type: Tap to set"
+                addedLabel.visibility = android.view.View.VISIBLE
+                addedLabel.text = "✓ Added: $medName" + (if (wasUpdate) " (updated)" else "") + "  ·  ${targetList.size} medicine(s) so far"
+                name.requestFocus()
             }
         }
         dialog.show()

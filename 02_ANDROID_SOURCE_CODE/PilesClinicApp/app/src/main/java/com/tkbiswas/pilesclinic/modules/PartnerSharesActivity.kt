@@ -9,7 +9,10 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import com.tkbiswas.pilesclinic.native.NativeSession
+import com.tkbiswas.pilesclinic.native.NoBengali
+import com.tkbiswas.pilesclinic.native.PremiumAlert
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -33,6 +36,20 @@ class PartnerSharesActivity : Activity() {
         return f.format(java.util.Date())
     }
     private fun yearStart(): String = today().substring(0, 4) + "-01-01"
+    /* 🔴🔒 V819 (২৯.০৮.২০২৬, TK-নির্দেশে ঝুঁকি-যাচাই) — **"null" ছাপার পুরনো ফাঁদ।**
+       `fin.partners.name` ঘরটা ডেটাবেসে ফাঁকা (SQL NULL) থাকতে পারে, আর
+       org.json-এর `optString()` তখন **আক্ষরিক "null" শব্দটাই** ফেরায়।
+       ফলে `ifBlank { }` ছাঁকনিটা ওটাকে ফাঁকা ধরতে পারত না — পর্দায়, কাগজে
+       ও WhatsApp-বার্তায় পার্টনারের নামের জায়গায় **"null"** লেখা উঠত।
+       ⛔ এই একই দোষ আগে দুবার ধরা পড়েছে (V696 — Treatment Progress-এ,
+          V812 — কল-নোটিফিকেশনে)। তাই এখানেও একই সাফাই বসানো হলো, আর
+          নিয়ম ৬.২ মেনে **এই পর্দার প্রতিটা নামের জায়গাতেই**।
+       ⛔ কোনো হিসাব · শতাংশ · টাকার অঙ্ক ছোঁয়া হয়নি — শুধু দেখানোর নাম। */
+    private fun ps(o: org.json.JSONObject?, key: String): String {
+        val t = (o?.optString(key) ?: "").trim()
+        return if (t.equals("null", ignoreCase = true) || t.equals("undefined", ignoreCase = true)) "" else t
+    }
+
     private fun n10(s: String?): String = (s ?: "").filter { it.isDigit() }.takeLast(10)
     private fun money(n: Double): String {
         val nf = java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN"))
@@ -200,7 +217,7 @@ class PartnerSharesActivity : Activity() {
                 for (b in BRANCHES) {
                     val list = byB[b] ?: mutableListOf()
                     val sub = if (list.isEmpty()) "not set up"
-                    else list.joinToString(" · ") { (it.optString("name").ifBlank { n10(it.optString("mobile")) }) + " " + fmtPct(it.optDouble("pct", 0.0)) + "%" }
+                    else list.joinToString(" · ") { (ps(it, "name").ifBlank { n10(ps(it, "mobile")) }) + " " + fmtPct(it.optDouble("pct", 0.0)) + "%" }
                     val rowCard = card().apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER_VERTICAL
@@ -329,7 +346,7 @@ class PartnerSharesActivity : Activity() {
         val cachedD = loadBranchCache(branch)
         if (cachedD != null) {
             try { renderPartnerCards(content, cachedD) } catch (_: Throwable) {}
-            content.addView(TextView(this).apply { text = "হালনাগাদ হচ্ছে…"; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(8), 0, dp(8)) })
+            content.addView(TextView(this).apply { text = NoBengali.s("হালনাগাদ হচ্ছে…"); textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(8), 0, dp(8)) })
         } else {
             content.addView(TextView(this).apply { text = "Loading…"; setTextColor(android.graphics.Color.parseColor("#7c8a83")) })
         }
@@ -387,9 +404,10 @@ class PartnerSharesActivity : Activity() {
         host.addView(net)
         if (d.list.isEmpty()) host.addView(TextView(this).apply { text = "No partners yet. Tap Setup."; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(6), 0, dp(6)) })
         for (x in d.list) {
-            val c = card().apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+            val outer = card().apply { orientation = LinearLayout.VERTICAL }
+            val c = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
             val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
-            left.addView(TextView(this).apply { text = x.p.optString("name").ifBlank { n10(x.p.optString("mobile")) }; textSize = 14f; setTextColor(android.graphics.Color.parseColor("#111111")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
+            left.addView(TextView(this).apply { text = ps(x.p, "name").ifBlank { n10(ps(x.p, "mobile")) }; textSize = 14f; setTextColor(android.graphics.Color.parseColor("#111111")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
             left.addView(TextView(this).apply { text = "Due " + money(x.due) + " · Withdrawn " + money(x.drawn); textSize = 11f; setTextColor(android.graphics.Color.parseColor("#0A5C33")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
             c.addView(left)
             val red = x.bal < 0
@@ -405,8 +423,64 @@ class PartnerSharesActivity : Activity() {
                     setStroke(dp(1), android.graphics.Color.parseColor(if (red) "#F0C4BE" else "#B7E3C5"))
                 }
             })
-            host.addView(c)
+            outer.addView(c)
+            /* 🛰️🔒 V1348 (১১.০৯.২০২৬, TK-নির্দেশ, "স্টাফ প্রোফাইলে যেভাবে Field
+               Visit বোতাম আছে") — শুধু মাস্টারের পর্দায় এই বোতাম, ডাক্তারের
+               নিজের ফোনে কোনো নতুন কিছু দেখা যায় না (DoctorLocation.kt দেখুন)। */
+            if (ModuleAuth.isMaster) {
+                val locBtn = TextView(this).apply {
+                    text = "📍 Location"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    gravity = android.view.Gravity.CENTER
+                    setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                    setPadding(dp(12), dp(9), dp(12), dp(9))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(9).toFloat()
+                        setColor(android.graphics.Color.parseColor("#EAF6EE"))
+                        setStroke(dp(1), android.graphics.Color.parseColor("#CFE9D8"))
+                    }
+                    isClickable = true; isFocusable = true
+                    setOnClickListener { showDoctorLocation(ps(x.p, "name").ifBlank { n10(ps(x.p, "mobile")) }, ps(x.p, "mobile")) }
+                }
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.END; setPadding(0, dp(8), 0, 0) }
+                row.addView(locBtn)
+                outer.addView(row)
+            }
+            host.addView(outer)
         }
+    }
+
+    /* 🛰️🔒 V1348 — শেষবার দেখা লোকেশন দেখানোর ছোট্ট ডায়ালগ। কোনো নতুন
+       Activity/layout বানানো হয়নি — ঝুঁকি কম, প্রকল্পের অন্য জায়গার
+       AlertDialog-ধাঁচেই। ⛔ লোকেশন কখনো না-জমা হলে honestly "not available
+       yet" বলবে, খালি/ভুল সংখ্যা দেখাবে না। ⛔ নিয়ম ৯: মাস্টারের পর্দার
+       লেখাও ইংরেজিতে (staff-only নয় বলে NoBengali.s() লাগে না, তবু বাকি
+       পুরো পর্দার সাথে মিলিয়ে ইংরেজিই রাখা হলো)। */
+    private fun showDoctorLocation(name: String, mobile: String) {
+        val dlg = AlertDialog.Builder(this)
+            .setTitle(name)
+            .setMessage("Fetching location…")
+            .setPositiveButton("Close", null)
+            .show().also { PremiumAlert.paint(it) }
+        Thread {
+            val last = try { com.tkbiswas.pilesclinic.native.DoctorLocation.fetchLastSeen(mobile) } catch (e: Throwable) { null }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (last == null) {
+                    dlg.setMessage("No location available yet — the doctor's phone location may be off, or the app hasn't been opened yet.")
+                } else {
+                    val ago = try {
+                        val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                        f.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                        val t = f.parse(last.updatedAt)?.time ?: 0L
+                        val mins = (System.currentTimeMillis() - t) / 60000
+                        when { mins < 1 -> "just now"; mins < 60 -> "$mins min ago"; else -> "${mins / 60} hr ago" }
+                    } catch (_: Throwable) { "" }
+                    val mapsUrl = "https://maps.google.com/?q=${last.lat},${last.lng}"
+                    dlg.setMessage("Last seen: $ago\n\n$mapsUrl")
+                }
+            }
+        }.start()
     }
 
     // 🔒 B604: Partner overview-এর হালকা display-ক্যাশ (income/expense/net + প্রতি
@@ -415,7 +489,7 @@ class PartnerSharesActivity : Activity() {
     private fun saveBranchCache(branch: String, d: BData) {
         try {
             val arr = JSONArray()
-            for (x in d.list) arr.put(JSONObject().put("name", x.p.optString("name")).put("mobile", x.p.optString("mobile")).put("due", x.due).put("drawn", x.drawn).put("bal", x.bal))
+            for (x in d.list) arr.put(JSONObject().put("name", ps(x.p, "name")).put("mobile", ps(x.p, "mobile")).put("due", x.due).put("drawn", x.drawn).put("bal", x.bal))
             val o = JSONObject().put("income", d.income).put("expense", d.expense).put("net", d.net).put("list", arr)
             partnerCachePrefs().edit().putString("br_$branch", o.toString()).apply()
         } catch (_: Throwable) {}
@@ -425,7 +499,7 @@ class PartnerSharesActivity : Activity() {
             val o = JSONObject(partnerCachePrefs().getString("br_$branch", null) ?: return null)
             val arr = o.optJSONArray("list") ?: JSONArray()
             val list = ArrayList<PLine>()
-            for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); list.add(PLine(JSONObject().put("name", x.optString("name")).put("mobile", x.optString("mobile")), x.optDouble("due"), x.optDouble("drawn"), x.optDouble("bal"))) }
+            for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); list.add(PLine(JSONObject().put("name", ps(x, "name")).put("mobile", ps(x, "mobile")), x.optDouble("due"), x.optDouble("drawn"), x.optDouble("bal"))) }
             BData(o.optDouble("income"), o.optDouble("expense"), o.optDouble("net"), list)
         } catch (_: Throwable) { null }
     }
@@ -441,11 +515,11 @@ class PartnerSharesActivity : Activity() {
             .append(" &middot; Net Profit: <b>").append(esc(money(d.net))).append("</b> (Income ").append(esc(money(d.income)))
             .append(" &minus; Expense ").append(esc(money(d.expense))).append(")</div>")
         sb.append("<table style=\"border-collapse:collapse;width:100%;font-size:13px\">")
-        sb.append("<tr style=\"background:#EAF6EE;color:#0A5C33\"><th style=\"border:1px solid #cfe0d6;padding:6px;text-align:left\">Partner</th>")
+        sb.append("<tr style=\"background:#EAF6EE;color:#0A5C33;-webkit-print-color-adjust:exact;print-color-adjust:exact\"><th style=\"border:1px solid #cfe0d6;padding:6px;text-align:left\">Partner</th>")
         sb.append("<th style=\"border:1px solid #cfe0d6;padding:6px\">Due</th><th style=\"border:1px solid #cfe0d6;padding:6px\">Withdrawn</th><th style=\"border:1px solid #cfe0d6;padding:6px\">Balance</th></tr>")
         for (x in d.list) {
             val red = x.bal < 0
-            sb.append("<tr><td style=\"border:1px solid #cfe0d6;padding:6px\">").append(esc(x.p.optString("name").ifBlank { n10(x.p.optString("mobile")) }))
+            sb.append("<tr><td style=\"border:1px solid #cfe0d6;padding:6px\">").append(esc(ps(x.p, "name").ifBlank { n10(ps(x.p, "mobile")) }))
                 .append("<br><small style=\"color:#777\">+91 ").append(esc(n10(x.p.optString("mobile")))).append("</small></td>")
                 .append("<td style=\"border:1px solid #cfe0d6;padding:6px;text-align:right\">").append(esc(money(x.due))).append("</td>")
                 .append("<td style=\"border:1px solid #cfe0d6;padding:6px;text-align:right\">").append(esc(money(x.drawn))).append("</td>")
@@ -462,7 +536,7 @@ class PartnerSharesActivity : Activity() {
                         val pm = this@PartnerSharesActivity.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val job = "Partner Shares - $branch"
                         pm.print(job, view.createPrintDocumentAdapter(job),
-                            android.print.PrintAttributes.Builder().setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4).build())
+                            com.tkbiswas.pilesclinic.native.PrintQuality.builder().setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4).build())
                     } catch (e: Throwable) { Toast.makeText(this@PartnerSharesActivity, "Could not open print.", Toast.LENGTH_SHORT).show() }
                 }
             }
@@ -478,7 +552,7 @@ class PartnerSharesActivity : Activity() {
     private fun settleBranch(branch: String, d: BData) {
         val toDo = d.list.filter { Math.abs(it.bal) >= 0.5 }
         if (toDo.isEmpty()) { Toast.makeText(this, "All balances are already zero — nothing to settle.", Toast.LENGTH_LONG).show(); return }
-        val lines = toDo.joinToString("\n") { (it.p.optString("name").ifBlank { n10(it.p.optString("mobile")) }) + ": " + (if (it.bal > 0) "pay " else "collect ") + money(Math.abs(it.bal)) }
+        val lines = toDo.joinToString("\n") { (ps(it.p, "name").ifBlank { n10(ps(it.p, "mobile")) }) + ": " + (if (it.bal > 0) "pay " else "collect ") + money(Math.abs(it.bal)) }
         android.app.AlertDialog.Builder(this)
             .setTitle("Settlement — $branch")
             .setMessage("Bring every balance to zero?\n\n$lines\n\nThis records the pay-outs / collections and cannot be undone from here.")
@@ -505,7 +579,7 @@ class PartnerSharesActivity : Activity() {
                         openBranch(branch)
                     }
                 }.start()
-            }.show()
+            }.show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     // ---------- SETUP ----------
@@ -552,7 +626,7 @@ class PartnerSharesActivity : Activity() {
                 fun addRow(p: JSONObject?) {
                     val c = card()
                     val line1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                    val nameEt = EditText(this).apply { hint = "Name"; setText(p?.optString("name") ?: ""); textSize = 13f; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
+                    val nameEt = EditText(this).apply { hint = "Name"; setText(ps(p, "name")); textSize = 13f; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
                     val pctEt = EditText(this).apply { hint = "%"; setText(p?.let { fmtPct(it.optDouble("pct", 0.0)) } ?: ""); textSize = 13f; inputType = android.text.InputType.TYPE_CLASS_TEXT; keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789."); gravity = android.view.Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(dp(70), LinearLayout.LayoutParams.WRAP_CONTENT) }
                     line1.addView(nameEt); line1.addView(pctEt); c.addView(line1)
                     val line2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(6), 0, 0) }
@@ -702,7 +776,7 @@ class PartnerSharesActivity : Activity() {
         val (_, col) = screen("＋ Withdraw / Return")
         val c = card()
         c.addView(labelTv("Partner"))
-        val partnerNames = d.list.map { it.p.optString("name").ifBlank { n10(it.p.optString("mobile")) } }
+        val partnerNames = d.list.map { ps(it.p, "name").ifBlank { n10(ps(it.p, "mobile")) } }
         val partnerMobiles = d.list.map { n10(it.p.optString("mobile")) }
         val spWho = android.widget.Spinner(this)
         spWho.adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, partnerNames)

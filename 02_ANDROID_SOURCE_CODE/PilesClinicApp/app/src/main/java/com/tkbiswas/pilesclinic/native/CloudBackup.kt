@@ -62,9 +62,10 @@ object CloudBackup {
      *  * The whole check now happens on a background thread. Previously even
      *    the "is there a recent backup?" file lookup ran on the main thread,
      *    which can stutter the Dashboard on its own.
-     *  * After a manual seed exists, automatic backup is due at 7 days.
+     *  * After a manual seed exists, automatic backup is due at 30 days
+     *    (V838 — TK: "মাসে একবার")।
      *  * On Wi-Fi/unmetered data it may run once due; on metered/mobile data it
-     *    waits until 14 days before forcing one safety backup.
+     *    waits until 45 days before forcing one safety backup.
      *  * "Backup Now" in Settings is always available and unchanged.
      */
     suspend fun exportIfStale(context: Context) {
@@ -91,9 +92,24 @@ object CloudBackup {
                 // 🟢 B624 (Egress ফিক্স, 11.08.2026, TK-নির্দেশ): আগে প্রতি ২৪ ঘণ্টায় পুরো
                 // ডেটাবেস (ছবি-সহ) আবার নামত — Free-plan egress-এর বড় খরচ। এখন **সপ্তাহে
                 // একবার** (৭ দিন)। ক্লাউডই মূল ভাণ্ডার, তাই সপ্তাহে একটা লোকাল ব্যাকআপই যথেষ্ট।
-                val due = ageMs > 7 * dayMs
-                // চালানোর অনুমতি: WiFi থাকলে, নইলে ১৪ দিন পার হলে যেভাবেই হোক একবার।
-                val allowed = ageMs >= 14 * dayMs || connectionCanSpareIt(context)
+                /* 🟠🔒 V838 (২৯.০৮.২০২৬, TK-নির্দেশ: *"মাসে একবার, তবে সাবধানে"*) —
+                   Egress-এর গভীর যাচাইয়ে এটাই ছিল অ্যাপের **সবচেয়ে বড় একটানা
+                   ডাউনলোড**: ৭টা গোটা টেবিল, রোগীর base64 ছবি-সহ।
+                   ৭ দিন → **৩০ দিন** (মাসে একবার)। ⇒ বছরে ~৫২ বারের বদলে ~১২ বার।
+                   ⛔ দ্বিতীয় সংখ্যাটা (WiFi না পেলে জোর করে চালানোর সীমা) আগে ছিল
+                      "প্রথমটার ঠিক দ্বিগুণ" (৭ → ১৪)। সেই সম্পর্কই রাখা হলো, তবে
+                      ৬০ দিন বড্ড দেরি বলে **৪৫ দিন** বসানো হলো — অর্থাৎ WiFi না
+                      পেলেও দেড় মাসের বেশি কখনো ব্যাকআপ ছাড়া থাকবে না।
+                   ⛔ আর কিছুই বদলায়নি — Settings → "Backup Now" আগের মতোই যখন
+                      খুশি চলে · নতুন ফোনে হাতে একবার না নিলে আপনা-আপনি কিছু নামে
+                      না (V452) · শুধু মাস্টারের ফোনে · ব্যাকআপে কোন টেবিল/কোন ঘর
+                      যায় তার এক অক্ষরও ছোঁয়া হয়নি (ছবি আগের মতোই থাকবে)।
+                   ⚠️ ফল: লোকাল ব্যাকআপের কপিটা সর্বোচ্চ ১ মাস পুরনো হতে পারে
+                      (আগে ১ সপ্তাহ)। **ক্লাউডই মূল ভাণ্ডার** — এই ফাইলটা শুধু
+                      বাড়তি নিরাপত্তা, রোজকার কাজে লাগে না। */
+                val due = ageMs > 30 * dayMs
+                // চালানোর অনুমতি: WiFi থাকলে, নইলে ৪৫ দিন পার হলে যেভাবেই হোক একবার।
+                val allowed = ageMs >= 45 * dayMs || connectionCanSpareIt(context)
                 if (due && allowed) export(context)
             } catch (_: Throwable) {
                 // Auto-backup is a background convenience -- it must never
@@ -106,8 +122,8 @@ object CloudBackup {
      * True when the connection can carry a full backup without getting in the
      * staff's way -- i.e. Wi-Fi / any unmetered network. Anything else (mobile
      * data, or if this cannot be determined at all) is treated as "not now",
-     * which only ever postpones the backup, never cancels it (see the 7-day
-     * rule above).
+     * which only ever postpones the backup, never cancels it (see the 30-day
+     * rule above — V838).
      */
     private fun connectionCanSpareIt(context: Context): Boolean {
         return try {
