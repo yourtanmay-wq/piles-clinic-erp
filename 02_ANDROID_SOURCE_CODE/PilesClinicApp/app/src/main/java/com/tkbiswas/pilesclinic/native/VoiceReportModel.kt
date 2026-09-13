@@ -17,7 +17,16 @@ import java.time.ZoneId
    ═══════════════════════════════════════════════════════════════════════ */
 object VoiceReportModel {
 
-    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND, CASH_HANDOVER, RMP_DUE, MEDICINE_DUE, CALL_COUNT, TRASH_COUNT, RMP_ADVANCE }
+    enum class Metric {
+        REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND, CASH_HANDOVER, RMP_DUE,
+        MEDICINE_DUE, CALL_COUNT, TRASH_COUNT, RMP_ADVANCE,
+        APPOINTMENT_COUNT, EXPECTED_COUNT, HANDOVER_PENDING, PAYMENT_REQUESTS, REFERRAL_REQUESTS, LEAVE_COUNT,
+        DOCTOR_REMINDER, STAFF_REMINDER_OPEN, FEE_RETURN
+    }
+
+    /** যে প্রশ্নগুলো "এখন পর্যন্ত মোট" — কোনো তারিখ/সময়-সীমা লাগে না (V1418/V1419/V1420)। */
+    private val SNAPSHOT = setOf(Metric.RMP_DUE, Metric.MEDICINE_DUE, Metric.HANDOVER_PENDING,
+        Metric.PAYMENT_REQUESTS, Metric.REFERRAL_REQUESTS, Metric.STAFF_REMINDER_OPEN)
 
     data class Parsed(
         val metric: Metric,
@@ -57,6 +66,8 @@ object VoiceReportModel {
     private fun findDateRange(q: String): Range? {
         val t = today()
         return when {
+            // V1420 — "আগামীকাল" (আসার কথা / অ্যাপয়েন্টমেন্ট) — "গতকাল"-এর আগে দেখা হয়, শব্দ দুটো আলাদা
+            q.contains("আগামীকাল") || q.contains("tomorrow") -> Range(iso(t.plusDays(1)), iso(t.plusDays(1)), "Tomorrow")
             q.contains("গতকাল") -> Range(iso(t.minusDays(1)), iso(t.minusDays(1)), "Yesterday")
             q.contains("আজ") -> Range(iso(t), iso(t), "Today")
             q.contains("সাত দিন") || q.contains("7 din") || q.contains("last 7") ->
@@ -91,14 +102,35 @@ object VoiceReportModel {
         val hasCall = q.contains("কল") && (q.contains("অ্যাপ") || q.contains("হয়েছে")) && !q.contains("ফলো")
         val hasTrash = q.contains("ডিলিট") || q.contains("ট্র্যাশ") || q.contains("মোছা") || q.contains("মুছে")
         val hasAdvance = q.contains("অগ্রিম") || q.contains("অ্যাডভান্স") || q.lowercase().contains("advance")
+        // 🎤 V1420 — অ্যাপয়েন্টমেন্ট · আসার কথা · হ্যান্ডওভার-বাকি · অনুরোধ · ছুটি · রিমাইন্ডার · ফি ফেরত
+        val lower = q.lowercase()
+        val hasFeeReturn = q.contains("ফেরত") && (q.contains("ভিজিট") || q.contains("ফি"))
+        val hasPayReq = q.contains("অনুরোধ") || q.contains("রিকোয়েস্ট") || lower.contains("request")
+        val hasReferralReq = hasPayReq && (q.contains("রেফারেল") || lower.contains("referral"))
+        val hasHandoverPending = hasHandover && (q.contains("হয়নি") || hasDueWord)
+        val hasAppointment = q.contains("অ্যাপয়েন্টমেন্ট") || lower.contains("appointment")
+        val hasExpected = q.contains("আসার কথা") || q.contains("আসবে")
+        val hasLeave = q.contains("ছুটি") || lower.contains("leave")
+        val hasReminder = q.contains("রিমাইন্ডার") || lower.contains("reminder")
+        val hasDoctorReminder = hasReminder && (q.contains("ডাক্তার") || lower.contains("doctor"))
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
+        // ⛔ ক্রমটা ওয়েবের wlv1VoiceParse-এর সাথে হুবহু এক রাখতে হবে (নিয়ম ৮)
         return when {
             hasSale && hasMedicine -> Metric.MEDICINE_SALE
             hasSale && hasSaline -> Metric.SALINE_SALE
+            hasFeeReturn -> Metric.FEE_RETURN
+            hasReferralReq -> Metric.REFERRAL_REQUESTS
+            hasPayReq -> Metric.PAYMENT_REQUESTS
             hasProductDue -> Metric.MEDICINE_DUE
+            hasHandoverPending -> Metric.HANDOVER_PENDING
             hasHandover -> Metric.CASH_HANDOVER
+            hasAppointment -> Metric.APPOINTMENT_COUNT
+            hasExpected -> Metric.EXPECTED_COUNT
+            hasLeave -> Metric.LEAVE_COUNT
+            hasDoctorReminder -> Metric.DOCTOR_REMINDER
+            hasReminder -> Metric.STAFF_REMINDER_OPEN
             hasAdvance -> Metric.RMP_ADVANCE
             hasRmpDue -> Metric.RMP_DUE
             hasTrash -> Metric.TRASH_COUNT
@@ -122,8 +154,8 @@ object VoiceReportModel {
         // 🔒 V1418 (১৩.০৯.২০২৬) — RMP-বাকি কোনো সময়-সীমার প্রশ্ন নয় (fin.rmp_branch_due
         // "এখন পর্যন্ত মোট বাকি" দেখায়, তারিখ নেয় না), তাই এখানেই একমাত্র ব্যতিক্রম —
         // "গতকাল/আজ/সাত দিন/এক মাস" কিছু না বললেও চলবে।
-        // V1419 — মেডিসিন-বাকিও একই রকম "এখন পর্যন্ত মোট" প্রশ্ন, তারিখ লাগে না।
-        if (metric == Metric.RMP_DUE || metric == Metric.MEDICINE_DUE) return Parsed(metric, branch, "", "", branchLabel, "Right now")
+        // V1419/V1420 — SNAPSHOT-এর প্রশ্নগুলো "এখন পর্যন্ত মোট", তারিখ লাগে না।
+        if (metric in SNAPSHOT) return Parsed(metric, branch, "", "", branchLabel, "Right now")
         val range = findDateRange(q) ?: return null
         return Parsed(metric, branch, range.from, range.to, branchLabel, range.label)
     }

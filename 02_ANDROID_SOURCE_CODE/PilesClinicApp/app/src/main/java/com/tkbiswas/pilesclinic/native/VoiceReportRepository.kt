@@ -32,6 +32,103 @@ object VoiceReportRepository {
     data class TrashRow(val trashRowId: String, val tableName: String, val deletedAt: String, val deletedBy: String)
     data class RmpAdvanceSummary(val total: Double, val advanceCount: Int)
     data class RmpAdvanceRow(val advanceId: String, val rmpName: String, val amount: Double, val mode: String, val paidOn: String)
+    // V1420
+    data class AppointmentRow(val enquiryRowId: String, val name: String, val mobile: String, val disease: String, val appointmentDate: String, val registered: Boolean)
+    data class ExpectedRow(val markId: String, val patientRowId: String, val name: String, val mobile: String, val expectedOn: String)
+    data class HandoverPendingSummary(val total: Double, val dayCount: Int)
+    data class HandoverPendingRow(val handoverDate: String, val cash: Double, val status: String)
+    data class PaymentRequestsSummary(val backdate: Int, val edit: Int, val refund: Int, val total: Int)
+    data class PaymentRequestRow(val requestId: String, val requestType: String, val name: String, val mobile: String, val amount: Double, val requestedOn: String)
+    data class ReferralRequestsSummary(val total: Int, val deleteCount: Int)
+    data class ReferralRequestRow(val requestId: String, val requestType: String, val newAmount: Double, val requestedOn: String)
+    data class LeaveSummary(val total: Int, val confirmed: Int, val pending: Int, val rejected: Int)
+    data class LeaveRow(val staffCode: String, val leaveDate: String, val status: String, val appliedOn: String)
+    data class DoctorReminderSummary(val total: Int, val notAccepted: Int)
+    data class DoctorReminderRow(val reminderId: String, val remindDate: String, val createdOn: String, val accepted: Boolean, val cancelled: Boolean)
+    data class StaffReminderRow(val reminderId: String, val toName: String, val toCode: String, val reminderType: String, val remindOn: String, val status: String)
+    data class FeeReturnSummary(val total: Double, val patientCount: Int)
+    data class FeeReturnRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val returnedOn: String)
+
+    private fun args(branch: String, from: String, to: String): JSONObject = JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to)
+    private fun args(branch: String): JSONObject = JSONObject().put("p_branch", branch)
+
+    /** সার্ভারের ফাংশন যখন একটাই সারি দেয় (summary) — ফাঁকা এলে "Not allowed"। */
+    private fun firstRow(fn: String, a: JSONObject): RepoResult<JSONObject> {
+        val rpc = ModuleAuth.rpc("reports", fn, a)
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) RepoResult(false, message = "Not allowed for this branch") else RepoResult(true, arr.getJSONObject(0))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    private fun rowList(fn: String, a: JSONObject): RepoResult<List<JSONObject>> {
+        val rpc = ModuleAuth.rpc("reports", fn, a)
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<JSONObject>(arr.length())
+            for (i in 0 until arr.length()) out.add(arr.getJSONObject(i))
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    private fun scalarInt(fn: String, a: JSONObject): RepoResult<Int> {
+        val rpc = ModuleAuth.rpc("reports", fn, a)
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        val body = rpc.body.trim()
+        if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
+        val n = body.toIntOrNull() ?: return RepoResult(false, message = "Invalid response")
+        return RepoResult(true, n)
+    }
+
+    private fun <T> RepoResult<List<JSONObject>>.mapRows(f: (JSONObject) -> T): RepoResult<List<T>> =
+        if (!ok) RepoResult(false, message = message) else RepoResult(true, (value ?: emptyList()).map(f))
+
+    private fun <T> RepoResult<JSONObject>.mapRow(f: (JSONObject) -> T): RepoResult<T> =
+        if (!ok || value == null) RepoResult(false, message = message) else RepoResult(true, f(value))
+
+    fun appointmentCount(b: String, f: String, t: String): RepoResult<Int> = scalarInt("appointment_count", args(b, f, t))
+    fun appointmentList(b: String, f: String, t: String): RepoResult<List<AppointmentRow>> = rowList("appointment_list", args(b, f, t)).mapRows {
+        AppointmentRow(it.optString("enquiry_row_id"), it.optString("name"), it.optString("mobile"), it.optString("disease"), it.optString("appointment_date"), it.optBoolean("registered", false)) }
+
+    fun expectedCount(b: String, f: String, t: String): RepoResult<Int> = scalarInt("expected_count", args(b, f, t))
+    fun expectedList(b: String, f: String, t: String): RepoResult<List<ExpectedRow>> = rowList("expected_list", args(b, f, t)).mapRows {
+        ExpectedRow(it.optString("mark_id"), it.optString("patient_row_id"), it.optString("name"), it.optString("mobile"), it.optString("expected_on")) }
+
+    fun handoverPendingSummary(b: String): RepoResult<HandoverPendingSummary> = firstRow("handover_pending_summary", args(b)).mapRow {
+        HandoverPendingSummary(it.optDouble("total", 0.0), it.optInt("day_count", 0)) }
+    fun handoverPendingList(b: String): RepoResult<List<HandoverPendingRow>> = rowList("handover_pending_list", args(b)).mapRows {
+        HandoverPendingRow(it.optString("handover_date"), it.optDouble("cash", 0.0), it.optString("status")) }
+
+    fun paymentRequestsSummary(b: String): RepoResult<PaymentRequestsSummary> = firstRow("payment_requests_summary", args(b)).mapRow {
+        PaymentRequestsSummary(it.optInt("backdate_count", 0), it.optInt("edit_count", 0), it.optInt("refund_count", 0), it.optInt("total", 0)) }
+    fun paymentRequestsList(b: String): RepoResult<List<PaymentRequestRow>> = rowList("payment_requests_list", args(b)).mapRows {
+        PaymentRequestRow(it.optString("request_id"), it.optString("request_type"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("requested_on")) }
+
+    fun referralRequestsSummary(b: String): RepoResult<ReferralRequestsSummary> = firstRow("referral_requests_summary", args(b)).mapRow {
+        ReferralRequestsSummary(it.optInt("total", 0), it.optInt("delete_count", 0)) }
+    fun referralRequestsList(b: String): RepoResult<List<ReferralRequestRow>> = rowList("referral_requests_list", args(b)).mapRows {
+        ReferralRequestRow(it.optString("request_id"), it.optString("request_type"), it.optDouble("new_amount", 0.0), it.optString("requested_on")) }
+
+    fun leaveSummary(b: String, f: String, t: String): RepoResult<LeaveSummary> = firstRow("leave_summary", args(b, f, t)).mapRow {
+        LeaveSummary(it.optInt("total", 0), it.optInt("confirmed", 0), it.optInt("pending", 0), it.optInt("rejected", 0)) }
+    fun leaveList(b: String, f: String, t: String): RepoResult<List<LeaveRow>> = rowList("leave_list", args(b, f, t)).mapRows {
+        LeaveRow(it.optString("staff_code"), it.optString("leave_date"), it.optString("status"), it.optString("applied_on")) }
+
+    fun doctorReminderSummary(b: String, f: String, t: String): RepoResult<DoctorReminderSummary> = firstRow("doctor_reminder_summary", args(b, f, t)).mapRow {
+        DoctorReminderSummary(it.optInt("total", 0), it.optInt("not_accepted", 0)) }
+    fun doctorReminderList(b: String, f: String, t: String): RepoResult<List<DoctorReminderRow>> = rowList("doctor_reminder_list", args(b, f, t)).mapRows {
+        DoctorReminderRow(it.optString("reminder_id"), it.optString("remind_date"), it.optString("created_on"), it.optBoolean("accepted", false), it.optBoolean("cancelled", false)) }
+
+    fun staffReminderOpenSummary(b: String): RepoResult<Int> = firstRow("staff_reminder_open_summary", args(b)).mapRow { it.optInt("total", 0) }
+    fun staffReminderOpenList(b: String): RepoResult<List<StaffReminderRow>> = rowList("staff_reminder_open_list", args(b)).mapRows {
+        StaffReminderRow(it.optString("reminder_id"), it.optString("to_name"), it.optString("to_code"), it.optString("reminder_type"), it.optString("remind_on"), it.optString("status")) }
+
+    fun feeReturnSummary(b: String, f: String, t: String): RepoResult<FeeReturnSummary> = firstRow("fee_return_summary", args(b, f, t)).mapRow {
+        FeeReturnSummary(it.optDouble("total", 0.0), it.optInt("patient_count", 0)) }
+    fun feeReturnList(b: String, f: String, t: String): RepoResult<List<FeeReturnRow>> = rowList("fee_return_list", args(b, f, t)).mapRows {
+        FeeReturnRow(it.optString("payment_id"), it.optString("patient_row_id"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("returned_on")) }
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
         val rpc = ModuleAuth.rpc("reports", "patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))

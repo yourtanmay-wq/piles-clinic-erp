@@ -555,6 +555,19 @@ object NoBengali {
         "মুছে" to "deleted",
         "অগ্রিম" to "advance",
         "অ্যাডভান্স" to "advance",
+        // 🎤🔒 V1420 (১৩.০৯.২০২৬) — অ্যাপয়েন্টমেন্ট · আসার কথা · হ্যান্ডওভার-বাকি · অনুরোধ · ছুটি · রিমাইন্ডার · ফি ফেরত
+        "আগামীকাল" to "Tomorrow",
+        "অ্যাপয়েন্টমেন্ট" to "appointment",
+        "আসবে" to "will come",
+        "হয়নি" to "not done",
+        "রিকোয়েস্ট" to "request",
+        "রেফারেল" to "referral",
+        "ছুটি" to "leave",
+        "রিমাইন্ডার" to "reminder",
+        "ডাক্তার" to "doctor",
+        "ফেরত" to "return",
+        "ভিজিট" to "visit",
+        "ফি" to "fee",
 
         // 🟢🔒 V629 (২৪.০৮.২০২৬) — Statement (স্টেটমেন্ট) পর্দার নতুন লেখা।
         "স্টেটমেন্ট" to "Statement",

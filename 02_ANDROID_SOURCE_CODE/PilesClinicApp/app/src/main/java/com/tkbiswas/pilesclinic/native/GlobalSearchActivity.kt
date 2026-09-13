@@ -514,7 +514,45 @@ class GlobalSearchActivity : AppCompatActivity() {
         voiceAnswerHost.visibility = View.VISIBLE
 
         val title = "${parsed.branchLabel} — ${VoiceReportModel.displayPeriod(parsed.from, parsed.to, parsed.periodLabel)}"
+        // V1420 — নতুন প্রশ্নগুলোর জন্য ছোট্ট সাহায্যকারী (আগেরগুলো যেমন ছিল তেমনই রইল)
+        fun openDetail(name: String) {
+            box.setOnClickListener {
+                startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                    .putExtra("metric", name).putExtra("branch", parsed.branch)
+                    .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+            }
+        }
+        fun show(num: String, sub: String) { numView.text = num; subView.text = "$sub • tap to see list ›" }
+        fun showFail(msg: String) { numView.text = "?"; subView.text = msg.ifBlank { "Could not verify" } }
+        fun rs(v: Double): String = "₹${"%,.0f".format(v)}"
         when (parsed.metric) {
+            VoiceReportModel.Metric.APPOINTMENT_COUNT -> { openDetail("APPOINTMENT_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.appointmentCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "appointments") else showFail(got.message) } }
+            VoiceReportModel.Metric.EXPECTED_COUNT -> { openDetail("EXPECTED_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.expectedCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "patients marked expected") else showFail(got.message) } }
+            VoiceReportModel.Metric.HANDOVER_PENDING -> { openDetail("HANDOVER_PENDING"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.handoverPendingSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(rs(got.value.total), "${got.value.dayCount} days not handed over") else showFail(got.message) } }
+            VoiceReportModel.Metric.PAYMENT_REQUESTS -> { openDetail("PAYMENT_REQUESTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.paymentRequestsSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "pending: ${got.value.backdate} backdate · ${got.value.edit} edit · ${got.value.refund} refund") else showFail(got.message) } }
+            VoiceReportModel.Metric.REFERRAL_REQUESTS -> { openDetail("REFERRAL_REQUESTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.referralRequestsSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "pending referral requests (${got.value.deleteCount} delete)") else showFail(got.message) } }
+            VoiceReportModel.Metric.LEAVE_COUNT -> { openDetail("LEAVE_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.leaveSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "leave-days applied: ${got.value.confirmed} confirmed · ${got.value.pending} pending · ${got.value.rejected} rejected") else showFail(got.message) } }
+            VoiceReportModel.Metric.DOCTOR_REMINDER -> { openDetail("DOCTOR_REMINDER"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.doctorReminderSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "doctor reminders sent · ${got.value.notAccepted} not accepted yet") else showFail(got.message) } }
+            VoiceReportModel.Metric.STAFF_REMINDER_OPEN -> { openDetail("STAFF_REMINDER_OPEN"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffReminderOpenSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.toString(), "staff reminders still open") else showFail(got.message) } }
+            VoiceReportModel.Metric.FEE_RETURN -> { openDetail("FEE_RETURN"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.feeReturnSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(rs(got.value.total), "${got.value.patientCount} patients' visit fee returned") else showFail(got.message) } }
             VoiceReportModel.Metric.REGISTRATION_COUNT -> {
                 box.setOnClickListener {
                     startActivity(Intent(this, VoiceReportDetailActivity::class.java)
