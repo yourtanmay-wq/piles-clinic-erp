@@ -18117,7 +18117,12 @@ function wlv1TrashLine2(x){
   function ad(v){ v=String(v||'').trim(); if(v)p.push(v); }
   function adD(v){ v=String(v||'').trim(); if(v)p.push(fmtDate(v)); }
   if(t==='payments'){ ad(r.payType); adD(r.date); ad(r.mode);
-    if(String(r.receivedBy||'').trim()) p.push('by '+String(r.receivedBy).trim()); }
+    /* 🔴🔒 V1439 (১৩.০৯.২০২৬, TK-প্রশ্ন — "By Mobile number কেন?") —
+       receivedBy-তে স্টাফের মোবাইল জমা থাকে; "Deleted by"-র মতোই এখন
+       codeName() দিয়ে নাম বার করা হয় (Android: TrashCardText.line2()-এর
+       হুবহু একই যমজ)। */
+    var __rb=String(r.receivedBy||'').trim();
+    if(__rb) p.push('by '+((typeof codeName==='function'?codeName(__rb):'')||__rb)); }
   else if(t==='followups'){ ad(r.stage); ad(r.status);
     if(String(r.nextFollow||'').trim()) p.push('Next call '+fmtDate(r.nextFollow)); }
   else if(t==='patients'){ adD(r.registrationDate);
@@ -18202,7 +18207,10 @@ function wlv1TrashViewFields(x){
   ad('Name','name'); ad('Mobile','mobile'); ad('Alt. mobile','altMobile');
   ad('Patient ID','patientId'); ad('Patient code','patientCode'); ad('Branch','branch');
   if(t==='payments'){ ad('Pay type','payType'); ad('Amount','amount'); ad('Mode','mode');
-    adD('Date','date'); ad('Received by','receivedBy'); ad('Remarks','remarks'); }
+    adD('Date','date');
+    var __rb2=String(r.receivedBy||'').trim();
+    if(__rb2) out.push(['Received by', (typeof codeName==='function'?codeName(__rb2):'')||__rb2]);
+    ad('Remarks','remarks'); }
   else if(t==='followups'){ ad('Stage','stage'); ad('Status','status'); ad('Disease','disease');
     ad('Address','address'); ad('Last remark','lastRemark'); adD('Next call','nextFollow');
     ad('Call count','callCount'); adD('Record date','date'); }

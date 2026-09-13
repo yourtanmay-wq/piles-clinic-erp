@@ -152,7 +152,15 @@ object TrashCardText {
                 addIf(parts, r.s("payType").trim())
                 addDateIf(parts, r.s("date").trim())
                 addIf(parts, r.s("mode").trim())
-                val by = r.s("receivedBy").trim()
+                // 🔴🔒 V1439 (১৩.০৯.২০২৬, TK-প্রশ্ন — "By Mobile number কেন?")
+                // আসল কারণ: `receivedBy`-তে স্টাফের **মোবাইল** জমা থাকে (কোডেই
+                // তাই লেখা, PaymentModel.kt) — নিচেই "Deleted by" ঠিক এই একই
+                // ঘর থেকে StaffDirectory দিয়ে নাম বার করে, কিন্তু এই লাইনটা
+                // raw মোবাইলই দেখাত। এখন একই নিয়ম — নাম না পেলে মোবাইলই থাকে।
+                val byMobile = r.s("receivedBy").trim()
+                val by = if (byMobile.isNotBlank())
+                    (try { StaffDirectory.findAccount(byMobile)?.name } catch (_: Throwable) { null }) ?: byMobile
+                else ""
                 if (by.isNotBlank()) parts.add("by $by")
             }
             "followups" -> {

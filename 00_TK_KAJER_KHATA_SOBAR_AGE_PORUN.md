@@ -26673,3 +26673,9 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > ওয়েব (নিয়ম ৮): app.js wlv1BriefSwipeAttr/wlv1SwipeHideBrief/wlv1AttachBriefSwipe — মাস্টারের briefingAdminCard ও স্টাফের briefCard দুটোতেই data-bid (অনুমতি-চাওয়া কার্ডে বসে না), উপর-নিচে স্ক্রল করলে সরে না। ⚠️ সৎ কথা: touch-এর টান, মাউসে নয়।
 > পাহারা: node --check ✅ · web_browser_test PASS ✅ · kotlin compile PASS ✅ · resources PASS ✅।
 > ⚠️ tk_guard: index.html-এর `?v=` এখনো v1406 — নিয়ম ৩খ মতে ভার্সন/`?v=` শুধু ZIP পাঠানোর ঠিক আগে একবারে বাড়বে।
+
+> V1439 — 🔴 **Trash Bin কার্ডে "by <mobile>" এর বদলে স্টাফের নাম (১৩.০৯.২০২৬ রাত ৮.৩১, TK-প্রশ্ন, তালিকা ৫৬৩):**
+> আসল কারণ (কোডে যাচাই): receivedBy-তে মোবাইল জমা থাকে; "Deleted by" লাইন আগে থেকেই নাম বার করত (StaffDirectory/codeName), কিন্তু পাশের "by" লাইনটা raw মোবাইল দেখাত — একই নিয়ম বসানো হয়নি ছিল।
+> ফোন: TrashCardText.line2() — receivedBy → StaffDirectory.findAccount নাম, না পেলে মোবাইলই।
+> ওয়েব: wlv1TrashLine2() ও wlv1TrashViewFields() (View পপ-আপের "Received by")— codeName() দিয়ে নাম, প্রমাণিত সেই একই ফাংশন।
+> পাহারা: kotlin compile PASS · resources PASS · node --check PASS · web_browser_test PASS।
