@@ -420,18 +420,29 @@ object ModuleAuth {
     }
 
     /** UPSERT one row (id-keyed) into a schema-qualified table. */
-    fun upsert(schema: String, table: String, row: JSONObject): Boolean {
-        return try {
-            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table)
-                .addHeader("apikey", anonKey())
-                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
-                .addHeader("Content-Profile", schema)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Prefer", "resolution=merge-duplicates,return=minimal")
-                .post(JSONArray().put(row).toString().toRequestBody(JSON)).build()
-            http.newCall(req).execute().use { resp -> resp.isSuccessful }
-        } catch (e: Exception) { false }
+    /* 🔴🔒 V1432 (১৩.০৯.২০২৬, তালিকা ৫৫০, নিয়ম ৭) — read (`getRowsChecked`) · rpc · delete আগে থেকেই
+       টোকেনের মেয়াদ শেষ হলে (401) একবার গোপনে re-login করে আবার চেষ্টা করত, কিন্তু
+       **লেখা** (upsert · upsertOnConflict · insert · update) করত না ⇒ এক ঘণ্টা অ্যাপ খোলা থাকলে
+       Save-এ "Retry"। এখন সব লেখা-পথে একই সেল্ফ-হিল। ⛔ সফল লেখায় কিছু বদলায় না। */
+    private fun postOnce(url: String, schema: String, prefer: String, body: String): Pair<Boolean, Int> = try {
+        val req = Request.Builder().url(url)
+            .addHeader("apikey", anonKey())
+            .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+            .addHeader("Content-Profile", schema)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Prefer", prefer)
+            .post(body.toRequestBody(JSON)).build()
+        http.newCall(req).execute().use { resp -> Pair(resp.isSuccessful, resp.code) }
+    } catch (_: Exception) { Pair(false, -1) }
+
+    private fun postWithReauth(url: String, schema: String, prefer: String, body: String): Boolean {
+        var r = postOnce(url, schema, prefer, body)
+        if (!r.first && r.second == 401 && reAuth()) r = postOnce(url, schema, prefer, body)
+        return r.first
     }
+
+    fun upsert(schema: String, table: String, row: JSONObject): Boolean =
+        postWithReauth(baseUrl() + "/rest/v1/" + table, schema, "resolution=merge-duplicates,return=minimal", JSONArray().put(row).toString())
 
     // 🔵 TK-ORDER (07.08.2026): উপরের upsert() `merge-duplicates` করে **PK (id)**
     // ধরে — কিন্তু IN TIME-এর `day`-তে id থাকে না, তাই একই দিনের সারিতে না বসে
@@ -440,18 +451,8 @@ object ModuleAuth {
     // থাকলে নতুন বসে, থাকলে আপডেট হয় — কখনো ব্যর্থ হয় না, ডুপ্লিকেটও হয় না।
     // ⛔ পুরনো upsert() এক অক্ষরও বদলায়নি (অন্য জায়গায় অক্ষত)। শুধু payload-এ
     //    থাকা কলামগুলোই আপডেট হয়, বাকি ঘর (যেমন আগের check_out) অক্ষত থাকে।
-    fun upsertOnConflict(schema: String, table: String, row: JSONObject, onConflict: String): Boolean {
-        return try {
-            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?on_conflict=" + onConflict)
-                .addHeader("apikey", anonKey())
-                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
-                .addHeader("Content-Profile", schema)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Prefer", "resolution=merge-duplicates,return=minimal")
-                .post(JSONArray().put(row).toString().toRequestBody(JSON)).build()
-            http.newCall(req).execute().use { resp -> resp.isSuccessful }
-        } catch (e: Exception) { false }
-    }
+    fun upsertOnConflict(schema: String, table: String, row: JSONObject, onConflict: String): Boolean =
+        postWithReauth(baseUrl() + "/rest/v1/" + table + "?on_conflict=" + onConflict, schema, "resolution=merge-duplicates,return=minimal", JSONArray().put(row).toString())   // V1432 — 401 সেল্ফ-হিল
 
     /** INSERT one row (outside_calls / call_taps / work_reports / payments). */
     fun insert(schema: String, table: String, row: JSONObject): Boolean =
@@ -472,6 +473,11 @@ object ModuleAuth {
     data class InsertResult(val ok: Boolean, val code: Int, val duplicate: Boolean, val message: String)
 
     fun insertChecked(schema: String, table: String, row: JSONObject): InsertResult {
+        val first = insertOnce(schema, table, row)
+        if (!first.ok && first.code == 401 && reAuth()) return insertOnce(schema, table, row)   // V1432 — 401 সেল্ফ-হিল
+        return first
+    }
+    private fun insertOnce(schema: String, table: String, row: JSONObject): InsertResult {
         return try {
             val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table)
                 .addHeader("apikey", anonKey())
@@ -518,7 +524,7 @@ object ModuleAuth {
 
     /** PATCH: update rows in a schema-qualified table matching `filter`. */
     fun update(schema: String, table: String, filter: String, patch: JSONObject): Boolean {
-        return try {
+        fun once(): Pair<Boolean, Int> = try {
             val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
                 .addHeader("apikey", anonKey())
                 .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
@@ -526,8 +532,11 @@ object ModuleAuth {
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Prefer", "return=minimal")
                 .patch(patch.toString().toRequestBody(JSON)).build()
-            http.newCall(req).execute().use { resp -> resp.isSuccessful }
-        } catch (e: Exception) { false }
+            http.newCall(req).execute().use { resp -> Pair(resp.isSuccessful, resp.code) }
+        } catch (e: Exception) { Pair(false, -1) }
+        var r = once()
+        if (!r.first && r.second == 401 && reAuth()) r = once()   // V1432 — 401 সেল্ফ-হিল
+        return r.first
     }
 
     /** 📊 V824 — DELETE from a schema-qualified table (raw PostgREST filter).

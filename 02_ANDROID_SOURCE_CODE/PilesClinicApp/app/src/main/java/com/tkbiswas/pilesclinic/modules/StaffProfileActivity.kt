@@ -4457,7 +4457,13 @@ class StaffProfileActivity : AppCompatActivity() {
                 .put("salary_date", sd.text.toString())
                 .put("updated_by", ModuleAuth.personCode).put("updated_at", nowIso())
             Thread {
-                val ok = ModuleAuth.upsert("hr", "salary_config", row)
+                /* 🔴🔒 V1432 (১৩.০৯.২০২৬, TK: "COB-ARMAN — যতবারই চেষ্টা করি Retry", তালিকা ৫৫০) —
+                   আগে `upsert()` (PK `id` ধরে merge) ছিল, অথচ এই সারিতে id পাঠানো হয় না ⇒ প্রথমবার
+                   INSERT হয়, **দ্বিতীয়বার থেকে** `person_code` unique-এ 409 ⇒ প্রতিবার "Retry"।
+                   অর্থাৎ যে স্টাফের config একবার সেভ হয়ে গেছে, ফোনে তার বেতন আর এডিট করা যেত না
+                   (সব স্টাফের বেলায় একই, নিয়ম ৭)। ওয়েব আগে থেকেই id খুঁজে update করে। এখন
+                   `on_conflict=person_code` — থাকলে update, না থাকলে insert। */
+                val ok = ModuleAuth.upsertOnConflict("hr", "salary_config", row, "person_code")
                 runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Saved" else "Retry"); salary(code) }
             }.start()
         }.apply {
