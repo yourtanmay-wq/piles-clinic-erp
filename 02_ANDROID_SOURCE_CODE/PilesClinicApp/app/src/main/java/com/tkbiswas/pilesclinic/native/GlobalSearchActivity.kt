@@ -130,7 +130,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                    নাম/নম্বর খোঁজা হিসেবেই চলে (আচরণ আগের মতোই)।
                    ⛔ ভবিষ্যতে বাকিদের জন্য চালু করতে হলে শুধু এই একটা শর্ত
                    (`isMaster`) সরালেই হবে — বাকি কোড অপরিবর্তিত থাকবে। */
-                val isMaster = NativeSession.current(this)?.role == "master"
+                val isMaster = NativeSession.current(this@GlobalSearchActivity)?.role == "master"
                 if (isMaster && VoiceReportModel.isQuestionLike(q)) {
                     results.clear(); adapter.notifyDataSetChanged(); recycler.visibility = View.GONE
                     tvEmpty.visibility = View.GONE
