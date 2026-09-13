@@ -21,7 +21,13 @@ object MoneyFormat {
 
     private val fmt: DecimalFormat by lazy {
         // #,##,##0 = শেষ তিন অঙ্কের পরে প্রতি দুই অঙ্কে কমা — ভারতীয় নিয়ম।
-        DecimalFormat("#,##,##0", DecimalFormatSymbols(Locale.US))
+        DecimalFormat("#,##,##0", DecimalFormatSymbols(Locale.US)).apply {
+            // 🔒 V1433 (১৩.০৯.২০২৬, তালিকা ৫৫২): আধা টাকা উপরে গোল (HALF_UP) — অ্যাপের
+            // বাকি সব জায়গার "%,.0f" ও ওয়েবের Math.round-এর সাথে এক নিয়ম। আগে
+            // DecimalFormat-এর নিজস্ব HALF_EVEN ছিল: ₹0.50 এখানে "0", অন্য পর্দায় "1" —
+            // RMP Due List-এ JH MANDAL "Due ₹0" অথচ patient-wise "₹1" এই কারণেই।
+            roundingMode = java.math.RoundingMode.HALF_UP
+        }
     }
 
     /** 210850.0 → "2,10,850" ; -1500.0 → "-1,500" */

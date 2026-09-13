@@ -26624,3 +26624,14 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 **(গ) ARMAN Edit Salary → Retry (তালিকা ৫৫০):** ফোনের Save `upsert()` PK-id ধরে merge করত, id না পাঠানোয় দ্বিতীয়বার থেকে person_code-unique 409 ⇒ প্রতিবার Retry (সব স্টাফ; ওয়েব ঠিক ছিল) ⇒ `upsertOnConflict(…, "person_code")`। সঙ্গে ModuleAuth-এর লেখা-পথে (upsert/upsertOnConflict/insert/update) 401-এ re-login সেল্ফ-হিল (read/rpc/delete-এর মতো, নিয়ম ৭)।
 **পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · Kotlin compile ✅ (নতুন ভুল নেই) · web_browser_test ✅ — সৎ টীকা: E-ধাপ (master-session boot, ১৫০০০ নকল সারি) আজ এই মেশিনে ~৩৩ s লাগছে (মেশিন রিস্টার্ট হয়েছিল), ৩০ s সীমায় তিনবার মিথ্যা FAIL; ১২০ s দিয়ে চালিয়ে সব ধাপ PASS, page-error ০; ওই একটা reload-এর সীমা ৯০ s করা হলো (tests.js), কোড ঠিক। ভার্সন নম্বর বাড়েনি (৩খ)।
 
+
+> V1433 — 💰🔒 **RMP-র হিসাবে পয়সা আর বাকি/বেশি তৈরি করবে না (১৩.০৯.২০২৬ বিকেল ৬.১০, তালিকা ৫৫২):**
+> TK-র ১৩টা ছবি থেকে: JH MANDAL-এর GULGAR HOSSAIN patient-wise Due ₹1, Due List-এ Due ₹0।
+> কারণ আমার নিজের V1411 (cap ₹2,205.50, আধা টাকা — অ্যাপের cap-বোতাম পুরো টাকায় গোল করে, আমি করিনি)
+> + V1406-এ শুধু earned গোল, দেওয়া টাকা/থোক নয় → ₹0.50 ফারাক → "%,.0f" (HALF_UP) ₹1, DecimalFormat (HALF_EVEN) ₹0।
+> সমাধান: `00_SQL/V1433_RMP_WHOLE_RUPEE_PAID_POOL_2026-09-13.sql` — breakdown-এ specific=round(given+legacy,0), pool round 0;
+> summary-তে paid round 0। rmp_branch_due অপরিবর্তিত। ফোনে MoneyFormat.roundingMode=HALF_UP (ওয়েব Math.round আগেই HALF_UP)।
+> নকল ডেটাবেস (tk_rmp1433, fin/hr/public ন্যূনতম টেবিল + V941 ফাংশন + V1406) : V1406 → GULGAR 1.00 / MADHAI 599.50 / summary 1600.50;
+> V1433 → 0 / 599 / 1599, সব পূর্ণ সংখ্যা; V1409 চালালে SADIKA due 4→0 ✅।
+> SADIKA ₹4: সার্ভারে V1409 চালানোই হয়নি (লেবেল "40% of ₹30,002" রয়ে গেছে, run_log-এ নেই) → আবার দেওয়া।
+> "40% of ₹30,002 = ₹15,001": দোষ নয় — V941 (TK, ০১.০৯) হার-বদল: আগের জমায় ৫০%, পরের জমায় ৪০%। লেবেল বদল শুধু TK বললে।
