@@ -4,12 +4,12 @@
     "sha": "adf4924c4c0516c0fc47632764892cd75ee51bb41ccf293ef66d8416ac56a113"
   },
   "config.js": {
-    "v": "v1378",
-    "sha": "97abe4e629f1ead006bd6820359d2758d2f420d137af252ef3378940d37d0c5b"
+    "v": "v1441",
+    "sha": "d422db935f21563c5de21d232182bc956dc34aed0b740de4acff5a7988c1adf6"
   },
   "app.js": {
-    "v": "v1406",
-    "sha": "4406a3fe69c5d0bbf820f80ab58a5c74ce6759163323cb902d07d0bf0e24399b"
+    "v": "v1441",
+    "sha": "20e8cec5117fe003253d1be04c03a6d92352b4da985962672a247749ed2ebbbe"
   },
   "module_core.js": {
     "v": "v1338",
@@ -28,8 +28,8 @@
     "sha": "ad9729c2d9278e81300d3476b30750111cce49da25d5b28497de156207a71103"
   },
   "finance.js": {
-    "v": "v1322",
-    "sha": "4f148bf15d1b9df81811cc20936dd2bd6cbd7e1c81b9774f5ff0f4d06ac7702e"
+    "v": "v1441",
+    "sha": "e323e5c9292efbe0d7fe467e495d09603dc6a2c06cece48ac4fc78a1211756e8"
   },
   "partners.js": {
     "v": "v1203",
