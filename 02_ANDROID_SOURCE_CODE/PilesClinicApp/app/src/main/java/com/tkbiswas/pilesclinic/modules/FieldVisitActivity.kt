@@ -350,16 +350,21 @@ class FieldVisitActivity : AppCompatActivity() {
                অবস্থান দেয় না, তাই দূরত্ব চিরকাল ০.০ থাকে। পুরনো (এই ফিক্সের
                আগের) দিনগুলোর সারিতে এখনো এটাই দেখা যাবে, তাই এখানেই সৎভাবে
                কারণটা বলা হলো — কোনো টাকা/হিসাব বদলায়নি, শুধু ব্যাখ্যা। */
-            val zeroDistanceUnexplained = !noGps && endedValid && startedValid && meters <= 0.0
-            if (zeroDistanceUnexplained) card.addView(ModuleUi.body(this,
-                "⚠ Location permission may have been off - distance not recorded"))
             val lat = r.optDouble("last_lat", Double.NaN)
             val lng = r.optDouble("last_lng", Double.NaN)
-            if (!lat.isNaN() && !lng.isNaN() && (lat != 0.0 || lng != 0.0)) {
+            val hasPoint = !lat.isNaN() && !lng.isNaN() && (lat != 0.0 || lng != 0.0)
+            val accM = r.optInt("last_acc_m", 0)
+            /* 📍 V1431 — অবস্থান আছে অথচ দূরত্ব ০ ⇒ অনুমতির দোষ নয়, নির্ভুল GPS পায়নি (ঘরের ভিতরে);
+               অবস্থানই নেই তবেই আগের বার্তা। */
+            val zeroDistanceUnexplained = !noGps && endedValid && startedValid && meters <= 0.0
+            if (zeroDistanceUnexplained) card.addView(ModuleUi.body(this,
+                if (hasPoint) "No accurate GPS fix (indoors?) - distance not counted"
+                else "⚠ Location permission may have been off - distance not recorded"))
+            if (hasPoint) {
                 val seen = timeOf(r.optString("last_seen_at", ""))
                 card.addView(ModuleUi.body(this,
                     "Last seen " + (if (seen.isBlank()) "-" else seen) +
-                        "  ·  accuracy ±" + r.optInt("last_acc_m", 0) + " m"))
+                        "  ·  accuracy ±" + accM + " m" + (if (accM > 60) " (approx.)" else "")))
                 card.addView(ModuleUi.buttonSoft(this, "OPEN IN GOOGLE MAPS") {
                     openMap(lat, lng)
                 })

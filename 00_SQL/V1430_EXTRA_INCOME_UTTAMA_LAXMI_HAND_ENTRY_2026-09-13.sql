@@ -1,4 +1,4 @@
--- V1430 (১৩.০৯.২০২৬ দুপুর, TK-নির্দেশ) — COB-UTTAMA ও KNE-LAXMI-র হাতে-দেওয়া Extra Income
+-- V1430 (১৩.০৯.২০২৬ দুপুর, TK-নির্দেশ) — COB-UTTAMA · KNE-LAXMI · JPE-CRP-র হাতে-দেওয়া Extra Income
 -- খাতায় (hr.salary_payments, kind='EXTRA', status='PAID') বসানো — অ্যাপের "Save Extra Income"
 -- বোতাম ঠিক যে ঘরগুলো লেখে, সেই একই ঘর (src_key ফাঁকা = হাতে-লেখা, V1093-এর নিয়মে)।
 -- ধরে নেওয়া (TK পাশ করেছেন): মাসের এন্ট্রির তারিখ = ওই মাসের শেষ দিন (২০২৬) · Mode = Cash ·
@@ -26,7 +26,16 @@ with new_rows(person_code, paid_on, amount, extra_reason) as (
     ('KNE-LAXMI',  date '2026-05-31', 1784, 'Extra income · May 2026'),
     ('KNE-LAXMI',  date '2026-06-30', 3084, 'Extra income · June 2026'),
     ('KNE-LAXMI',  date '2026-07-31', 2603, 'Extra income · July 2026'),
-    ('KNE-LAXMI',  date '2026-08-31', 4950, 'Extra income · August 2026')
+    ('KNE-LAXMI',  date '2026-08-31', 4950, 'Extra income · August 2026'),
+    -- JPE-CRP (TK, ১৩.০৯ দুপুর — মোট 26,300)
+    ('JPE-CRP',    date '2026-01-31', 2500, 'Extra income · January 2026'),
+    ('JPE-CRP',    date '2026-02-28', 1800, 'Extra income · February 2026'),
+    ('JPE-CRP',    date '2026-03-31', 3000, 'Extra income · March 2026'),
+    ('JPE-CRP',    date '2026-04-30', 1700, 'Extra income · April 2026'),
+    ('JPE-CRP',    date '2026-05-31', 4600, 'Extra income · May 2026'),
+    ('JPE-CRP',    date '2026-06-30', 2100, 'Extra income · June 2026'),
+    ('JPE-CRP',    date '2026-07-31', 3200, 'Extra income · July 2026'),
+    ('JPE-CRP',    date '2026-08-31', 7400, 'Extra income · August 2026')
 )
 insert into hr.salary_payments (person_code, paid_on, amount, mode, paid_by, remark, for_month, kind, extra_reason, status)
 select n.person_code, n.paid_on, n.amount, 'Cash', 'MASTER', '', '', 'EXTRA', n.extra_reason, 'PAID'
@@ -38,12 +47,12 @@ select n.person_code, n.paid_on, n.amount, 'Cash', 'MASTER', '', '', 'EXTRA', n.
  );
 commit;
 
--- যাচাই: দুজনের সব হাতে-লেখা Extra Income (মোট: UTTAMA 47,100 · LAXMI 24,410)
+-- যাচাই: তিনজনের সব হাতে-লেখা Extra Income (মোট: UTTAMA 47,100 · LAXMI 24,410 · CRP 26,300)
 select person_code, paid_on, amount, extra_reason, status
   from hr.salary_payments
- where kind = 'EXTRA' and coalesce(src_key,'') = '' and person_code in ('COB-UTTAMA','KNE-LAXMI')
+ where kind = 'EXTRA' and coalesce(src_key,'') = '' and person_code in ('COB-UTTAMA','KNE-LAXMI','JPE-CRP')
  order by person_code, paid_on;
 select person_code, sum(amount) as total_hand_extra
   from hr.salary_payments
- where kind = 'EXTRA' and coalesce(src_key,'') = '' and person_code in ('COB-UTTAMA','KNE-LAXMI')
+ where kind = 'EXTRA' and coalesce(src_key,'') = '' and person_code in ('COB-UTTAMA','KNE-LAXMI','JPE-CRP')
  group by person_code;

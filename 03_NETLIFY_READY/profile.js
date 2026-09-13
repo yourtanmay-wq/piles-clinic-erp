@@ -1068,9 +1068,9 @@
         '  ·  Doctors ' + docs + '</div>' +
         (auto ? '<div class="tiny mut">OUT TIME not marked - closed by app at 12:00 AM</div>' : '') +
         (noGps ? '<div class="tiny mut">Location was off on the phone - only the doctor visits were recorded</div>' : '') +
-        (zeroDistanceUnexplained ? '<div class="tiny mut">⚠ Location permission may have been off - distance not recorded</div>' : '') +
+        (zeroDistanceUnexplained ? ('<div class="tiny mut">' + ((r.last_lat||r.last_lng) ? 'No accurate GPS fix (indoors?) - distance not counted' : '⚠ Location permission may have been off - distance not recorded') + '</div>') : '') +   // 📍 V1431 — অবস্থান থাকলে অনুমতির দোষ নয়
         (r.last_seen_at ? '<div class="tiny mut">Last seen ' + m.esc(wlv1FvTime(r.last_seen_at)) +
-          '  ·  accuracy ±' + (r.last_acc_m || 0) + ' m</div>' : '') +
+          '  ·  accuracy ±' + (r.last_acc_m || 0) + ' m' + ((Number(r.last_acc_m)||0) > 60 ? ' (approx.)' : '') + '</div>' : '') +   // 📍 V1431 — আনুমানিক অবস্থান চিহ্নিত
         (map ? '<div style="margin-top:8px">' + map + '</div>' : '') +
         '</div>';
     });

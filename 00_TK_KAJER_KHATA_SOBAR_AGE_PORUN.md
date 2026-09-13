@@ -26583,3 +26583,15 @@ PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসা
   আপাতত স্টাফ-কোড দিয়েই মেলে; TK-কে সৎভাবে বলা।
 **পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ (প্রথমবার reload-timeout flake, একা চালিয়ে PASS) · Kotlin compile ✅ (নতুন ভুল নেই)। index.html app.js?v=v1429। ভার্সন নম্বর বাড়েনি (৩খ)।
 
+## ১৩.০৯.২০২৬ দুপুর — V1430 (Extra Income হাতে-এন্ট্রি SQL) · V1431 (ঘরের ভিতরে আনুমানিক Last seen) — তালিকা ৫৪৪–৫৪৬
+
+**V1430 SQL** `00_SQL/V1430_EXTRA_INCOME_UTTAMA_LAXMI_HAND_ENTRY` — hr.salary_payments-এ kind=EXTRA · status=PAID · src_key ফাঁকা (হাতে-লেখা, V1093-এর নিয়ম),
+অ্যাপের "Save Extra Income"-এর হুবহু ঘর; `not exists` (স্টাফ+কারণ+টাকা) ⇒ দুবার চালালেও জোড়া নয়। UTTAMA ১২ (₹47,100) · LAXMI ৮ (₹24,410) · CRP ৮ (₹26,300)।
+ধরে নেওয়া (TK-কে বলা): মাসের তারিখ = মাসের শেষ দিন ২০২৬ · Mode Cash · UTTAMA-র Card/Unexpected/Other branch/Review = আজ। নকলে দুবার চালিয়ে ২৮ সারি, যোগফল হাতে মিলেছে।
+
+**V1431 (TK: "হ্যাঁ, করুন"):** `FieldVisit.onLocation` — ১৫০০ মিটার পর্যন্ত আনুমানিক অবস্থান last_lat/lng/acc/seen-এ যায় (Last seen-এর জন্য);
+কিলোমিটার শুধু ≤৬০ মিটারের নির্ভুল বিন্দু থেকে, আলাদা নোঙর `acc_lat/acc_lng/has_acc_fix` (startDay-এ রিসেট) — আনুমানিক বিন্দু থেকে লাফ মেপে দূরত্ব ভুল বাড়বে না;
+১৫ মিনিটের মধ্যে নির্ভুল বিন্দু থাকলে আনুমানিকটা তার উপরে লেখা হয় না। Master-এর পর্দা (ফোন FieldVisitActivity + ওয়েব profile.js): accuracy >৬০ হলে "(approx.)";
+অবস্থান আছে অথচ দূরত্ব ০ ⇒ "No accurate GPS fix (indoors?) - distance not counted" (আগে ভুল করে "permission may have been off" বলত)। index.html profile.js?v=v1431।
+**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ · Kotlin compile — নিচে। ভার্সন নম্বর বাড়েনি (৩খ)।
+

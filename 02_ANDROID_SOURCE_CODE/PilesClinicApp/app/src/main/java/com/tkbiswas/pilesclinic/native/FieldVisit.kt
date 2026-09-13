@@ -67,6 +67,13 @@ object FieldVisit {
 
     /** সবচেয়ে অনিশ্চিত যে অবস্থান গ্রহণ করা হবে (মিটার)। */
     private const val MAX_ACCURACY_M = 60f
+    /* 📍🔒 V1431 (১৩.০৯.২০২৬, TK: "হ্যাঁ, করুন", তালিকা ৫৪৫) — ঘরের ভিতরে GPS লক হয় না,
+       ফোন শুধু ১০০–১০০০ মিটারের আনুমানিক অবস্থান দেয়; আগে ৬০ মিটারের চেয়ে খারাপ সব বাদ
+       যেত ⇒ RUPAM চেম্বারে বসে থাকলে "অবস্থান নেই"। এখন ১৫০০ মিটার পর্যন্ত আনুমানিক অবস্থানও
+       **"Last seen"-এর জন্য** রাখা হয় (±মিটার সহ, Master-এর পর্দায় "approx." লেখা ওঠে);
+       কিন্তু **কিলোমিটার শুধু ৬০ মিটারের ভিতরের নির্ভুল অবস্থান থেকেই** — আলাদা নোঙর
+       (acc_lat/acc_lng), যাতে আনুমানিক বিন্দু থেকে লাফ মেপে দূরত্ব ভুল না বাড়ে। */
+    private const val COARSE_MAX_ACCURACY_M = 1500f
     /** এর কম সরলে ধরা হয় না — GPS-এর নিজের কাঁপুনিতে কিমি বেড়ে যাওয়া ঠেকায়। */
     private const val MIN_STEP_M = 20f
     /** এক লাফে এর বেশি হলে ধরা হয় না — লাফিয়ে-যাওয়া ভুল অবস্থান বাদ। */
@@ -200,6 +207,7 @@ object FieldVisit {
             .putLong("last_lat", 0L).putLong("last_lng", 0L)
             .putInt("last_acc", 0)
             .putBoolean("has_fix", false)
+            .putLong("acc_lat", 0L).putLong("acc_lng", 0L).putBoolean("has_acc_fix", false)   // V1431
             .apply()
     }
 
@@ -223,21 +231,33 @@ object FieldVisit {
     fun onLocation(context: Context, loc: Location) {
         try {
             if (!isRunning(context)) return
-            if (loc.hasAccuracy() && loc.accuracy > MAX_ACCURACY_M) return
+            val acc = if (loc.hasAccuracy()) loc.accuracy else 0f
+            if (acc > COARSE_MAX_ACCURACY_M) return   // V1431 — এর চেয়ে খারাপ হলে কিছুই নয়
             if (isMock(loc)) return
             val p = prefs(context)
             val e = p.edit()
-            if (p.getBoolean("has_fix", false)) {
-                val prev = Location("prev").apply {
-                    latitude = lastLat(context); longitude = lastLng(context)
+            if (acc <= MAX_ACCURACY_M) {
+                // নির্ভুল অবস্থান — কিলোমিটার এখান থেকেই (আগের হুবহু নিয়ম, নোঙর শুধু নির্ভুল বিন্দু)
+                if (p.getBoolean("has_acc_fix", false)) {
+                    val prev = Location("prev").apply {
+                        latitude = java.lang.Double.longBitsToDouble(p.getLong("acc_lat", 0L))
+                        longitude = java.lang.Double.longBitsToDouble(p.getLong("acc_lng", 0L))
+                    }
+                    val step = prev.distanceTo(loc)
+                    if (step >= MIN_STEP_M && step <= MAX_STEP_M) {
+                        val total = distanceMeters(context) + step
+                        e.putLong("dist_m", java.lang.Double.doubleToRawLongBits(total))
+                    } else if (step < MIN_STEP_M) {
+                        // দাঁড়িয়ে আছেন — অবস্থান হালনাগাদ হবে, দূরত্ব নয়।
+                    }
                 }
-                val step = prev.distanceTo(loc)
-                if (step >= MIN_STEP_M && step <= MAX_STEP_M) {
-                    val total = distanceMeters(context) + step
-                    e.putLong("dist_m", java.lang.Double.doubleToRawLongBits(total))
-                } else if (step < MIN_STEP_M) {
-                    // দাঁড়িয়ে আছেন — অবস্থান হালনাগাদ হবে, দূরত্ব নয়।
-                }
+                e.putLong("acc_lat", java.lang.Double.doubleToRawLongBits(loc.latitude))
+                    .putLong("acc_lng", java.lang.Double.doubleToRawLongBits(loc.longitude))
+                    .putBoolean("has_acc_fix", true)
+            } else if (p.getBoolean("has_acc_fix", false) && p.getInt("last_acc", 0) <= MAX_ACCURACY_M.toInt()
+                && System.currentTimeMillis() - lastSeenAt(context) < 15 * 60_000L) {
+                // V1431 — ১৫ মিনিটের মধ্যে নির্ভুল অবস্থান থাকলে সেটাই থাক; আনুমানিকটা তার উপরে লিখব না
+                return
             }
             e.putLong("last_lat", java.lang.Double.doubleToRawLongBits(loc.latitude))
                 .putLong("last_lng", java.lang.Double.doubleToRawLongBits(loc.longitude))
