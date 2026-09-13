@@ -26581,5 +26581,5 @@ PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসা
 · Node-এ parser আবার পরীক্ষা: "সবচেয়ে বেশি ওষুধ বিক্রি" ⇒ null ✅ · "সবচেয়ে বেশি রোগী" ⇒ PATIENTS ✅ · "JPE-CRP ইন টাইম দেওয়া হয়নি গতকাল" ⇒ IN_MISSING/extra JPE-CRP ✅ · iso(1 Sep 01:00) ⇒ 2026-09-01 ✅।
 · যাচাইকারীর একটা পরামর্শ ইচ্ছে করে নেওয়া হয়নি: staff_present/hours/out_missing তালিকায় staff_name যোগ (৩টা ফাংশন drop+create, TK-র আরেকটা SQL) —
   আপাতত স্টাফ-কোড দিয়েই মেলে; TK-কে সৎভাবে বলা।
-**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ (প্রথমবার reload-timeout flake, একা চালিয়ে PASS) · Kotlin compile — নিচে। index.html app.js?v=v1429। ভার্সন নম্বর বাড়েনি (৩খ)।
+**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ (প্রথমবার reload-timeout flake, একা চালিয়ে PASS) · Kotlin compile ✅ (নতুন ভুল নেই)। index.html app.js?v=v1429। ভার্সন নম্বর বাড়েনি (৩খ)।
 
