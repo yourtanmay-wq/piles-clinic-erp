@@ -387,7 +387,8 @@ object BranchSimHelper {
 
     /** ☎️ V1434 — ISO লেখা (call_remarks.calledAt, UTC 'Z' বা টাইমজোন-ছাড়া) → ms; না পারলে 0। */
     fun isoToMillis(iso: String): Long {
-        val raw = iso.trim()
+        // মাইক্রোসেকেন্ড (.123456) থাকলে ৩ অঙ্কে ছাঁটা — নইলে SSS ওটাকে ১২৩৪৫৬ ms ধরে মিনিট বাড়িয়ে দেয়।
+        val raw = iso.trim().replace(Regex("(\\.\\d{3})\\d+"), "$1")
         if (raw.isBlank()) return 0L
         val fmts = listOf(
             "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" to true, "yyyy-MM-dd'T'HH:mm:ss'Z'" to true,

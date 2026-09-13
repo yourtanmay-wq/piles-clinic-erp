@@ -220,7 +220,8 @@ object CallOverlay {
                     setTextColor(Color.parseColor("#1A1A1A"))
                     maxLines = 1
                     ellipsize = android.text.TextUtils.TruncateAt.END
-                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    // weight 1 = নম্বর আগে নিজের জায়গা পায়, লম্বা নাম "…" হয়ে ছোট হয় — নম্বর কখনো চাপা পড়ে না।
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                         .apply { marginEnd = dp(ctx, 8) }
                 })
             }

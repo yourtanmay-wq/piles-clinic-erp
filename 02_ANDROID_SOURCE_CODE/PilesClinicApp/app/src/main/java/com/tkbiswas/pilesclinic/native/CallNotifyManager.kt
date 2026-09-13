@@ -156,7 +156,8 @@ object CallNotifyManager {
                 val hist = try { BranchSimHelper.lastCallsByType(ctx, digits) } catch (_: Throwable) { BranchSimHelper.CallHistory() }
                 if (activeNumber == digits) {
                     activeHistory = hist
-                    activeLogDone = true   // ☎️ V1434
+                    // ☎️ V1434 — কল-লগ পড়ার অনুমতি না থাকলে "খোঁজ শেষ" ধরা হয় না, নইলে ভুল "FIRST CALL" দেখাত।
+                    activeLogDone = BranchSimHelper.hasCallLogPermission(ctx)
                     if (hist.missedMs > 0L || hist.outgoingMs > 0L || hist.incomingMs > 0L) post(ctx, ringing = true, ended = false)
                 }
                 val m = DialerRepository.matchNumbersBatch(listOf(digits))[digits]
@@ -177,7 +178,7 @@ object CallNotifyManager {
                 }
             } catch (_: Throwable) {
                 // ☎️ V1434 — খোঁজ ভেঙে গেলেও "শেষ" ধরা হয়, নইলে বক্স কখনো আসত না।
-                if (activeNumber == digits) { activeLogDone = true; activeCloudDone = true; post(ctx, ringing = true, ended = false) }
+                if (activeNumber == digits) { activeLogDone = BranchSimHelper.hasCallLogPermission(ctx); activeCloudDone = true; post(ctx, ringing = true, ended = false) }
             }
         }.start()
     }
@@ -244,11 +245,11 @@ object CallNotifyManager {
                 if (activeNumber == digits) {
                     activeHistory = hist
                     activeExistingRemark = info.remark; activeLastCall = info
-                    activeLogDone = true; activeCloudDone = true   // ☎️ V1434
+                    activeLogDone = BranchSimHelper.hasCallLogPermission(ctx); activeCloudDone = true   // ☎️ V1434
                     post(ctx, ringing = false, ended = false)
                 }
             } catch (_: Throwable) {
-                if (activeNumber == digits) { activeLogDone = true; activeCloudDone = true; post(ctx, ringing = false, ended = false) }
+                if (activeNumber == digits) { activeLogDone = BranchSimHelper.hasCallLogPermission(ctx); activeCloudDone = true; post(ctx, ringing = false, ended = false) }
             }
         }.start()
     }
@@ -289,7 +290,13 @@ object CallNotifyManager {
         val remark = info.remark.trim().let { if (it.equals("null", true)) "" else it }
         return when {
             recMs > 0L && recMs >= logMs -> CallOverlay.LastBox(
-                type = if (info.direction.trim().equals("outgoing", true)) "OUTGOING" else "INCOMING",
+                // রিমার্ক Missed কলেও "incoming" নামে জমা হয় (CallRemarkActivity) — ফোনের লগে
+                // একই সময়ের (২ মিনিটের মধ্যে) Missed থাকলে সেটাই সত্যি, তাই MISSED দেখানো হয়।
+                type = when {
+                    info.direction.trim().equals("outgoing", true) -> "OUTGOING"
+                    log != null && log.first == "Missed" && kotlin.math.abs(recMs - logMs) < 120_000L -> "MISSED"
+                    else -> "INCOMING"
+                },
                 whenTxt = BranchSimHelper.whenText(recMs),
                 staff = shortStaff(info.staffName),
                 remark = remark
