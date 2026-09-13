@@ -26315,6 +26315,12 @@ async function wlv1ApproveBackdate(reqId){
   // এখানে refund-approval, তাই আলাদা শাখা — বাকি treatment-request পথ অটুট।
   if(String(req.payType||'')==='refund'){
     if(!confirm('Approve backdated refund?\n\n'+(p.name||'')+'\n'+money(amt)+' - '+(req.mode||'CASH')+'\nDate: '+wlv1Dot(payDate)+(req.remarks?('\nReason: '+req.remarks):'')))return;
+    // 🔴🔒 V1443 (১৩.০৯.২০২৬, TK-নির্দেশ) — Approve করাটাই টাকা বেরোনোর
+    // আসল মুহূর্ত, তাই এখানেই আগের-Refund সতর্কবার্তা।
+    var _rfPrior=wlv1PriorRefundAnyDate(p,amt,req.id);
+    if(_rfPrior){
+      if(!confirm('Already refunded before\n\n'+(p.name||'')+' already has a refund of '+money(Number(_rfPrior.amount||0))+' on '+wlv1Dot(String(_rfPrior.date||'').slice(0,10))+(_rfPrior.refundReason?('\n(Reason: '+_rfPrior.refundReason+')'):'')+'\n\nApproving this will take another '+money(amt)+' out of the collection.\n\nCancel  -  do nothing (recommended)\nOK  -  approve anyway'))return;
+    }
     var maxRef=Math.max(0, wlv1RefundableNow(p) - wlv1PendingRefundSum(p, req.id));
     if(amt>maxRef+0.5)return toast('Refund '+money(amt)+' is more than the refundable amount '+money(maxRef));
     var now2=new Date().toISOString();
@@ -28487,6 +28493,30 @@ function wlv1TodaysSameRefund(p,amt,selfId,mode){
   }catch(e){return null}
 }
 window["wlv1TodaysSameRefund"]=wlv1TodaysSameRefund;
+
+/* 🔴🔒 V1443 (১৩.০৯.২০২৬, TK-নির্দেশ — তালিকা ৫৬৭) — TK: "টাকা রিটার্ন যদি
+   একবার হয়ে যায় সমপরিমাণ টাকা রিটার্ন করতে গেলে, অথবা সেই ব্যক্তির টাকা
+   রিটার্ন হয়ে গেছে পরবর্তীতে আবার যদি কিছু রিটার্ন করতে চায়, সেই ক্ষেত্রে
+   ওয়ার্নিং অবশ্যই দিবে।" wlv1TodaysSameRefund()-এর বড় বোন — আজ/একই-অঙ্কে
+   আটকে না থেকে যেকোনো দিনের যেকোনো আগের Refund ধরে (সমপরিমাণ থাকলে সেটাই
+   আগে)। ⛔ শুধু দেখে, কিছুই আটকায় না। */
+function wlv1PriorRefundAnyDate(p,amt,selfId){
+  try{
+    var sameAmtHit=null, anyHit=null;
+    load('payments').forEach(function(r){
+      if(String(r.patientId||'')!==String(p.id))return;
+      if(!wlv1IsRefundRow(r))return;
+      if(selfId&&String(r.id)===String(selfId))return;
+      var st=String(r.refundApprovalStatus||'').toLowerCase();
+      if(st==='rejected'||st==='cancelled')return;
+      if(!anyHit)anyHit=r;
+      if(!sameAmtHit&&Number(amt||0)>0&&Math.abs(Number(r.amount||0)-Number(amt||0))<=0.5)sameAmtHit=r;
+    });
+    return sameAmtHit||anyHit;
+  }catch(e){return null}
+}
+window["wlv1PriorRefundAnyDate"]=wlv1PriorRefundAnyDate;
+
 async function saveRefundWeb(patientId){
   try{
     var p=load('patients').find(function(x){ return x.id===patientId; });
@@ -28541,10 +28571,24 @@ async function saveRefundWeb(patientId){
        ⇒ এখন V708-এর সেই একই TK-অনুমোদিত নিয়ম: **Cancel = না · OK = তবুও**।
        ⛔ নেটের একটাও নতুন অনুরোধ নয় — পর্দায় ধরা `load('payments')` থেকেই।
        ⛔ ফোনের `PaymentRepository.todaysRefundLike()`-এর হুবহু একই নিয়ম। */
-    // 🔴🔒 V1442 — এই দুপ্লিকেট-প্রশ্নটা শুধু "আজকের" ফেরত নিয়ে; ব্যাকডেট
-    // করা হলে (তারিখ আলাদা) এই তুলনাটাই অর্থহীন, তাই আজকের ছাড়া করা হয় না।
-    var _rfDup = isBackdated ? null : wlv1TodaysSameRefund(p,amt,rid,(($('#rfMode')&&$('#rfMode').value)||''));
-    if(_rfDup&&!confirm('Same refund already today\n\nA refund of ₹'+numFmt(amt)+' for this patient is already recorded today'+(_rfDup.time?' at '+_rfDup.time:'')+'.\n\nCancel  -  do nothing (recommended)\nOK  -  refund again anyway'))return;
+    /* 🔴🔒 V1443 (১৩.০৯.২০২৬, TK-নির্দেশ — তালিকা ৫৬৭) — TK: "টাকা রিটার্ন
+       যদি একবার হয়ে যায় সমপরিমাণ টাকা রিটার্ন করতে গেলে, অথবা সেই ব্যক্তির
+       টাকা রিটার্ন হয়ে গেছে পরবর্তীতে আবার যদি কিছু রিটার্ন করতে চায়, সেই
+       ক্ষেত্রে ওয়ার্নিং অবশ্যই দিবে।" আগে শুধু আজকের+একই-অঙ্ক দেখা হত —
+       এখন যেকোনো দিনের যেকোনো আগের Refund থাকলেই (backdate-এও, যেহেতু
+       Master/grant-direct সেভও এই একই লাইন দিয়ে যায়)। */
+    var _rfDup = wlv1PriorRefundAnyDate(p,amt,rid);
+    if(_rfDup){
+      var _rfSameAmt = Math.abs(Number(_rfDup.amount||0)-amt)<=0.5;
+      var _rfSameToday = String(_rfDup.date||'').slice(0,10)===today();
+      var _rfWhen = _rfSameToday?'today':('on '+fmtDate(String(_rfDup.date||'').slice(0,10)));
+      var _rfMsg = (_rfSameAmt
+        ? ('A refund of ₹'+numFmt(_rfDup.amount||0)+' for this patient is already recorded '+_rfWhen)
+        : ('This patient already has a refund of ₹'+numFmt(_rfDup.amount||0)+' '+_rfWhen))
+        +(_rfDup.refundReason?('\n(Reason: '+_rfDup.refundReason+')'):'')
+        +'\n\nRefunding again will take another ₹'+numFmt(amt)+' out of the collection.\n\nCancel  -  do nothing (recommended)\nOK  -  refund again anyway';
+      if(!confirm('Already refunded before\n\n'+_rfMsg))return;
+    }
     var row={id:rid,payType:'refund',payLabel:'Refund',paymentLabel:'Refund',
       patientId:p.id,patientCode:p.patientId||'',mobile:p.mobile,branch:p.branch,name:p.name,
       date:payDate,amount:amt,mode:mode,remarks:reason||'Refund',

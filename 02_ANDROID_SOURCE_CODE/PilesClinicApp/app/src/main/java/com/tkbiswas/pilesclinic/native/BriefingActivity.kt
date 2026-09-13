@@ -712,12 +712,43 @@ class BriefingActivity : AppCompatActivity() {
                     setBackgroundColor(android.graphics.Color.parseColor("#0C9E33"))
                     setPadding(dp(18), dp(10), dp(18), dp(10))
                     setOnClickListener {
-                        lifecycleScope.launch {
-                            val ok = withContext(Dispatchers.IO) {
-                                PaymentRepository(this@BriefingActivity).approveBackdateRequest(req, user.mobile)
+                        /* 🔴🔒 V1443 (১৩.০৯.২০২৬, TK-নির্দেশ — তালিকা ৫৬৭) —
+                           Refund-এর অনুরোধ Approve করাটাই টাকা বেরোনোর আসল
+                           মুহূর্ত, তাই Master এখানেই সতর্কবার্তা পাবেন যদি এই
+                           রোগীর আগে (যেকোনো দিনের) কোনো Refund থাকে।
+                           ⛔ Treatment-অনুরোধে কিছু বদলায়নি। */
+                        fun doApprove() {
+                            lifecycleScope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    PaymentRepository(this@BriefingActivity).approveBackdateRequest(req, user.mobile)
+                                }
+                                Toast.makeText(this@BriefingActivity, NoBengali.s(if (ok) "Approved" else "ব্যর্থ — নেট চেক করুন"), Toast.LENGTH_SHORT).show()
+                                if (ok) loadBackdateRequests()
                             }
-                            Toast.makeText(this@BriefingActivity, NoBengali.s(if (ok) "Approved" else "ব্যর্থ — নেট চেক করুন"), Toast.LENGTH_SHORT).show()
-                            if (ok) loadBackdateRequests()
+                        }
+                        if (!isRefundReq) { doApprove(); return@setOnClickListener }
+                        lifecycleScope.launch {
+                            val digitsOnly = req.mobile.filter { it.isDigit() }.takeLast(10)
+                            val prior = withContext(Dispatchers.IO) {
+                                try {
+                                    val repo = PaymentRepository(this@BriefingActivity)
+                                    val p = repo.findPatientByMobile(digitsOnly)
+                                    if (p != null) repo.priorRefundAnyDate(p, req.amount) else null
+                                } catch (_: Throwable) { null }
+                            }
+                            if (prior == null) { doApprove(); return@launch }
+                            val prevAmt = prior.optDouble("amount", 0.0)
+                            val prevDate = prior.s("date")
+                            AlertDialog.Builder(this@BriefingActivity)
+                                .setCustomTitle(PremiumAlert.header(this@BriefingActivity, "⚠️ Already refunded before"))
+                                .setMessage(
+                                    "${req.name.ifBlank { req.mobile }} already has a refund of ₹${"%,.0f".format(prevAmt)} on ${DateUtil.display(prevDate)}." +
+                                    "\n\nApproving this will take another ₹${"%,.0f".format(req.amount)} out of the collection.\n\n" +
+                                    "Cancel = do nothing.  OK = approve anyway."
+                                )
+                                .setPositiveButton("OK, approve anyway") { _, _ -> doApprove() }
+                                .setNegativeButton("Cancel", null)
+                                .show().also { PremiumAlert.paint(it) }
                         }
                     }
                 }

@@ -1837,6 +1837,52 @@ class PaymentRepository(private val context: Context? = null) {
         } catch (_: Throwable) { null }   // নেট খারাপ হলে চুপচাপ সরে দাঁড়ায় — সৎ ফেরত আটকানো যাবে না
     }
 
+    /**
+     * 🔴🔒 V1443 (১৩.০৯.২০২৬, TK-নির্দেশ — তালিকা ৫৬৭) — TK: *"টাকা রিটার্ন
+     * যদি একবার হয়ে যায় সমপরিমাণ টাকা রিটার্ন করতে গেলে, অথবা সেই ব্যক্তির
+     * টাকা রিটার্ন হয়ে গেছে পরবর্তীতে আবার যদি কিছু রিটার্ন করতে চায়, সেই
+     * ক্ষেত্রে ওয়ার্নিং অবশ্যই দিবে।"*
+     *
+     * `todaysRefundLike()`-এর বড় বোন — তারিখ ও অঙ্ক দুটোতেই আটকে না থেকে,
+     * এই রোগীর **যেকোনো দিনের** কোনো আগের Refund (rejected/cancelled বাদে)
+     * থাকলেই ধরে। সমপরিমাণের সারি থাকলে সেটাই আগে ফেরত (বার্তায় নির্দিষ্ট
+     * করে বলা যায়), নইলে সবচেয়ে সাম্প্রতিক সারি।
+     * ⛔ শুধু **দেখে** — কিছুই আটকায় না, ঠিক আগের নিয়মেই "Cancel = না ·
+     *    OK = তবুও"। নেট খারাপ হলে `null` — সৎ ফেরত কখনো আটকায় না।
+     */
+    fun priorRefundAnyDate(patient: PatientBillInfo, amount: Double = 0.0, excludeId: String = ""): org.json.JSONObject? {
+        if (patient.id.isBlank()) return null
+        return try {
+            val rows = SupabaseClient.fetchList(
+                "payments",
+                "patientId=eq.${patient.id}&payType=eq.refund",
+                200, select = "id,amount,date,reason,mode,refundApprovalStatus"
+            )
+            var sameAmtHit: org.json.JSONObject? = null
+            var anyHit: org.json.JSONObject? = null
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val st = r.optString("refundApprovalStatus", "")
+                if (st.equals("rejected", true) || st.equals("cancelled", true)) continue
+                if (excludeId.isNotBlank() && r.optString("id") == excludeId) continue
+                if (anyHit == null) anyHit = r
+                if (amount > 0.0 && sameAmtHit == null && kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) sameAmtHit = r
+            }
+            sameAmtHit ?: anyHit
+        } catch (_: Throwable) { null }
+    }
+
+    /** V1443 — ফর্ম থেকে ডাকার সুবিধার্থে: `todaysRefundLike()`-এর মতোই
+     *  নিজের চলতি ফর্মের (nonce-ধরা) সারিটা বাদ দিয়ে `priorRefundAnyDate()`
+     *  ডাকে, যাতে retry নিজেকেই "আগের রিফান্ড" ভেবে সতর্ক না করে। */
+    fun priorRefundLikeForForm(patient: PatientBillInfo, amount: Double, reason: String, byMobile: String): org.json.JSONObject? {
+        val selfId = try {
+            val n = context?.let { peekRefundNonce(it, refundNonceKey(patient, amount, reason)) }.orEmpty()
+            if (n.isBlank()) "" else PaymentModel.refundIdFor(patient, amount, reason, byMobile, n)
+        } catch (_: Throwable) { "" }
+        return priorRefundAnyDate(patient, amount, selfId)
+    }
+
     /** Refund সেভ। Master → সরাসরি approved। Staff → **শুধু তখনই** সরাসরি
      *  approved, যখন (ক) আজকের Chamber এখনো বন্ধ হয়নি, **আর** (খ) এই
      *  রোগী থেকে আজকেই এই রিফান্ডের সমান বা বেশি টাকা জমা পড়েছে (তাই
