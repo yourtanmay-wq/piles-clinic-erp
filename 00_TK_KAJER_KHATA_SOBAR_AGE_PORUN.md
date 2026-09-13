@@ -26526,3 +26526,7 @@ TK-র সিদ্ধান্ত: নতুন বিল্ড (পথ ক); �
 **ক্লাউড/ফ্রি-প্ল্যান:** নতুন কোনো অনুরোধ নেই (ইতিহাস পুরোটাই ফোনের নিজের কল-লগ)।
 **পাহারা:** resources ✅ · tk_guard ✅ · Kotlin compile ✅ (নতুন Activity-র জন্য Android-উত্তরাধিকারের ১১টা নাম — finish/onCreate/resources ইত্যাদি, ও `marginEnd` — বেসলাইনে যোগ; প্রতিটা হাতে যাচাই, আসল ভুল নয়; আগের নতুন Activity-গুলোর মতোই)। ⚠️ আসল বিল্ড TK-র Android Studio-তেই।
 **ভার্সন নম্বর বাড়েনি** (নিয়ম ৩খ — ফাইল চাওয়া হয়নি)।
+
+## ১৩.০৯.২০২৬ সন্ধ্যা — V1404 ZIP পাঠানো (TK: "ফাইল পাঠান")
+PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসাব `pathano_filer_talika.json`-এ)। ভার্সন ১৪০৩→১৪০৪ (build.gradle.kts ২ লাইন · version.json · index.html app.js?v=v1404)। ভিতরে V1421–V1427। TK-কে Supabase-এ চালাতে হবে: **V1422** SQL (ভয়েস-প্রশ্নের বাকি ফাংশন)। সব পাহারা PASS (Kotlin compile · resources · tk_guard --release · ZIP-নাম · ZIP-ভিতর)।
+
