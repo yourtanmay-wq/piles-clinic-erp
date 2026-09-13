@@ -67,7 +67,18 @@ class MasterOutTimeWorker(
     /** আজ IN TIME নেই এবং ছুটির কোনো আবেদনও (pending/confirmed) নেই — সত্যিকারের
      * "no-show"। ⛔ শুধু আসল `staff` রোল (RoleRules.usesAttendance-এর নিয়মে) —
      * ডাক্তার/ফিল্ড/মাস্টার কখনো ধরা হয় না। বাঁধা তালিকা (StaffDirectory) থেকে
-     * রোস্টার নেওয়া হয় — কাজ ছেড়ে যাওয়া/নতুন স্টাফ সবসময় ওখান থেকেই সঠিক থাকে। */
+     * রোস্টার নেওয়া হয় — কাজ ছেড়ে যাওয়া/নতুন স্টাফ সবসময় ওখান থেকেই সঠিক থাকে।
+     *
+     * 🔴🔒 V1441 (১৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — "ব্রাঞ্চ কেন IN TIME OUT TIME
+     * চাপবে জোর করে") — প্রতিটা ব্রাঞ্চের একটা করে **শেয়ার-করা লগইন**
+     * (KNE-BRANCH · JPE-BRANCH · COB-BRANCH · FLK-BRANCH · BIR-BRANCH) —
+     * এগুলো কোনো একজন নির্দিষ্ট স্টাফ নন, তাই তাঁদের রোজ IN/OUT TIME চাপার
+     * কথাই নয়। অথচ রোস্টারে `role == "staff"` থাকায় এই পাঁচটাও রোজ রাত ৯টার
+     * "No check-in & no leave" তালিকায় মিথ্যা করে উঠে আসত।
+     * ⛔ TK-র সিদ্ধান্ত: শুধু এই তালিকা থেকে বাদ — নিজেদের IN/OUT TIME পর্দা
+     *   (Work Notebook) আগের মতোই থাকবে, কেউ চাইলে ব্যবহার করতে পারবেন।
+     * ⛔ নাম ঠিক "-BRANCH"-এ শেষ হলে তবেই বাদ — বাকি সব সত্যিকারের স্টাফ
+     *   (KNE-LAXMI, COB-4, JPE-RUPAM ইত্যাদি) আগের মতোই ধরা পড়েন। */
     private suspend fun noShow(ctx: Context, today: String): List<String> {
         return try {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -75,7 +86,7 @@ class MasterOutTimeWorker(
                 if (!ma.isSignedIn) { try { ma.signInCurrentSession(ctx) } catch (_: Throwable) { } }
                 if (!ma.isSignedIn) return@withContext emptyList<String>()
                 val roster = com.tkbiswas.pilesclinic.native.StaffDirectory.allAccounts()
-                    .filter { it.role == "staff" }
+                    .filter { it.role == "staff" && !it.name.endsWith("-BRANCH") }
                 if (roster.isEmpty()) return@withContext emptyList<String>()
                 val ndRes = ma.getRowsChecked(
                     "wn", "notebook_days",

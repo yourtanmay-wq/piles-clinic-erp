@@ -20,10 +20,10 @@ window.RK_CONFIG = {
          MANISHA LAKRA (KNE-KISHAN10), জয়েন ০৩.০৯.২০২৬। ফোনের
          StaffDirectory.kt-র হুবহু যমজ, তাই দুই দিকে একই লগইন। */
       {mobile:'7482966958', name:'KNE-KISHAN10', branch:'Kishanganj'},
-      /* 🟢🔒 V1137 (০৬.০৯.২০২৬, TK-নির্দেশ) — কিশানগঞ্জের নতুন স্টাফ
-         ARCHANA MANDAL BISWAS (KNE-KISHAN11), জয়েন ০৬.০৯.২০২৬।
-         ফোনের StaffDirectory.kt-র হুবহু যমজ। */
-      {mobile:'7478288608', name:'KNE-KISHAN11', branch:'Kishanganj'},
+      /* 🔴🔒 V1441 (১৩.০৯.২০২৬, TK-নির্দেশ) — ARCHANA MANDAL BISWAS
+         (KNE-KISHAN11) কাজ ছেড়ে দিয়েছেন — ফোনের StaffDirectory.kt-র হুবহু
+         যমজ বদল। পুরনো নম্বর (7478288608) দিয়ে আর লগইন হবে না; পুরনো
+         রেকর্ড অক্ষত। */
       /* 🟢🔒 V1378 (১২.০৯.২০২৬, TK-নির্দেশ) — কিশানগঞ্জের নতুন স্টাফ
          ISHRAT PARWEEN (KNE-KISHAN12)। ফোনের StaffDirectory.kt-র হুবহু যমজ। */
       {mobile:'9679319516', name:'KNE-KISHAN12', branch:'Kishanganj'},
