@@ -26705,3 +26705,5 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > ফোন: PaymentRepository.priorRefundAnyDate()/priorRefundLikeForForm() (নতুন) — PaymentActivity-তে একটাই শেয়ার্ড refundWithDupCheck() তিন জায়গায় (আজকের ফেরত, Master-ব্যাকডেট-সরাসরি, grant-থাকা স্টাফের ব্যাকডেট-সরাসরি)। BriefingActivity-র Approve বোতামেও (Master যখন স্টাফের ব্যাকডেট-ফেরত-অনুরোধ Approve করেন) একই চেক — ওটাই আসল টাকা-বেরোনোর মুহূর্ত।
 > ওয়েব: app.js-এ wlv1PriorRefundAnyDate() (নতুন) — saveRefundWeb()-এর একটাই লাইন (আজকের + ব্যাকডেট দুটোই কভার করে) আর wlv1ApproveBackdate()-এর refund-শাখাতেও।
 > পাহারা: verify_kotlin_compile · verify_android_resources · verify_kotlin_patterns · verify_forbidden_android_api · node --check · web_browser_test · tk_guard — সবগুলো PASS।
+
+> 📦 **V1443 ফাইল পাঠানো (১৩.০৯.২০২৬ রাত ১১.২৫, TK: "তাহলে ফাইল পাঠাও"):** PILES_CLINIC_APP_V1443_FINAL.zip — 25.95 MB · 1886 ফাইল। ভার্সন ১৪৪১→১৪৪৩ (build.gradle.kts · version.json · index.html-এর app.js `?v=`)। এই সেশনের নতুন কাজ: V1442 (Refund-এও Backdate — Master সরাসরি, স্টাফের অনুমতি লাগবে) · V1443 (রোগীর আগে Refund থাকলে সবসময় সতর্কবার্তা)। পাহারা: tk_guard --release সব ✅ PASS।
