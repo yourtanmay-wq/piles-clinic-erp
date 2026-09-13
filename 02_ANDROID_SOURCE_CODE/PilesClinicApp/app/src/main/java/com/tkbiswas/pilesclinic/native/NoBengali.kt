@@ -1253,6 +1253,8 @@ object NoBengali {
         "লিস্টে যাবে" to "will go to the list",
         "কোন পেমেন্ট" to "Which payment",
         "প্রকৃত জমা" to "Actual collection",
+        // 🔴🔒 V1442 (১৩.০৯.২০২৬) — Refund-এর ব্যাকডেট ঘরের "প্রকৃত ফেরত: DD/MM/YYYY"।
+        "প্রকৃত ফেরত" to "Actual refund",
         "নতুন তারিখ" to "New date",
         "কারণ লিখুন" to "Write the reason",
         "হিসাব আসছে" to "Figures are coming",

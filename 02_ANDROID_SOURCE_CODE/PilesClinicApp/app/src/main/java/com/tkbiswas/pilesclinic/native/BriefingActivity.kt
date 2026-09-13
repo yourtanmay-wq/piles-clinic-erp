@@ -682,15 +682,20 @@ class BriefingActivity : AppCompatActivity() {
                     setBackgroundColor(android.graphics.Color.WHITE)
                     setPadding(dp(16), dp(14), dp(16), dp(14))
                 }
+                // 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — payType=="refund" হলে
+                // স্পষ্ট "💸 REFUND" ট্যাগ, নইলে Master ভুল করে ভাবতে পারেন
+                // এটা টাকা-তোলার অনুরোধ (Approve চাপলে উল্টো — টাকা বেরোবে)।
+                val isRefundReq = req.payType == "refund"
                 row.addView(TextView(this@BriefingActivity).apply {
-                    text = "${req.name.ifBlank { req.mobile }} — ₹${"%,.0f".format(req.amount)} (${req.mode})"
+                    text = (if (isRefundReq) "💸 REFUND — " else "") +
+                        "${req.name.ifBlank { req.mobile }} — ₹${"%,.0f".format(req.amount)} (${req.mode})"
                     textSize = 13.5f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
-                    setTextColor(android.graphics.Color.parseColor("#10223A"))
+                    setTextColor(if (isRefundReq) android.graphics.Color.parseColor("#B42318") else android.graphics.Color.parseColor("#10223A"))
                 })
                 val requesterName = StaffDirectory.findAccount(req.requestedBy)?.name ?: req.requestedByName.ifBlank { req.requestedBy }
                 row.addView(TextView(this@BriefingActivity).apply {
-                    text = NoBengali.s("প্রকৃত জমা: ${DateUtil.display(req.requestedDate)} · অনুরোধ: $requesterName")
+                    text = NoBengali.s("${if (isRefundReq) "ফেরতের প্রকৃত তারিখ" else "প্রকৃত জমা"}: ${DateUtil.display(req.requestedDate)} · অনুরোধ: $requesterName" + (if (isRefundReq && req.remarks.isNotBlank()) " · কারণ: ${req.remarks}" else ""))
                     textSize = 11.5f
                     setTextColor(android.graphics.Color.parseColor("#5b6b81"))
                     setPadding(0, dp(4), 0, 0)

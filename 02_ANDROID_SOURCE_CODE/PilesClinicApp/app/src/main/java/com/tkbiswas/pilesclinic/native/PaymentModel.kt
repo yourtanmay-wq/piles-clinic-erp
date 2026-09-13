@@ -146,7 +146,11 @@ data class BackdateRequest(
     val requestedBy: String,
     val requestedByName: String,
     val requestedAt: String,
-    val status: String
+    val status: String,
+    // 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — "treatment" (আগের সব ব্যাকডেট
+    // পেমেন্ট, ডিফল্ট) বা "refund" (নতুন — Refund-এরও ব্যাকডেট চাওয়া গেলে)।
+    // Master-এর Approve বোতাম এটা দেখেই ঠিক করে কোন সারিতে পরিণত হবে।
+    val payType: String = "treatment"
 )
 
 // TK-REQUESTED ADDITION (2026-07-25): "Edit Payment Amount" approval
@@ -980,7 +984,14 @@ object PaymentModel {
     fun buildRefundRow(
         patient: PatientBillInfo, amount: Double, mode: String, reason: String,
         approvalStatus: String, requestedBy: String, approvedBy: String,
-        staffMobile: String, refundOfPaymentId: String = "", nonce: String = ""
+        staffMobile: String, refundOfPaymentId: String = "", nonce: String = "",
+        // 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — "Backdate Payment"-এর হুবহু
+        // একই তিনটে ঘর (PaymentModel.buildTreatmentPaymentRow-এর যমজ)।
+        // সবক'টা ডিফল্ট আগের আচরণ (আজকের তারিখ, কোনো audit ঘর নেই) —
+        // পুরনো কোনো ডাকার জায়গা (সাধারণ Refund) এক অক্ষরও বদলায় না।
+        overrideDate: String? = null,
+        backdateRequestedBy: String? = null,
+        backdateApprovedBy: String? = null
     ): JSONObject {
         val now = isoNow()
         val row = JSONObject()
@@ -995,7 +1006,7 @@ object PaymentModel {
             .put("mobile", patient.mobile)
             .put("branch", patient.branch)
             .put("name", patient.name)
-            .put("date", today())
+            .put("date", overrideDate ?: today())
             .put("amount", amount)
             .put("mode", normalizeMode(mode))
             .put("remarks", reason.ifBlank { "Refund" })
@@ -1008,6 +1019,8 @@ object PaymentModel {
             .put("createdAt", now)
             .put("updatedAt", now)
         if (refundOfPaymentId.isNotBlank()) row.put("refundOfPaymentId", refundOfPaymentId)
+        if (backdateRequestedBy != null) row.put("backdateRequestedBy", backdateRequestedBy)
+        if (backdateApprovedBy != null) row.put("backdateApprovedBy", backdateApprovedBy)
         return row
     }
 
@@ -1018,7 +1031,10 @@ object PaymentModel {
     // is zero-risk to any existing money calculation anywhere.
     fun buildBackdateRequestRow(
         patient: PatientBillInfo, enteredBill: Double, amount: Double, mode: String,
-        remarks: String, requestedDate: String, staffMobile: String, staffName: String
+        remarks: String, requestedDate: String, staffMobile: String, staffName: String,
+        // 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — ডিফল্ট "treatment" মানে পুরনো
+        // প্রতিটা ডাকার জায়গা (Treatment Payment backdate) এক অক্ষরও বদলায় না।
+        payType: String = "treatment"
     ): JSONObject {
         val now = isoNow()
         return JSONObject()
@@ -1037,6 +1053,7 @@ object PaymentModel {
             .put("requestedByName", staffName)
             .put("requestedAt", now)
             .put("status", "pending")
+            .put("payType", payType)
             .put("createdAt", now)
             .put("updatedAt", now)
     }

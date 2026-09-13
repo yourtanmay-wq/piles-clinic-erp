@@ -23111,6 +23111,23 @@ async function wlv1FileBackdateRequest(p,bill,amt,mode,remarks,payDate){
 }
 window["wlv1FileBackdateRequest"]=wlv1FileBackdateRequest;
 
+/* 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — wlv1FileBackdateRequest()-এর হুবহু
+   একই যমজ, শুধু Refund-এর জন্য (payType:'refund')। মাস্টার Approve করলে
+   wlv1ApproveBackdate() এই ঘরটা দেখেই Refund সারি বানায়, Treatment Payment
+   নয়। ⛔ পুরনো ফাংশনটা (উপরে) এক অক্ষরও বদলায়নি। */
+async function wlv1FileBackdateRefundRequest(p,amt,mode,reason,payDate){
+  if(typeof sb==='undefined'||!sb){toast('No internet — Master অনুমোদনের জন্য পাঠানো গেল না');return false;}
+  var nowIso=new Date().toISOString();
+  var row={id:'bdr_'+Math.random().toString(36).slice(2)+Date.now().toString(36),
+    patientRowId:p.id||'',patientCode:p.patientId||'',mobile:normMob(p.mobile||''),name:p.name||'',branch:p.branch||'',
+    billAmount:0,amount:Number(amt||0),mode:payMode(mode)||'CASH',remarks:reason||'',
+    requestedDate:payDate,requestedBy:(user&&user.mobile)||'',requestedByName:(user&&user.name)||((user&&user.mobile)||''),
+    requestedAt:nowIso,status:'pending',payType:'refund',createdAt:nowIso,updatedAt:nowIso};
+  try{var r=await sb.from('payment_backdate_requests').insert(row);if(r&&r.error){toast('পাঠানো গেল না — আবার চেষ্টা করুন');return false;}}catch(e){toast('পাঠানো গেল না — আবার চেষ্টা করুন');return false;}
+  return true;
+}
+window["wlv1FileBackdateRefundRequest"]=wlv1FileBackdateRefundRequest;
+
 function chamberAttendance(){
   /* 🟢🔒 V398: মাস্টারের ব্রাঞ্চ এক জায়গা থেকে মনে রাখা হয়। স্টাফ/ডাক্তারের
      জন্য আগের লাইনটাই হুবহু অপরিবর্তিত। */
@@ -25965,7 +25982,7 @@ async function wlv1LoadApprovals(){
   let html = '';
   if(back.length){
     html += '<details><summary class="sectionTitle">Backdate Payment Requests ('+back.length+')</summary>' + back.map(r=>`
-      <div class="card wlv1AppRow"><b>${esc(String(r.name||'').toUpperCase())}</b>
+      <div class="card wlv1AppRow"><b${r.payType==='refund'?' style="color:#B42318"':''}>${r.payType==='refund'?'\ud83d\udcb8 REFUND \u2014 ':''}${esc(String(r.name||'').toUpperCase())}</b>
         <div class="wlv1AppMeta">${esc(shownMob(r.mobile||''))}${r.branch?' \u00b7 '+esc(r.branch):''}</div>
         <div class="wlv1AppMeta">${esc(fmtDate(r.requestedDate))} \u00b7 ${money(Number(r.amount||0))} \u00b7 ${esc(r.mode||'')}</div>
         ${r.remarks?`<div class="wlv1AppMeta">${esc(r.remarks)}</div>`:''}
@@ -26293,6 +26310,40 @@ async function wlv1ApproveBackdate(reqId){
   var amt=Number(req.amount||0);if(amt<=0)return toast('Amount ঠিক নেই');
   var billAmt=Number(req.billAmount||0);
   var payDate=String(req.requestedDate||'').slice(0,10)||today();
+  // 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — payType=="refund" হলে এটা
+  // Treatment Payment নয়, ব্যাকডেট করা Refund-এর অনুরোধ। Approve চাপাটাই
+  // এখানে refund-approval, তাই আলাদা শাখা — বাকি treatment-request পথ অটুট।
+  if(String(req.payType||'')==='refund'){
+    if(!confirm('Approve backdated refund?\n\n'+(p.name||'')+'\n'+money(amt)+' - '+(req.mode||'CASH')+'\nDate: '+wlv1Dot(payDate)+(req.remarks?('\nReason: '+req.remarks):'')))return;
+    var maxRef=Math.max(0, wlv1RefundableNow(p) - wlv1PendingRefundSum(p, req.id));
+    if(amt>maxRef+0.5)return toast('Refund '+money(amt)+' is more than the refundable amount '+money(maxRef));
+    var now2=new Date().toISOString();
+    var rid2=wlv1RefundIdFor(p,amt,req.remarks||'',req.requestedBy||'',req.id);
+    var refRow={id:rid2,payType:'refund',payLabel:'Refund',paymentLabel:'Refund',
+      patientId:p.id,patientCode:p.patientId||'',mobile:p.mobile,branch:p.branch,name:p.name,
+      date:payDate,amount:amt,mode:payMode(req.mode||'CASH'),remarks:req.remarks||'Refund',
+      refundReason:req.remarks||'',refundApprovalStatus:'approved',
+      refundRequestedBy:req.requestedBy||'',refundApprovedBy:user.mobile,
+      receivedBy:req.requestedBy||user.mobile,createdBy:req.requestedBy||user.mobile,
+      backdateRequestedBy:req.requestedBy||'',backdateApprovedBy:user.mobile,
+      createdAt:now2,updatedAt:now2};
+    try{
+      try{ save('payments', load('payments').filter(function(x){ return String(x.id)!==String(rid2); })); }catch(_e){}
+      add('payments',refRow);
+      var okR=true;try{okR=await directCloudUpsertRow('payments',refRow);}catch(_e){okR=false;}
+      if(!okR)return toast('Could not save refund to cloud - try again');
+      if(amt > wlv1PatientPaidNow(p) + 0.5){
+        try{
+          var fid2 = wlv1BestFollowUpIdForReturn(p.mobile);
+          if(fid2) directCloudUpsertRow('followups', {id:fid2, status:'Returned', updatedAt:now2});
+        }catch(_e){}
+      }
+      try{await sb.from('payment_backdate_requests').update({status:'approved',approvedBy:user.mobile,approvedAt:now2,updatedAt:now2}).eq('id',reqId);}catch(_e){}
+      toast('Approved - backdated refund created');
+      wlv1LoadApprovals();
+    }catch(e){toast('Could not approve - try again');}
+    return;
+  }
   if(!confirm('Approve backdated payment?\n\n'+(p.name||'')+'\n'+money(amt)+' · '+(req.mode||'CASH')+'\nDate: '+wlv1Dot(payDate)+'\n\n⚠️ ওই তারিখে টাকা আগে থাকলে সেটাতেই যোগ হবে; দ্বিতীয় payment row তৈরি হবে না।'))return;
   var now=new Date().toISOString();
   try{
@@ -28386,12 +28437,24 @@ async function openRefundFormWeb(patientId){
    <select id="rfMode" class="input"><option>CASH</option><option>ONLINE</option></select>
    <label>Reason</label>
    <input id="rfReason" class="input" placeholder="Refund reason">
+   <label>Actual refund date</label>
+   <input id="rfDateShow" class="input ptDateBox" readonly placeholder="Actual refund date" onclick="wlv1RefundPickDate()">
+   <input id="rfDate" type="hidden" value="">
+   <input id="rfDateInp" type="date" max="${today()}" style="position:absolute;left:-9999px" onchange="wlv1RefundOnDate(this.value)">
    <div class="actions">
      <button class="ghost" onclick="closeModal()">Cancel</button>
      <button style="background:linear-gradient(135deg,#b23a2e,#d9534f)" onclick="saveRefundWeb('${esc(patientId)}')">${autoApprove?'Refund now':'Send refund request'}</button>
    </div>`);
 }
 window["openRefundFormWeb"]=openRefundFormWeb;
+/* 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-প্রশ্ন — "প্রকৃত টাকা ফেরত নেয়ার তারিখ এখানে
+   নেই কেন") — Treatment Payment-এর payDateShow/payDateInp/treatPickDate/
+   treatOnDate-এর হুবহু একই যমজ, শুধু Refund-এর ঘরগুলোর নামে। বাছা না হলে
+   #rfDate ফাঁকা থাকে → saveRefundWeb() আজকের তারিখ ধরে, পুরনো আচরণ অটুট। */
+function wlv1RefundPickDate(){var e=document.getElementById('rfDateInp');if(e){e.showPicker?e.showPicker():e.click()}}
+window["wlv1RefundPickDate"]=wlv1RefundPickDate;
+function wlv1RefundOnDate(v){if(!v)return;var h=document.getElementById('rfDate');if(h)h.value=v;var s=document.getElementById('rfDateShow');if(s)s.value=wlv1Dot(v);}
+window["wlv1RefundOnDate"]=wlv1RefundOnDate;
 
 /* 🖥️🟡🔒 V786 — আজকের দিনে এই রোগীর হুবহু একই পরিমাণের ফেরত আগে থেকে আছে
    কিনা (বাতিল/না-মঞ্জুর সারি বাদ, আর চলতি এই সারিটাও বাদ — retry যেন না
@@ -28436,6 +28499,21 @@ async function saveRefundWeb(patientId){
        ⇒ কারণ ফাঁকা রাখলে ফেরত হবে না। ফোনের হুবহু একই নিয়ম ও একই বার্তা। */
     if(!reason) return focusFieldFail('rfReason','Refund reason mandatory — write why the money is being returned');
     var isM=isMaster();
+    /* 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-প্রশ্ন — "প্রকৃত টাকা ফেরত নেয়ার তারিখ এখানে
+       নেই কেন" · "শুধুমাত্র মাস্টার করতে পারবে, অন্যান্যদের ক্ষেত্রে মাস্টারের
+       অনুমতি জরুরী") — Treatment Payment-এর saveTreatmentPayment()-এর হুবহু
+       একই ব্যাকডেট-গেট (R1)। payDate না বাছলে (#rfDate ফাঁকা) আজকের তারিখই
+       ধরা হয় — নিচের পুরনো (backdate ছাড়া) Refund-flow অটুট। */
+    var payDate=(($('#rfDate')&&$('#rfDate').value)||'').slice(0,10)||today();
+    var isBackdated = payDate!==today();
+    if(isBackdated && !isM){
+      try{ if(typeof wlv1PullBackdateGrantsFromCloud==='function') await wlv1PullBackdateGrantsFromCloud(); }catch(_e){}
+      if(!(typeof wlv1IsBackdateGranted==='function' && wlv1IsBackdateGranted(payDate))){
+        var okReq = await wlv1FileBackdateRefundRequest(p,amt,mode,reason,payDate);
+        if(okReq){ toast('পুরনো তারিখের Refund — Master-এর অনুমোদনের জন্য পাঠানো হলো'); closeModal(); }
+        return;
+      }
+    }
     // V219 (§1): deterministic id — আবার চাপলে দ্বিতীয় Refund তৈরি হয় না।
     // V221 (§3): persist-করা nonce — crash/reload-এও একই অসম্পূর্ণ Refund একই id।
     var _rfKey=wlv1RefundDraftKey(p,amt,reason);
@@ -28444,7 +28522,9 @@ async function saveRefundWeb(patientId){
     // 🔒 TK-নির্দেশ (02.08.2026): UI-তে দেখানো লেবেলের উপর ভরসা না করে এখানে
     // ফের সত্যিই যাচাই করা হয় (ফর্ম খোলা আর Save চাপার মাঝে Chamber বন্ধ হয়ে
     // যেতে পারে) — ঠিক Android-এর saveRefund()-এর মতোই একই ফাংশন পুনর্ব্যবহার।
-    var autoApprove = await wlv1RefundAutoApprove(p, amt, rid);
+    // 🔴🔒 V1442 — ব্যাকডেট (Master সরাসরি, বা grant থাকা staff) মানেই ইতিমধ্যে
+    // অনুমোদিত — "আজকের চেম্বার/আজকের হাতে টাকা" প্রশ্নটা এখানে অর্থহীন।
+    var autoApprove = isBackdated ? true : await wlv1RefundAutoApprove(p, amt, rid);
     // 🔴 V509 (TK-সিদ্ধান্ত): সীমা এখন চিকিৎসার জমা **+ Visit Fee** — ফোনের
     //    অ্যাপের `refundableTotal`-এর হুবহু একই নিয়ম, তাই দুই জায়গায় এক ফল।
     var paidNow=wlv1RefundableNow(p);
@@ -28461,15 +28541,18 @@ async function saveRefundWeb(patientId){
        ⇒ এখন V708-এর সেই একই TK-অনুমোদিত নিয়ম: **Cancel = না · OK = তবুও**।
        ⛔ নেটের একটাও নতুন অনুরোধ নয় — পর্দায় ধরা `load('payments')` থেকেই।
        ⛔ ফোনের `PaymentRepository.todaysRefundLike()`-এর হুবহু একই নিয়ম। */
-    var _rfDup=wlv1TodaysSameRefund(p,amt,rid,(($('#rfMode')&&$('#rfMode').value)||''));
+    // 🔴🔒 V1442 — এই দুপ্লিকেট-প্রশ্নটা শুধু "আজকের" ফেরত নিয়ে; ব্যাকডেট
+    // করা হলে (তারিখ আলাদা) এই তুলনাটাই অর্থহীন, তাই আজকের ছাড়া করা হয় না।
+    var _rfDup = isBackdated ? null : wlv1TodaysSameRefund(p,amt,rid,(($('#rfMode')&&$('#rfMode').value)||''));
     if(_rfDup&&!confirm('Same refund already today\n\nA refund of ₹'+numFmt(amt)+' for this patient is already recorded today'+(_rfDup.time?' at '+_rfDup.time:'')+'.\n\nCancel  -  do nothing (recommended)\nOK  -  refund again anyway'))return;
     var row={id:rid,payType:'refund',payLabel:'Refund',paymentLabel:'Refund',
       patientId:p.id,patientCode:p.patientId||'',mobile:p.mobile,branch:p.branch,name:p.name,
-      date:today(),amount:amt,mode:mode,remarks:reason||'Refund',
+      date:payDate,amount:amt,mode:mode,remarks:reason||'Refund',
       refundReason:reason,refundApprovalStatus:autoApprove?'approved':'pending',
       refundRequestedBy:(user&&user.mobile)||'',refundApprovedBy:autoApprove?((user&&user.mobile)||''):'',
       receivedBy:(user&&user.mobile)||'',createdBy:(user&&user.mobile)||'',
       createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+    if(isBackdated){ row.backdateRequestedBy=(user&&user.mobile)||''; row.backdateApprovedBy=(user&&user.mobile)||''; }
     // V219 (§1): local-এও একই id-র পুরোনো row থাকলে সরিয়ে একটাই রাখা হয় (add
     // দুবার হলে দুটো local row হত), তারপর add — cloud upsert একই id-তে idempotent।
     try{ save('payments', load('payments').filter(function(x){ return String(x.id)!==String(rid); })); }catch(_e){}

@@ -1700,6 +1700,39 @@ class PaymentActivity : AppCompatActivity() {
         box.addView(TextView(this).apply { text = NoBengali.s("Reason (কারণ)"); textSize = 12f; setPadding(0, (12 * d).toInt(), 0, 4) })
         val reasonInput = EditText(this).apply { hint = "Refund reason" }
         box.addView(reasonInput)
+        /* 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-প্রশ্ন — "প্রকৃত টাকা ফেরত নেয়ার তারিখ
+           এখানে নেই কেন") — Treatment Payment-এর "Actual deposit date"
+           ব্যাকডেট-ঘরটার হুবহু একই যমজ (দেখুন এই ফাইলের নিচের দিকে
+           dateValue/pickedActualDate)। বাছা না হলে আজকের তারিখই ধরা হয় —
+           নিচের সব পুরনো (backdate ছাড়া) Refund হুবহু আগের মতোই চলে। */
+        val refundDateGrey = android.graphics.Color.parseColor("#9AA4B0")
+        val refundDateDark = android.graphics.Color.parseColor("#10223A")
+        var pickedActualDate = PaymentModel.today()
+        val refundDateValue = TextView(this).apply {
+            text = NoBengali.s("Actual refund date")
+            setTextColor(refundDateGrey)
+            textSize = 12f
+            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+            setPadding((14 * d).toInt(), (12 * d).toInt(), (14 * d).toInt(), (12 * d).toInt())
+            setOnClickListener {
+                val cal = java.util.Calendar.getInstance()
+                android.app.DatePickerDialog(this@PaymentActivity, { _, y, m, dayOfMonth ->
+                    val cal2 = java.util.Calendar.getInstance().apply { set(y, m, dayOfMonth) }
+                    val iso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal2.time)
+                    pickedActualDate = iso
+                    if (iso == PaymentModel.today()) {
+                        text = NoBengali.s("Actual refund date"); setTextColor(refundDateGrey)
+                    } else {
+                        text = NoBengali.s("প্রকৃত ফেরত: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(cal2.time)}"); setTextColor(refundDateDark)
+                    }
+                }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
+                    datePicker.maxDate = System.currentTimeMillis()
+                }.show()
+            }
+        }
+        box.addView(refundDateValue, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).also { it.topMargin = (14 * d).toInt() })
         UppercaseInputUtil.applyToAll(box)
 
         val isMaster = user.role.equals("master", ignoreCase = true)
@@ -1743,6 +1776,78 @@ class PaymentActivity : AppCompatActivity() {
                 Toast.makeText(this@PaymentActivity, "Refund reason mandatory — write why the money is being returned", Toast.LENGTH_LONG)
                     .show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
                 reasonInput.requestFocus()
+                return@setOnClickListener
+            }
+            /* 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ — "প্রকৃত টাকা ফেরত নেয়ার
+               তারিখ এখানে নেই কেন" · "শুধুমাত্র মাস্টার করতে পারবে, অন্যান্যদের
+               ক্ষেত্রে মাস্টারের অনুমতি জরুরী") — Treatment Payment-এর
+               Backdate-এর হুবহু একই যমজ শাখা। pickedActualDate == আজকের
+               তারিখ হলে (ডিফল্ট, কেউ ঘরটা না ছুঁলে) এই ব্লকই চলে না —
+               নিচের পুরনো (আগে থেকে চলা) Refund-flow এক অক্ষরও বদলায় না। */
+            val isBackdated = pickedActualDate != PaymentModel.today()
+            if (isBackdated) {
+                refundSaving = true
+                if (!isMaster) {
+                    lifecycleScope.launch {
+                        val hasGrant = withContext(Dispatchers.IO) {
+                            try { BackdatePaymentGrant.isGrantedNow(user.mobile, pickedActualDate) } catch (_: Throwable) { false }
+                        }
+                        if (hasGrant) {
+                            // Master আগে থেকেই এই তারিখের জন্য অনুমতি দিয়ে
+                            // রেখেছেন — Treatment Payment-এর গ্রান্ট-পথের
+                            // হুবহু একই নিয়ম, তাই সরাসরি সেভ (আঙুল/পাসওয়ার্ড-সহ)।
+                            askMoneyUnlock("Refund ₹${"%,.0f".format(amt)}") { unlocked ->
+                                if (!unlocked) { refundSaving = false; return@askMoneyUnlock }
+                                lifecycleScope.launch {
+                                    val result = withContext(Dispatchers.IO) {
+                                        repository.saveBackdatedRefund(
+                                            patient, amt, modeSpinner.selectedItem.toString(), reason,
+                                            forDate = pickedActualDate, requestedBy = user.mobile,
+                                            approvedBy = "GRANT:${user.mobile}", staffMobile = user.mobile, nonce = refundNonce
+                                        )
+                                    }
+                                    val msg = if (result.success) "Refund saved ✓ — ₹${"%,.0f".format(amt)} reduced from collection"
+                                        else result.message.ifBlank { "Failed — check connection" }
+                                    Toast.makeText(this@PaymentActivity, msg, Toast.LENGTH_LONG).show()
+                                    if (result.success) { loadSummary(); dialog.dismiss() }
+                                    refundSaving = false
+                                }
+                            }
+                        } else {
+                            // অনুমতি নেই — Master-এর কাছে অনুরোধ যায় (Treatment
+                            // Payment-এর প্রমাণিত request-পথের হুবহু যমজ)।
+                            // টাকা এখনই বেরোয় না, তাই আঙুল/পাসওয়ার্ড লাগে না।
+                            val ok = withContext(Dispatchers.IO) {
+                                repository.requestBackdatePayment(
+                                    patient, 0.0, amt, modeSpinner.selectedItem.toString(), reason,
+                                    pickedActualDate, user.mobile, user.name.ifBlank { user.mobile }, payType = "refund"
+                                )
+                            }
+                            Toast.makeText(this@PaymentActivity, if (ok) "Request sent to Master — the refund will apply once approved" else "Failed — check your connection", Toast.LENGTH_LONG).show()
+                            if (ok) dialog.dismiss()
+                            refundSaving = false
+                        }
+                    }
+                    return@setOnClickListener
+                }
+                // Master নিজেই ব্যাকডেট করছেন — সরাসরি অনুমোদিত।
+                askMoneyUnlock("Refund ₹${"%,.0f".format(amt)}") { unlocked ->
+                    if (!unlocked) { refundSaving = false; return@askMoneyUnlock }
+                    lifecycleScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            repository.saveBackdatedRefund(
+                                patient, amt, modeSpinner.selectedItem.toString(), reason,
+                                forDate = pickedActualDate, requestedBy = user.mobile,
+                                approvedBy = user.mobile, staffMobile = user.mobile, nonce = refundNonce
+                            )
+                        }
+                        val msg = if (result.success) "Refund saved ✓ — ₹${"%,.0f".format(amt)} reduced from collection"
+                            else result.message.ifBlank { "Failed — check connection" }
+                        Toast.makeText(this@PaymentActivity, msg, Toast.LENGTH_LONG).show()
+                        if (result.success) { loadSummary(); dialog.dismiss() }
+                        refundSaving = false
+                    }
+                }
                 return@setOnClickListener
             }
             /* 🔴🔒 V527 (২২.০৮.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"এক টাকাও যদি

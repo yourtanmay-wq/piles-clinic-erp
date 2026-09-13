@@ -1486,10 +1486,13 @@ class PaymentRepository(private val context: Context? = null) {
     // real payment).
     fun requestBackdatePayment(
         patient: PatientBillInfo, enteredBill: Double, amount: Double, mode: String,
-        remarks: String, requestedDate: String, staffMobile: String, staffName: String
+        remarks: String, requestedDate: String, staffMobile: String, staffName: String,
+        // 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — ডিফল্ট "treatment", পুরনো
+        // ডাকার জায়গা (Add Treatment Payment) অপরিবর্তিত।
+        payType: String = "treatment"
     ): Boolean {
         if (amount <= 0) return false
-        val row = PaymentModel.buildBackdateRequestRow(patient, enteredBill, amount, mode, remarks, requestedDate, staffMobile, staffName)
+        val row = PaymentModel.buildBackdateRequestRow(patient, enteredBill, amount, mode, remarks, requestedDate, staffMobile, staffName, payType)
         return SupabaseClient.upsert("payment_backdate_requests", row)
     }
 
@@ -1517,7 +1520,10 @@ class PaymentRepository(private val context: Context? = null) {
                     billAmount = r.optDouble("billAmount", 0.0), amount = r.optDouble("amount", 0.0),
                     mode = r.s("mode"), remarks = r.s("remarks"), requestedDate = r.s("requestedDate"),
                     requestedBy = r.s("requestedBy"), requestedByName = r.s("requestedByName"),
-                    requestedAt = r.s("requestedAt"), status = r.s("status")
+                    requestedAt = r.s("requestedAt"), status = r.s("status"),
+                    // 🔴🔒 V1442 — পুরনো সারিতে ঘরটা নেই বলে খালি আসতে পারে;
+                    // খালি হলে "treatment" ধরাই নিরাপদ (আগের সব সারির আচরণ)।
+                    payType = r.s("payType").ifBlank { "treatment" }
                 )
             )
         }
@@ -1544,12 +1550,26 @@ class PaymentRepository(private val context: Context? = null) {
             branch = request.branch, patientId = request.patientCode, bill = request.billAmount,
             paid = 0.0, billLocked = false
         )
-        val ok = saveTreatmentPayment(
-            patient, request.billAmount, request.amount, request.mode, request.remarks, request.requestedBy,
-            overrideDate = request.requestedDate,
-            backdateRequestedBy = request.requestedBy,
-            backdateApprovedBy = masterMobile
-        )
+        // 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-নির্দেশ) — request.payType=="refund" হলে
+        // এটা Treatment Payment নয়, ব্যাকডেট করা Refund-এর অনুরোধ। Master
+        // Approve চাপাটাই এখানে refund-approval, তাই সরাসরি saveBackdatedRefund
+        // (সবসময় APPROVED) — বাকি সব ডাকার জায়গা (treatment) অপরিবর্তিত।
+        val ok = if (request.payType == "refund") {
+            saveBackdatedRefund(
+                patient, request.amount, request.mode, request.remarks,
+                forDate = request.requestedDate,
+                requestedBy = request.requestedBy,
+                approvedBy = masterMobile,
+                staffMobile = request.requestedBy
+            ).success
+        } else {
+            saveTreatmentPayment(
+                patient, request.billAmount, request.amount, request.mode, request.remarks, request.requestedBy,
+                overrideDate = request.requestedDate,
+                backdateRequestedBy = request.requestedBy,
+                backdateApprovedBy = masterMobile
+            )
+        }
         if (ok) {
             val fields = JSONObject()
                 .put("status", "approved")
@@ -1964,6 +1984,80 @@ class PaymentRepository(private val context: Context? = null) {
                     }
                 }
             } catch (_: Throwable) { /* ⛔ ট্যাগ ব্যর্থ হলেও Refund সফল-ই থাকে */ }
+        }
+        return RefundResult(ok, if (ok) "" else "Could not save to cloud — check internet and try again")
+    }
+
+    /**
+     * 🔴🔒 V1442 (১৩.০৯.২০২৬, TK-প্রশ্ন — "প্রকৃত টাকা ফেরত নেয়ার তারিখ এখানে
+     * নেই কেন" — তালিকা ৫৬৬) — **ব্যাকডেট করা Refund।**
+     *
+     * TK-সিদ্ধান্ত: *"শুধুমাত্র মাস্টার করতে পারবে, অন্যান্যদের ক্ষেত্রে
+     * মাস্টারের অনুমতি জরুরী।"* Treatment Payment-এর প্রমাণিত Backdate
+     * ব্যবস্থার (BackdatePaymentGrant · payment_backdate_requests) হুবহু
+     * একই যমজ নিয়ম — শুধু Refund-এর জন্য।
+     *
+     * ⛔ এখানে পৌঁছানো মানেই একজন Master ইতিমধ্যে এই তারিখ ও অঙ্কটা দেখে
+     *    নিশ্চিত করেছেন (নিজে সরাসরি, বা staff-এর অনুরোধ Approve করে, বা
+     *    আগে থেকে দেওয়া Grant দিয়ে) — তাই `saveRefund()`-এর "আজকের চেম্বার
+     *    খোলা/আজকের হাতে-থাকা টাকা" প্রশ্নটা এখানে অর্থহীন ও **ইচ্ছে করেই
+     *    বাদ**; approvalStatus সবসময় সরাসরি APPROVED।
+     * ⛔ যে নিয়ম বাদ যায়নি — জমার চেয়ে বেশি Refund কখনো নয় (V217/V509-এর
+     *    সেই একই তাজা-হিসাব cap), Visit Fee পর্যন্ত ধরা, ব্র্যাঞ্চ-গার্ড,
+     *    ডাবল-ট্যাপ nonce, আর Visit-Fee ছোঁয়া হলে Draft-এর "Returned" ট্যাগ।
+     */
+    fun saveBackdatedRefund(
+        patient: PatientBillInfo, amount: Double, mode: String, reason: String,
+        forDate: String, requestedBy: String, approvedBy: String, staffMobile: String, nonce: String = ""
+    ): RefundResult {
+        if (amount <= 0) return RefundResult(false, "Enter a valid refund amount")
+        if (forDate.isBlank()) return RefundResult(false, "Refund date missing")
+        context?.let { ctx ->
+            if (!MoneyBranchGuard.canTakeMoney(ctx, patient.branch, patient.patientId)) return RefundResult(false, "Not allowed for this branch")
+        }
+        val nonceKey = refundNonceKey(patient, amount, reason)
+        val effNonce = context?.let { getOrCreateRefundNonce(it, nonceKey) } ?: nonce
+        val refundId = PaymentModel.refundIdFor(patient, amount, reason, requestedBy, effNonce)
+        // 🔒 saveRefund()-এর হুবহু একই cap-যাচাই (V217/V509) — শুধু তারিখটা বাদ,
+        // কারণ এখানে "আজ কতটা হাতে আছে" প্রশ্নটাই ওঠে না।
+        val (alreadyPending, liveByMobile) = runBlocking {
+            val pendingDef = async(Dispatchers.IO) { pendingRefundSumForPatient(patient.id, refundId) }
+            val liveDef = async(Dispatchers.IO) {
+                try { findPatientByMobile(patient.mobile, patient.branch) } catch (_: Throwable) { null }
+            }
+            pendingDef.await() to liveDef.await()
+        }
+        val liveRefundable = try {
+            val live = liveByMobile
+            if (live != null && live.id == patient.id && !live.paymentsUnverified)
+                minOf(live.refundableTotal, patient.refundableTotal)
+            else patient.refundableTotal
+        } catch (_: Throwable) { patient.refundableTotal }
+        val maxRefundable = (liveRefundable - alreadyPending).coerceAtLeast(0.0)
+        if (amount > maxRefundable + 0.5) {
+            return RefundResult(false, "Refund ₹${"%,.0f".format(amount)} is more than the refundable amount ₹${"%,.0f".format(maxRefundable)}")
+        }
+        val row = PaymentModel.buildRefundRow(
+            patient, amount, mode, reason, PaymentModel.REFUND_APPROVED,
+            requestedBy = requestedBy, approvedBy = approvedBy, staffMobile = staffMobile,
+            nonce = effNonce, overrideDate = forDate,
+            backdateRequestedBy = requestedBy, backdateApprovedBy = approvedBy
+        )
+        context?.let { try { LocalWorkflowStore(it).upsertPayment(row) } catch (_: Throwable) { } }
+        val ok = SupabaseClient.upsert("payments", row)
+        if (ok) context?.let { try { LocalWorkflowStore(it).upsertPayment(row, "SYNCED") } catch (_: Throwable) { } }
+        if (ok) context?.let { clearRefundNonce(it, nonceKey) }
+        // 🟢🔒 V676-এর হুবহু একই ট্যাগ — saveRefund()-এ যা হয়, এখানেও তাই।
+        if (ok && amount > patient.paid + 0.5) {
+            try {
+                val digits = patient.mobile.filter { it.isDigit() }.takeLast(10)
+                if (digits.length == 10) {
+                    val fid = resolveBestFollowUpIdForReturn(digits)
+                    if (!fid.isNullOrBlank()) {
+                        SupabaseClient.updateById("followups", fid, JSONObject().put("status", "Returned"))
+                    }
+                }
+            } catch (_: Throwable) { }
         }
         return RefundResult(ok, if (ok) "" else "Could not save to cloud — check internet and try again")
     }
