@@ -26557,5 +26557,5 @@ PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসা
 · 🔴 **নিজে ধরা আসল বাগ (V1422, ওয়েব):** রোগ-ভিত্তিক তালিকা-পাতা `extra` পড়ত অথচ `wlv1VoiceReportDetail`-এ সেটা প্যারামিটারই ছিল না
   (ReferenceError ⇒ পাতা খুলত না)। এখন extra প্যারামিটার, vOk থেকে পাঠানো হয়। ফোনে এই বাগ ছিল না।
 **সততার সাথে বাদ (আগেই জানানো):** ৩ (প্রতি-ভিজিট লগ নেই) · ২৩ (activity_logs-এ এডিট লেখা হয় না) · ২৪ (ছবির সময় নেই) · ৩৩ (ইনসেন্টিভ নিয়ম দ্ব্যর্থ)।
-**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ · Kotlin compile — নিচে। ভার্সন নম্বর বাড়েনি (৩খ)।
+**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ · Kotlin compile ✅ (নতুন ভুল নেই)। ভার্সন নম্বর বাড়েনি (৩খ)। ⚠️ আসল বিল্ড TK-র Android Studio-তে।
 
