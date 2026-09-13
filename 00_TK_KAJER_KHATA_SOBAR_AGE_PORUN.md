@@ -26593,5 +26593,5 @@ PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসা
 কিলোমিটার শুধু ≤৬০ মিটারের নির্ভুল বিন্দু থেকে, আলাদা নোঙর `acc_lat/acc_lng/has_acc_fix` (startDay-এ রিসেট) — আনুমানিক বিন্দু থেকে লাফ মেপে দূরত্ব ভুল বাড়বে না;
 ১৫ মিনিটের মধ্যে নির্ভুল বিন্দু থাকলে আনুমানিকটা তার উপরে লেখা হয় না। Master-এর পর্দা (ফোন FieldVisitActivity + ওয়েব profile.js): accuracy >৬০ হলে "(approx.)";
 অবস্থান আছে অথচ দূরত্ব ০ ⇒ "No accurate GPS fix (indoors?) - distance not counted" (আগে ভুল করে "permission may have been off" বলত)। index.html profile.js?v=v1431।
-**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ · Kotlin compile — নিচে। ভার্সন নম্বর বাড়েনি (৩খ)।
+**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ · Kotlin compile ✅ (নতুন ভুল নেই)। ভার্সন নম্বর বাড়েনি (৩খ)।
 
