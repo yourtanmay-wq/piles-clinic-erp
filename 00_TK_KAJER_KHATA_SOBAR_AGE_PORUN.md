@@ -26657,3 +26657,19 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > notebook.js nbSubmit → নোটিশ শুধু monthly। index.html notebook.js v1436। WhatsApp · হাজিরা · wn.work_reports সেভ অটুট।
 
 > 📦 **V1406 ফাইল পাঠানো (১৩.০৯.২০২৬ সন্ধ্যা ৭.৪২, তালিকা ৫৬০):** PILES_CLINIC_APP_V1406_FINAL.zip — 25.98 MB · 1879 ফাইল। ভিতরে V1432–V1437। ভার্সন তিন জায়গায় ১৪০৬। পাহারা সব PASS।
+
+> V1437 — 🔔 **পুরনো বাকি দিনের চেম্বার বন্ধ করতে রোজ স্টাফকে তাগাদা (১৩.০৯.২০২৬ রাত ৭.৪৬, TK-প্রশ্ন ছবিসহ, তালিকা ৫৬১):**
+> কোডে মেপে ধরা ফাঁক: তাগাদা ছিল, কিন্তু শুধু ওই দিনের সন্ধে ৭টা–রাত ১২টা (ChamberCloseReminderWorker)। ১২টা পেরোলে ওই দিন চিরতরে চুপ ⇒ জলপাইগুড়িতে ১২ দিন জমেছিল।
+> নতুন: ChamberBacklogReminderScheduler/Worker — রোজ বেলা ১১টা, **শুধু স্টাফের ফোনে** (TK-সিদ্ধান্ত), নিজের ব্রাঞ্চের গত ৩০ দিন; চাপলে সোজা ChamberCloseActivity। বাকি কিছু না থাকলে বা পড়া ব্যর্থ হলে কোনো নোটিশই নয় (আগেরটা পড়ে থাকলে সরিয়ে দেয়)।
+> ChamberUnclosedRepository.findUnclosed-এ ঐচ্ছিক serverBranchFilter (default false — মাস্টারের পর্দা ও মেনুর সংখ্যা অপরিবর্তিত); স্টাফের ডাকে payments সার্ভারেই নিজের ব্রাঞ্চে ছাঁকা ⇒ পাঁচ ব্রাঞ্চের বদলে এক ব্রাঞ্চ, খরচ কম। PilesClinicApplication-এ চেইন বসানো।
+> মেনুর "Chamber Close" ঘর আগের মতোই মাস্টার-only (TK-সিদ্ধান্ত) — স্টাফ নোটিফিকেশনে চেপেই ঢোকেন। সন্ধের পুরনো চেইন · নোটিফিকেশন আইডি ৪২০৩ অটুট (নতুনটা ৪২০৪)।
+> ⛔ ওয়েবে ব্যাকগ্রাউন্ড কাজ কখনোই ছিল না, তাই এই তাগাদা Android-only (সৎ সীমা)।
+> পাহারা: kotlin compile PASS ✅ · resources PASS ✅ · patterns PASS ✅ · forbidden-api PASS ✅।
+
+> V1438 — 👉 **নোটিশ বোর্ডের সাধারণ কার্ড ডান দিকে সরালেই চলে যায় (১৩.০৯.২০২৬ রাত ৭.৫৫, TK-নির্দেশ ছবিসহ, তালিকা ৫৬২):**
+> TK: *"যেখানে আমার অ্যাকশন নিতে হবে সেটা থাক; যেখানে অ্যাকশন বা অ্যাপ্রুভের ব্যাপার নেই সেগুলো ডানদিকে সরালেই যেন সরে যায়।"*
+> ফোন: BriefingActivity.attachSwipeToClear (ItemTouchHelper, শুধু ডান দিক) + BriefingAdapter.itemAt/removeAt। যেগুলো সরবে না: BriefingModel.needsMasterApproval (Refund · Delete · Reopen · Leave request) — নতুন নিয়ম লেখা হয়নি, পুরনো সেই একটাই ফাংশন। "একসাথে অনুমোদন"-এর টিক দেওয়া থাকলে সরানো বন্ধ।
+> ⛔ সরানো = **শুধু নিজের তালিকা থেকে লুকানো** (BriefingRepository.hideForMe — Seen-এর অটো-ক্লিয়ারের প্রমাণিত পথ); মাস্টার সরালেও অন্য কারো বোর্ড থেকে মোছে না। Close বোতামের পুরনো কাজ (জানলা সহ) অপরিবর্তিত। ক্লাউড ব্যর্থ হলে তালিকা আবার লোড ⇒ কার্ড ফিরে আসে।
+> ওয়েব (নিয়ম ৮): app.js wlv1BriefSwipeAttr/wlv1SwipeHideBrief/wlv1AttachBriefSwipe — মাস্টারের briefingAdminCard ও স্টাফের briefCard দুটোতেই data-bid (অনুমতি-চাওয়া কার্ডে বসে না), উপর-নিচে স্ক্রল করলে সরে না। ⚠️ সৎ কথা: touch-এর টান, মাউসে নয়।
+> পাহারা: node --check ✅ · web_browser_test PASS ✅ · kotlin compile PASS ✅ · resources PASS ✅।
+> ⚠️ tk_guard: index.html-এর `?v=` এখনো v1406 — নিয়ম ৩খ মতে ভার্সন/`?v=` শুধু ZIP পাঠানোর ঠিক আগে একবারে বাড়বে।

@@ -89,6 +89,22 @@ class BriefingAdapter(
      *  id থেকে আসল নোটিশ বার করতে লাগে)। ⛔ শুধু পড়ার জন্য। */
     fun itemsSnapshot(): List<Briefing> = items
 
+    /** 👉🔒 V1438 (১৩.০৯.২০২৬, TK-নির্দেশ) — ডান দিকে সরিয়ে দেওয়ার জন্য ওই
+     *  জায়গার নোটিশটা। ⛔ শুধু পড়ার জন্য, সীমার বাইরে হলে null। */
+    fun itemAt(position: Int): Briefing? = items.getOrNull(position)
+
+    /** 👉🔒 V1438 — ডান দিকে সরানো কার্ডটা তালিকা থেকে সঙ্গে সঙ্গে বাদ (শুধু
+     *  পর্দায়; ক্লাউডের কাজটা ডাকার জায়গা আলাদা করে করে)। ক্লাউড ব্যর্থ হলে
+     *  ডাকার জায়গা পুরো তালিকা আবার লোড করে, তাই কার্ডটা ফিরে আসে। */
+    fun removeAt(position: Int) {
+        if (position < 0 || position >= items.size) return
+        val left = items.toMutableList()
+        val gone = left.removeAt(position)
+        items = left
+        selectedIds.remove(gone.id)
+        notifyItemRemoved(position)
+    }
+
     fun updateItems(newItems: List<Briefing>) {
         items = newItems
         // তালিকা বদলালে আর-না-থাকা কার্ডের বাছাই বাদ (নইলে ভুল id থেকে যেত)।

@@ -253,9 +253,12 @@ com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: finish
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: getChildAt
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: getSharedPreferences
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: isDestroyed
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: isFinishing
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: layoutParams
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: marginStart
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: notifyDataSetChanged
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: onCreate
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: onResume
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: post
@@ -268,6 +271,7 @@ com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: width
 com/tkbiswas/pilesclinic/native/BriefingAdapter.kt	unresolved reference: databinding
 com/tkbiswas/pilesclinic/native/BriefingAdapter.kt	unresolved reference: itemView
 com/tkbiswas/pilesclinic/native/BriefingAdapter.kt	unresolved reference: notifyDataSetChanged
+com/tkbiswas/pilesclinic/native/BriefingAdapter.kt	unresolved reference: notifyItemRemoved
 com/tkbiswas/pilesclinic/native/BriefingReminderWorker.kt	one type argument expected for class Result<out T>
 com/tkbiswas/pilesclinic/native/BriefingReminderWorker.kt	unresolved reference: applicationContext
 com/tkbiswas/pilesclinic/native/CallIdSetupActivity.kt	none of the following functions can be called with the arguments supplied:

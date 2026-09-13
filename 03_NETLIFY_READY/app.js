@@ -4979,12 +4979,12 @@ function anBrBriefThreadBtn(b,label){
   return '<button onclick="openBriefThread(\''+b.id+'\')">'+(label||'Open Thread')+'</button>';
 }
 window["anBrBriefThreadBtn"]=anBrBriefThreadBtn;
-function briefingHome(){currentView='briefing';try{wlv1RefreshStaffNames()}catch(e){}   /* 👤 V1169 */if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let __mList=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30);try{wlv1AutoSeenForMaster(__mList)}catch(e){}let list=__mList.map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Briefing'))}</b><br><small>${anBrBriefWhen(b)}</small>${wlv1BriefBody(b)}${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${wlv1ReportViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
+function briefingHome(){currentView='briefing';try{wlv1RefreshStaffNames()}catch(e){}   /* 👤 V1169 */if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let __mList=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30);try{wlv1AutoSeenForMaster(__mList)}catch(e){}let list=__mList.map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"${wlv1BriefSwipeAttr(b)}><b>${esc(anBrCardTitle(b,'Briefing'))}</b><br><small>${anBrBriefWhen(b)}</small>${wlv1BriefBody(b)}${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${wlv1ReportViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
    "Briefing / Notice Board" আর খালি-লেখা "No briefing / notice yet"
    (res/layout/activity_briefing.xml:30,148)। ওয়েবে মাস্টারের জন্য আলাদা
    নাম ও ছোট খালি-লেখা ছিল। */
-'<div class="card mut">No briefing / notice yet</div>';page('Briefing / Notice Board',`<div class="card brCompose"><label>Message</label><textarea id="brMsg" placeholder="Today target / notice"></textarea><label>Send To</label><select id="brTarget" class="input" onchange="briefingTargetExtra()"><option value="allStaff">All Staff</option><option value="branch">My Branch Staff</option><option value="role_staff">All Staff Role</option><option value="role_doctor">All Doctors</option><option value="role_field">All Field Officers</option><option value="individual">Individual / Multiple Staff</option></select><div id="brExtra"></div><button onclick="createBriefing()">Send Briefing</button></div><div class="card brPerm"><button class="ghost" style="width:100%;color:#6A5320;border:1px solid #E0CFA0;font-weight:800" onclick="wlv1BpgScreen()">🔑 Backdate Payment Permissions</button></div><div id="wlv1Approvals"></div><div id="finIeApprovals"></div>${list}`);briefingTargetExtra();setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}else{/* 🔵 B618: ব্রাঞ্চ-ডাক্তার পুরনো দিনেরও pending ছুটির অনুরোধ দেখেন (Approve/Reject); দিন পেরোলেও হারায় না। */
-let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,''))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Today Briefing'))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):(wlv1ReportViewBtn(b)+anBrBriefThreadBtn(b,'Reply')))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
+'<div class="card mut">No briefing / notice yet</div>';page('Briefing / Notice Board',`<div class="card brCompose"><label>Message</label><textarea id="brMsg" placeholder="Today target / notice"></textarea><label>Send To</label><select id="brTarget" class="input" onchange="briefingTargetExtra()"><option value="allStaff">All Staff</option><option value="branch">My Branch Staff</option><option value="role_staff">All Staff Role</option><option value="role_doctor">All Doctors</option><option value="role_field">All Field Officers</option><option value="individual">Individual / Multiple Staff</option></select><div id="brExtra"></div><button onclick="createBriefing()">Send Briefing</button></div><div class="card brPerm"><button class="ghost" style="width:100%;color:#6A5320;border:1px solid #E0CFA0;font-weight:800" onclick="wlv1BpgScreen()">🔑 Backdate Payment Permissions</button></div><div id="wlv1Approvals"></div><div id="finIeApprovals"></div>${list}`);briefingTargetExtra();setTimeout(()=>{try{wlv1AttachBriefSwipe()}catch(e){}try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}else{/* 🔵 B618: ব্রাঞ্চ-ডাক্তার পুরনো দিনেরও pending ছুটির অনুরোধ দেখেন (Approve/Reject); দিন পেরোলেও হারায় না। */
+let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"${wlv1BriefSwipeAttr(b)}><b>${esc(anBrCardTitle(b,''))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"${wlv1BriefSwipeAttr(b)}><b>${esc(anBrCardTitle(b,'Today Briefing'))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):(wlv1ReportViewBtn(b)+anBrBriefThreadBtn(b,'Reply')))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1AttachBriefSwipe()}catch(e){}try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
 window["briefingHome"]=briefingHome;
 async function createBriefing(){let msg=($('#brMsg')?.value||'').trim();if(!msg)return toast('Message required');let sel=$('#brTarget')?.value||'allStaff';let targets={};if(sel==='allStaff')targets.allStaff=true;else if(sel==='branch')targets.branches=[user.branch];else if(sel==='role_staff')targets.roles=['staff'];else if(sel==='role_doctor')targets.roles=['doctor'];else if(sel==='role_field')targets.roles=['field'];else if(sel==='individual'){let mobiles=$$('.brUserChk:checked').map(x=>mob(x.value)).filter(Boolean);if(!mobiles.length)return toast('Select at least one person');targets.mobiles=mobiles}let row={id:uid('brief'),date:today(),title:'Today Briefing',message:msg,targets,branch:user.branch,seen:[],replies:[],createdBy:user.mobile,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('briefings',row);let cloudOk=await cloudUpsertBriefing(row);toast(cloudOk?'Briefing sent to staff':'Internet/Supabase not connected. Briefing saved on this device only.');briefingHome()}
 window["createBriefing"]=createBriefing;
@@ -5025,6 +5025,60 @@ function wlv1AutoSeenForMaster(rows){
  }catch(_e){}
 }
 window["wlv1AutoSeenForMaster"]=wlv1AutoSeenForMaster;
+/* ════════════════════════════════════════════════════════════════════════
+   👉🔒 V1438 (১৩.০৯.২০২৬, TK-নির্দেশ) — নোটিশ বোর্ডের কার্ড **ডান দিকে
+   সরালেই** নিজের তালিকা থেকে চলে যায় (নিয়ম ৮ — ফোনে যেটা হলো, কম্পিউটার/
+   ট্যাবেও ঠিক সেটাই)।
+   ⛔ যে কার্ডে অনুমতি/অ্যাকশন বাকি (`briefingNeedsApproval` — Refund ·
+      Delete · Reopen · Leave request) সেগুলোয় `data-bid` বসেই না, তাই
+      ওগুলো কখনো সরে না — ফোনের হুবহু একই নিয়ম, একই ফাংশন।
+   ⛔ সরানো মানে **শুধু নিজের তালিকা থেকে লুকানো** (`hiddenFor`) — মাস্টার
+      সরালেও অন্য কারো বোর্ড থেকে মোছে না। Delete বোতামের পুরনো কাজ
+      (`deleteBriefing`) এক অক্ষরও বদলায়নি।
+   ⚠️ সৎ কথা: এটা **আঙুলের** টান (touch) — মাউসে টেনে সরানো হয় না, সেখানে
+      আগের মতোই Seen & Hide / Delete বোতাম।
+   ════════════════════════════════════════════════════════════════════════ */
+function wlv1BriefSwipeAttr(b){try{return briefingNeedsApproval(b)?'':' data-bid="'+String(b.id||'')+'"'}catch(e){return ''}}
+window["wlv1BriefSwipeAttr"]=wlv1BriefSwipeAttr;
+function wlv1SwipeHideBrief(id){try{let all=briefings();let i=all.findIndex(b=>b.id===id);if(i<0)return;all[i].hiddenFor=[...(all[i].hiddenFor||[]),mob(user.mobile)].filter((v,k,a)=>v&&a.indexOf(v)===k);all[i].updatedAt=new Date().toISOString();saveBriefings(all);cloudUpsertBriefing(all[i]);briefingHome()}catch(e){}}
+window["wlv1SwipeHideBrief"]=wlv1SwipeHideBrief;
+function wlv1AttachBriefSwipe(){
+  try{
+    let cards=document.querySelectorAll('.briefCard[data-bid],.briefingAdminCard[data-bid]');
+    for(let i=0;i<cards.length;i++){(function(el){
+      if(el.getAttribute('data-swipewired')==='1')return;
+      el.setAttribute('data-swipewired','1');
+      let x0=0,y0=0,dx=0,live=false;
+      el.addEventListener('touchstart',function(e){
+        let t=e.touches&&e.touches[0];if(!t)return;
+        x0=t.clientX;y0=t.clientY;dx=0;live=true;el.style.transition='';
+      },{passive:true});
+      el.addEventListener('touchmove',function(e){
+        if(!live)return;let t=e.touches&&e.touches[0];if(!t)return;
+        let mx=t.clientX-x0,my=t.clientY-y0;
+        /* উপর-নিচে স্ক্রল করলে সরানো নয় — শুধু স্পষ্ট ডান দিকের টান */
+        if(Math.abs(my)>Math.abs(mx)){live=false;el.style.transform='';el.style.opacity='';return}
+        if(mx<0){dx=0;el.style.transform='';el.style.opacity='';return}
+        dx=mx;el.style.transform='translateX('+dx+'px)';el.style.opacity=String(Math.max(0.3,1-dx/320));
+      },{passive:true});
+      el.addEventListener('touchend',function(){
+        if(!live){el.style.transform='';el.style.opacity='';return}
+        live=false;
+        let w=el.offsetWidth||320;
+        if(dx>Math.max(90,w*0.35)){
+          el.style.transition='transform .18s ease-out,opacity .18s ease-out';
+          el.style.transform='translateX('+(w+40)+'px)';el.style.opacity='0';
+          let id=el.getAttribute('data-bid');
+          setTimeout(function(){wlv1SwipeHideBrief(id)},180);
+        }else{
+          el.style.transition='transform .15s ease-out,opacity .15s ease-out';
+          el.style.transform='';el.style.opacity='';
+        }
+      },{passive:true});
+    })(cards[i]);}
+  }catch(e){}
+}
+window["wlv1AttachBriefSwipe"]=wlv1AttachBriefSwipe;
 function markBriefSeen(id){let all=briefings();let i=all.findIndex(b=>b.id===id);if(i>-1){all[i].seen=[...(all[i].seen||[]),mob(user.mobile)].filter((v,k,a)=>v&&a.indexOf(v)===k);all[i].updatedAt=new Date().toISOString();saveBriefings(all);cloudUpsertBriefing(all[i]);toast('Seen');briefingHome()}}
 window["markBriefSeen"]=markBriefSeen;
 function openBriefThread(id){let b=briefings().find(x=>x.id===id);if(!b)return toast('Briefing not found');modal(`<h2>${esc(b.title||'Briefing')}</h2><div class="card">${wlv1BriefBody(b)}</div><div>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')||'<div class="mut">No reply yet</div>'}</div><textarea id="briefReplyText" class="input" placeholder="Type reply"></textarea><div class="actions"><button onclick="saveBriefReply('${id}')">Send Reply</button>${briefingDeleteButton(b)}<button class="ghost" onclick="closeModal()">Close</button></div>`)}

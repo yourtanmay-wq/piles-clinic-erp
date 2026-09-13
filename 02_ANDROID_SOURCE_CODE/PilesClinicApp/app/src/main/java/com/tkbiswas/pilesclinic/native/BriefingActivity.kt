@@ -90,6 +90,7 @@ class BriefingActivity : AppCompatActivity() {
         )
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
+        attachSwipeToClear()
         // 🆕 (07.08.2026) — "একসাথে অনুমোদন" বারের দুটো বোতাম।
         binding.btnBulkCancel.setOnClickListener { adapter.clearSelection(); refreshBulkBar() }
         binding.btnBulkApprove.setOnClickListener { confirmBulkApprove() }
@@ -2436,6 +2437,86 @@ class BriefingActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       👉🔒 V1438 (১৩.০৯.২০২৬, TK-নির্দেশ ছবিসহ — Notice Board-এর ছবি)
+       TK: *"এই সব সাধারণ নোটিফিকেশন ডান দিকে স্ক্রল করলে যেন সরে যায়।
+       অর্থাৎ যেখানে আমার অ্যাকশন নিতে হবে সেটা থাক; যেখানে অ্যাকশন বা
+       অ্যাপ্রুভের আর কোনো ব্যাপার নেই সেগুলো ডান দিকে সরালেই যেন সরে যায়।"*
+
+       ─── যা হলো ──────────────────────────────────────────────────────────
+       সাধারণ নোটিশের কার্ড **ডান দিকে সরালেই** বোর্ড থেকে চলে যায় — Close
+       চেপে, তারপর জানলার "Hide/Delete" চেপে আর করতে হয় না।
+
+       ─── ⛔ যেগুলো কখনো সরবে না (TK-এর কথা মতো "অ্যাকশন বাকি") ──────────
+       Refund request · Delete request · Chamber reopen request · Leave
+       request — অর্থাৎ `BriefingModel.needsMasterApproval()` যেগুলোকে
+       "অনুমতি/অ্যাকশন বাকি" বলে। ⛔ নিয়মটা **নতুন করে লেখা হয়নি** — বোর্ডে
+       কোন নোটিশ থেকে যাবে সেটা ঠিক করার পুরনো সেই একটাই ফাংশনই ডাকা হলো,
+       তাই দুই জায়গা কখনো আলাদা হতে পারবে না (নিয়ম ৭)।
+       ⛔ "একসাথে অনুমোদন"-এর টিক দেওয়া অবস্থায় সরানো বন্ধ — নইলে বাছাই-করা
+          কার্ড ভুল করে সরে যেত।
+
+       ─── ⛔ নিরাপত্তা ───────────────────────────────────────────────────
+       সরানো মানে **শুধু নিজের তালিকা থেকে লুকানো** (`hideForMe` — প্রজেক্টের
+       প্রমাণিত সেই একই পথ, যেটা "Seen"-এ অটো-ক্লিয়ারে চলে)। ⛔ মাস্টার
+       সরালেও অন্য কারো বোর্ড থেকে নোটিশ মোছে না — অর্থাৎ ভুল করে সরে গেলেও
+       কারো কিছু হারায় না। Close বোতামের পুরনো কাজ (মাস্টারের সবার জন্য
+       ডিলিট, জানলা সহ) এক অক্ষরও বদলায়নি।
+       ⛔ ক্লাউডে লেখা ব্যর্থ হলে তালিকা আবার লোড হয় — কার্ডটা ফিরে আসে,
+          মিথ্যে "হয়ে গেছে" দেখানো হয় না।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun attachSwipeToClear() {
+        try {
+            val cb = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                0, androidx.recyclerview.widget.ItemTouchHelper.RIGHT
+            ) {
+                override fun onMove(
+                    rv: androidx.recyclerview.widget.RecyclerView,
+                    vh: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+                    target: androidx.recyclerview.widget.RecyclerView.ViewHolder
+                ): Boolean = false
+
+                override fun getSwipeDirs(
+                    rv: androidx.recyclerview.widget.RecyclerView,
+                    vh: androidx.recyclerview.widget.RecyclerView.ViewHolder
+                ): Int {
+                    if (adapter.selectedIds.isNotEmpty()) return 0
+                    val item = adapter.itemAt(vh.bindingAdapterPosition) ?: return 0
+                    if (needsMasterApproval(item.title)) return 0   // অ্যাকশন বাকি — থাকবে
+                    return androidx.recyclerview.widget.ItemTouchHelper.RIGHT
+                }
+
+                override fun onSwiped(
+                    vh: androidx.recyclerview.widget.RecyclerView.ViewHolder,
+                    direction: Int
+                ) {
+                    val pos = vh.bindingAdapterPosition
+                    val item = adapter.itemAt(pos)
+                    if (item == null) { adapter.notifyDataSetChanged(); return }
+                    adapter.removeAt(pos)
+                    lifecycleScope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            try { repository.hideForMe(item.id, user.mobile) } catch (_: Throwable) { false }
+                        }
+                        if (isFinishing || isDestroyed) return@launch
+                        if (!ok) {
+                            Toast.makeText(
+                                this@BriefingActivity,
+                                "Could not clear — check connection",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            loadList()   // কার্ডটা ফিরে আসে
+                        }
+                    }
+                }
+            }
+            androidx.recyclerview.widget.ItemTouchHelper(cb)
+                .attachToRecyclerView(binding.recyclerView)
+        } catch (_: Throwable) {
+            // সরানোর সুবিধাটা বসাতে ভুল হলেও পর্দা আগের মতোই চলবে
+        }
     }
 
     private fun confirmDelete(item: Briefing) {
