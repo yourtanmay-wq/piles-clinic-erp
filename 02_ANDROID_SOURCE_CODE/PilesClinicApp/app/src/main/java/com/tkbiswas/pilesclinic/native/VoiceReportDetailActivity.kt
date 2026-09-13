@@ -138,6 +138,32 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, FollowUpModel.displayDate(p.refundedOn), "₹${"%,.0f".format(p.amount)}", "#B42318", onTap))
                     }
                 }
+                "CASH_HANDOVER" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) {
+                        VoiceReportRepository.cashHandoverSummary(branch, from, to) to VoiceReportRepository.cashHandoverList(branch, from, to)
+                    }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total: ₹${"%,.0f".format(s.total)} · ${s.dayCount} days" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No handover found for this period.")
+                    rows.forEach { p ->
+                        binding.rowsHost.addView(row(FollowUpModel.displayDate(p.handoverDate), "Received by ${p.receiverName.ifBlank { "—" }}", "₹${"%,.0f".format(p.cash)}", "#0C8F3A", null))
+                    }
+                }
+                "RMP_DUE" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) {
+                        VoiceReportRepository.rmpDueSummary(branch) to VoiceReportRepository.rmpDueList(branch)
+                    }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total due: ₹${"%,.0f".format(s.totalDue)} · ${s.rmpCount} RMP" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No due commission found.")
+                    rows.forEach { p ->
+                        binding.rowsHost.addView(row(p.rmpName.ifBlank { p.rmpMobile }, p.rmpMobile, "₹${"%,.0f".format(p.due)}", "#B42318", null))
+                    }
+                }
                 else -> fail("Unknown report")
             }
             binding.progressLoad.visibility = android.view.View.GONE

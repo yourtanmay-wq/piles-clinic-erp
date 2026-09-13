@@ -22,6 +22,10 @@ object VoiceReportRepository {
     data class EnquiryRow(val enquiryRowId: String, val name: String, val mobile: String, val disease: String, val enquiryDate: String)
     data class RefundSummary(val total: Double, val refundCount: Int)
     data class RefundRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val refundedOn: String)
+    data class HandoverSummary(val total: Double, val dayCount: Int)
+    data class HandoverRow(val handoverDate: String, val cash: Double, val receiverName: String, val receivedAt: String)
+    data class RmpDueSummary(val totalDue: Double, val rmpCount: Int)
+    data class RmpDueRow(val rmpId: String, val rmpName: String, val rmpMobile: String, val due: Double)
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
         val rpc = ModuleAuth.rpc("reports", "patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
@@ -145,6 +149,60 @@ object VoiceReportRepository {
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
                 out.add(RefundRow(x.optString("payment_id"), x.optString("patient_row_id"), x.optString("name"), x.optString("mobile"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("refunded_on")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    /* 🎤 V1418 (১৩.০৯.২০২৬, TK-নির্দেশ "চালিয়ে যান", তালিকা ৫২৪) — ক্যাশ
+     * হ্যান্ডওভার (VOICE_QUERY_PLAN আইটেম ১৫) ও RMP-দের ব্রাঞ্চ-বাকি (আইটেম ২৫)।
+     * ⛔ RMP-বাকি এখানেও কোনো নতুন হিসাব করে না — শুধু আজই বানানো
+     * `fin.rmp_branch_due` ডাকা হয় (CLAUDE.md ৭গ-র "একটাই সার্ভার-নিয়ম")। */
+    fun cashHandoverSummary(branch: String, from: String, to: String): RepoResult<HandoverSummary> {
+        val rpc = ModuleAuth.rpc("reports", "cash_handover_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) return RepoResult(false, message = "Not allowed for this branch")
+            val x = arr.getJSONObject(0)
+            RepoResult(true, HandoverSummary(x.optDouble("total", 0.0), x.optInt("day_count", 0)))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun cashHandoverList(branch: String, from: String, to: String): RepoResult<List<HandoverRow>> {
+        val rpc = ModuleAuth.rpc("reports", "cash_handover_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<HandoverRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(HandoverRow(x.optString("handover_date"), x.optDouble("cash", 0.0), x.optString("receiver_name"), x.optString("received_at")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun rmpDueSummary(branch: String): RepoResult<RmpDueSummary> {
+        val rpc = ModuleAuth.rpc("reports", "rmp_due_summary", JSONObject().put("p_branch", branch))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) return RepoResult(false, message = "Not allowed for this branch")
+            val x = arr.getJSONObject(0)
+            RepoResult(true, RmpDueSummary(x.optDouble("total_due", 0.0), x.optInt("rmp_count", 0)))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun rmpDueList(branch: String): RepoResult<List<RmpDueRow>> {
+        val rpc = ModuleAuth.rpc("reports", "rmp_due_list", JSONObject().put("p_branch", branch))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<RmpDueRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(RmpDueRow(x.optString("rmp_id"), x.optString("rmp_name"), x.optString("rmp_mobile"), x.optDouble("due", 0.0)))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }

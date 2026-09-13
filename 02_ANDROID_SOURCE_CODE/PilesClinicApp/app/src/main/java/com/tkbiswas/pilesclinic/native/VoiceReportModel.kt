@@ -17,7 +17,7 @@ import java.time.ZoneId
    ═══════════════════════════════════════════════════════════════════════ */
 object VoiceReportModel {
 
-    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND }
+    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND, CASH_HANDOVER, RMP_DUE }
 
     data class Parsed(
         val metric: Metric,
@@ -68,9 +68,11 @@ object VoiceReportModel {
     }
 
     /** স্ক্রিনে দেখানোর জন্য বাংলা তারিখ-লেবেল (দুটো ভিন্ন হলে "থেকে" দিয়ে)। */
-    fun displayPeriod(from: String, to: String, label: String): String =
-        if (from == to) "${FollowUpModel.displayDate(from)} ($label)"
-        else "${FollowUpModel.displayDate(from)} – ${FollowUpModel.displayDate(to)} ($label)"
+    fun displayPeriod(from: String, to: String, label: String): String = when {
+        from.isBlank() -> label
+        from == to -> "${FollowUpModel.displayDate(from)} ($label)"
+        else -> "${FollowUpModel.displayDate(from)} – ${FollowUpModel.displayDate(to)} ($label)"
+    }
 
     private fun findMetric(q: String): Metric? {
         val hasSale = q.contains("বিক্রি")
@@ -78,12 +80,16 @@ object VoiceReportModel {
         val hasSaline = q.contains("স্যালাইন")
         val hasEnquiry = q.contains("এনকোয়ারি")
         val hasRefund = q.contains("রিফান্ড")
+        val hasHandover = q.contains("হ্যান্ডওভার")
+        val hasRmpDue = q.contains("কমিশন") && (q.contains("বাকি") || q.contains("বাকী"))
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
         return when {
             hasSale && hasMedicine -> Metric.MEDICINE_SALE
             hasSale && hasSaline -> Metric.SALINE_SALE
+            hasHandover -> Metric.CASH_HANDOVER
+            hasRmpDue -> Metric.RMP_DUE
             hasRefund -> Metric.REFUND
             hasEnquiry -> Metric.ENQUIRY_COUNT
             hasMoney -> Metric.COLLECTION
@@ -99,8 +105,12 @@ object VoiceReportModel {
 
     fun parse(q: String): Parsed? {
         val (branch, branchLabel) = findBranch(q) ?: return null
-        val range = findDateRange(q) ?: return null
         val metric = findMetric(q) ?: return null
+        // 🔒 V1418 (১৩.০৯.২০২৬) — RMP-বাকি কোনো সময়-সীমার প্রশ্ন নয় (fin.rmp_branch_due
+        // "এখন পর্যন্ত মোট বাকি" দেখায়, তারিখ নেয় না), তাই এখানেই একমাত্র ব্যতিক্রম —
+        // "গতকাল/আজ/সাত দিন/এক মাস" কিছু না বললেও চলবে।
+        if (metric == Metric.RMP_DUE) return Parsed(metric, branch, "", "", branchLabel, "Right now")
+        val range = findDateRange(q) ?: return null
         return Parsed(metric, branch, range.from, range.to, branchLabel, range.label)
     }
 }

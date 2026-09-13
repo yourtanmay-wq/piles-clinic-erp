@@ -23791,19 +23791,24 @@ function wlv1VoiceParse(q){
   let branch=null; const lower=q.toLowerCase();
   for(const [k,v] of wlv1VoiceBranchMap) if(lower.includes(k.toLowerCase())){branch=v;break}
   if(!branch) return null;
-  const range=wlv1VoiceDateRange(q); if(!range) return null;
   const hasSale = q.includes('বিক্রি');
   const hasMedicine = q.includes('মেডিসিন')||q.includes('ওষুধ');
   const hasSaline = q.includes('স্যালাইন');
   const hasEnquiry = q.includes('এনকোয়ারি');
   const hasRefund = q.includes('রিফান্ড');
+  const hasHandover = q.includes('হ্যান্ডওভার');
+  const hasRmpDue = q.includes('কমিশন') && (q.includes('বাকি')||q.includes('বাকী'));
   const hasMoney = q.includes('কালেকশন')||q.includes('জমা')||(q.includes('টাকা')&&!q.includes('পেশেন্ট'));
   const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
-  const metric = (hasSale&&hasMedicine)?'MEDICINE_SALE':(hasSale&&hasSaline)?'SALINE_SALE':hasRefund?'REFUND':hasEnquiry?'ENQUIRY_COUNT':hasMoney?'COLLECTION':(hasPatientCount?'REGISTRATION_COUNT':null);
+  const metric = (hasSale&&hasMedicine)?'MEDICINE_SALE':(hasSale&&hasSaline)?'SALINE_SALE':hasHandover?'CASH_HANDOVER':hasRmpDue?'RMP_DUE':hasRefund?'REFUND':hasEnquiry?'ENQUIRY_COUNT':hasMoney?'COLLECTION':(hasPatientCount?'REGISTRATION_COUNT':null);
   if(!metric) return null;
+  // 🔒 V1418 — RMP-বাকি সময়-সীমা নেয় না (fin.rmp_branch_due এখনকার মোট বাকিই দেখায়),
+  // তাই এটাই একমাত্র মেট্রিক যেটার আগে তারিখ-ছাঁচ মেলা লাগে না।
+  if(metric==='RMP_DUE') return {metric,branch,from:'',to:'',periodLabel:'Right now'};
+  const range=wlv1VoiceDateRange(q); if(!range) return null;
   return {metric,branch,from:range.from,to:range.to,periodLabel:range.label};
 }
-function wlv1VoicePeriodText(from,to,label){ return from===to ? `${fmtDate(from)} (${label})` : `${fmtDate(from)} – ${fmtDate(to)} (${label})`; }
+function wlv1VoicePeriodText(from,to,label){ return !from ? label : (from===to ? `${fmtDate(from)} (${label})` : `${fmtDate(from)} – ${fmtDate(to)} (${label})`); }
 async function wlv1ShowVoiceAnswer(q){
   const host=$('#wlv1VoiceAnswer'); if(!host) return;
   const parsed=wlv1VoiceParse(q);
@@ -23846,6 +23851,20 @@ async function wlv1ShowVoiceAnswer(q){
     $('#wlv1VoiceAnswerNum').textContent = money(s.total);
     $('#wlv1VoiceAnswerSub').textContent = `${s.refund_count} refunds • tap to see list ›`;
     $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('REFUND',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='CASH_HANDOVER'){
+    const r = await c.rpc('cash_handover_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    const s=r.data[0];
+    $('#wlv1VoiceAnswerNum').textContent = money(s.total);
+    $('#wlv1VoiceAnswerSub').textContent = `${s.day_count} days • tap to see list ›`;
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('CASH_HANDOVER',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='RMP_DUE'){
+    const r = await c.rpc('rmp_due_summary',{p_branch:parsed.branch});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    const s=r.data[0];
+    $('#wlv1VoiceAnswerNum').textContent = money(s.total_due);
+    $('#wlv1VoiceAnswerSub').textContent = `${s.rmp_count} RMP • tap to see list ›`;
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('RMP_DUE',parsed.branch,parsed.from,parsed.to,title);
   } else {
     const r = await c.rpc('collection_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
     if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
@@ -23913,6 +23932,30 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title){
         + `<span class="tiny">${esc(fmtDate(p.refunded_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:#B42318">${money(p.amount)}</span></div>`;
     }).join('') || '<div class="card mut">No refunds found for this period.</div>';
+  } else if(metric==='CASH_HANDOVER'){
+    const r = await c.rpc('cash_handover_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    const sr = await c.rpc('cash_handover_summary',{p_branch:branch,p_from:from,p_to:to});
+    const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
+    $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.day_count} days` : 'Total: —';
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      return `<div class="card"><b>${esc(fmtDate(p.handover_date||''))}</b><br>`
+        + `<span class="tiny">Received by ${esc(p.receiver_name||'—')}</span>`
+        + `<span style="float:right;font-weight:700;color:#0C8F3A">${money(p.cash)}</span></div>`;
+    }).join('') || '<div class="card mut">No handover found for this period.</div>';
+  } else if(metric==='RMP_DUE'){
+    const r = await c.rpc('rmp_due_list',{p_branch:branch});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    const sr = await c.rpc('rmp_due_summary',{p_branch:branch});
+    const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
+    $('#wlv1VoiceDetailSummary').textContent = s ? `Total due: ${money(s.total_due)} · ${s.rmp_count} RMP` : 'Total: —';
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      return `<div class="card"><b>${esc(p.rmp_name||p.rmp_mobile||'-')}</b><br>`
+        + `<span class="tiny">${esc(p.rmp_mobile||'')}</span>`
+        + `<span style="float:right;font-weight:700;color:#B42318">${money(p.due)}</span></div>`;
+    }).join('') || '<div class="card mut">No due commission found.</div>';
   } else {
     const r = await c.rpc('collection_list',{p_branch:branch,p_from:from,p_to:to});
     if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }

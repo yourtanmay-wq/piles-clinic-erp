@@ -577,6 +577,30 @@ class GlobalSearchActivity : AppCompatActivity() {
                     else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
                 }
             }
+            VoiceReportModel.Metric.CASH_HANDOVER -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "CASH_HANDOVER").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.cashHandoverSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.dayCount} days • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.RMP_DUE -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "RMP_DUE").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpDueSummary(parsed.branch) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.totalDue)}"; subView.text = "${got.value.rmpCount} RMP • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
         }
     }
 
