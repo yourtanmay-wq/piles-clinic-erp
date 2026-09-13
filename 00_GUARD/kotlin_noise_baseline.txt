@@ -330,6 +330,8 @@ com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved referenc
 com/tkbiswas/pilesclinic/native/ChamberAttendanceAdapter.kt	unresolved reference: databinding
 com/tkbiswas/pilesclinic/native/ChamberAttendanceAdapter.kt	unresolved reference: itemView
 com/tkbiswas/pilesclinic/native/ChamberAttendanceAdapter.kt	unresolved reference: notifyDataSetChanged
+com/tkbiswas/pilesclinic/native/ChamberBacklogReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/ChamberBacklogReminderWorker.kt	unresolved reference: applicationContext
 com/tkbiswas/pilesclinic/native/ChamberCloseActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/native/ChamberCloseActivity.kt	type mismatch: inferred type is ChamberCloseActivity but Activity was expected
 com/tkbiswas/pilesclinic/native/ChamberCloseActivity.kt	type mismatch: inferred type is ChamberCloseActivity but Context was expected

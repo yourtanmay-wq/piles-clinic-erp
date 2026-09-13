@@ -117,6 +117,13 @@ class PilesClinicApplication : Application() {
             // TK'S RULE (2026-07-27): from 7 PM, every 10 minutes until
             // midnight, a staff whose chamber is still open is reminded.
             com.tkbiswas.pilesclinic.native.ChamberCloseReminderScheduler.scheduleNext(this)
+            // 🔔🔒 V1437 (১৩.০৯.২০২৬, TK-নির্দেশ · সমস্যা-তালিকা ৫৬১) — উপরের
+            // তাগাদাটা শুধু **আজকের** দিনের, রাত ১২টায় থেমে যায়। পুরনো যে
+            // দিনগুলোর চেম্বার বন্ধ হয়নি সেগুলোর জন্য রোজ **বেলা ১১টায়**
+            // স্টাফকে একবার মনে করানো। ⛔ শুধু স্টাফের ফোনে (কাজটা নিজেই
+            // ভিতরে দেখে নেয়), ⛔ বাকি কিছু না থাকলে কোনো নোটিফিকেশনই নয়,
+            // ⛔ উপরের সন্ধের চেইন একটুও ছোঁয়া হয়নি — আলাদা স্বাধীন চেইন।
+            com.tkbiswas.pilesclinic.native.ChamberBacklogReminderScheduler.scheduleNext(this)
             // 🔴 B325/B326 (03.08.2026, TK-নির্দেশ): সকাল ১০টা থেকে IN TIME ও
             // সন্ধ্যা ৬টা থেকে OUT TIME এখনো মার্ক না হলে Staff-এর ফোনে
             // নোটিফিকেশন (১০ মিনিট পরপর, সর্বোচ্চ ৩ বার) — CallReminderScheduler-এর
