@@ -441,5 +441,13 @@
     "result": "Success. No rows returned",
     "proof": "ছবি f7ecc243 — লাইন ১০৩-১০৬ (in_missing_summary grant · notify · commit)",
     "what": "reports.rmp_paid_list/summary · in_missing_list/summary বসল। ⚠️ ছবিতে আবার Supabase-এর 'Grace period is over' হলুদ সতর্কতা (তালিকা ৫৩২) — quota ফুরোলে অ্যাপ বন্ধ হবে, billing দেখা দরকার। V1422 চালানো হয়েছে কিনা TK-কে জিজ্ঞাসা।"
+  },
+  {
+    "sql_file": "00_SQL/V1422_VOICE_REPORT_PHASE2_NEWPT_FUCALLS_DISEASE_RMPCALLS_FIELD_HOURS_PRESENT_2026-09-13.sql",
+    "run_by": "TK",
+    "when": "১৩.০৯.২০২৬ দুপুর ১.১৭ (ফোনের ছবি)",
+    "result": "Success. No rows returned",
+    "proof": "ছবি b15400d6 — লাইন ৩১৫-৩১৮ (staff_present_summary grant · notify · commit)",
+    "what": "ভয়েস-প্রশ্নের ৮টা ফাংশন-জোড়া (নতুন রোগী · ফলো-আপ কল · রোগ-ভিত্তিক · RMP কল/কল-বাকি · ফিল্ড · ঘণ্টা · হাজিরা) বসল। এখন V1415–V1422 + V1428 সব সার্ভারে আছে।"
   }
 ]
