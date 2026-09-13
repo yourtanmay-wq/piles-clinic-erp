@@ -26621,5 +26621,6 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 বসাত, History `for_month`-এ ⇒ জুনের বেতন ৪ জুলাই দিলে Statement-এ Jul, History-তে June; জানুয়ারির বেতন ফেব্রুয়ারিতে ⇒ Jan ₹0 (LAXMI-র ছবিতে ঠিক
 তাই)। এখন Statement-ও `salaryPayMonth()`/`salPayMonth()` (for_month, নইলে paid_on-এর মাস) — দুই পর্দা এক (নিয়ম ৭ক-২); বাড়তি টাকা আগের মতোই যেদিন
 দেওয়া সেই মাসে; From/To ছাঁকনি paid_on-এ অপরিবর্তিত। index.html profile.js?v=v1432।
-**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test — নিচে · Kotlin compile — নিচে। ভার্সন নম্বর বাড়েনি (৩খ)।
+**(গ) ARMAN Edit Salary → Retry (তালিকা ৫৫০):** ফোনের Save `upsert()` PK-id ধরে merge করত, id না পাঠানোয় দ্বিতীয়বার থেকে person_code-unique 409 ⇒ প্রতিবার Retry (সব স্টাফ; ওয়েব ঠিক ছিল) ⇒ `upsertOnConflict(…, "person_code")`। সঙ্গে ModuleAuth-এর লেখা-পথে (upsert/upsertOnConflict/insert/update) 401-এ re-login সেল্ফ-হিল (read/rpc/delete-এর মতো, নিয়ম ৭)।
+**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · Kotlin compile ✅ (নতুন ভুল নেই) · web_browser_test ✅ — সৎ টীকা: E-ধাপ (master-session boot, ১৫০০০ নকল সারি) আজ এই মেশিনে ~৩৩ s লাগছে (মেশিন রিস্টার্ট হয়েছিল), ৩০ s সীমায় তিনবার মিথ্যা FAIL; ১২০ s দিয়ে চালিয়ে সব ধাপ PASS, page-error ০; ওই একটা reload-এর সীমা ৯০ s করা হলো (tests.js), কোড ঠিক। ভার্সন নম্বর বাড়েনি (৩খ)।
 

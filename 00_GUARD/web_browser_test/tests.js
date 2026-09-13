@@ -55,7 +55,7 @@ setTimeout(()=>{console.log('❌ TIMEOUT');process.exit(2)},240000);
  let p2=(await open(ctx)).page; await p2.evaluate(`save('patients',(${mk.toString()})(15000),{skipCloud:true})`); await page.waitForTimeout(1500); s=await state(page);
  ok('D অন্য ট্যাবের লেখা এই ট্যাবে (১৫০০০)', s.rows===15000, s);
  await page.evaluate(()=>{localStorage.setItem('rk_session',JSON.stringify({mobile:'9999999999',name:'TEST MASTER',branch:'All',role:'master'}))});
- const e2=[]; page.on('pageerror',e=>e2.push(String(e.message).slice(0,140))); await page.reload(); await page.waitForTimeout(2500);
+ const e2=[]; page.on('pageerror',e=>e2.push(String(e.message).slice(0,140))); await page.reload({timeout:90000}); /* V1432 — ১৫০০০ সারি নিয়ে master-boot এই মেশিনে ~৩৩ s লাগে; ৩০ s-এ মিথ্যা FAIL হচ্ছিল */ await page.waitForTimeout(2500);
  const txt=await page.evaluate(()=>document.body.innerText.slice(0,300).replace(/\s+/g,' '));
  ok('E মাস্টার-সেশনে boot + ড্যাশবোর্ড + page-error ০', /Master Admin/.test(txt)&&e2.length===0, {txt:txt.slice(0,120),e2});
  await ctx.close();
