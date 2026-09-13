@@ -377,6 +377,7 @@ class DashboardActivity : AppCompatActivity() {
         requestNotificationPermissionIfNeeded()
         requestIgnoreBatteryOptimizationsIfNeeded()
         requestOverlayPermissionIfNeeded()   // 🪟 V845
+        BranchSimHelper.resetSilentNoOnce(this)   // ☎️ V1429 — পুরনো চুপচাপ "সিম নেই" একবার মুছে আবার প্রশ্ন
         requestDoctorLocationPermissionIfNeeded()   // 🛰️ V1348
         DoctorLocation.captureIfPossible(this)             // 🛰️ V1348 (isDoctor না হলে নিজেই কিছু করে না)
     }

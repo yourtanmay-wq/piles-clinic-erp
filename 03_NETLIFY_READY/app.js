@@ -23775,7 +23775,7 @@ async function wlv1ReportsClient(){ try{ if(!window.MOD) return null; await MOD.
 const wlv1VoiceBranchMap=[['কিশানগঞ্জ','Kishanganj'],['kishanganj','Kishanganj'],['জলপাইগুড়ি','Jalpaiguri'],['jalpaiguri','Jalpaiguri'],
   ['কোচবিহার','Cooch Behar'],['কুচবিহার','Cooch Behar'],['cooch behar','Cooch Behar'],['coochbehar','Cooch Behar'],
   ['ফালাকাটা','Falakata'],['falakata','Falakata'],['বীরপাড়া','Birpara'],['birpara','Birpara']];
-function wlv1VoiceIsoDate(dt){return dt.toISOString().slice(0,10)}
+function wlv1VoiceIsoDate(dt){ const p=n=>String(n).padStart(2,'0'); return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}`; }   // 🔴 V1429 — toISOString() UTC-তে দিন পিছিয়ে দিত (ভোর ৫.৩০-এর আগে); এখন স্থানীয় তারিখ, ফোনের LocalDate-এর মতো
 function wlv1VoiceDateRange(q){
   // 🇬🇧 নিয়ম ৯ — label সবসময় ইংরেজি (ফোনের VoiceReportModel.kt-এর হুবহু নিয়ম)।
   const t=new Date(); const kolkataNow=new Date(t.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
@@ -23794,7 +23794,7 @@ function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('�
 /* 🎤 V1428 (তালিকা ৫৩৮) — নাম ধরে প্রশ্ন (ফোনের VoiceReportModel.findNameTokens/nameMatch-এর হুবহু নিয়ম):
    প্রশ্নে ইংরেজি অক্ষরের শব্দ (JPE-CRP, JAKIR HOSSAIN) = ছাঁকনি; প্রশ্ন-চেনার ইংরেজি শব্দ ও ব্রাঞ্চের নাম বাদ।
    ⚠️ সৎ সীমা: বাংলায় বলা নাম ইংরেজি নামের সাথে মেলে না — নামটা ইংরেজি অক্ষরেই লিখতে/বলতে হবে। */
-const WLV1_VOICE_NAME_STOP=new Set(['RMP','PRESENT','REMINDER','REMINDERS','HOUR','HOURS','OUT','WFH','FIELD','KM','IN','TIME','PAID','COMPARE','REQUEST','REQUESTS','REFERRAL','APPOINTMENT','APPOINTMENTS','LEAVE','DOCTOR','WHATSAPP','SMS','DUPLICATE','NOSHOW','NO','SHOW','ADVANCE','CLOSE','MOST','WHICH','BRANCH','YESTERDAY','TODAY','TOMORROW','LAST','DAYS','DAY','WEEK','MONTH','THIS','DIN','MASH','OPEN','STAFF','COMMISSION','HOW','MANY','MUCH','WAS','WERE','THE','FOR','AND','GIVEN','CALL','CALLS','WORK','FROM','HOME','ATTENDANCE','STILL','NOT','MARKED','PATIENT','PATIENTS','CAME','COLLECTION','PILES','FISSURE','FISTULA','HYDROCELE','GUPT','ROG','OTHER','LIST','TOTAL','WHO','WHOM','TO','IS','ARE','KISHANGANJ','JALPAIGURI','COOCH','BEHAR','COOCHBEHAR','FALAKATA','BIRPARA']);
+const WLV1_VOICE_NAME_STOP=new Set(['RMP','PRESENT','REMINDER','REMINDERS','HOUR','HOURS','OUT','WFH','FIELD','KM','IN','TIME','PAID','COMPARE','REQUEST','REQUESTS','REFERRAL','APPOINTMENT','APPOINTMENTS','LEAVE','DOCTOR','WHATSAPP','SMS','DUPLICATE','NOSHOW','NO','SHOW','ADVANCE','CLOSE','MOST','WHICH','BRANCH','YESTERDAY','TODAY','TOMORROW','LAST','DAYS','DAY','WEEK','MONTH','THIS','DIN','MASH','OPEN','STAFF','COMMISSION','HOW','MANY','MUCH','WAS','WERE','THE','FOR','AND','GIVEN','CALL','CALLS','WORK','FROM','HOME','ATTENDANCE','STILL','NOT','MARKED','PATIENT','PATIENTS','CAME','COLLECTION','PILES','FISSURE','FISTULA','HYDROCELE','GUPT','ROG','OTHER','LIST','TOTAL','WHO','WHOM','TO','IS','ARE','MISSING','KISHANGANJ','JALPAIGURI','COOCH','BEHAR','COOCHBEHAR','FALAKATA','BIRPARA']);
 const WLV1_VOICE_NAME_METRICS=['RMP_PAID','STAFF_PRESENT','STAFF_HOURS','STAFF_REMINDER_OPEN','OUT_MISSING','IN_MISSING'];
 function wlv1VoiceNameTokens(q){ const out=[]; for(const m of (q.match(/[A-Za-z][A-Za-z\-]{2,}/g)||[])){ const u=m.toUpperCase().replace(/-+$/,''); if(u.length>=3&&!WLV1_VOICE_NAME_STOP.has(u)&&!out.includes(u)) out.push(u); } return out.join(' '); }
 function wlv1VoiceNameMatch(extra,...fields){ if(!extra) return true; const hay=fields.join(' ').toUpperCase(); return extra.split(' ').filter(Boolean).every(t=>hay.includes(t)); }
@@ -23874,9 +23874,12 @@ function wlv1VoiceParse(q){
   // 🎤 V1428 — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম · RMP-কে কমিশন দেওয়া · IN-বাদ
   const hasBranchTop = q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('সবচেয়ে')||lower.includes('which branch')||lower.includes('most ');
   const hasRmpPaid = q.includes('কমিশন') && !hasDueWord && (q.includes('দেওয়া')||q.includes('দেয়া')||q.includes('দিয়েছি')||q.includes('পেয়েছে')||q.includes('পেল')||lower.includes('paid'));
-  const hasInMissing = !hasOutMissing && (q.includes('ইন টাইম')||q.includes('ইন-টাইম')||lower.includes('in time')||/\bin\b/.test(lower)) && (q.includes('হয়নি')||q.includes('দেয়নি')||q.includes('দেননি')||lower.includes('missing')||lower.includes('not given'));
+  const hasInMissing = !hasOutMissing && (q.includes('ইন টাইম')||q.includes('ইন-টাইম')||lower.includes('in time')||/(^|[^a-z])in([^a-z]|$)/.test(lower)) && (q.includes('হয়নি')||q.includes('দেয়নি')||q.includes('দেননি')||lower.includes('missing')||lower.includes('not given'));
   // ⛔ ক্রমটা ফোনের VoiceReportModel.findMetric()-এর সাথে হুবহু এক (নিয়ম ৮)
-  const picks=[[hasBranchTop&&(hasMoney||hasRmpPaid),'BRANCH_TOP_COLLECTION'],[hasBranchTop,'BRANCH_TOP_PATIENTS'],[hasInMissing,'IN_MISSING'],
+  // 🔴 V1429 (যাচাইকারীর ধরা) — শুধু কালেকশন/রোগী-সংখ্যার ব্রাঞ্চ-তুলনা; অন্য বিষয়ে "Not understood" (ফোনের হুবহু নিয়ম)
+  const hasBranchTopPatients = hasBranchTop && (q.includes('রোগী')||q.includes('পেশেন্ট')||lower.includes('patient'));
+  if(hasBranchTop && !hasMoney && !hasBranchTopPatients) return null;
+  const picks=[[hasBranchTop&&hasMoney,'BRANCH_TOP_COLLECTION'],[hasBranchTopPatients,'BRANCH_TOP_PATIENTS'],[hasInMissing,'IN_MISSING'],
     [hasCompare&&hasMoney,'MONTH_COMPARE_COLLECTION'],[hasCompare,'MONTH_COMPARE_PATIENTS'],
     [hasSale&&hasMedicine,'MEDICINE_SALE'],[hasSale&&hasSaline,'SALINE_SALE'],
     [hasNoShow,'NO_SHOW'],[hasChamberUnclosed,'CHAMBER_UNCLOSED'],[hasOutMissing,'OUT_MISSING'],[hasWfh,'WFH_COUNT'],

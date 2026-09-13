@@ -327,7 +327,10 @@ class CallIdSetupActivity : AppCompatActivity() {
                 BranchSimHelper.save(this, slots[which].first)
                 render()
             }
-            .setNegativeButton("Back") { _, _ -> askChamberSim() }
+            /* 🔴 V1429 (যাচাইকারীর ধরা) — Dialer-এর হুবহু নিয়ম: Back/বাইরে-চাপলে "হ্যাঁ"
+               উত্তরটা মুছে যায়, নইলে দুই-সিম ফোনে স্লট না বেছেই ব্যানার ON হয়ে থাকত। */
+            .setNegativeButton("Back") { _, _ -> BranchSimHelper.clearChamberAnswer(this); askChamberSim() }
+            .setOnCancelListener { BranchSimHelper.clearChamberAnswer(this); render() }
             .show().also { try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
     }
 }

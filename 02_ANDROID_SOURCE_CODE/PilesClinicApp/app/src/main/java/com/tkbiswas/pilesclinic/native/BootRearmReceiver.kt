@@ -34,5 +34,17 @@ class BootRearmReceiver : BroadcastReceiver() {
         try { DoctorReminderScheduler.runNow(ctx) } catch (_: Throwable) { }
         // ⛔ পিছনের ১৫-মিনিটের জালটাও আবার শুরু করা হয় (আগের মতোই)
         try { DoctorReminderScheduler.scheduleNext(ctx) } catch (_: Throwable) { }
+        /* 🏍️🔒 V1429 (১৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, তালিকা ৫৪২ — "সবাই নতুন ফাইল
+           ইনস্টল করেছে, তবু কারো লোকেশন দেখা যাচ্ছে না")। **কোডে ধরা ফাঁক:** নতুন
+           ফাইল ইনস্টল হলে (MY_PACKAGE_REPLACED) বা ফোন রিস্টার্ট হলে Android অ্যাপের
+           সব প্রক্রিয়া বন্ধ করে দেয় — চলতে-থাকা GPS-সেবাটাও। এই রিসিভারটা তখন
+           শুধু ডাক্তার-রিমাইন্ডার আবার বসাত, GPS-সেবাকে কেউ আবার চালু করত না;
+           স্টাফ নিজে আবার কোনো পর্দা না খোলা পর্যন্ত (V1364) একটাও অবস্থান যেত না।
+           ⇒ এখন এই দুই ঘটনাতেই সেই দিনের গোনা চালু থাকলে (`isRunning`) সেবাটা
+           সঙ্গে সঙ্গে আবার চালু হয় — Android-এর নিজের নিয়মে BOOT_COMPLETED ও
+           MY_PACKAGE_REPLACED থেকে foreground-সেবা চালু করা অনুমোদিত (ব্যাকগ্রাউন্ড-
+           বাধার ব্যতিক্রম-তালিকায় আছে)। দিন পেরিয়ে থাকলে resumeIfNeeded নিজেই
+           AUTO CLOSED করে। ⛔ হাজিরার (IN/OUT) কোনো লজিক ছোঁয়া হয়নি। */
+        try { FieldVisitControl.resumeIfNeeded(ctx) } catch (_: Throwable) { }
     }
 }

@@ -119,6 +119,24 @@ object BranchSimHelper {
         return hasChamberAnswer(context) && prefs(context).getBoolean("has_chamber_number", false)
     }
 
+    /* 🔴🔒 V1429 (১৩.০৯.২০২৬, যাচাইকারীর ধরা ফাঁক) — V1427 শুধু **ভবিষ্যতের** চুপচাপ "না"
+       বন্ধ করেছিল; যে ফোনে পুরনো auto-detect ইতিমধ্যে "না" লিখে রেখেছে (TK-র রিপোর্টের
+       ঠিক সেই ফোনগুলো) সেখানে ব্যানার তবু বন্ধই থাকত। ফোনে "সত্যিকারের না" আর "চুপচাপ না"
+       আলাদা করে রাখা নেই — তাই **একবারই** (এই বিল্ডে প্রথম Home খোলার সময়): উত্তর "না" অথচ
+       কোনো SIM-স্লট বাছা নেই ⇒ উত্তরটা মুছে দেওয়া হয়, স্টাফকে আবার একবার প্রশ্ন করা হবে
+       (Dialer/Work Notebook/Call ID Banner সেটআপ — যেটা আগে খোলে)। সত্যিই "না" হলে আবার
+       "না" বললেই শেষ। ⛔ "হ্যাঁ" বা হাতে-বাছা স্লট ছোঁয়া হয় না। ⛔ দ্বিতীয়বার আর চলে না। */
+    fun resetSilentNoOnce(context: Context) {
+        try {
+            val p = prefs(context)
+            if (p.getBoolean("v1429_silent_no_reset", false)) return
+            p.edit().putBoolean("v1429_silent_no_reset", true).apply()
+            if (p.contains("has_chamber_number") && !p.getBoolean("has_chamber_number", false) && savedSlot(context) < 0) {
+                p.edit().remove("has_chamber_number").apply()
+            }
+        } catch (_: Throwable) { }
+    }
+
     fun clearChamberAnswer(context: Context) {
         prefs(context).edit().remove("has_chamber_number").apply()
     }

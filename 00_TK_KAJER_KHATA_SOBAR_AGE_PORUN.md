@@ -26559,3 +26559,27 @@ PILES_CLINIC_APP_V1404_FINAL.zip — 25.91 MB · 1871 ফাইল (হিসা
 **সততার সাথে বাদ (আগেই জানানো):** ৩ (প্রতি-ভিজিট লগ নেই) · ২৩ (activity_logs-এ এডিট লেখা হয় না) · ২৪ (ছবির সময় নেই) · ৩৩ (ইনসেন্টিভ নিয়ম দ্ব্যর্থ)।
 **পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ · Kotlin compile ✅ (নতুন ভুল নেই)। ভার্সন নম্বর বাড়েনি (৩খ)। ⚠️ আসল বিল্ড TK-র Android Studio-তে।
 
+## ১৩.০৯.২০২৬ দুপুর — V1429: (ক) ফিল্ড-ভিজিট GPS-সেবা ইনস্টল/রিস্টার্টের পরে নিজে চালু (তালিকা ৫৪২) · (খ) সেশন-যাচাইয়ে ধরা ৬ ভুল সারানো (তালিকা ৫৪৩)
+
+**(ক) লোকেশন (TK: "RUPAM & ARMAN সহ কারো লোকেশন দেখা যাচ্ছে না… সবাই নতুন ফাইল ইনস্টল করেছে"):**
+· কোড ধরে দেখা: IN চাপলে `FieldVisit.push()` সারি সঙ্গে সঙ্গে দেয় (তাই IN দেখা যায়); lat/lng আসে `FieldVisitService`-এর ৩-মিনিটি push থেকে।
+  ছবিতে RUPAM 12/09-এ 2.9 km · Last seen 7.20 PM ⇒ কাল সেবা/অনুমতি ঠিক ছিল; 13/09 IN 9.19-এর পরে একটাও ping নেই।
+· **ধরা ফাঁক (কোডে, আন্দাজ নয়):** `BootRearmReceiver` BOOT_COMPLETED ও MY_PACKAGE_REPLACED-এ শুধু `DoctorReminderScheduler` ফেরাত;
+  GPS-সেবা (`FieldVisitControl.resumeIfNeeded`) কেউ ডাকত না ⇒ নতুন APK ইনস্টল/রিস্টার্টে সেবা মরে গেলে স্টাফ আবার পর্দা না খোলা পর্যন্ত
+  (V1364) একটাও অবস্থান যেত না। এখন রিসিভারে `resumeIfNeeded` — দুটো ঘটনাই Android-এর FGS-ব্যাকগ্রাউন্ড-বাধার ব্যতিক্রম-তালিকায়।
+· শুধু-পড়া SQL `V1429_FIELD_VISIT_TODAY_PING_CHECK_READ_ONLY` — আজ/কাল-এর সারিতে `updated_at` (শেষ ping) দেখে diagnosis কলাম:
+  SERVICE NEVER PINGED AFTER IN / PINGING BUT NO GPS FIX / LOCATION OK। নকল টেবিলে ৩ নমুনায় তিনটে diagnosis ঠিক এসেছে। TK-কে দেওয়া।
+· সৎ কথা TK-কে: কালকের CSV-তে RUPAM/LAXMI/JALPAI-13-এর লোকেশন এসেছিল ⇒ "আজ IN চাপলে ঠিক হবে" কথাটা কালকের প্রমাণে ছিল; আজ IN-এর পরে থেমেছে —
+  সবচেয়ে সম্ভাব্য কারণ ইনস্টলে সেবা বন্ধ (উপরের ফাঁক), নিশ্চিত হবে V1429 SQL-এর ফলে।
+
+**(খ) সেশন-যাচাই (দুই স্বাধীন যাচাইকারী, V1426/V1427/V1428; kotlinc-এ নতুন ভুল ০):**
+① `CallIdSetupActivity.askWhichSimSlot` Back/cancel ⇒ `clearChamberAnswer` (Dialer-এর নিয়ম) — নইলে দুই-সিম ফোনে স্লট না বেছেই ON।
+② `BranchSimHelper.resetSilentNoOnce()` (Dashboard onCreate, একবারই): has_chamber_number=false অথচ স্লট<0 ⇒ উত্তর মুছে আবার প্রশ্ন — পুরনো চুপচাপ "না" ফোনগুলো সারাতে।
+③ BRANCH_TOP: `hasBranchTop && hasMoney` ⇒ COLLECTION; `hasBranchTop && রোগী/পেশেন্ট/patient` ⇒ PATIENTS; নইলে null (Not understood) — ফোন+ওয়েব।
+④ NAME_STOP-এ "MISSING" (ফোন+ওয়েব)। ⑤ Detail-এ ৪ শাখায় ছেঁকে তবেই ফাঁকা-বার্তা (ওয়েবের মতো)। ⑥ "in" শব্দ: `(^|[^a-z])in([^a-z]|$)` দুই জায়গায় এক।
+⑦ ওয়েব `wlv1VoiceIsoDate`: `toISOString()` (UTC) ⇒ ভোর ৫.৩০-এর আগে তারিখ এক দিন পিছোত (V1415 থেকে) — এখন স্থানীয় তারিখ।
+· Node-এ parser আবার পরীক্ষা: "সবচেয়ে বেশি ওষুধ বিক্রি" ⇒ null ✅ · "সবচেয়ে বেশি রোগী" ⇒ PATIENTS ✅ · "JPE-CRP ইন টাইম দেওয়া হয়নি গতকাল" ⇒ IN_MISSING/extra JPE-CRP ✅ · iso(1 Sep 01:00) ⇒ 2026-09-01 ✅।
+· যাচাইকারীর একটা পরামর্শ ইচ্ছে করে নেওয়া হয়নি: staff_present/hours/out_missing তালিকায় staff_name যোগ (৩টা ফাংশন drop+create, TK-র আরেকটা SQL) —
+  আপাতত স্টাফ-কোড দিয়েই মেলে; TK-কে সৎভাবে বলা।
+**পাহারা:** tk_guard ✅ · resources ✅ · node --check ✅ · web_browser_test ✅ (প্রথমবার reload-timeout flake, একা চালিয়ে PASS) · Kotlin compile — নিচে। index.html app.js?v=v1429। ভার্সন নম্বর বাড়েনি (৩খ)।
+

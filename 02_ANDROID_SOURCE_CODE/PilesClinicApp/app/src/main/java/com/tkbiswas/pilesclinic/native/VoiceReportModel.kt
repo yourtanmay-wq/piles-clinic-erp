@@ -84,7 +84,7 @@ object VoiceReportModel {
         "YESTERDAY", "TODAY", "TOMORROW", "LAST", "DAYS", "DAY", "WEEK", "MONTH", "THIS", "DIN", "MASH", "OPEN",
         "STAFF", "COMMISSION", "HOW", "MANY", "MUCH", "WAS", "WERE", "THE", "FOR", "AND", "GIVEN", "CALL", "CALLS",
         "WORK", "FROM", "HOME", "ATTENDANCE", "STILL", "NOT", "MARKED", "PATIENT", "PATIENTS", "CAME", "COLLECTION",
-        "PILES", "FISSURE", "FISTULA", "HYDROCELE", "GUPT", "ROG", "OTHER", "LIST", "TOTAL", "WHO", "WHOM", "TO", "IS", "ARE",
+        "PILES", "FISSURE", "FISTULA", "HYDROCELE", "GUPT", "ROG", "OTHER", "LIST", "TOTAL", "WHO", "WHOM", "TO", "IS", "ARE", "MISSING",
         "KISHANGANJ", "JALPAIGURI", "COOCH", "BEHAR", "COOCHBEHAR", "FALAKATA", "BIRPARA"
     )
     val NAME_METRICS = setOf(Metric.RMP_PAID, Metric.STAFF_PRESENT, Metric.STAFF_HOURS, Metric.STAFF_REMINDER_OPEN, Metric.OUT_MISSING, Metric.IN_MISSING)
@@ -192,12 +192,15 @@ object VoiceReportModel {
         val hasBranchTop = q.contains("কোন ব্রাঞ্চ") || q.contains("কোন শাখা") || q.contains("সবচেয়ে") || lower.contains("which branch") || lower.contains("most ")
         val hasRmpPaid = q.contains("কমিশন") && !hasDueWord &&
             (q.contains("দেওয়া") || q.contains("দেয়া") || q.contains("দিয়েছি") || q.contains("পেয়েছে") || q.contains("পেল") || lower.contains("paid"))
-        val hasInMissing = !hasOutMissing && (q.contains("ইন টাইম") || q.contains("ইন-টাইম") || lower.contains("in time") || Regex("\\bin\\b").containsMatchIn(lower)) &&
+        val hasInMissing = !hasOutMissing && (q.contains("ইন টাইম") || q.contains("ইন-টাইম") || lower.contains("in time") || Regex("(^|[^a-z])in([^a-z]|$)").containsMatchIn(lower)) &&
             (q.contains("হয়নি") || q.contains("দেয়নি") || q.contains("দেননি") || lower.contains("missing") || lower.contains("not given"))
         // ⛔ ক্রমটা ওয়েবের wlv1VoiceParse-এর সাথে হুবহু এক রাখতে হবে (নিয়ম ৮)
         return when {
-            hasBranchTop && (hasMoney || hasRmpPaid) -> Metric.BRANCH_TOP_COLLECTION
-            hasBranchTop -> Metric.BRANCH_TOP_PATIENTS
+            // 🔴 V1429 (যাচাইকারীর ধরা) — শুধু কালেকশন বা রোগী-সংখ্যার তুলনা; অন্য বিষয়ে
+            // "কোন ব্রাঞ্চে সবচেয়ে…" বললে ভুল সংখ্যা না দিয়ে "Not understood"।
+            hasBranchTop && hasMoney -> Metric.BRANCH_TOP_COLLECTION
+            hasBranchTop && (q.contains("রোগী") || q.contains("পেশেন্ট") || lower.contains("patient")) -> Metric.BRANCH_TOP_PATIENTS
+            hasBranchTop -> null
             hasInMissing -> Metric.IN_MISSING
             hasCompare && hasMoney -> Metric.MONTH_COMPARE_COLLECTION
             hasCompare -> Metric.MONTH_COMPARE_PATIENTS
