@@ -53,6 +53,7 @@ class MoreMenuActivity : AppCompatActivity() {
         user = session
 
         binding.btnBack.setOnClickListener { finish() }
+        addCallIdCard()   // ☎️ V1427
         // 🆕🔒 TK-নির্দেশ (05.08.2026): Dialer এখন Dashboard-এর টাইল থেকেই
         // খোলে (দেখুন DashboardActivity.kt) — এখান থেকে বাটন-ওয়্যারিং
         // সরানো হয়েছে, কারণ XML থেকেই কার্ডটা তুলে দেওয়া হয়েছে।
@@ -258,6 +259,78 @@ class MoreMenuActivity : AppCompatActivity() {
                 binding.badgeChamberClose.visibility = View.VISIBLE
             }
         }.start()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshCallIdCard()   // ☎️ V1427
+    }
+
+
+    /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-রিপোর্ট + ছবি-প্রুফ পাশ) — More মেনুর সবার উপরে
+       "Call ID Banner — ON/OFF" ঘর, **সব রোলে** (কল যে ফোনেই আসুক)। চাপলে
+       CallIdSetupActivity — যেটা বাকি সেটাই একে একে চেয়ে নেয়।
+       ⛔ TK: Home-এ কিছু বসবে না — তাই শুধু এখানেই।
+       ⛔ কোডে আঁকা কার্ড, XML-এর লক করা ডিজাইনের বাকি সব কার্ডের হুবহু মাপে
+          (সাদা · ১৬dp গোল · ১৪dp প্যাডিং · ৪২dp আইকন-ব্যাজ); XML ছোঁয়া হয়নি। */
+    private var callIdSub: android.widget.TextView? = null
+    private var callIdIcon: android.widget.TextView? = null
+
+    private fun addCallIdCard() {
+        try {
+            val parent = binding.rowManagement1.parent as? LinearLayout ?: return
+            val at = parent.indexOfChild(binding.rowManagement1)
+            val d = resources.displayMetrics.density
+            fun dp(v: Int) = (v * d).toInt()
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+                background = androidx.core.content.ContextCompat.getDrawable(this@MoreMenuActivity, com.tkbiswas.pilesclinic.R.drawable.bg_more_card)
+                elevation = 2 * d
+                isClickable = true; isFocusable = true
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(dp(17), dp(12), dp(17), dp(2)) }
+                setOnClickListener { startActivity(Intent(this@MoreMenuActivity, CallIdSetupActivity::class.java)) }
+            }
+            val icon = android.widget.TextView(this).apply {
+                textSize = 20f; gravity = android.view.Gravity.CENTER
+                background = androidx.core.content.ContextCompat.getDrawable(this@MoreMenuActivity, com.tkbiswas.pilesclinic.R.drawable.bg_more_icon_badge)
+                layoutParams = LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(12) }
+            }
+            callIdIcon = icon
+            card.addView(icon)
+            val col = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            col.addView(android.widget.TextView(this).apply {
+                text = "Call ID Banner"; textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B2545"))
+            })
+            val sub = android.widget.TextView(this).apply { textSize = 12f }
+            callIdSub = sub
+            col.addView(sub)
+            card.addView(col)
+            card.addView(android.widget.TextView(this).apply {
+                text = "›"; textSize = 20f
+                setTextColor(android.graphics.Color.parseColor("#9AA8B7"))
+            })
+            parent.addView(card, at)
+            refreshCallIdCard()
+        } catch (_: Throwable) { }
+    }
+
+    private fun refreshCallIdCard() {
+        try {
+            val on = CallIdSetup.isOn(this)
+            callIdIcon?.text = if (on) "📞" else "📵"
+            callIdSub?.text = CallIdSetup.summary(this)
+            callIdSub?.setTextColor(android.graphics.Color.parseColor(if (on) "#0B6B3A" else "#C2410C"))
+            callIdSub?.setTypeface(callIdSub?.typeface, if (on) android.graphics.Typeface.NORMAL else android.graphics.Typeface.BOLD)
+        } catch (_: Throwable) { }
     }
 
     private fun confirmLogout() {

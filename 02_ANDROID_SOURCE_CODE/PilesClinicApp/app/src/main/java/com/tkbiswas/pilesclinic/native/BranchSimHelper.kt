@@ -320,6 +320,93 @@ object BranchSimHelper {
      * যায় না, তাই `BellCounter.count()`-এ যোগ করলেও কোটার উপর কোনো চাপ
      * পড়ে না।
      */
+    /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Truecaller-এর মতো:
+       কল এলে ব্যানারে এই নম্বরের **শেষ Missed · শেষ Outgoing · শেষ Incoming**
+       কখন হয়েছিল ("10 min ago" · "1 day ago" · তারিখ)।
+       ⛔ পুরোটাই **এই ফোনের নিজের Call Log** থেকে — ক্লাউডে একটাও অনুরোধ নেই
+          (ফ্রি-প্ল্যানে শূন্য চাপ), Truecaller-ও ঠিক এভাবেই দেখায়।
+       ⛔ উপরের `fetchTodayCallLog()`-এর **হুবহু একই** নিরাপত্তা-গেট: অনুমতি
+          নেই ⇒ ফাঁকা · এই ফোনে চেম্বারের নম্বর নেই বলা থাকলে ⇒ ফাঁকা ·
+          ব্রাঞ্চের SIM বাছা থাকলে শুধু সেই SIM-এর কল।
+       ⛔ কল বাজার সময় ব্যাকগ্রাউন্ড থ্রেডে একবারই পড়া হয় (CallNotifyManager),
+          মূল থ্রেড কখনো আটকায় না; সর্বোচ্চ ৩০০ সারি দেখা হয়। */
+    data class CallHistory(
+        val missedMs: Long = 0L,
+        val outgoingMs: Long = 0L,
+        val incomingMs: Long = 0L
+    ) {
+        /** সবচেয়ে নতুনটা আগে — (লেবেল, কখন) জোড়া; না থাকলে ফাঁকা তালিকা। */
+        fun rows(now: Long = System.currentTimeMillis()): List<Pair<String, String>> =
+            listOf("Missed" to missedMs, "Outgoing" to outgoingMs, "Incoming" to incomingMs)
+                .filter { it.second > 0L }
+                .sortedByDescending { it.second }
+                .map { it.first to agoText(it.second, now) }
+    }
+
+    fun lastCallsByType(context: Context, mobile: String): CallHistory {
+        if (!hasCallLogPermission(context)) return CallHistory()
+        if (hasChamberAnswer(context) && !hasChamberNumber(context)) return CallHistory()
+        val digits = mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) return CallHistory()
+        return try {
+            val branchSubIdsSet = branchSubIds(context)
+            var missed = 0L; var outgoing = 0L; var incoming = 0L
+            var seen = 0
+            context.contentResolver.query(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                arrayOf(
+                    android.provider.CallLog.Calls.NUMBER,
+                    android.provider.CallLog.Calls.TYPE,
+                    android.provider.CallLog.Calls.DATE,
+                    android.provider.CallLog.Calls.PHONE_ACCOUNT_ID
+                ),
+                "${android.provider.CallLog.Calls.NUMBER} LIKE ?",
+                arrayOf("%$digits"),
+                "${android.provider.CallLog.Calls.DATE} DESC"
+            )?.use { c ->
+                val numIdx = c.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
+                val typeIdx = c.getColumnIndex(android.provider.CallLog.Calls.TYPE)
+                val dateIdx = c.getColumnIndex(android.provider.CallLog.Calls.DATE)
+                val accIdx = c.getColumnIndex(android.provider.CallLog.Calls.PHONE_ACCOUNT_ID)
+                while (c.moveToNext() && seen < 300) {
+                    seen++
+                    if (branchSubIdsSet.isNotEmpty()) {
+                        val acc = if (accIdx >= 0) c.getString(accIdx) else null
+                        if (acc != null && branchSubIdsSet.none { acc.contains(it) }) continue
+                    }
+                    val num = (if (numIdx >= 0) c.getString(numIdx) else null) ?: continue
+                    if (num.filter { ch -> ch.isDigit() }.takeLast(10) != digits) continue
+                    val type = if (typeIdx >= 0) c.getInt(typeIdx) else 0
+                    val dateMs = if (dateIdx >= 0) c.getLong(dateIdx) else 0L
+                    if (dateMs <= 0L) continue
+                    when (type) {
+                        android.provider.CallLog.Calls.MISSED_TYPE,
+                        android.provider.CallLog.Calls.REJECTED_TYPE -> if (missed == 0L) missed = dateMs
+                        android.provider.CallLog.Calls.OUTGOING_TYPE -> if (outgoing == 0L) outgoing = dateMs
+                        android.provider.CallLog.Calls.INCOMING_TYPE -> if (incoming == 0L) incoming = dateMs
+                    }
+                    if (missed > 0L && outgoing > 0L && incoming > 0L) break   // তিনটেই পাওয়া গেছে
+                }
+            }
+            CallHistory(missed, outgoing, incoming)
+        } catch (_: Throwable) { CallHistory() }
+    }
+
+    /** "Just now" · "10 min ago" · "3 hr ago" · "1 day ago" · তার বেশি হলে তারিখ (dd/MM/yyyy)। */
+    fun agoText(ms: Long, now: Long = System.currentTimeMillis()): String {
+        val diff = now - ms
+        if (diff < 0L) return DateUtil.displayWithTime(java.util.Date(ms))
+        val min = diff / 60_000L
+        val hr = diff / 3_600_000L
+        return when {
+            min < 1L -> "Just now"
+            min < 60L -> "$min min ago"
+            hr < 24L -> "$hr hr ago"
+            hr < 48L -> "1 day ago"
+            else -> java.text.SimpleDateFormat(DateUtil.DISPLAY_DATE, java.util.Locale.US).format(java.util.Date(ms))
+        }
+    }
+
     fun countPendingMissedCallbacks(context: Context): Int {
         return try {
             pendingMissedCallbackNumbers(context).size

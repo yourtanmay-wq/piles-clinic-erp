@@ -261,10 +261,18 @@ class DialerActivity : AppCompatActivity() {
         }
         // 🆕 B485 — জিজ্ঞাসা করার আগে একবার নিজে চেষ্টা করে দেখে (ব্যর্থ
         // হলে/নিশ্চিত না হলে নিঃশব্দে প্রশ্নেই ফিরে যায়, কিছু ভাঙে না)।
-        val auto = BranchSimHelper.tryAutoDetectChamberNumber(this)
-        if (auto != null) {
-            BranchSimHelper.saveHasChamberNumber(this, auto)
-            if (auto) askWhichSimSlot(then) else then()
+        /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-রিপোর্ট — "চেম্বারের সিম লাগানো স্টাফের
+           ফোনেও ব্যানার আসে না") — **আমার দোষ (স্বীকার করছি):** আগে এখানে
+           নিজে-পড়া সিম-নম্বর ব্রাঞ্চের নম্বরের সাথে না মিললে **চুপচাপ "না,
+           এই ফোনে চেম্বারের নম্বর নেই"** লিখে রাখা হতো — স্টাফকে প্রশ্নই না
+           করে। অথচ V633-এই লেখা আছে Android-এর `line1Number` প্রায়ই ভুল/পুরনো
+           নম্বর দেয়। ফলে চেম্বারের সিম-লাগানো ফোনেও "না" বসে যেত, আর কখনো
+           প্রশ্ন আসত না ⇒ কল-ব্যানার ওই ফোনে চিরতরে বন্ধ।
+           **এখন:** নিজে-পড়া নম্বর ব্রাঞ্চের নম্বরের সাথে **মিললে তবেই** "হ্যাঁ"
+           ধরা হয়; না মিললে/না পড়তে পারলে **স্টাফকেই জিজ্ঞাসা** করা হয়। */
+        if (BranchSimHelper.tryAutoDetectChamberNumber(this) == true) {
+            BranchSimHelper.saveHasChamberNumber(this, true)
+            askWhichSimSlot(then)
             return
         }
         AlertDialog.Builder(this)

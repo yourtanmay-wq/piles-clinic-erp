@@ -447,10 +447,18 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun maybeAskWhichSimIsBranch() {
         if (com.tkbiswas.pilesclinic.native.BranchSimHelper.hasGenuinelyChosenSim(this)) { applyAutoOutsideCalls(); return } // 🔴🔒 B509
         if (com.tkbiswas.pilesclinic.native.BranchSimHelper.hasChamberAnswer(this)) { applyAutoOutsideCalls(); return }
-        val auto = com.tkbiswas.pilesclinic.native.BranchSimHelper.tryAutoDetectChamberNumber(this)
-        if (auto != null) {
-            com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, auto)
-            if (auto) askWhichSimSlot() else applyAutoOutsideCalls()
+        /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-রিপোর্ট — "চেম্বারের সিম লাগানো স্টাফের
+           ফোনেও ব্যানার আসে না") — **আমার দোষ (স্বীকার করছি):** আগে এখানে
+           নিজে-পড়া সিম-নম্বর ব্রাঞ্চের নম্বরের সাথে না মিললে **চুপচাপ "না,
+           এই ফোনে চেম্বারের নম্বর নেই"** লিখে রাখা হতো — স্টাফকে প্রশ্নই না
+           করে। অথচ V633-এই লেখা আছে Android-এর `line1Number` প্রায়ই ভুল/পুরনো
+           নম্বর দেয়। ফলে চেম্বারের সিম-লাগানো ফোনেও "না" বসে যেত, আর কখনো
+           প্রশ্ন আসত না ⇒ কল-ব্যানার ওই ফোনে চিরতরে বন্ধ।
+           **এখন:** নিজে-পড়া নম্বর ব্রাঞ্চের নম্বরের সাথে **মিললে তবেই** "হ্যাঁ"
+           ধরা হয়; না মিললে/না পড়তে পারলে **স্টাফকেই জিজ্ঞাসা** করা হয়। */
+        if (com.tkbiswas.pilesclinic.native.BranchSimHelper.tryAutoDetectChamberNumber(this) == true) {
+            com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, true)
+            askWhichSimSlot()
             return
         }
         androidx.appcompat.app.AlertDialog.Builder(this)

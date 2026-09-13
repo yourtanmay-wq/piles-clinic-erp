@@ -375,6 +375,13 @@
             android:exported="false"
             android:label="More"
             android:theme="@style/Theme.PilesClinic" />
+        <!-- ☎️🔒 V1427 (১৩.০৯.২০২৬) — Call ID Banner সেটআপ (More মেনু থেকে)। -->
+        <activity
+            android:screenOrientation="portrait"
+            android:name=".native.CallIdSetupActivity"
+            android:exported="false"
+            android:label="Call ID Banner"
+            android:theme="@style/Theme.PilesClinic" />
         <activity
             android:screenOrientation="portrait"
             android:name=".native.DraftActivity"

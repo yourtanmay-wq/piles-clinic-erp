@@ -73,6 +73,10 @@ object CallNotifyManager {
        ⛔ আগের কলের নোটিফিকেশনটা ট্রে-তে অক্ষত থাকে (নম্বরটা ওখানে ঠিকই
           আছে), তাই পরে Remark লেখার পথ এক অক্ষরও বন্ধ হয়নি। */
     @Volatile private var activeEnded: Boolean = false
+    /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — এই নম্বরের শেষ
+       Missed · Outgoing · Incoming (ফোনের নিজের Call Log থেকে, ব্যাকগ্রাউন্ডে
+       একবার পড়া) — ব্যানার ও নোটিফিকেশন দুটোতেই দেখানো হয়। */
+    @Volatile private var activeHistory: BranchSimHelper.CallHistory = BranchSimHelper.CallHistory()
 
     private fun isoNow(): String =
         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
@@ -138,10 +142,17 @@ object CallNotifyManager {
         answeredThisCall = false
         activeMissed = false
         activeEnded = false   // 🔴 V896 — নতুন কল, নম্বর জানা
+        activeHistory = BranchSimHelper.CallHistory()   // ☎️ V1427
         post(ctx, ringing = true, ended = false)
         // পিছনে গিয়ে মেলানো — পাওয়া গেলে নোটিফিকেশন আপডেট হবে।
         Thread {
             try {
+                // ☎️ V1427 — আগে ফোনের নিজের কল-লগ (ক্লাউড নয়, তাই দ্রুত), তারপর ক্লাউড-মেলানো।
+                val hist = try { BranchSimHelper.lastCallsByType(ctx, digits) } catch (_: Throwable) { BranchSimHelper.CallHistory() }
+                if (activeNumber == digits && (hist.missedMs > 0L || hist.outgoingMs > 0L || hist.incomingMs > 0L)) {
+                    activeHistory = hist
+                    post(ctx, ringing = true, ended = false)
+                }
                 val m = DialerRepository.matchNumbersBatch(listOf(digits))[digits]
                 // 🟢🔒🔒 V637 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ) — আসল কারণ: এই
                 // নোটিফিকেশনের "📝 Add Remark" বোতাম আগের কোনো লেখা রিমার্কস
@@ -211,13 +222,16 @@ object CallNotifyManager {
         answeredThisCall = true      // নিজে ডায়াল করা কল কখনো "Missed" নয়
         activeMissed = false
         activeEnded = false   // 🔴 V896 — নতুন কল, নম্বর জানা
+        activeHistory = BranchSimHelper.CallHistory()   // ☎️ V1427
         post(ctx, ringing = false, ended = false)
         // 🟢🔒 V637 — outgoing কলেও আগের রিমার্কস আনা হয় (incoming-এর
         // `onRinging()`-এর হুবহু একই প্যাটার্ন)।
         Thread {
             try {
+                val hist = try { BranchSimHelper.lastCallsByType(ctx, digits) } catch (_: Throwable) { BranchSimHelper.CallHistory() }   // ☎️ V1427
                 val info = DialerRepository.fetchLatestCallInfo(digits)   // 🆕 V856
                 if (activeNumber == digits) {
+                    activeHistory = hist
                     activeExistingRemark = info.remark; activeLastCall = info
                     post(ctx, ringing = false, ended = false)
                 }
@@ -268,6 +282,11 @@ object CallNotifyManager {
                 }
             } else {
                 lines.add("Not saved anywhere in the app")
+            }
+            // ☎️ V1427 — আগের কলের ইতিহাস (নোটিফিকেশনেও, ব্যানারের মতোই)।
+            val historyRows = activeHistory.rows()
+            for ((label, whenTxt) in historyRows) {
+                lines.add((if (label == "Outgoing") "↗ " else "↙ ") + label + " · " + whenTxt)
             }
             if (ended) lines.add(0, "Call ended")
 
@@ -392,7 +411,10 @@ object CallNotifyManager {
                 } else if (CallOverlay.allowed(ctx)) {
                     val ovNumber = number
                     val ovName = cln(match?.name)
-                    val ovLines = if (match != null) lines.toList() else listOf("Not saved anywhere in the app")
+                    // ☎️ V1427 — কার্ডে ইতিহাস আলাদা সারিতে যায় (নিচে `history`), তাই এখান থেকে বাদ।
+                    val ovLines = if (match != null) lines.filter { ln -> !ln.startsWith("↙ ") && !ln.startsWith("↗ ") }
+                                  else listOf("Not saved anywhere in the app")
+                    val ovHistory = historyRows
                     val ovRemark = existingRemark
                     val ovSaved = match != null
                     val ovIsRmp = match?.isRmp == true
@@ -419,6 +441,7 @@ object CallNotifyManager {
                             lastCallAt = ovLast.calledAt,
                             lastCallBy = ovLast.staffName,
                             autoHide = ovAutoHide,
+                            history = ovHistory,             // ☎️ V1427
                             onOpen = {
                                 /* ⛔ V844-এর হুবহু একই গন্তব্য — নতুন নিয়ম নয়। */
                                 val i = when {

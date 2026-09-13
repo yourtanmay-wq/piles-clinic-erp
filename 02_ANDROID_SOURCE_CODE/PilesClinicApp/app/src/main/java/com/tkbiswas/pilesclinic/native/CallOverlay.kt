@@ -134,6 +134,12 @@ object CallOverlay {
         lastCallAt: String = "",             // শেষ কলের সময় (ISO)
         lastCallBy: String = "",             // কে করেছিল
         autoHide: Boolean = false,           // Missed হলে ৬০ সেকেন্ড পরে নিজে সরে যায়
+        /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Truecaller-এর মতো
+           এই নম্বরের শেষ Missed · Outgoing · Incoming কখন ("10 min ago" ·
+           "1 day ago" · তারিখ) — (লেবেল, কখন) জোড়া, সবচেয়ে নতুনটা আগে।
+           ফোনের নিজের Call Log থেকে (BranchSimHelper.lastCallsByType)।
+           ফাঁকা হলে কোনো লাইনই বসে না। ডিফল্ট ফাঁকা — পুরনো ডাক ভাঙে না। */
+        history: List<Pair<String, String>> = emptyList(),
         onOpen: () -> Unit,
         onRemark: () -> Unit
     ) {
@@ -222,25 +228,54 @@ object CallOverlay {
                   হয়েছিল** সেটার সময় (`call_remarks`)। রিমার্ক ছাড়া কল হলে
                   ধরা পড়বে না — প্রিমিয়াম প্ল্যান নিলে TK এটা বদলাতে বলবেন।
                ⛔ না থাকলে লাইনটাই বসে না (ফাঁকা লেখা কখনো দেখাবে না)। */
-            if (lastCallAt.isNotBlank()) {
-                val whenTxt = DateUtil.displayWithTime(lastCallAt)
-                if (whenTxt.isNotBlank()) {
-                    root.addView(TextView(ctx).apply {
-                        text = "LAST CALL " + whenTxt +
-                            (if (lastCallBy.isNotBlank()) " (" + lastCallBy + ")" else "")
-                        textSize = 11f
+            /* ☎️🔒 V1427 — আগের কলের ইতিহাস (Truecaller-এর মতো ৩ লাইন)। আগের
+               "LAST CALL …" লাইনটা (শুধু রিমার্ক-লেখা কলের সময় দেখাত) এখন নিচের
+               "Last remark (কে, কবে)" লাইনে মিশে গেছে — TK-পাশ ছবি অনুযায়ী। */
+            if (history.isNotEmpty()) {
+                root.addView(View(ctx).apply {
+                    setBackgroundColor(Color.parseColor("#EEF2F6"))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(ctx, 1)
+                    ).apply { topMargin = dp(ctx, 7); bottomMargin = dp(ctx, 4) }
+                })
+                for ((label, whenTxt) in history) {
+                    val color = when (label) {
+                        "Missed" -> "#E5484D"
+                        "Outgoing" -> "#1167D8"
+                        else -> "#0C9E33"
+                    }
+                    val arrow = if (label == "Outgoing") "↗ " else "↙ "
+                    val rowH = LinearLayout(ctx).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(0, dp(ctx, 2), 0, dp(ctx, 2))
+                    }
+                    rowH.addView(TextView(ctx).apply {
+                        text = arrow + label
+                        textSize = 12f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(Color.parseColor("#344054"))
-                        setPadding(0, dp(ctx, 5), 0, 0)
-                        maxLines = 1
-                        ellipsize = android.text.TextUtils.TruncateAt.END
+                        setTextColor(Color.parseColor(color))
                     })
+                    rowH.addView(TextView(ctx).apply {
+                        text = whenTxt
+                        textSize = 12f
+                        gravity = Gravity.END
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(Color.parseColor("#5B7089"))
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    })
+                    root.addView(rowH)
                 }
             }
-
             if (lastRemark.isNotBlank()) {
                 root.addView(TextView(ctx).apply {
-                    text = NoBengali.s("গত রিমার্ক") + " — " + lastRemark
+                    /* ☎️ V1427 — "Last remark (কে, কবে) — লেখা"; কে/কবে না থাকলে শুধু "Last remark — লেখা"। */
+                    text = run {
+                        val by = lastCallBy.trim()
+                        val on = if (lastCallAt.isNotBlank()) DateUtil.display(lastCallAt) else ""
+                        val who = listOf(by, on).filter { it.isNotBlank() }.joinToString(", ")
+                        "Last remark" + (if (who.isNotBlank()) " ($who)" else "") + " — " + lastRemark
+                    }
                     textSize = 11.5f
                     setTextColor(Color.parseColor("#0B2545"))
                     setPadding(dp(ctx, 9), dp(ctx, 7), dp(ctx, 9), dp(ctx, 7))
