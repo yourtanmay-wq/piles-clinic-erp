@@ -26707,3 +26707,10 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > পাহারা: verify_kotlin_compile · verify_android_resources · verify_kotlin_patterns · verify_forbidden_android_api · node --check · web_browser_test · tk_guard — সবগুলো PASS।
 
 > 📦 **V1443 ফাইল পাঠানো (১৩.০৯.২০২৬ রাত ১১.২৫, TK: "তাহলে ফাইল পাঠাও"):** PILES_CLINIC_APP_V1443_FINAL.zip — 25.95 MB · 1886 ফাইল। ভার্সন ১৪৪১→১৪৪৩ (build.gradle.kts · version.json · index.html-এর app.js `?v=`)। এই সেশনের নতুন কাজ: V1442 (Refund-এও Backdate — Master সরাসরি, স্টাফের অনুমতি লাগবে) · V1443 (রোগীর আগে Refund থাকলে সবসময় সতর্কবার্তা)। পাহারা: tk_guard --release সব ✅ PASS।
+
+> V1444 — 🎨 **নোটিশ বোর্ডের "Enquiry" পিল অস্বাভাবিক লম্বা — আসল কারণ ধরে সারানো (১৪.০৯.২০২৬ রাত ১২.১৭, TK-রিপোর্ট ছবিসহ, তালিকা ৫৬৮):**
+> আসল কারণ (মেপে): item_briefing_card.xml-এর tvTitle পিল V1349-এ layout_weight=1 পেয়েছিল, যাতে লম্বা raw শিরোনাম ("Delete Payment — NAGENDRA SINGH") পাশের Disease/Staff চিপ দুটোকে চেপে না দেয়। কিন্তু Enquiry/Registration/Advance-এর "rich" সারিতে শিরোনাম সবসময়ই ছোট নির্দিষ্ট শব্দ — তবু সেই একই weight=1 বাকি ফাঁকা জায়গা জোর করে টেনে নিত।
+> BriefingAdapter.kt-এ "rich" শাখায় (যেখানে টেক্সট নিশ্চিতভাবেই ছোট) tvTitle-কে সরাসরি wrap_content/weight=0 করা হলো — Piles/JPE-CRP-এর মতোই নিজের লেখা-জড়ানো। "!rich" শাখায় XML-এর ডিফল্ট (weight=1) ফিরিয়ে দেওয়া হয়েছে (RecyclerView রিসাইকেল-নিরাপত্তা) — তাই V1349-এর আসল সুরক্ষা (Delete/Refund-এর লম্বা শিরোনামের কার্ড) এক অক্ষরও বদলায়নি।
+> ⛔ ওয়েবে এই তিন-পিল ডিজাইনই নেই (শুধু Android-এর নিজস্ব V1207 ডিজাইন), তাই ওখানে ছোঁয়ার কিছু নেই।
+> "সম্পূর্ণ কার্ড প্রফেশনাল লাগছে না" — এটা ডিজাইন-মতামত, TK-কে ফটো-প্রুফে কয়েকটা প্রস্তাব দেখিয়ে সিদ্ধান্ত নেওয়া হবে (নিয়ম ৪)।
+> পাহারা: verify_kotlin_compile PASS · verify_android_resources PASS · verify_kotlin_patterns PASS · tk_guard PASS।

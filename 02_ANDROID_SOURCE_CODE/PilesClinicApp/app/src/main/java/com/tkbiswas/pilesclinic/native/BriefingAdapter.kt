@@ -699,6 +699,26 @@ class BriefingAdapter(
                            ⛔ কোড জানা না গেলে ট্যাগটা বসেই না — বানানো কিছু নয়। */
                         val titleTxt = b.tvTitle.text?.toString().orEmpty().trim()
                         b.tvTitle.text = shortNoticeTag(titleTxt)
+                        /* 🎨🔒 V1444 (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — "Enquiry বক্সের
+                           লম্বা এত বেশি কেন") — আসল কারণ (মেপে ধরা): XML-এ `tvTitle`
+                           V1349-এ `layout_weight=1` পেয়েছিল, যাতে **লম্বা** raw
+                           শিরোনাম (যেমন "Delete Payment — NAGENDRA SINGH") পাশের
+                           Disease/Staff চিপ দুটোকে চেপে অক্ষর-ভাঙা না করে দেয়। কিন্তু
+                           এই "rich" শাখায় শিরোনাম সবসময়ই ছোট নির্দিষ্ট শব্দ (Enquiry/
+                           Registration/Advance) — তবু সেই একই weight=1 সারির **বাকি
+                           সব ফাঁকা জায়গা জোর করে টেনে নিত**, তাই Piles/JPE-CRP-এর
+                           মতো নিজের লেখা-জড়ানো (wrap_content) না হয়ে অস্বাভাবিক লম্বা
+                           দেখাত। ⇒ এই শাখায় (যেখানে টেক্সট নিশ্চিতভাবেই ছোট) সরাসরি
+                           wrap_content/weight=0 বসানো হলো, বাকি দুটো চিপের মতোই।
+                           ⛔ V1349-এর আসল সুরক্ষা (লম্বা raw শিরোনামের কার্ড) অটুট —
+                              এই `if`-এর বাইরে (নিচের `!rich` শাখায়) XML-এর ডিফল্ট
+                              (weight=1) ফিরিয়ে দেওয়া হয়, তাই রিসাইকেল-করা কার্ডে
+                              পুরনো বাইন্ডের চেহারা টিকে থাকে না। */
+                        (b.tvTitle.layoutParams as? android.widget.LinearLayout.LayoutParams)?.let {
+                            it.width = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                            it.weight = 0f
+                            b.tvTitle.layoutParams = it
+                        }
                         /* 🏷️🔒 V1253 (০৯.০৯.২০২৬, TK-নির্দেশ, খাতার সারি ৩৭৪) — TK:
                            *"Enquiry, Piles & Staff Name একই সাইজের ফন্ট হতে হবে"*।
                            মেপে দেখা (লেআউটে ও TK-র নিজের ছবিতে): **ফন্ট আগে থেকেই
@@ -738,6 +758,17 @@ class BriefingAdapter(
                 }
             } catch (_: Throwable) { rich = false }
             if (!rich) {
+                /* 🎨🔒 V1444 — RecyclerView রিসাইকেল-নিরাপত্তা: আগের বাইন্ডে এই
+                   সারিটাই "rich" (Enquiry/Registration/Advance) ছিল বলে
+                   tvTitle-এর LayoutParams wrap_content/weight=0 করা থাকতে
+                   পারে। এই শাখা (V1349-এর আসল লম্বা-শিরোনামের সুরক্ষা প্রযোজ্য
+                   যেখানে) XML-এর ডিফল্ট (0dp/weight=1) ফিরিয়ে দেয়, নইলে
+                   অন্য কার্ডের রিসাইকেল-করা সারিতে ভুল চেহারা টিকে থাকত। */
+                (b.tvTitle.layoutParams as? android.widget.LinearLayout.LayoutParams)?.let {
+                    it.width = 0
+                    it.weight = 1f
+                    b.tvTitle.layoutParams = it
+                }
                 b.rowPatient.visibility = View.GONE
                 /* 👤 V1169 — স্টাফ-নোটিশে নিচের লাইন থাকবে না (TK-নির্দেশ);
                    বাকি সব কার্ডে আগের মতোই দেখায় — দুই দিকই বসানো, তাই সারি
