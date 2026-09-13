@@ -23795,9 +23795,11 @@ function wlv1VoiceParse(q){
   const hasSale = q.includes('বিক্রি');
   const hasMedicine = q.includes('মেডিসিন')||q.includes('ওষুধ');
   const hasSaline = q.includes('স্যালাইন');
+  const hasEnquiry = q.includes('এনকোয়ারি');
+  const hasRefund = q.includes('রিফান্ড');
   const hasMoney = q.includes('কালেকশন')||q.includes('জমা')||(q.includes('টাকা')&&!q.includes('পেশেন্ট'));
   const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
-  const metric = (hasSale&&hasMedicine)?'MEDICINE_SALE':(hasSale&&hasSaline)?'SALINE_SALE':hasMoney?'COLLECTION':(hasPatientCount?'REGISTRATION_COUNT':null);
+  const metric = (hasSale&&hasMedicine)?'MEDICINE_SALE':(hasSale&&hasSaline)?'SALINE_SALE':hasRefund?'REFUND':hasEnquiry?'ENQUIRY_COUNT':hasMoney?'COLLECTION':(hasPatientCount?'REGISTRATION_COUNT':null);
   if(!metric) return null;
   return {metric,branch,from:range.from,to:range.to,periodLabel:range.label};
 }
@@ -23831,6 +23833,19 @@ async function wlv1ShowVoiceAnswer(q){
     $('#wlv1VoiceAnswerNum').textContent = money(s.total);
     $('#wlv1VoiceAnswerSub').textContent = `${s.sale_count} sales • tap to see list ›`;
     $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail(parsed.metric,parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='ENQUIRY_COUNT'){
+    const r = await c.rpc('enquiry_count',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||r.data==null){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    $('#wlv1VoiceAnswerNum').textContent = String(r.data);
+    $('#wlv1VoiceAnswerSub').textContent = 'enquiries • tap to see list ›';
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('ENQUIRY_COUNT',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='REFUND'){
+    const r = await c.rpc('refund_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    const s=r.data[0];
+    $('#wlv1VoiceAnswerNum').textContent = money(s.total);
+    $('#wlv1VoiceAnswerSub').textContent = `${s.refund_count} refunds • tap to see list ›`;
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('REFUND',parsed.branch,parsed.from,parsed.to,title);
   } else {
     const r = await c.rpc('collection_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
     if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
@@ -23873,6 +23888,31 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title){
         + `<span class="tiny">${esc(p.product||'')} · ${esc(p.mode||'')} · ${esc(fmtDate(p.sold_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:#0C8F3A">${money(p.bill)}</span></div>`;
     }).join('') || '<div class="card mut">No sales found for this period.</div>';
+  } else if(metric==='ENQUIRY_COUNT'){
+    const r = await c.rpc('enquiry_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} enquiries`;
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile);
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(p.disease||'')} · ${esc(fmtDate(p.enquiry_date||''))}</span></div>`;
+    }).join('') || '<div class="card mut">No enquiries found for this period.</div>';
+  } else if(metric==='REFUND'){
+    const r = await c.rpc('refund_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    const sr = await c.rpc('refund_summary',{p_branch:branch,p_from:from,p_to:to});
+    const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
+    $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.refund_count} refunds` : 'Total: —';
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile);
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(fmtDate(p.refunded_on||''))}</span>`
+        + `<span style="float:right;font-weight:700;color:#B42318">${money(p.amount)}</span></div>`;
+    }).join('') || '<div class="card mut">No refunds found for this period.</div>';
   } else {
     const r = await c.rpc('collection_list',{p_branch:branch,p_from:from,p_to:to});
     if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }

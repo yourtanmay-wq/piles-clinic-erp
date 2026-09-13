@@ -17,7 +17,7 @@ import java.time.ZoneId
    ═══════════════════════════════════════════════════════════════════════ */
 object VoiceReportModel {
 
-    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE }
+    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND }
 
     data class Parsed(
         val metric: Metric,
@@ -76,12 +76,16 @@ object VoiceReportModel {
         val hasSale = q.contains("বিক্রি")
         val hasMedicine = q.contains("মেডিসিন") || q.contains("ওষুধ")
         val hasSaline = q.contains("স্যালাইন")
+        val hasEnquiry = q.contains("এনকোয়ারি")
+        val hasRefund = q.contains("রিফান্ড")
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
         return when {
             hasSale && hasMedicine -> Metric.MEDICINE_SALE
             hasSale && hasSaline -> Metric.SALINE_SALE
+            hasRefund -> Metric.REFUND
+            hasEnquiry -> Metric.ENQUIRY_COUNT
             hasMoney -> Metric.COLLECTION
             hasPatientCount -> Metric.REGISTRATION_COUNT
             else -> null

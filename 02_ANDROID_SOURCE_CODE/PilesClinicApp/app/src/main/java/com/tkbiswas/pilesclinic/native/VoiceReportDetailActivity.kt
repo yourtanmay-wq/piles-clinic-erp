@@ -113,6 +113,31 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.customer.ifBlank { p.mobile }, "${p.product} · ${p.mode} · ${FollowUpModel.displayDate(p.soldOn)}", "₹${"%,.0f".format(p.bill)}", "#0C8F3A", onTap))
                     }
                 }
+                "ENQUIRY_COUNT" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.enquiryList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Total: ${rows.size} enquiries"
+                    if (rows.isEmpty()) empty("No enquiries found for this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.disease} · ${FollowUpModel.displayDate(p.enquiryDate)}", "›", "#94A3B8", onTap))
+                    }
+                }
+                "REFUND" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) {
+                        VoiceReportRepository.refundSummary(branch, from, to) to VoiceReportRepository.refundList(branch, from, to)
+                    }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total: ₹${"%,.0f".format(s.total)} · ${s.refundCount} refunds" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No refunds found for this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, FollowUpModel.displayDate(p.refundedOn), "₹${"%,.0f".format(p.amount)}", "#B42318", onTap))
+                    }
+                }
                 else -> fail("Unknown report")
             }
             binding.progressLoad.visibility = android.view.View.GONE

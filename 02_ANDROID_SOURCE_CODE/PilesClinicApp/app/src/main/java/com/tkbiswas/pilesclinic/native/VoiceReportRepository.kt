@@ -19,6 +19,9 @@ object VoiceReportRepository {
     data class CollectionRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val payType: String, val paidOn: String)
     data class ProductSaleSummary(val total: Double, val saleCount: Int)
     data class ProductSaleRow(val productRowId: String, val customer: String, val mobile: String, val product: String, val bill: Double, val deposit: Double, val due: Double, val mode: String, val soldOn: String)
+    data class EnquiryRow(val enquiryRowId: String, val name: String, val mobile: String, val disease: String, val enquiryDate: String)
+    data class RefundSummary(val total: Double, val refundCount: Int)
+    data class RefundRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val refundedOn: String)
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
         val rpc = ModuleAuth.rpc("reports", "patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
@@ -91,6 +94,57 @@ object VoiceReportRepository {
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
                 out.add(ProductSaleRow(x.optString("product_row_id"), x.optString("customer"), x.optString("mobile"), x.optString("product"), x.optDouble("bill", 0.0), x.optDouble("deposit", 0.0), x.optDouble("due", 0.0), x.optString("mode"), x.optString("sold_on")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    /* 🎤 V1417 (১৩.০৯.২০২৬, TK-নির্দেশ "চালিয়ে যান", তালিকা ৫২৩) — এনকোয়ারি-
+     * সংখ্যা ও Approved রিফান্ডের টাকা (VOICE_QUERY_PLAN আইটেম ১১ ও ১৪-র রিফান্ড
+     * অংশ — ডিসকাউন্ট আলাদা জায়গা থেকে আসে বলে এখানে বসানো হয়নি)। */
+    fun enquiryCount(branch: String, from: String, to: String): RepoResult<Int> {
+        val rpc = ModuleAuth.rpc("reports", "enquiry_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        val body = rpc.body.trim()
+        if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
+        val n = body.toIntOrNull() ?: return RepoResult(false, message = "Invalid response")
+        return RepoResult(true, n)
+    }
+
+    fun enquiryList(branch: String, from: String, to: String): RepoResult<List<EnquiryRow>> {
+        val rpc = ModuleAuth.rpc("reports", "enquiry_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<EnquiryRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(EnquiryRow(x.optString("enquiry_row_id"), x.optString("name"), x.optString("mobile"), x.optString("disease"), x.optString("enquiry_date")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun refundSummary(branch: String, from: String, to: String): RepoResult<RefundSummary> {
+        val rpc = ModuleAuth.rpc("reports", "refund_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) return RepoResult(false, message = "Not allowed for this branch")
+            val x = arr.getJSONObject(0)
+            RepoResult(true, RefundSummary(x.optDouble("total", 0.0), x.optInt("refund_count", 0)))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun refundList(branch: String, from: String, to: String): RepoResult<List<RefundRow>> {
+        val rpc = ModuleAuth.rpc("reports", "refund_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<RefundRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(RefundRow(x.optString("payment_id"), x.optString("patient_row_id"), x.optString("name"), x.optString("mobile"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("refunded_on")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }

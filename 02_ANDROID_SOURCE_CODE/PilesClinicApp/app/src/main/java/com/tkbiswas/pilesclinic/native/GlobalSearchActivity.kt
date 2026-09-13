@@ -553,6 +553,30 @@ class GlobalSearchActivity : AppCompatActivity() {
                     else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
                 }
             }
+            VoiceReportModel.Metric.ENQUIRY_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "ENQUIRY_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.enquiryCount(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "enquiries • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.REFUND -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "REFUND").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.refundSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.refundCount} refunds • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
         }
     }
 
