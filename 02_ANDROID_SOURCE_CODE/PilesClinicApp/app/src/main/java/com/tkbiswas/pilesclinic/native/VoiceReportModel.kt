@@ -22,7 +22,22 @@ object VoiceReportModel {
         MEDICINE_DUE, CALL_COUNT, TRASH_COUNT, RMP_ADVANCE,
         APPOINTMENT_COUNT, EXPECTED_COUNT, HANDOVER_PENDING, PAYMENT_REQUESTS, REFERRAL_REQUESTS, LEAVE_COUNT,
         DOCTOR_REMINDER, STAFF_REMINDER_OPEN, FEE_RETURN,
-        CHAMBER_UNCLOSED, NO_SHOW, OUT_MISSING, WFH_COUNT, DUPLICATE_PATIENTS, FEE_UNPAID, CALLS_PENDING, MESSAGES_SENT
+        CHAMBER_UNCLOSED, NO_SHOW, OUT_MISSING, WFH_COUNT, DUPLICATE_PATIENTS, FEE_UNPAID, CALLS_PENDING, MESSAGES_SENT,
+        NEW_PATIENTS, FOLLOWUP_CALLS_DONE, DISEASE_COUNT, RMP_CALLED, RMP_CALL_DUE, FIELD_VISIT, STAFF_HOURS, STAFF_PRESENT
+    }
+
+    // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
+    private val DISEASE_MAP = listOf(
+        "পাইলস" to "Piles", "অর্শ" to "Piles", "piles" to "Piles",
+        "ফিশার" to "Fissure", "ফিসার" to "Fissure", "fissure" to "Fissure",
+        "ফিস্টুলা" to "Fistula", "ভগন্দর" to "Fistula", "fistula" to "Fistula",
+        "হাইড্রোসিল" to "Hydrocele", "একশিরা" to "Hydrocele", "hydrocele" to "Hydrocele",
+        "গুপ্ত" to "Gupt Rog", "gupt" to "Gupt Rog"
+    )
+    private fun findDisease(q: String): String? {
+        val lower = q.lowercase()
+        for ((k, v) in DISEASE_MAP) if (lower.contains(k)) return v
+        return null
     }
 
     /** যে প্রশ্নগুলো "এখন পর্যন্ত মোট" — কোনো তারিখ/সময়-সীমা লাগে না (V1418–V1421)। */
@@ -36,7 +51,8 @@ object VoiceReportModel {
         val from: String,   // yyyy-MM-dd
         val to: String,     // yyyy-MM-dd
         val branchLabel: String,
-        val periodLabel: String
+        val periodLabel: String,
+        val extra: String = ""   // V1422 — যেমন রোগের নাম (DISEASE_COUNT)
     )
 
     // ব্রাঞ্চের বাংলা/ইংরেজি বানান — ডেটাবেসে যে বানানে আছে সেটাই ডানদিকে।
@@ -125,6 +141,16 @@ object VoiceReportModel {
         val hasMessages = q.contains("বার্তা") || q.contains("মেসেজ") || q.contains("হোয়াটসঅ্যাপ") || lower.contains("whatsapp") || lower.contains("sms")
         val hasFeeUnpaid = (q.contains("ভিজিট") || q.contains("ফি")) &&
             (q.contains("জমা পড়েনি") || q.contains("জমা হয়নি") || q.contains("দেয়নি") || q.contains("দেননি") || hasDueWord)
+        // 🎤 V1422 — নতুন রোগী · ফলো-আপ কল করা · রোগ-ভিত্তিক · RMP কল/কল-করার-কথা · ফিল্ড · ঘণ্টা · হাজির
+        val hasNewPatients = q.contains("শুরু হয়নি") || (q.contains("নতুন") && (q.contains("রোগী") || q.contains("পেশেন্ট")))
+        val hasFuCallsDone = q.contains("ফলো") && q.contains("কল") && !hasDueWord && !q.contains("হয়নি")
+        val hasRmpWord = lower.contains("rmp") || q.contains("আরএমপি") || q.contains("ডাক্তার")
+        val hasRmpCallDue = hasRmpWord && q.contains("কল") && (q.contains("কথা") || q.contains("করতে হবে") || hasDueWord)
+        val hasRmpCalled = hasRmpWord && q.contains("কল") && !hasRmpCallDue && !hasReminder
+        val hasFieldVisit = q.contains("ফিল্ড") || lower.contains("field") || q.contains("কিমি") || lower.contains(" km") || q.contains("ঘুরে")
+        val hasStaffHours = q.contains("ঘণ্টা") || q.contains("ঘন্টা") || lower.contains("hour")
+        val hasStaffPresent = q.contains("হাজির") || q.contains("উপস্থিত") || lower.contains("present")
+        val hasDisease = findDisease(q) != null && (q.contains("রোগী") || q.contains("পেশেন্ট") || q.contains("কতজন"))
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
@@ -138,6 +164,7 @@ object VoiceReportModel {
             hasWfh -> Metric.WFH_COUNT
             hasDuplicate -> Metric.DUPLICATE_PATIENTS
             hasCallsPending -> Metric.CALLS_PENDING
+            hasFuCallsDone -> Metric.FOLLOWUP_CALLS_DONE
             hasMessages -> Metric.MESSAGES_SENT
             hasFeeUnpaid -> Metric.FEE_UNPAID
             hasFeeReturn -> Metric.FEE_RETURN
@@ -151,6 +178,13 @@ object VoiceReportModel {
             hasLeave -> Metric.LEAVE_COUNT
             hasDoctorReminder -> Metric.DOCTOR_REMINDER
             hasReminder -> Metric.STAFF_REMINDER_OPEN
+            hasFieldVisit -> Metric.FIELD_VISIT
+            hasStaffHours -> Metric.STAFF_HOURS
+            hasStaffPresent -> Metric.STAFF_PRESENT
+            hasRmpCallDue -> Metric.RMP_CALL_DUE
+            hasRmpCalled -> Metric.RMP_CALLED
+            hasNewPatients -> Metric.NEW_PATIENTS
+            hasDisease -> Metric.DISEASE_COUNT
             hasAdvance -> Metric.RMP_ADVANCE
             hasRmpDue -> Metric.RMP_DUE
             hasTrash -> Metric.TRASH_COUNT
@@ -166,17 +200,18 @@ object VoiceReportModel {
     /** এই লেখাটা প্রশ্নের মতো মনে হচ্ছে কিনা — এটাই দেখা হয় সাধারণ নাম/নম্বর
      *  খোঁজার (ভারী ক্লাউড-পড়া) আগে, যাতে সাধারণ Search কখনো আটকে না যায়। */
     fun isQuestionLike(q: String): Boolean =
-        q.contains("কত") || q.contains("কালেকশন") || q.contains("বিক্রি")
+        q.contains("কত") || q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির")
 
     fun parse(q: String): Parsed? {
         val (branch, branchLabel) = findBranch(q) ?: return null
         val metric = findMetric(q) ?: return null
+        val extra = if (metric == Metric.DISEASE_COUNT) (findDisease(q) ?: "") else ""   // V1422 — রোগের নাম
         // 🔒 V1418 (১৩.০৯.২০২৬) — RMP-বাকি কোনো সময়-সীমার প্রশ্ন নয় (fin.rmp_branch_due
         // "এখন পর্যন্ত মোট বাকি" দেখায়, তারিখ নেয় না), তাই এখানেই একমাত্র ব্যতিক্রম —
         // "গতকাল/আজ/সাত দিন/এক মাস" কিছু না বললেও চলবে।
         // V1419/V1420 — SNAPSHOT-এর প্রশ্নগুলো "এখন পর্যন্ত মোট", তারিখ লাগে না।
-        if (metric in SNAPSHOT) return Parsed(metric, branch, "", "", branchLabel, "Right now")
+        if (metric in SNAPSHOT) return Parsed(metric, branch, "", "", branchLabel, "Right now", extra)
         val range = findDateRange(q) ?: return null
-        return Parsed(metric, branch, range.from, range.to, branchLabel, range.label)
+        return Parsed(metric, branch, range.from, range.to, branchLabel, range.label, extra)
     }
 }

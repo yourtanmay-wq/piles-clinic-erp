@@ -32,6 +32,7 @@ class VoiceReportDetailActivity : AppCompatActivity() {
         val from = intent.getStringExtra("from").orEmpty()
         val to = intent.getStringExtra("to").orEmpty()
         val title = intent.getStringExtra("title").orEmpty()
+        val extra = intent.getStringExtra("extra").orEmpty()   // V1422 — যেমন রোগের নাম
         binding.toolbar.title = title.ifBlank { "Report" }
         binding.progressLoad.visibility = android.view.View.VISIBLE
         binding.tvSummary.text = "Loading…"
@@ -386,6 +387,78 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.kind} · ${FollowUpModel.displayDate(p.sentOn)}", p.channel, "#0C8F3A", onTap))
                     }
+                }
+                // ── V1422 ──
+                "NEW_PATIENTS" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.newPatientsList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Registered, treatment not started: ${rows.size}"
+                    if (rows.isEmpty()) empty("Everyone registered in this period has started treatment.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.patientCode} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                    }
+                }
+                "FOLLOWUP_CALLS_DONE" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.fuCallsDoneSummary(branch, from, to) to VoiceReportRepository.fuCallsDoneList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Follow-up calls noted: ${s.total} (one per patient per day) · ${s.patientCount} patients" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No follow-up calls noted in this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${FollowUpModel.displayDate(p.callDay)} · ${p.remarks} remark(s)", "›", "#94A3B8", onTap))
+                    }
+                }
+                "DISEASE_COUNT" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.diseaseCount(branch, from, to, extra) to VoiceReportRepository.diseaseList(branch, from, to, extra) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "$extra: ${s.total} of ${s.allPatients} registered" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No $extra patients registered in this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.disease} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                    }
+                }
+                "RMP_CALLED", "RMP_CALL_DUE" -> {
+                    val due = metric == "RMP_CALL_DUE"
+                    val got = withContext(Dispatchers.IO) { if (due) VoiceReportRepository.rmpCallDueList(branch, from, to) else VoiceReportRepository.rmpCalledList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = if (due) "RMP doctors due for a call: ${rows.size}" else "RMP doctors called: ${rows.size}"
+                    if (rows.isEmpty()) empty(if (due) "No RMP call due in this period." else "No RMP called in this period.")
+                    rows.forEach { p -> binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · last call ${FollowUpModel.displayDate(p.lastCallDate)} · next ${FollowUpModel.displayDate(p.nextCallDate)}", "›", "#94A3B8", null)) }
+                }
+                "FIELD_VISIT" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.fieldVisitSummary(branch, from, to) to VoiceReportRepository.fieldVisitList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Visits marked: ${s.visits} · ${"%.1f".format(s.km)} km · ${s.staffCount} field staff" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No field visit in this period.")
+                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, FollowUpModel.displayDate(p.workDate), "${p.visits} visits · ${"%.1f".format(p.km)} km", "#0C8F3A", null)) }
+                }
+                "STAFF_HOURS" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursSummary(branch, from, to) to VoiceReportRepository.staffHoursList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total ${"%.1f".format(s.totalHours)} h · ${s.staffCount} staff (leave/WFH/other-branch = 7 h, OUT missing = 7 h)" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No attendance in this period.")
+                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, "${p.days} days · ${p.leaveDays} leave · ${p.outMissingDays} OUT missing", "${"%.1f".format(p.hours)} h", "#0C8F3A", null)) }
+                }
+                "STAFF_PRESENT" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.staffPresentSummary(branch, from, to) to VoiceReportRepository.staffPresentList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Present: ${s.staffCount} staff · ${s.total} attendance days" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("Nobody marked IN in this period.")
+                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, FollowUpModel.displayDate(p.workDate), "IN ${p.checkIn}${if (p.checkOut.isNotBlank()) " · OUT ${p.checkOut}" else ""}", "#0C8F3A", null)) }
                 }
                 else -> fail("Unknown report")
             }

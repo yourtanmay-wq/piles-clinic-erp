@@ -23790,7 +23790,11 @@ function wlv1VoiceDateRange(q){
   if(q.includes('এই মাস')||q.includes('this month')){ const f=new Date(kolkataNow); f.setDate(1); return {from:wlv1VoiceIsoDate(f),to:day(0),label:'This month'}; }
   return null;
 }
-function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কালেকশন')||q.includes('বিক্রি'); }
+function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির'); }
+// 🩺 V1422 — বলা রোগের নাম → ডেটাবেসের বানান (ফোনের VoiceReportModel.DISEASE_MAP-এর হুবহু)
+const wlv1VoiceDiseaseMap=[['পাইলস','Piles'],['অর্শ','Piles'],['piles','Piles'],['ফিশার','Fissure'],['ফিসার','Fissure'],['fissure','Fissure'],
+  ['ফিস্টুলা','Fistula'],['ভগন্দর','Fistula'],['fistula','Fistula'],['হাইড্রোসিল','Hydrocele'],['একশিরা','Hydrocele'],['hydrocele','Hydrocele'],['গুপ্ত','Gupt Rog'],['gupt','Gupt Rog']];
+function wlv1VoiceDisease(q){ const l=q.toLowerCase(); for(const [k,v] of wlv1VoiceDiseaseMap) if(l.includes(k)) return v; return null; }
 function wlv1VoiceParse(q){
   let branch=null; const lower=q.toLowerCase();
   for(const [k,v] of wlv1VoiceBranchMap) if(lower.includes(k.toLowerCase())){branch=v;break}
@@ -23827,25 +23831,38 @@ function wlv1VoiceParse(q){
   const hasCallsPending = q.includes('ফলো') && q.includes('কল') && (hasDueWord||q.includes('হয়নি'));
   const hasMessages = q.includes('বার্তা')||q.includes('মেসেজ')||q.includes('হোয়াটসঅ্যাপ')||lower.includes('whatsapp')||lower.includes('sms');
   const hasFeeUnpaid = (q.includes('ভিজিট')||q.includes('ফি')) && (q.includes('জমা পড়েনি')||q.includes('জমা হয়নি')||q.includes('দেয়নি')||q.includes('দেননি')||hasDueWord);
+  // 🎤 V1422 — নতুন রোগী · ফলো-আপ কল করা · রোগ-ভিত্তিক · RMP কল/কল-করার-কথা · ফিল্ড · ঘণ্টা · হাজির
+  const hasNewPatients = q.includes('শুরু হয়নি') || (q.includes('নতুন') && (q.includes('রোগী')||q.includes('পেশেন্ট')));
+  const hasFuCallsDone = q.includes('ফলো') && q.includes('কল') && !hasDueWord && !q.includes('হয়নি');
+  const hasRmpWord = lower.includes('rmp')||q.includes('আরএমপি')||q.includes('ডাক্তার');
+  const hasRmpCallDue = hasRmpWord && q.includes('কল') && (q.includes('কথা')||q.includes('করতে হবে')||hasDueWord);
+  const hasRmpCalled = hasRmpWord && q.includes('কল') && !hasRmpCallDue && !hasReminder;
+  const hasFieldVisit = q.includes('ফিল্ড')||lower.includes('field')||q.includes('কিমি')||lower.includes(' km')||q.includes('ঘুরে');
+  const hasStaffHours = q.includes('ঘণ্টা')||q.includes('ঘন্টা')||lower.includes('hour');
+  const hasStaffPresent = q.includes('হাজির')||q.includes('উপস্থিত')||lower.includes('present');
+  const hasDisease = wlv1VoiceDisease(q)!==null && (q.includes('রোগী')||q.includes('পেশেন্ট')||q.includes('কতজন'));
   const hasMoney = q.includes('কালেকশন')||q.includes('জমা')||(q.includes('টাকা')&&!q.includes('পেশেন্ট'));
   const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
   // ⛔ ক্রমটা ফোনের VoiceReportModel.findMetric()-এর সাথে হুবহু এক (নিয়ম ৮)
   const picks=[[hasSale&&hasMedicine,'MEDICINE_SALE'],[hasSale&&hasSaline,'SALINE_SALE'],
     [hasNoShow,'NO_SHOW'],[hasChamberUnclosed,'CHAMBER_UNCLOSED'],[hasOutMissing,'OUT_MISSING'],[hasWfh,'WFH_COUNT'],
-    [hasDuplicate,'DUPLICATE_PATIENTS'],[hasCallsPending,'CALLS_PENDING'],[hasMessages,'MESSAGES_SENT'],[hasFeeUnpaid,'FEE_UNPAID'],
+    [hasDuplicate,'DUPLICATE_PATIENTS'],[hasCallsPending,'CALLS_PENDING'],[hasFuCallsDone,'FOLLOWUP_CALLS_DONE'],[hasMessages,'MESSAGES_SENT'],[hasFeeUnpaid,'FEE_UNPAID'],
     [hasFeeReturn,'FEE_RETURN'],
     [hasReferralReq,'REFERRAL_REQUESTS'],[hasPayReq,'PAYMENT_REQUESTS'],[hasProductDue,'MEDICINE_DUE'],
     [hasHandoverPending,'HANDOVER_PENDING'],[hasHandover,'CASH_HANDOVER'],[hasAppointment,'APPOINTMENT_COUNT'],
     [hasExpected,'EXPECTED_COUNT'],[hasLeave,'LEAVE_COUNT'],[hasDoctorReminder,'DOCTOR_REMINDER'],[hasReminder,'STAFF_REMINDER_OPEN'],
+    [hasFieldVisit,'FIELD_VISIT'],[hasStaffHours,'STAFF_HOURS'],[hasStaffPresent,'STAFF_PRESENT'],[hasRmpCallDue,'RMP_CALL_DUE'],[hasRmpCalled,'RMP_CALLED'],
+    [hasNewPatients,'NEW_PATIENTS'],[hasDisease,'DISEASE_COUNT'],
     [hasAdvance,'RMP_ADVANCE'],[hasRmpDue,'RMP_DUE'],[hasTrash,'TRASH_COUNT'],[hasCall,'CALL_COUNT'],[hasRefund,'REFUND'],
     [hasEnquiry,'ENQUIRY_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'REGISTRATION_COUNT']];
   const hit = picks.find(p=>p[0]); const metric = hit?hit[1]:null;
   if(!metric) return null;
+  const extra = metric==='DISEASE_COUNT' ? (wlv1VoiceDisease(q)||'') : '';
   // 🔒 V1418/V1419/V1420 — "এখন পর্যন্ত মোট" প্রশ্নগুলো সময়-সীমা নেয় না, তারিখ-ছাঁচ মেলা লাগে না
   const WLV1_VOICE_SNAPSHOT=['RMP_DUE','MEDICINE_DUE','HANDOVER_PENDING','PAYMENT_REQUESTS','REFERRAL_REQUESTS','STAFF_REMINDER_OPEN','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING'];
-  if(WLV1_VOICE_SNAPSHOT.includes(metric)) return {metric,branch,from:'',to:'',periodLabel:'Right now'};
+  if(WLV1_VOICE_SNAPSHOT.includes(metric)) return {metric,branch,from:'',to:'',periodLabel:'Right now',extra};
   const range=wlv1VoiceDateRange(q); if(!range) return null;
-  return {metric,branch,from:range.from,to:range.to,periodLabel:range.label};
+  return {metric,branch,from:range.from,to:range.to,periodLabel:range.label,extra};
 }
 function wlv1VoicePeriodText(from,to,label){ return !from ? label : (from===to ? `${fmtDate(from)} (${label})` : `${fmtDate(from)} – ${fmtDate(to)} (${label})`); }
 async function wlv1ShowVoiceAnswer(q){
@@ -23903,6 +23920,23 @@ async function wlv1ShowVoiceAnswer(q){
     const s=await vFirst('calls_pending_summary',oneArg); if(!s) return vBad(); vOk(String(s.total),'follow-up calls still pending today','CALLS_PENDING');
   } else if(parsed.metric==='MESSAGES_SENT'){
     const s=await vFirst('messages_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.total),`messages opened to send: ${s.whatsapp} WhatsApp · ${s.sms} SMS`,'MESSAGES_SENT');
+  // ── V1422 ──
+  } else if(parsed.metric==='NEW_PATIENTS'){
+    const s=await vFirst('new_patients_count',rangeArgs); if(!s) return vBad(); vOk(String(s.total),'registered, treatment not started','NEW_PATIENTS');
+  } else if(parsed.metric==='FOLLOWUP_CALLS_DONE'){
+    const s=await vFirst('followup_calls_done_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.total),`follow-up calls noted (one per patient per day) · ${s.patient_count} patients`,'FOLLOWUP_CALLS_DONE');
+  } else if(parsed.metric==='DISEASE_COUNT'){
+    const s=await vFirst('disease_count',{...rangeArgs,p_disease:parsed.extra}); if(!s) return vBad(); vOk(String(s.total),`${parsed.extra} patients · of ${s.all_patients} registered`,'DISEASE_COUNT');
+  } else if(parsed.metric==='RMP_CALLED'){
+    const s=await vFirst('rmp_called_count',rangeArgs); if(!s) return vBad(); vOk(String(s.total),'RMP doctors called','RMP_CALLED');
+  } else if(parsed.metric==='RMP_CALL_DUE'){
+    const s=await vFirst('rmp_call_due_count',rangeArgs); if(!s) return vBad(); vOk(String(s.total),'RMP doctors due for a call','RMP_CALL_DUE');
+  } else if(parsed.metric==='FIELD_VISIT'){
+    const s=await vFirst('field_visit_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.visits),`visits marked · ${Number(s.km||0).toFixed(1)} km · ${s.staff_count} field staff`,'FIELD_VISIT');
+  } else if(parsed.metric==='STAFF_HOURS'){
+    const s=await vFirst('staff_hours_summary',rangeArgs); if(!s) return vBad(); vOk(`${Number(s.total_hours||0).toFixed(1)} h`,`total hours · ${s.staff_count} staff`,'STAFF_HOURS');
+  } else if(parsed.metric==='STAFF_PRESENT'){
+    const s=await vFirst('staff_present_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.staff_count),`staff present · ${s.total} attendance days`,'STAFF_PRESENT');
   } else if(parsed.metric==='REGISTRATION_COUNT'){
     const r = await c.rpc('patients_registered_count',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
     if(r.error||r.data==null){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
@@ -24188,6 +24222,44 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title){
       const rows=await listOf('messages_list',rangeArgs); if(!rows) return; const s=await first('messages_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Messages opened to send: ${s.total} · ${s.whatsapp} WhatsApp · ${s.sms} SMS`:'Total: —';
       render(rows,'No messages in this period.',p=>card(p.name||mob(p.mobile)||'-',`${p.kind||''} · ${fmtDate(p.sent_on||'')}`,esc(p.channel||''),'#0C8F3A',mob(p.mobile)));
+    }
+  } else if(['NEW_PATIENTS','FOLLOWUP_CALLS_DONE','DISEASE_COUNT','RMP_CALLED','RMP_CALL_DUE','FIELD_VISIT','STAFF_HOURS','STAFF_PRESENT'].includes(metric)){
+    // V1422 — শেষ ব্যাচের আটটা পাতা, একই ছাঁচে
+    const rangeArgs={p_branch:branch,p_from:from,p_to:to};
+    const listOf=async(fn,a)=>{ const r=await c.rpc(fn,a); if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return null; } return r.data||[]; };
+    const first=async(fn,a)=>{ const r=await c.rpc(fn,a); return (!r.error&&Array.isArray(r.data)&&r.data.length)?r.data[0]:null; };
+    const card=(title,sub,right,color,m)=>`<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}><b style="${m?'color:#1457B8':''}">${esc(title)}${m?' ›':''}</b><br><span class="tiny">${esc(sub)}</span>${right?`<span style="float:right;font-weight:700;color:${color||'#0C8F3A'}">${right}</span>`:''}</div>`;
+    const render=(rows,emptyMsg,f)=>{ $('#wlv1VoiceDetailRows').innerHTML = rows.map(f).join('') || `<div class="card mut">${emptyMsg}</div>`; };
+    if(metric==='NEW_PATIENTS'){
+      const rows=await listOf('new_patients_list',rangeArgs); if(!rows) return;
+      $('#wlv1VoiceDetailSummary').textContent=`Registered, treatment not started: ${rows.length}`;
+      render(rows,'Everyone registered in this period has started treatment.',p=>card(p.name||mob(p.mobile)||'-',`${p.patient_code||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
+    } else if(metric==='FOLLOWUP_CALLS_DONE'){
+      const rows=await listOf('followup_calls_done_list',rangeArgs); if(!rows) return; const s=await first('followup_calls_done_summary',rangeArgs);
+      $('#wlv1VoiceDetailSummary').textContent=s?`Follow-up calls noted: ${s.total} (one per patient per day) · ${s.patient_count} patients`:'Total: —';
+      render(rows,'No follow-up calls noted in this period.',p=>card(p.name||mob(p.mobile)||'-',`${fmtDate(p.call_day||'')} · ${p.remarks} remark(s)`,'','',mob(p.mobile)));
+    } else if(metric==='DISEASE_COUNT'){
+      const a={...rangeArgs,p_disease:extra||''};
+      const rows=await listOf('disease_list',a); if(!rows) return; const s=await first('disease_count',a);
+      $('#wlv1VoiceDetailSummary').textContent=s?`${extra}: ${s.total} of ${s.all_patients} registered`:'Total: —';
+      render(rows,`No ${esc(extra||'')} patients registered in this period.`,p=>card(p.name||mob(p.mobile)||'-',`${p.disease||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
+    } else if(metric==='RMP_CALLED'||metric==='RMP_CALL_DUE'){
+      const due=metric==='RMP_CALL_DUE';
+      const rows=await listOf(due?'rmp_call_due_list':'rmp_called_list',rangeArgs); if(!rows) return;
+      $('#wlv1VoiceDetailSummary').textContent=(due?'RMP doctors due for a call: ':'RMP doctors called: ')+rows.length;
+      render(rows,due?'No RMP call due in this period.':'No RMP called in this period.',p=>card(p.name||p.mobile||'-',`${p.mobile||''} · last call ${fmtDate(p.last_call_date||'')} · next ${fmtDate(p.next_call_date||'')}`,'','',''));
+    } else if(metric==='FIELD_VISIT'){
+      const rows=await listOf('field_visit_list',rangeArgs); if(!rows) return; const s=await first('field_visit_summary',rangeArgs);
+      $('#wlv1VoiceDetailSummary').textContent=s?`Visits marked: ${s.visits} · ${Number(s.km||0).toFixed(1)} km · ${s.staff_count} field staff`:'Total: —';
+      render(rows,'No field visit in this period.',p=>card(p.staff_code||'',fmtDate(p.work_date||''),`${p.visits} visits · ${Number(p.km||0).toFixed(1)} km`,'#0C8F3A',''));
+    } else if(metric==='STAFF_HOURS'){
+      const rows=await listOf('staff_hours_list',rangeArgs); if(!rows) return; const s=await first('staff_hours_summary',rangeArgs);
+      $('#wlv1VoiceDetailSummary').textContent=s?`Total ${Number(s.total_hours||0).toFixed(1)} h · ${s.staff_count} staff (leave/WFH/other-branch = 7 h, OUT missing = 7 h)`:'Total: —';
+      render(rows,'No attendance in this period.',p=>card(p.staff_code||'',`${p.days} days · ${p.leave_days} leave · ${p.out_missing_days} OUT missing`,`${Number(p.hours||0).toFixed(1)} h`,'#0C8F3A',''));
+    } else {
+      const rows=await listOf('staff_present_list',rangeArgs); if(!rows) return; const s=await first('staff_present_summary',rangeArgs);
+      $('#wlv1VoiceDetailSummary').textContent=s?`Present: ${s.staff_count} staff · ${s.total} attendance days`:'Total: —';
+      render(rows,'Nobody marked IN in this period.',p=>card(p.staff_code||'',fmtDate(p.work_date||''),`IN ${esc(p.check_in||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'#0C8F3A',''));
     }
   } else {
     const r = await c.rpc('collection_list',{p_branch:branch,p_from:from,p_to:to});

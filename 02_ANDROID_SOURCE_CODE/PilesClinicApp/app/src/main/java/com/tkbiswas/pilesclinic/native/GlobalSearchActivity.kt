@@ -519,7 +519,8 @@ class GlobalSearchActivity : AppCompatActivity() {
             box.setOnClickListener {
                 startActivity(Intent(this, VoiceReportDetailActivity::class.java)
                     .putExtra("metric", name).putExtra("branch", parsed.branch)
-                    .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                    .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title)
+                    .putExtra("extra", parsed.extra))
             }
         }
         fun show(num: String, sub: String) { numView.text = num; subView.text = "$sub • tap to see list ›" }
@@ -578,6 +579,31 @@ class GlobalSearchActivity : AppCompatActivity() {
             VoiceReportModel.Metric.MESSAGES_SENT -> { openDetail("MESSAGES_SENT"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.messagesSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(got.value.total.toString(), "messages opened to send: ${got.value.whatsapp} WhatsApp · ${got.value.sms} SMS") else showFail(got.message) } }
+            // ── V1422 ──
+            VoiceReportModel.Metric.NEW_PATIENTS -> { openDetail("NEW_PATIENTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.newPatientsCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "registered, treatment not started") else showFail(got.message) } }
+            VoiceReportModel.Metric.FOLLOWUP_CALLS_DONE -> { openDetail("FOLLOWUP_CALLS_DONE"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.fuCallsDoneSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "follow-up calls noted (one per patient per day) · ${got.value.patientCount} patients") else showFail(got.message) } }
+            VoiceReportModel.Metric.DISEASE_COUNT -> { openDetail("DISEASE_COUNT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.diseaseCount(parsed.branch, parsed.from, parsed.to, parsed.extra) }
+                if (got.ok && got.value != null) show(got.value.total.toString(), "${parsed.extra} patients · of ${got.value.allPatients} registered") else showFail(got.message) } }
+            VoiceReportModel.Metric.RMP_CALLED -> { openDetail("RMP_CALLED"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpCalledCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "RMP doctors called") else showFail(got.message) } }
+            VoiceReportModel.Metric.RMP_CALL_DUE -> { openDetail("RMP_CALL_DUE"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpCallDueCount(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.toString(), "RMP doctors due for a call") else showFail(got.message) } }
+            VoiceReportModel.Metric.FIELD_VISIT -> { openDetail("FIELD_VISIT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.fieldVisitSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.visits.toString(), "visits marked · ${"%.1f".format(got.value.km)} km · ${got.value.staffCount} field staff") else showFail(got.message) } }
+            VoiceReportModel.Metric.STAFF_HOURS -> { openDetail("STAFF_HOURS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show("${"%.1f".format(got.value.totalHours)} h", "total hours · ${got.value.staffCount} staff") else showFail(got.message) } }
+            VoiceReportModel.Metric.STAFF_PRESENT -> { openDetail("STAFF_PRESENT"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.staffPresentSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(got.value.staffCount.toString(), "staff present · ${got.value.total} attendance days") else showFail(got.message) } }
             VoiceReportModel.Metric.REGISTRATION_COUNT -> {
                 box.setOnClickListener {
                     startActivity(Intent(this, VoiceReportDetailActivity::class.java)
