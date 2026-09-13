@@ -549,18 +549,39 @@
         }
       } catch (e) {}
     }
-    var expTotal = exp.reduce(function (s, x) { return s + Number(x.amount || 0); }, 0);
+    // 🟢🔒 V1440 (১৩.০৯.২০২৬, TK ছবি-প্রুফে "Option C" পাশ — খাতার সারি ৫৬৪)
+    // ব্যয়ও Cash/Online-এ ভাগ (fin.expenses.mode) — ফোনের showDaySummary()-র
+    // হুবহু একই নিয়ম (আগে ওয়েবে এই পপ-আপ শুধু একটা মোট দেখাত, ভাগ করত না)।
+    // ⛔ মোট ব্যয়ের অঙ্ক এক অক্ষরও বদলায়নি।
+    var cashExp = 0, onlineExp = 0;
+    exp.forEach(function (x) {
+      var a = Number(x.amount || 0);
+      if (String(x.mode || 'Cash').toLowerCase() === 'online') onlineExp += a; else cashExp += a;
+    });
     coll.forEach(function (x) {
       var note = x.expense_notes || '';
-      if (note) expTotal += (x.expense_total != null && x.expense_total >= 0) ? Number(x.expense_total) : finSumNumbers(note);
+      if (note) cashExp += (x.expense_total != null && x.expense_total >= 0) ? Number(x.expense_total) : finSumNumbers(note);
     });
+    var expTotal = cashExp + onlineExp;
     var dp = d.split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
     var collTotal = cashColl + onlineColl;
-    alert(dotted + ' · ' + brSel + '\n\n' +
-      'Collection — Cash: ' + m.money(cashColl) + '  ·  Online: ' + m.money(onlineColl) + '\n' +
-      'Total Collection: ' + m.money(collTotal) + '\n\n' +
-      'Total Expense: ' + m.money(expTotal) + '\n\n' +
-      'Net (Collection − Expense): ' + m.money(collTotal - expTotal));
+    var net = collTotal - expTotal;
+    // Expense-বার Collection-এর তুলনায় (০–১০০% বাঁধা); Collection ০ হলে ও
+    // খরচ থাকলে পুরো লাল বার — Collection নিজে সবসময় পূর্ণ (নিজের ভিত্তি)।
+    var ratio = collTotal > 0 ? Math.min(1, expTotal / collTotal) : (expTotal > 0 ? 1 : 0);
+    modal(
+      '<h2>' + m.esc(dotted + ' · ' + brSel) + '</h2>' +
+      '<div style="text-align:center;margin:6px 0 18px">' +
+        '<div class="tiny mut" style="text-transform:uppercase;letter-spacing:.04em;font-weight:800">NET (Collection − Expense)</div>' +
+        '<div style="font-size:28px;font-weight:900;color:#0b2b59;margin-top:2px">' + m.money(net) + '</div>' +
+      '</div>' +
+      '<div class="row" style="margin-bottom:2px"><b class="tiny">Collection</b><b style="color:#0f7a3d">' + m.money(collTotal) + '</b></div>' +
+      '<div class="progress"><div class="bar" style="width:100%;background:#16a36d"></div></div>' +
+      '<div class="tiny mut" style="margin:4px 0 14px">Cash ' + m.money(cashColl) + '  ·  Online ' + m.money(onlineColl) + '</div>' +
+      '<div class="row" style="margin-bottom:2px"><b class="tiny">Expense</b><b style="color:#b42318">' + m.money(expTotal) + '</b></div>' +
+      '<div class="progress"><div class="bar" style="width:' + Math.round(ratio * 100) + '%;background:#d92d20"></div></div>' +
+      '<div class="tiny mut" style="margin-top:4px">Cash ' + m.money(cashExp) + '  ·  Online ' + m.money(onlineExp) + '</div>'
+    );
   }
 
   function branchOptions(sel) {

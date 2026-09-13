@@ -177,6 +177,7 @@ com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: 
 com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: getSystemService
 com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: isDestroyed
 com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: isFinishing
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: onCreate
 com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: resources
 com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: runOnUiThread

@@ -2692,6 +2692,38 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val net get() = totalColl - totalExp
     }
 
+    /**
+     * 🟢🔒 V1440 (১৩.০৯.২০২৬, TK ছবি-প্রুফে "Option C" পাশ — খাতার সারি ৫৬৪)
+     * "TK: এটার চেহারা চেঞ্জ করতে হবে" → তিনটে ডিজাইন দেখানো হলো, TK এটা
+     * পাশ করলেন — বড় Net সংখ্যা আগে, নিচে Collection/Expense-এর তুলনা-বার।
+     * ⛔ হিসাব একটুও বদলায়নি — dialog_day_summary.xml ভরাট করাই এই ফাংশনের কাজ।
+     */
+    private fun buildDaySummaryView(s: DaySummary, stale: Boolean): android.view.View {
+        val v = layoutInflater.inflate(com.tkbiswas.pilesclinic.R.layout.dialog_day_summary, null)
+        v.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDsNetAmount).text = money(s.net)
+        v.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDsCollAmount).text = money(s.totalColl)
+        v.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDsCollSplit).text =
+            "Cash " + money(s.cashColl) + "  ·  Online " + money(s.onlineColl)
+        v.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDsExpAmount).text = money(s.totalExp)
+        v.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDsExpSplit).text =
+            "Cash " + money(s.cashExp) + "  ·  Online " + money(s.onlineExp)
+        // Expense-বার Collection-এর তুলনায় (০–১০০% বাঁধা); Collection ০ হলে ও
+        // খরচ থাকলে পুরো লাল বার — Collection নিজে সবসময় পূর্ণ (নিজের ভিত্তি)।
+        val ratio = when {
+            s.totalColl > 0.0 -> (s.totalExp / s.totalColl).coerceIn(0.0, 1.0)
+            s.totalExp > 0.0 -> 1.0
+            else -> 0.0
+        }
+        val fill = v.findViewById<android.view.View>(com.tkbiswas.pilesclinic.R.id.viewDsExpFill)
+        val spacer = v.findViewById<android.view.View>(com.tkbiswas.pilesclinic.R.id.viewDsExpSpacer)
+        (fill.layoutParams as? LinearLayout.LayoutParams)?.let { it.weight = ratio.toFloat(); fill.layoutParams = it }
+        (spacer.layoutParams as? LinearLayout.LayoutParams)?.let { it.weight = (1.0 - ratio).toFloat(); spacer.layoutParams = it }
+        if (stale) {
+            v.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDsStale).visibility = android.view.View.VISIBLE
+        }
+        return v
+    }
+
     private fun showDaySummary(iso: String, dotted: String) {
         fun enc(x: String) = try { java.net.URLEncoder.encode(x, "UTF-8") } catch (_: Throwable) { x }
         // V452 — homeBranch-এর হুবহু সেই ব্রাঞ্চ-চিপ; "All Branches" হলে ফিল্টার নেই।
@@ -2701,17 +2733,10 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val title = dotted + " · " + branchSel
         var instantDialog: androidx.appcompat.app.AlertDialog? = null
         val cached = cachedDaySummary(iso, branchKey)
-        fun msgFor(s: DaySummary, stale: Boolean) =
-            "Collection — Cash: " + money(s.cashColl) + "  ·  Online: " + money(s.onlineColl) + "\n" +
-            "Total Collection: " + money(s.totalColl) + "\n\n" +
-            "Expense — Cash: " + money(s.cashExp) + "  ·  Online: " + money(s.onlineExp) + "\n" +
-            "Total Expense: " + money(s.totalExp) + "\n\n" +
-            "Net (Collection − Expense): " + money(s.net) +
-            (if (stale) "\n\n(শেষ জানা তথ্য — হালনাগাদ হচ্ছে…)" else "")
         if (cached != null) {
             instantDialog = androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
-                .setMessage(msgFor(cached, true))
+                .setView(buildDaySummaryView(cached, stale = true))
                 .setPositiveButton("OK", null)
                 .setCancelable(true)
                 .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
@@ -2775,7 +2800,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 try { instantDialog?.dismiss() } catch (_: Throwable) { }
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
-                    .setMessage(msgFor(summary, false))
+                    .setView(buildDaySummaryView(summary, stale = false))
                     .setPositiveButton("OK", null)
                     .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
             }

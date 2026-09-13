@@ -26679,3 +26679,9 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > ফোন: TrashCardText.line2() — receivedBy → StaffDirectory.findAccount নাম, না পেলে মোবাইলই।
 > ওয়েব: wlv1TrashLine2() ও wlv1TrashViewFields() (View পপ-আপের "Received by")— codeName() দিয়ে নাম, প্রমাণিত সেই একই ফাংশন।
 > পাহারা: kotlin compile PASS · resources PASS · node --check PASS · web_browser_test PASS।
+
+> V1440 — 🎨 **Income & Expense "Day Summary" পপ-আপের নতুন চেহারা (১৩.০৯.২০২৬ রাত ৮.৩১–৮.৫১, TK-নির্দেশ, তালিকা ৫৬৪):**
+> TK: "এটার চেহারা চেঞ্জ করতে হবে" → "নিজে কয়েকটা বানান, পছন্দ হলে বলব"। Artifact-এ ফোনের ফ্রেমে আসল ডেটা (জলপাইগুড়ি ০৫/০৯) দিয়ে তিনটে ডিজাইন (A: স্ট্যাট-রো, B: লেজার-টেবিল, C: বড় Net আগে) দেখানো হলো — TK "C" পাশ করলেন।
+> ফোন: নতুন dialog_day_summary.xml (bg_daysum_track/fill_green/fill_red) + IncomeExpenseActivity.buildDaySummaryView() — showDaySummary()-এর দুটো .setMessage() → .setView()। Expense-বার Collection-এর অনুপাতে (weight দিয়ে), Collection সবসময় পূর্ণ (নিজের ভিত্তি)।
+> ওয়েব: finance.js finShowDay() আগে ব্রাউজারের plain alert() ছিল (কোনো স্টাইলই ছিল না) — এখন modal()-এ একই "C" ডিজাইন, প্রমাণিত .progress/.bar CSS পুনর্ব্যবহার। এই সুযোগে ব্যয়ের Cash/Online ভাগও যোগ হলো (আগে ওয়েবে শুধু মোট ব্যয় দেখাত, ফোনে ভাগ ছিল — parity gap ধরে ঠিক করা হলো)। মোট টাকার হিসাব এক অক্ষরও বদলায়নি।
+> পাহারা: verify_kotlin_compile PASS · verify_android_resources PASS · node --check (app.js+finance.js) PASS · web_browser_test PASS। tk_guard: app.js ও finance.js-এর ?v= এখনো বাড়ানো হয়নি — নিয়ম ৩খ মতে ZIP পাঠানোর ঠিক আগে একবারে বাড়বে।
