@@ -1084,7 +1084,10 @@ function nbDoctorVisitCount(dateIso, staffCode){
          ⇒ TK-র সিদ্ধান্ত *"দুটোই চাই"*: (১) মাস্টারের ঘন্টায় নোটিশ (Money Handover-এর
            হুবহু প্রমাণিত পথ), (২) সাবমিটের পরেই WhatsApp নিজে থেকে খোলে।
          ⛔ সেভ ব্যর্থ হলে (নিচের catch) কোনোটাই হয় না — মিথ্যা "পাঠানো হয়েছে" নয়। */
-      try {
+      /* 🔕🔒 V1436 (১৩.০৯.২০২৬, TK-নির্দেশ, তালিকা ৫৫৬): *"লাগবে না App-এর নোটিফিকেশনে,
+         Staff-রা WhatsApp-এ পাঠায়"* — Daily Report-এর নোটিশ আর যায় না; Monthly-রটা
+         (TK-র V1204 "দুটোই চাই") আগের মতোই। ⛔ সেভ ও WhatsApp অটুট। ফোনের হুবহু একই নিয়ম। */
+      if (type === 'monthly') try {
         var __who = ((appUser() || {}).name) || code;
         var __br = (appUser() || {}).branch || '';
         var __n = { id: uid('brief'), date: today(),

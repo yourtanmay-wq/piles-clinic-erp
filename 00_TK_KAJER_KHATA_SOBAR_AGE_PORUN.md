@@ -26651,3 +26651,7 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > BriefingModel.isReportNotice · BriefingAdapter onViewReport/View · BriefingActivity.openReportNotice (ModuleAuth.getRows wn.work_reports সর্বশেষ version → দরকারে notebook_days; PremiumAlert ডায়ালগ; Mark Seen = ModuleAuth.update seen_at/seen_by; Share = WhatsAppMessageChooser.sendGeneric)।
 > ওয়েব: app.js wlv1IsReportNotice/wlv1ReportViewBtn/wlv1ReportView/wlv1ReportSeen/wlv1ReportShare + Rpt* helpers; briefingHome-এর মাস্টার ও স্টাফ দুই তালিকায় বোতাম; notebook.js nbSubmit → report_text (column-ভুলে fallback)। index.html: app.js v1435 · notebook.js v1435।
 > পাহারা: node --check ✅ · web_browser_test PASS ✅ · tk_guard ✅ · kotlin compile — BriefingActivity-তে runOnUiThread (Activity-র inherited, অন্য ৩ ফাইলে আগে থেকেই baseline-এ) → baseline-এ ১ সারি যোগ, তারপর PASS।
+
+> V1436 — 🔕 **IN TIME ও Daily Report-এর অ্যাপ-নোটিশ বন্ধ (১৩.০৯.২০২৬ সন্ধ্যা ৭.১৫, TK-নির্দেশ, তালিকা ৫৫৬):**
+> WorkNotebookActivity: afterInTimeMarked-এর BriefingRepository.post("Staff IN TIME") বাদ (msg রাখা, এক লাইনে ফেরানো যায়); submit() → নোটিশ শুধু type=="monthly"।
+> notebook.js nbSubmit → নোটিশ শুধু monthly। index.html notebook.js v1436। WhatsApp · হাজিরা · wn.work_reports সেভ অটুট।

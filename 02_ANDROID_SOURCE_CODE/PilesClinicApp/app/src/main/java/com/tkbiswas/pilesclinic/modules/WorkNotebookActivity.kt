@@ -1644,14 +1644,12 @@ class WorkNotebookActivity : AppCompatActivity() {
                Master-এর "Staff IN TIME" খবর **কখনোই সরাসরি পৌঁছাত না** — সবসময়
                জমা হয়ে পরের সিঙ্কের অপেক্ষায় থাকত, তাই দেরি হতোই।
                ⇒ এখন উপরের `fv.push()`-এর একই প্রমাণিত ধরনে পিছনের সুতোয়। */
-            val briefCtx = applicationContext
-            Thread {
-                try {
-                    com.tkbiswas.pilesclinic.native.BriefingRepository().post(
-                        briefCtx, "Staff IN TIME", msg, "role", branch, "master", mobile
-                    )
-                } catch (_: Throwable) { }
-            }.start()
+            /* 🔕🔒 V1436 (১৩.০৯.২০২৬ সন্ধ্যা, TK-নির্দেশ, তালিকা ৫৫৬): *"লাগবে না App-এর
+               নোটিফিকেশনে, কারণ Staff-রা WhatsApp-এ আমাকে পাঠায়"* — মাস্টারের ঘন্টায়
+               "Staff IN TIME" নোটিশ আর যায় না। ⛔ WhatsApp-এ পাঠানো (নিচে), হাজিরা-সেভ,
+               বার্তার লেখা — সব হুবহু আগের মতোই। msg বানানোটা রাখা হলো, যাতে TK পরে
+               চালু করতে বললে এক লাইনে ফেরানো যায়। */
+            @Suppress("UNUSED_VARIABLE") val keepForLater = msg
         } catch (_: Throwable) { }
         waAskKind = "in"   // 🔴 V433 — ফিরে এলে একবার জিজ্ঞাসা: পাঠানো হয়েছে?
         com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, inTimeShareText()) { then() }
@@ -4092,7 +4090,10 @@ class WorkNotebookActivity : AppCompatActivity() {
                  (BriefingRepository-র সেই পুরনো প্রমাণিত পথ, MoneyHandover যেটা
                  ব্যবহার করে), (২) সাবমিটের পরেই WhatsApp/Share শিট নিজে থেকে খোলে।
                ⛔ সেভ ব্যর্থ হলে কোনোটাই হয় না — মিথ্যা "পাঠানো হয়েছে" নয়। */
-            if (ok) try {
+            /* 🔕🔒 V1436 (TK-নির্দেশ, তালিকা ৫৫৬) — Daily Report-এর নোটিশ আর যায় না
+               (স্টাফ WhatsApp-এ পাঠায়)। Monthly-র নোটিশ TK-র নিজের V1204-নির্দেশ
+               ("দুটোই চাই"), তাই সেটা আগের মতোই থাকল। ⛔ রিপোর্ট সেভ ও WhatsApp অটুট। */
+            if (ok && type == "monthly") try {
                 val who = NativeSession.current(this)?.name ?: staffCode
                 val br = NativeSession.current(this)?.branch ?: ""
                 com.tkbiswas.pilesclinic.native.BriefingRepository().post(
