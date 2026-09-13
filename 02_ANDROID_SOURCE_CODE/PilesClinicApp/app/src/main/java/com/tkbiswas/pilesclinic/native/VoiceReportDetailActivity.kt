@@ -164,6 +164,53 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.rmpName.ifBlank { p.rmpMobile }, p.rmpMobile, "₹${"%,.0f".format(p.due)}", "#B42318", null))
                     }
                 }
+                "MEDICINE_DUE" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) {
+                        VoiceReportRepository.productDueSummary(branch) to VoiceReportRepository.productDueList(branch)
+                    }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total due: ₹${"%,.0f".format(s.total)} · ${s.rowCount} bills" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No medicine/saline due found.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.customer.ifBlank { p.mobile }, "${p.product} · ${FollowUpModel.displayDate(p.soldOn)}", "₹${"%,.0f".format(p.due)}", "#B42318", onTap))
+                    }
+                }
+                "CALL_COUNT" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.callList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Total: ${rows.size} calls from app"
+                    if (rows.isEmpty()) empty("No app calls found for this period.")
+                    rows.forEach { p ->
+                        binding.rowsHost.addView(row(p.staffCode, "${p.targetMobileMask} · ${FollowUpModel.displayDate(p.callDate)}", "›", "#94A3B8", null))
+                    }
+                }
+                "TRASH_COUNT" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.trashList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Total: ${rows.size} records in Trash"
+                    if (rows.isEmpty()) empty("No deleted records found for this period.")
+                    rows.forEach { p ->
+                        binding.rowsHost.addView(row(p.tableName.ifBlank { "record" }, "${FollowUpModel.displayDate(p.deletedAt.take(10))} · by ${p.deletedBy.ifBlank { "—" }}", "›", "#94A3B8", null))
+                    }
+                }
+                "RMP_ADVANCE" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) {
+                        VoiceReportRepository.rmpAdvanceSummary(branch, from, to) to VoiceReportRepository.rmpAdvanceList(branch, from, to)
+                    }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total: ₹${"%,.0f".format(s.total)} · ${s.advanceCount} advance payments" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No RMP advance found for this period.")
+                    rows.forEach { p ->
+                        binding.rowsHost.addView(row(p.rmpName, "${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", "#0C8F3A", null))
+                    }
+                }
                 else -> fail("Unknown report")
             }
             binding.progressLoad.visibility = android.view.View.GONE

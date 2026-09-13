@@ -543,6 +543,18 @@ object NoBengali {
         "হ্যান্ডওভার" to "handover",
         "কমিশন" to "commission",
         "বাকী" to "pending",
+        // 🎤🔒 V1419 (১৩.০৯.২০২৬) — মেডিসিন-বাকি · অ্যাপ-কল · ট্র্যাশ · RMP-অগ্রিম · "এই মাসে"
+        "এই মাস" to "this month",
+        "কল" to "call",
+        "অ্যাপ" to "app",
+        "হয়েছে" to "done",
+        "ফলো" to "follow",
+        "ডিলিট" to "delete",
+        "ট্র্যাশ" to "trash",
+        "মোছা" to "deleted",
+        "মুছে" to "deleted",
+        "অগ্রিম" to "advance",
+        "অ্যাডভান্স" to "advance",
 
         // 🟢🔒 V629 (২৪.০৮.২০২৬) — Statement (স্টেটমেন্ট) পর্দার নতুন লেখা।
         "স্টেটমেন্ট" to "Statement",

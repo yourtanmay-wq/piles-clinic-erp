@@ -26,6 +26,12 @@ object VoiceReportRepository {
     data class HandoverRow(val handoverDate: String, val cash: Double, val receiverName: String, val receivedAt: String)
     data class RmpDueSummary(val totalDue: Double, val rmpCount: Int)
     data class RmpDueRow(val rmpId: String, val rmpName: String, val rmpMobile: String, val due: Double)
+    data class ProductDueSummary(val total: Double, val rowCount: Int)
+    data class ProductDueRow(val productRowId: String, val customer: String, val mobile: String, val product: String, val due: Double, val soldOn: String)
+    data class CallRow(val callRowId: String, val staffCode: String, val targetMobileMask: String, val callDate: String)
+    data class TrashRow(val trashRowId: String, val tableName: String, val deletedAt: String, val deletedBy: String)
+    data class RmpAdvanceSummary(val total: Double, val advanceCount: Int)
+    data class RmpAdvanceRow(val advanceId: String, val rmpName: String, val amount: Double, val mode: String, val paidOn: String)
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
         val rpc = ModuleAuth.rpc("reports", "patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
@@ -203,6 +209,106 @@ object VoiceReportRepository {
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
                 out.add(RmpDueRow(x.optString("rmp_id"), x.optString("rmp_name"), x.optString("rmp_mobile"), x.optDouble("due", 0.0)))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    /* 🎤 V1419 (১৩.০৯.২০২৬, TK-নির্দেশ "একসাথে যতগুলো সম্ভব") — মেডিসিন/স্যালাইনের
+     * বর্তমান বাকি (settlement-সারি বাদ দিয়ে সার্ভারেই আসল হিসাব), অ্যাপ-কল সংখ্যা,
+     * ট্র্যাশে-যাওয়া রেকর্ড, RMP-অগ্রিম — সবই reports.* ছোট্ট ফাংশন, বাল্ক নয়। */
+    fun productDueSummary(branch: String): RepoResult<ProductDueSummary> {
+        val rpc = ModuleAuth.rpc("reports", "product_due_summary", JSONObject().put("p_branch", branch))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) return RepoResult(false, message = "Not allowed for this branch")
+            val x = arr.getJSONObject(0)
+            RepoResult(true, ProductDueSummary(x.optDouble("total", 0.0), x.optInt("row_count", 0)))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun productDueList(branch: String): RepoResult<List<ProductDueRow>> {
+        val rpc = ModuleAuth.rpc("reports", "product_due_list", JSONObject().put("p_branch", branch))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<ProductDueRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(ProductDueRow(x.optString("product_row_id"), x.optString("customer"), x.optString("mobile"), x.optString("product"), x.optDouble("due", 0.0), x.optString("sold_on")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun callCount(branch: String, from: String, to: String): RepoResult<Int> {
+        val rpc = ModuleAuth.rpc("reports", "call_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        val body = rpc.body.trim()
+        if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
+        val n = body.toIntOrNull() ?: return RepoResult(false, message = "Invalid response")
+        return RepoResult(true, n)
+    }
+
+    fun callList(branch: String, from: String, to: String): RepoResult<List<CallRow>> {
+        val rpc = ModuleAuth.rpc("reports", "call_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<CallRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(CallRow(x.optString("call_row_id"), x.optString("staff_code"), x.optString("target_mobile_mask"), x.optString("call_date")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun trashSummary(branch: String, from: String, to: String): RepoResult<Int> {
+        val rpc = ModuleAuth.rpc("reports", "trash_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) return RepoResult(false, message = "Not allowed for this branch")
+            RepoResult(true, arr.getJSONObject(0).optInt("total", 0))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun trashList(branch: String, from: String, to: String): RepoResult<List<TrashRow>> {
+        val rpc = ModuleAuth.rpc("reports", "trash_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<TrashRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(TrashRow(x.optString("trash_row_id"), x.optString("table_name"), x.optString("deleted_at"), x.optString("deleted_by")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun rmpAdvanceSummary(branch: String, from: String, to: String): RepoResult<RmpAdvanceSummary> {
+        val rpc = ModuleAuth.rpc("reports", "rmp_advance_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) return RepoResult(false, message = "Not allowed for this branch")
+            val x = arr.getJSONObject(0)
+            RepoResult(true, RmpAdvanceSummary(x.optDouble("total", 0.0), x.optInt("advance_count", 0)))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun rmpAdvanceList(branch: String, from: String, to: String): RepoResult<List<RmpAdvanceRow>> {
+        val rpc = ModuleAuth.rpc("reports", "rmp_advance_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<RmpAdvanceRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(RmpAdvanceRow(x.optString("advance_id"), x.optString("rmp_name"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("paid_on")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }

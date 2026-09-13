@@ -601,6 +601,54 @@ class GlobalSearchActivity : AppCompatActivity() {
                     else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
                 }
             }
+            VoiceReportModel.Metric.MEDICINE_DUE -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "MEDICINE_DUE").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.productDueSummary(parsed.branch) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.rowCount} bills with due • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.CALL_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "CALL_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.callCount(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "calls from app • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.TRASH_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "TRASH_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.trashSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "records moved to Trash • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.RMP_ADVANCE -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "RMP_ADVANCE").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpAdvanceSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.advanceCount} advance payments • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
         }
     }
 

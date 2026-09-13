@@ -17,7 +17,7 @@ import java.time.ZoneId
    ═══════════════════════════════════════════════════════════════════════ */
 object VoiceReportModel {
 
-    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND, CASH_HANDOVER, RMP_DUE }
+    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE, ENQUIRY_COUNT, REFUND, CASH_HANDOVER, RMP_DUE, MEDICINE_DUE, CALL_COUNT, TRASH_COUNT, RMP_ADVANCE }
 
     data class Parsed(
         val metric: Metric,
@@ -63,6 +63,9 @@ object VoiceReportModel {
                 Range(iso(t.minusDays(6)), iso(t), "Last 7 days")
             q.contains("এক মাস") || q.contains("1 mash") ->
                 Range(iso(t.minusMonths(1).plusDays(1)), iso(t), "Last 1 month")
+            // V1419 — "এই মাসে" = চলতি মাসের ১ তারিখ থেকে আজ পর্যন্ত
+            q.contains("এই মাস") || q.contains("this month") ->
+                Range(iso(t.withDayOfMonth(1)), iso(t), "This month")
             else -> null
         }
     }
@@ -81,15 +84,25 @@ object VoiceReportModel {
         val hasEnquiry = q.contains("এনকোয়ারি")
         val hasRefund = q.contains("রিফান্ড")
         val hasHandover = q.contains("হ্যান্ডওভার")
-        val hasRmpDue = q.contains("কমিশন") && (q.contains("বাকি") || q.contains("বাকী"))
+        val hasDueWord = q.contains("বাকি") || q.contains("বাকী")
+        val hasRmpDue = q.contains("কমিশন") && hasDueWord
+        // 🎤 V1419 — মেডিসিন-বাকি · অ্যাপ-কল · ট্র্যাশ · RMP-অগ্রিম
+        val hasProductDue = (hasMedicine || hasSaline) && hasDueWord && !hasSale
+        val hasCall = q.contains("কল") && (q.contains("অ্যাপ") || q.contains("হয়েছে")) && !q.contains("ফলো")
+        val hasTrash = q.contains("ডিলিট") || q.contains("ট্র্যাশ") || q.contains("মোছা") || q.contains("মুছে")
+        val hasAdvance = q.contains("অগ্রিম") || q.contains("অ্যাডভান্স") || q.lowercase().contains("advance")
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
         return when {
             hasSale && hasMedicine -> Metric.MEDICINE_SALE
             hasSale && hasSaline -> Metric.SALINE_SALE
+            hasProductDue -> Metric.MEDICINE_DUE
             hasHandover -> Metric.CASH_HANDOVER
+            hasAdvance -> Metric.RMP_ADVANCE
             hasRmpDue -> Metric.RMP_DUE
+            hasTrash -> Metric.TRASH_COUNT
+            hasCall -> Metric.CALL_COUNT
             hasRefund -> Metric.REFUND
             hasEnquiry -> Metric.ENQUIRY_COUNT
             hasMoney -> Metric.COLLECTION
@@ -109,7 +122,8 @@ object VoiceReportModel {
         // 🔒 V1418 (১৩.০৯.২০২৬) — RMP-বাকি কোনো সময়-সীমার প্রশ্ন নয় (fin.rmp_branch_due
         // "এখন পর্যন্ত মোট বাকি" দেখায়, তারিখ নেয় না), তাই এখানেই একমাত্র ব্যতিক্রম —
         // "গতকাল/আজ/সাত দিন/এক মাস" কিছু না বললেও চলবে।
-        if (metric == Metric.RMP_DUE) return Parsed(metric, branch, "", "", branchLabel, "Right now")
+        // V1419 — মেডিসিন-বাকিও একই রকম "এখন পর্যন্ত মোট" প্রশ্ন, তারিখ লাগে না।
+        if (metric == Metric.RMP_DUE || metric == Metric.MEDICINE_DUE) return Parsed(metric, branch, "", "", branchLabel, "Right now")
         val range = findDateRange(q) ?: return null
         return Parsed(metric, branch, range.from, range.to, branchLabel, range.label)
     }
