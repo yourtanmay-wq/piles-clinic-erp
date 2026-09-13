@@ -23792,9 +23792,12 @@ function wlv1VoiceParse(q){
   for(const [k,v] of wlv1VoiceBranchMap) if(lower.includes(k.toLowerCase())){branch=v;break}
   if(!branch) return null;
   const range=wlv1VoiceDateRange(q); if(!range) return null;
+  const hasSale = q.includes('বিক্রি');
+  const hasMedicine = q.includes('মেডিসিন')||q.includes('ওষুধ');
+  const hasSaline = q.includes('স্যালাইন');
   const hasMoney = q.includes('কালেকশন')||q.includes('জমা')||(q.includes('টাকা')&&!q.includes('পেশেন্ট'));
   const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
-  const metric = hasMoney?'COLLECTION':(hasPatientCount?'REGISTRATION_COUNT':null);
+  const metric = (hasSale&&hasMedicine)?'MEDICINE_SALE':(hasSale&&hasSaline)?'SALINE_SALE':hasMoney?'COLLECTION':(hasPatientCount?'REGISTRATION_COUNT':null);
   if(!metric) return null;
   return {metric,branch,from:range.from,to:range.to,periodLabel:range.label};
 }
@@ -23820,6 +23823,14 @@ async function wlv1ShowVoiceAnswer(q){
     $('#wlv1VoiceAnswerNum').textContent = String(r.data);
     $('#wlv1VoiceAnswerSub').textContent = 'patients registered • tap to see list ›';
     $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('REGISTRATION_COUNT',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='MEDICINE_SALE'||parsed.metric==='SALINE_SALE'){
+    const kind = parsed.metric==='MEDICINE_SALE'?'medicinePayment':'salinePayment';
+    const r = await c.rpc('product_sale_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to,p_kind:kind});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    const s=r.data[0];
+    $('#wlv1VoiceAnswerNum').textContent = money(s.total);
+    $('#wlv1VoiceAnswerSub').textContent = `${s.sale_count} sales • tap to see list ›`;
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail(parsed.metric,parsed.branch,parsed.from,parsed.to,title);
   } else {
     const r = await c.rpc('collection_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
     if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
@@ -23847,6 +23858,21 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title){
         + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
         + `<span class="tiny">${esc(p.mobile||'')} · ${esc(fmtDate(p.registration_date||''))}</span></div>`;
     }).join('') || '<div class="card mut">No patients found for this period.</div>';
+  } else if(metric==='MEDICINE_SALE'||metric==='SALINE_SALE'){
+    const kind = metric==='MEDICINE_SALE'?'medicinePayment':'salinePayment';
+    const r = await c.rpc('product_sale_list',{p_branch:branch,p_from:from,p_to:to,p_kind:kind});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    const sr = await c.rpc('product_sale_summary',{p_branch:branch,p_from:from,p_to:to,p_kind:kind});
+    const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
+    $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.sale_count} sales` : 'Total: —';
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile);
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.customer||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(p.product||'')} · ${esc(p.mode||'')} · ${esc(fmtDate(p.sold_on||''))}</span>`
+        + `<span style="float:right;font-weight:700;color:#0C8F3A">${money(p.bill)}</span></div>`;
+    }).join('') || '<div class="card mut">No sales found for this period.</div>';
   } else {
     const r = await c.rpc('collection_list',{p_branch:branch,p_from:from,p_to:to});
     if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }

@@ -539,6 +539,20 @@ class GlobalSearchActivity : AppCompatActivity() {
                     else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
                 }
             }
+            VoiceReportModel.Metric.MEDICINE_SALE, VoiceReportModel.Metric.SALINE_SALE -> {
+                val kind = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "medicinePayment" else "salinePayment"
+                val metricName = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "MEDICINE_SALE" else "SALINE_SALE"
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", metricName).putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.productSaleSummary(parsed.branch, parsed.from, parsed.to, kind) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.saleCount} sales • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
         }
     }
 

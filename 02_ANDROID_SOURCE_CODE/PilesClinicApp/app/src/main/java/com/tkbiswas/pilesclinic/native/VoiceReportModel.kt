@@ -17,7 +17,7 @@ import java.time.ZoneId
    ═══════════════════════════════════════════════════════════════════════ */
 object VoiceReportModel {
 
-    enum class Metric { REGISTRATION_COUNT, COLLECTION }
+    enum class Metric { REGISTRATION_COUNT, COLLECTION, MEDICINE_SALE, SALINE_SALE }
 
     data class Parsed(
         val metric: Metric,
@@ -73,10 +73,15 @@ object VoiceReportModel {
         else "${FollowUpModel.displayDate(from)} – ${FollowUpModel.displayDate(to)} ($label)"
 
     private fun findMetric(q: String): Metric? {
+        val hasSale = q.contains("বিক্রি")
+        val hasMedicine = q.contains("মেডিসিন") || q.contains("ওষুধ")
+        val hasSaline = q.contains("স্যালাইন")
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
         return when {
+            hasSale && hasMedicine -> Metric.MEDICINE_SALE
+            hasSale && hasSaline -> Metric.SALINE_SALE
             hasMoney -> Metric.COLLECTION
             hasPatientCount -> Metric.REGISTRATION_COUNT
             else -> null

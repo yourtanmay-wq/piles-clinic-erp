@@ -98,6 +98,21 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.payType} · ${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", if (p.payType.equals("refund", true)) "#B42318" else "#0C8F3A", onTap))
                     }
                 }
+                "MEDICINE_SALE", "SALINE_SALE" -> {
+                    val kind = if (metric == "MEDICINE_SALE") "medicinePayment" else "salinePayment"
+                    val (sum, list) = withContext(Dispatchers.IO) {
+                        VoiceReportRepository.productSaleSummary(branch, from, to, kind) to VoiceReportRepository.productSaleList(branch, from, to, kind)
+                    }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total: ₹${"%,.0f".format(s.total)} · ${s.saleCount} sales" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No sales found for this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.customer.ifBlank { p.mobile }, "${p.product} · ${p.mode} · ${FollowUpModel.displayDate(p.soldOn)}", "₹${"%,.0f".format(p.bill)}", "#0C8F3A", onTap))
+                    }
+                }
                 else -> fail("Unknown report")
             }
             binding.progressLoad.visibility = android.view.View.GONE

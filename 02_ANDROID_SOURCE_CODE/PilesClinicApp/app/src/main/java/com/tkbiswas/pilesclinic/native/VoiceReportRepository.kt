@@ -17,6 +17,8 @@ object VoiceReportRepository {
     data class RegisteredPatient(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String)
     data class CollectionSummary(val total: Double, val patientCount: Int, val paymentCount: Int)
     data class CollectionRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val payType: String, val paidOn: String)
+    data class ProductSaleSummary(val total: Double, val saleCount: Int)
+    data class ProductSaleRow(val productRowId: String, val customer: String, val mobile: String, val product: String, val bill: Double, val deposit: Double, val due: Double, val mode: String, val soldOn: String)
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
         val rpc = ModuleAuth.rpc("reports", "patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
@@ -61,6 +63,34 @@ object VoiceReportRepository {
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
                 out.add(CollectionRow(x.optString("payment_id"), x.optString("patient_row_id"), x.optString("name"), x.optString("mobile"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("pay_type"), x.optString("paid_on")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    /* 🎤 V1416 (১৩.০৯.২০২৬, TK-নির্দেশ "শুরু করে দিন", তালিকা ৫২২) — মেডিসিন/
+     * স্যালাইন বিক্রি (VOICE_QUERY_PLAN আইটেম ৪ ও ২১) — একই `products` টেবিল,
+     * শুধু kind আলাদা, তাই একটাই ফাংশন-জোড়া দুই kind দিয়েই ডাকা হয়। */
+    fun productSaleSummary(branch: String, from: String, to: String, kind: String): RepoResult<ProductSaleSummary> {
+        val rpc = ModuleAuth.rpc("reports", "product_sale_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to).put("p_kind", kind))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            if (arr.length() == 0) return RepoResult(false, message = "Not allowed for this branch")
+            val x = arr.getJSONObject(0)
+            RepoResult(true, ProductSaleSummary(x.optDouble("total", 0.0), x.optInt("sale_count", 0)))
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    fun productSaleList(branch: String, from: String, to: String, kind: String): RepoResult<List<ProductSaleRow>> {
+        val rpc = ModuleAuth.rpc("reports", "product_sale_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to).put("p_kind", kind))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<ProductSaleRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(ProductSaleRow(x.optString("product_row_id"), x.optString("customer"), x.optString("mobile"), x.optString("product"), x.optDouble("bill", 0.0), x.optDouble("deposit", 0.0), x.optDouble("due", 0.0), x.optString("mode"), x.optString("sold_on")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
