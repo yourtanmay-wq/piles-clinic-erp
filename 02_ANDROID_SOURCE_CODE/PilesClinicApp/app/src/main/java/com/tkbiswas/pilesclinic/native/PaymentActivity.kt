@@ -563,6 +563,18 @@ class PaymentActivity : AppCompatActivity() {
                 displayList.asSequence().map { it.s("patientCode") }
                     .firstOrNull { it.isNotBlank() } ?: ""
             }
+            /* 🩺🔒 V1476 (১৪.০৯.২০২৬, TK: "কোন রোগের পেশেন্ট এটা বোঝা যাচ্ছে না")
+               — payments সারিতে রোগ কখনো জমা থাকে না, তাই একটাই হালকা ডাক
+               (শুধু `disease`, একটা সারি, patientCode ধরে) — Checkup পর্দার
+               bindPatientHeader()-এর হুবহু একই প্রমাণিত ধরন। patientCode
+               ফাঁকা থাকলে ডাকই হয় না, চুপচাপ ফাঁকা থাকে (আগের মতোই)। */
+            val disease = if (patientCode.isBlank()) "" else withContext(Dispatchers.IO) {
+                try {
+                    val enc = java.net.URLEncoder.encode(patientCode, "UTF-8")
+                    val rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1, "disease")
+                    if (rows.length() > 0) rows.getJSONObject(0).s("disease") else ""
+                } catch (_: Throwable) { "" }
+            }
 
             // TK APPROVED (2026-07-15): premium shell (navy header, rounded
             // entry cards, styled Close button) — same visual language as the
@@ -593,7 +605,8 @@ class PaymentActivity : AppCompatActivity() {
             header.addView(TextView(this@PaymentActivity).apply {
                 text = "📞 +91$digits" +
                     (if (patientCode.isNotBlank()) "  ·  \uD83C\uDD94 $patientCode" else "") +
-                    (if (branch.isNotBlank()) "  ·  $branch" else "")
+                    (if (branch.isNotBlank()) "  ·  $branch" else "") +
+                    (if (disease.isNotBlank()) "  ·  $disease" else "")
                 textSize = 12f; setTextColor(android.graphics.Color.parseColor("#B8C6D8"))
                 val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                 p.topMargin = dp(3); layoutParams = p
