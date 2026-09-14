@@ -27,7 +27,7 @@
         <Button
             android:id="@+id/btnAddRegistration"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:background="@drawable/bg_btn_teal"
@@ -43,7 +43,7 @@
         <Button
             android:id="@+id/btnMarkExpected"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:layout_marginHorizontal="4dp"
             android:background="@drawable/bg_btn_green"
@@ -59,7 +59,7 @@
         <Button
             android:id="@+id/btnSearchPatient"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:layout_marginStart="4dp"
             android:background="@drawable/bg_btn_teal"
@@ -81,13 +81,13 @@
          🔁 পুরনো (ফেরানোর জন্য): ২টো কার্ড · horizontal · label 13sp · count 18sp
             · height 42dp · paddingHorizontal 8dp · label marginStart 8dp।
 
-         🎨🔒 V1474 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ, ৩৮dp-এ নামানোর নির্দেশ) — আগে এই
-         পর্দার সব ৬টা বক্স একই উচ্চতার ছিল (২১.০৭.২০২৬, ৫৬dp), কিন্তু ০৫.০৮-
-         এ এই কার্ডগুলো আলাদা ফাইলে সরানোর সময় উপরের ৩ বোতাম (৩৮dp) আর এই
-         ৩ কার্ড (৪৮dp) — দুরকম হয়ে গিয়েছিল, TK ধরেছেন। এখন কার্ডও ৩৮dp —
-         ছয়টাই আবার সমান। লেবেল (9sp) + সংখ্যা (16sp bold) দুটো লাইন ৩৮dp-তে
-         ফিট করে (মেপে দেখা — মোট লাইন-উচ্চতা ~৩০dp, বাকি জায়গা ভিতরে
-         gravity=center-এর জন্য)। -->
+         🎨🔒 V1474 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — আগে এই পর্দার সব
+         ৬টা বক্স একই উচ্চতার ছিল (২১.০৭.২০২৬, ৫৬dp), কিন্তু ০৫.০৮-এ এই
+         কার্ডগুলো আলাদা ফাইলে সরানোর সময় উপরের ৩ বোতাম আর এই ৩ কার্ড —
+         দুরকম উচ্চতা হয়ে গিয়েছিল, TK ধরেছেন। প্রথমে ৩৮dp-এ (কার্ড ৪৮→৩৮),
+         পরে TK-নির্দেশে আরেকটু বাড়িয়ে **৪০dp**-এ (ছয়টাই একসাথে) — এখন
+         সবকটা আবার সমান। লেবেল (9sp) + সংখ্যা (16sp bold) দুটো লাইন
+         ৪০dp-তে আরামসে ফিট করে (মেপে দেখা)। -->
     <LinearLayout
         android:id="@+id/branchDateRow"
         android:layout_width="match_parent"
@@ -100,7 +100,7 @@
         <LinearLayout
             android:id="@+id/cardExpected"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:orientation="vertical"
@@ -134,7 +134,7 @@
         <LinearLayout
             android:id="@+id/cardKalAsar"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:layout_marginHorizontal="4dp"
             android:orientation="vertical"
@@ -165,7 +165,7 @@
         <LinearLayout
             android:id="@+id/cardArrived"
             android:layout_width="0dp"
-            android:layout_height="38dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:layout_marginStart="4dp"
             android:orientation="vertical"
