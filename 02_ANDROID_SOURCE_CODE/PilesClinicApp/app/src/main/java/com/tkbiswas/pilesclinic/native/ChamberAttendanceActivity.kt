@@ -3948,19 +3948,43 @@ Thread {
            ⛔ সব ঘর লেখা থাকলে হুবহু আগের কাজই হয় (নিচের `performConfirmClose`
               সেই একই কোড, এক অক্ষরও বদলায়নি — শুধু আলাদা ফাংশনে সরানো)। */
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
-            val pending = board.rows.firstOrNull { it.arrived && todaysProgressMissing(it.remark, it.remarkUpdatedAt) }
-            if (pending != null) {
-                android.widget.Toast.makeText(
-                    this,
-                    "⚠️ ${pending.name.ifBlank { pending.mobile }} — " + NoBengali.s("আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না"),
-                    android.widget.Toast.LENGTH_LONG
-                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
-                editRemarkInReview(pending)
-                return@setOnClickListener
+            /* 💵🔒 V1478 (১৪.০৯.২০২৬, TK: "জয়ন্তী রায়ের রেজিস্ট্রেশন ডুপ্লিকেট
+               ধরে Reject হয়ে গেছে, তাহলে Close Chamber হচ্ছে না কেন — এরকম
+               রোগীকে বাদ দিয়ে Close Chamber হতে দিন") — Reject/Cancelled হওয়া
+               রোগীর Follow-up সারিতে লেখাই যায় না (`writeTreatment`-এর নিজের
+               "Entry is Rejected/Incomplete — Restore first" সুরক্ষা, অটুট) —
+               অথচ V938-এর বাধ্যতামূলক Treatment Progress পাহারা তাঁকেও ধরত,
+               তাই কখনো Close Chamber-ই হতো না (দুটো ঠিক নিয়মের সংঘর্ষ)।
+               এখন "ফাঁকা" রোগী পেলে **আগে যাচাই** — সত্যিই Reject/Cancelled/
+               Closed হলে (আগে থেকেই থাকা `resolveBestFollowUpId`-এর সেই
+               একই ফাংশন, কোনো নতুন লজিক নয়) তাঁকে বাদ দিয়ে পরের ফাঁকা
+               রোগী খোঁজা হয়। ⛔ নেট-সমস্যা/অনিশ্চিত ফলে (null) আগের মতোই
+               **আটকায়** — শুধু নিশ্চিতভাবে Reject/Cancelled/Closed প্রমাণ
+               হলেই বাদ যায়, আন্দাজে কাউকে বাদ দেওয়া হয় না। */
+            lifecycleScope.launch {
+                var pending: ChamberAttendanceRow? = null
+                for (row in board.rows) {
+                    if (!row.arrived || !todaysProgressMissing(row.remark, row.remarkUpdatedAt)) continue
+                    val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
+                    val resolvedId = if (digits.length == 10)
+                        try { resolveBestFollowUpId(digits) } catch (_: Throwable) { null }
+                    else null
+                    if (resolvedId == terminalFollowUpSentinel) continue   // Reject/Cancelled/Closed — বাদ
+                    pending = row; break
+                }
+                if (pending != null) {
+                    android.widget.Toast.makeText(
+                        this@ChamberAttendanceActivity,
+                        "⚠️ ${pending.name.ifBlank { pending.mobile }} — " + NoBengali.s("আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না"),
+                        android.widget.Toast.LENGTH_LONG
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                    editRemarkInReview(pending)
+                    return@launch
+                }
+                try { dialog.dismiss() } catch (_: Throwable) { }
+                currentReviewDialog = null
+                performConfirmClose(board)
             }
-            try { dialog.dismiss() } catch (_: Throwable) { }
-            currentReviewDialog = null
-            performConfirmClose(board)
         }
         try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
