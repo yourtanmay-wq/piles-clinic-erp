@@ -255,6 +255,18 @@
     var mode = document.getElementById('rmpPatMode').value, valText = document.getElementById('rmpPatValue').value;
     var value = mode === 'DEFAULT' ? null : Number(valText);
     if (mode !== 'DEFAULT' && (!isFinite(value) || value < 0 || (mode === 'PERCENT' && value > 100))) return toast('Enter a valid commission value');
+    /* 🚦🔒 V1469 (১৪.০৯.২০২৬, তালিকা ৫৮১ — DURDARS PAL, ফোনের হুবহু একই
+       নিয়ম) — একই নামে/মোবাইলে RMP-র একাধিক ব্রাঞ্চ-কার্ড থাকতে পারে; এই
+       কার্ডটা রোগীর নিজের ব্রাঞ্চের না হলে সেভের আগে জিজ্ঞাসা করা হয় —
+       আটকায় না, শুধু নিশ্চিত হওয়া। কোনো একটা ব্রাঞ্চ ফাঁকা থাকলে তুলনাই হয় না। */
+    var dForBranch = doctor(docId);
+    var patBranch = String((p && p.branch) || '').trim();
+    var cardBranch = String((dForBranch && dForBranch.branch) || '').trim();
+    if (patBranch && cardBranch && patBranch.toLowerCase() !== cardBranch.toLowerCase()) {
+      var okMismatch = await wlv1AreYouSure('⚠️ Branch mismatch',
+        (p.name || p.mobile) + ' is a ' + patBranch + ' patient, but this RMP card is for ' + cardBranch + '. Save the commission here anyway?');
+      if (!okMismatch) return;
+    }
     var c = await fin(); if (!c) return toast('Could not verify login');
     var current = await c.from('rmp_patient_commissions').select('rmp_id,set_on,commission_mode,commission_value').eq('patient_row_id', p.id).limit(1).maybeSingle();
     var changingRmp = current && current.data && String(current.data.rmp_id) !== String(docId), r;
