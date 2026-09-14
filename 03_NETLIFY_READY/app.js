@@ -24473,19 +24473,19 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     } else if(metric==='PAYMENT_REQUESTS'){
       const rows=await listOf('payment_requests_list',oneArg); if(!rows) return; const s=await first('payment_requests_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Pending: ${s.total} (${s.backdate_count} backdate · ${s.edit_count} edit · ${s.refund_count} refund)`:'Total: —';
-      render(rows,'No pending payment requests.',p=>card(p.name||mob(p.mobile)||'-',`${p.request_type||''} · ${fmtDate(p.requested_on||'')}`,money(p.amount),'#B45309',mob(p.mobile)));
+      render(rows,'No pending payment requests.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.request_type||''} · ${fmtDate(p.requested_on||'')}`,money(p.amount),'#B45309',mob(p.mobile)));
     } else if(metric==='REFERRAL_REQUESTS'){
       const rows=await listOf('referral_requests_list',oneArg); if(!rows) return; const s=await first('referral_requests_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Pending: ${s.total} (${s.delete_count} delete)`:'Total: —';
-      render(rows,'No pending referral requests.',p=>card(p.request_type||'',fmtDate(p.requested_on||''),p.request_type==='Delete'?'—':money(p.new_amount),'#B45309',''));
+      render(rows,'No pending referral requests.',p=>card(p.request_type||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${fmtDate(p.requested_on||'')}`,p.request_type==='Delete'?'—':money(p.new_amount),'#B45309',''));
     } else if(metric==='LEAVE_COUNT'){
       const rows=await listOf('leave_list',rangeArgs); if(!rows) return; const s=await first('leave_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Leave-days applied: ${s.total} · ${s.confirmed} confirmed · ${s.pending} pending · ${s.rejected} rejected`:'Total: —';
-      render(rows,'No leave applications for this period.',p=>card(p.staff_code||'',`Leave ${fmtDate(p.leave_date||'')} · applied ${fmtDate(p.applied_on||'')}`,esc(p.status||''),p.status==='confirmed'?'#0C8F3A':(p.status==='rejected'?'#B42318':'#B45309'),''));
+      render(rows,'No leave applications for this period.',p=>card(p.staff_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}Leave ${fmtDate(p.leave_date||'')} · applied ${fmtDate(p.applied_on||'')}`,esc(p.status||''),p.status==='confirmed'?'#0C8F3A':(p.status==='rejected'?'#B42318':'#B45309'),''));
     } else if(metric==='DOCTOR_REMINDER'){
       const rows=await listOf('doctor_reminder_list',rangeArgs); if(!rows) return; const s=await first('doctor_reminder_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Sent: ${s.total} · ${s.not_accepted} not accepted yet`:'Total: —';
-      render(rows,'No doctor reminders for this period.',p=>card(`Remind on ${fmtDate(p.remind_date||'')}`,`sent ${fmtDate(p.created_on||'')}`,p.cancelled?'cancelled':(p.accepted?'accepted':'open'),p.cancelled?'#94A3B8':(p.accepted?'#0C8F3A':'#B45309'),''));
+      render(rows,'No doctor reminders for this period.',p=>card(`Remind on ${fmtDate(p.remind_date||'')}`,`${branch==='ALL'?(p.branch||'')+' · ':''}sent ${fmtDate(p.created_on||'')}`,p.cancelled?'cancelled':(p.accepted?'accepted':'open'),p.cancelled?'#94A3B8':(p.accepted?'#0C8F3A':'#B45309'),''));
     } else if(metric==='STAFF_REMINDER_OPEN'){
       const rows=await listOf('staff_reminder_open_list',oneArg); if(!rows) return; const s=await first('staff_reminder_open_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Open: ${s.total}`:'Total: —';
