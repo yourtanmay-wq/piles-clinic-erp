@@ -23109,9 +23109,11 @@ function wlv1ChamberFixPayment(mobile, rowId){
   const list=wlv1MergeDailyTreatmentRows(rawList);
   if(!list.length) return toast('No payment on this date');
   const rupee = v => '₹'+Number(v||0).toLocaleString('en-IN');
+  /* 💰🔒 V1477 (১৪.০৯.২০২৬, TK: "চেম্বার ডেট থেকে পেশেন্ট আরো টাকা জমা করতে চাইলে হচ্ছে না কেন") — এই পপ-আপ আগে শুধু আগের টাকা সংশোধনের জন্যই ছিল (ফোনের fixPaymentInReview-এর হুবহু একই কুয়া) — নতুন টাকা (২য়/৩য় পেয়মেন্ট) জমা করার কোনো পথ রাখা হয়নি। এখন "+ Add New Payment" বোতাম — প্রমাণিত addTreatmentPayment()-এই পাঠায় (Payment Collection-এর "Add Payment" বোতাময় এই একই ফাংশন), নতুন কোনো সেভ-লজিক বানানো হয়নি। */
+  const patRowId = String((list[0]&&list[0].patientId)||'');
   modal(`<h2>${esc(String(list[0].name||m).toUpperCase())}</h2>`
     + list.map(x=>{let sp=wlv1PaymentSplit(x),md=sp.cash>0&&sp.online>0?'Cash + Online':(sp.online>0?'Online':'Cash'),combined=isTreatmentPaymentRow(x)&&wlv1EventCount(x)>1;return `<div class="card"><b>${esc(collectionPaymentLabel?collectionPaymentLabel(x):(x.payType||'Payment'))}</b> · ${esc(fmtDate(x.date||''))}<br><b>${rupee(x.amount)}</b> · ${esc(md)}<div class="actions">${combined?`<button onclick="closeModal();wlv1ShowDailyBreakdown('${esc(x.id)}')">Fix Payment</button>`:`<button onclick="closeModal();editPaymentEntry('${esc(x.id)}')">Fix Payment</button>`}</div></div>`}).join('')
-    + `<div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`);
+    + (patRowId?`<div class="actions"><button onclick="closeModal();addTreatmentPayment('${esc(patRowId)}')">+ Add New Payment</button><button class="ghost" onclick="closeModal()">Close</button></div>`:`<div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`));
 }
 window["wlv1ChamberFixPayment"]=wlv1ChamberFixPayment;
 window["wlv1ChamberRowHtml"]=wlv1ChamberRowHtml;

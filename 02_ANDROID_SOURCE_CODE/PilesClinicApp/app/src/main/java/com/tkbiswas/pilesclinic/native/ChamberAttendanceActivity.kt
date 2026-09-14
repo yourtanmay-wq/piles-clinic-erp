@@ -4247,9 +4247,20 @@ Thread {
                 val whenLine = if (when_.isNotBlank()) "\nOn: $when_" else ""
                 "$label — ₹${"%,.0f".format(p.optDouble("amount", 0.0))} (${p.s("mode").ifBlank { "CASH" }})$who$whenLine"
             }.toTypedArray()
+            /* 💰🔒 V1477 (১৪.০৯.২০২৬, TK: "চেম্বার ডেট থেকে পেশেন্ট আরো টাকা
+               জমা করতে চাইলে হচ্ছে না কেন") — এই পপ-আপ শুধু আগের টাকা
+               সংশোধনের জন্যই ছিল (TK-অনুমোদিত পুরনো নিয়ম, ২৮.০৭.২০২৬ —
+               ভুল সারিতে চাপ পড়ার ঝুঁকি এড়াতে তালিকাটাই একমাত্র বোতাম
+               ছিল) — নতুন আরেকটা টাকা (২য়/৩য় পেমেন্ট) জমা করার কোনো পথই
+               এখানে রাখা হয়নি, ইচ্ছে করে বাদ নয়, আগে দরকার পড়েনি। এখন
+               TK-অনুমোদনে "+ Add New Payment" বোতাম — বাকি সব জায়গার মতোই
+               প্রমাণিত পূর্ণ Payment পর্দায় (`openPayment`) পাঠায়, এখানে
+               কোনো নতুন সেভ-লজিক বানানো হয়নি। পুরনো তালিকা/সংশোধনের পথ
+               এক অক্ষরও বদলায়নি। */
             AlertDialog.Builder(this@ChamberAttendanceActivity)
                 .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "💵 Fix Payment — ${r.name.ifBlank { r.mobile }}"))
                 .setItems(labels) { _, idx -> editOnePaymentRow(rows[idx]) }
+                .setPositiveButton("+ Add New Payment") { _, _ -> openPayment(r) }
                 .setNegativeButton("Cancel", null)
                 .show().also { PremiumAlert.paint(it) }
         }
