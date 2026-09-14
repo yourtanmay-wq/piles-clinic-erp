@@ -480,7 +480,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = got.value ?: emptyList()
                     binding.tvSummary.text = if (due) "RMP doctors due for a call: ${rows.size}" else "RMP doctors called: ${rows.size}"
                     if (rows.isEmpty()) empty(if (due) "No RMP call due in this period." else "No RMP called in this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · last call ${FollowUpModel.displayDate(p.lastCallDate)} · next ${FollowUpModel.displayDate(p.nextCallDate)}", "›", "#94A3B8", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.mobile} · last call ${FollowUpModel.displayDate(p.lastCallDate)} · next ${FollowUpModel.displayDate(p.nextCallDate)}", "›", "#94A3B8", null))
+                    }
                 }
                 "FIELD_VISIT" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.fieldVisitSummary(branch, from, to) to VoiceReportRepository.fieldVisitList(branch, from, to) }
@@ -489,7 +492,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = if (s != null) "Visits marked: ${s.visits} · ${"%.1f".format(s.km)} km · ${s.staffCount} field staff" else "Total: —"
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No field visit in this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, FollowUpModel.displayDate(p.workDate), "${p.visits} visits · ${"%.1f".format(p.km)} km", "#0C8F3A", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffCode, "$branchTag${FollowUpModel.displayDate(p.workDate)}", "${p.visits} visits · ${"%.1f".format(p.km)} km", "#0C8F3A", null))
+                    }
                 }
                 "STAFF_HOURS" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursSummary(branch, from, to) to VoiceReportRepository.staffHoursList(branch, from, to) }
@@ -499,7 +505,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = (if (list.ok) list.value ?: emptyList() else emptyList()).filter { VoiceReportModel.nameMatch(extra, it.staffCode) }   // V1428/V1429
                     if (extra.isNotBlank()) binding.tvSummary.text = "Hours · $extra: ${"%.1f".format(rows.sumOf { r -> r.hours })} h"
                     if (rows.isEmpty()) empty("No attendance in this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, "${p.days} days · ${p.leaveDays} leave · ${p.outMissingDays} OUT missing", "${"%.1f".format(p.hours)} h", "#0C8F3A", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffCode, "$branchTag${p.days} days · ${p.leaveDays} leave · ${p.outMissingDays} OUT missing", "${"%.1f".format(p.hours)} h", "#0C8F3A", null))
+                    }
                 }
                 "STAFF_PRESENT" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.staffPresentSummary(branch, from, to) to VoiceReportRepository.staffPresentList(branch, from, to) }
@@ -509,7 +518,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = (if (list.ok) list.value ?: emptyList() else emptyList()).filter { VoiceReportModel.nameMatch(extra, it.staffCode) }   // V1428/V1429
                     if (extra.isNotBlank()) binding.tvSummary.text = "Present · $extra: ${rows.size} attendance days"
                     if (rows.isEmpty()) empty("Nobody marked IN in this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, FollowUpModel.displayDate(p.workDate), "IN ${p.checkIn}${if (p.checkOut.isNotBlank()) " · OUT ${p.checkOut}" else ""}", "#0C8F3A", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffCode, "$branchTag${FollowUpModel.displayDate(p.workDate)}", "IN ${p.checkIn}${if (p.checkOut.isNotBlank()) " · OUT ${p.checkOut}" else ""}", "#0C8F3A", null))
+                    }
                 }
                 // 🎤 V1428 (তালিকা ৫৩৮) — RMP-কে দেওয়া কমিশন · IN-বাদ · কোন ব্রাঞ্চে সবচেয়ে বেশি/কম
                 "RMP_PAID" -> {
@@ -522,7 +534,8 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     if (rows.isEmpty()) empty("No RMP commission paid in this period.")
                     rows.forEach { p ->
                         // ⛔ সারিতে RMP-র মোবাইল নেই, তাই চাপলে কোথাও যায় না (আন্দাজে পাতা খোলা নিষেধ)
-                        binding.rowsHost.addView(row(p.rmpName.ifBlank { p.rmpId }, "${if (p.kind == "advance") "Advance" else "For ${p.patientName.ifBlank { "patient" }}"} · ${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", "#0C8F3A", null))
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.rmpName.ifBlank { p.rmpId }, "$branchTag${if (p.kind == "advance") "Advance" else "For ${p.patientName.ifBlank { "patient" }}"} · ${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", "#0C8F3A", null))
                     }
                 }
                 "IN_MISSING" -> {
@@ -533,7 +546,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = if (extra.isNotBlank()) "IN time not given · $extra: ${rows.size} days"
                         else if (s != null) "IN time not given: ${s.total} days · ${s.staffCount} staff (only days the notebook was opened)" else "Total: —"
                     if (rows.isEmpty()) empty("No missing IN time in this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffName.ifBlank { p.staffCode }, "${p.staffCode} · ${FollowUpModel.displayDate(p.workDate)}${if (p.checkOut.isNotBlank()) " · OUT ${p.checkOut}" else ""}", "IN —", "#B42318", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffName.ifBlank { p.staffCode }, "$branchTag${p.staffCode} · ${FollowUpModel.displayDate(p.workDate)}${if (p.checkOut.isNotBlank()) " · OUT ${p.checkOut}" else ""}", "IN —", "#B42318", null))
+                    }
                 }
                 "BRANCH_TOP_COLLECTION", "BRANCH_TOP_PATIENTS" -> {
                     val money = metric == "BRANCH_TOP_COLLECTION"
