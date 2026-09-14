@@ -65,73 +65,73 @@ object VoiceReportRepository {
         return JSONArray().put(merged).toString()
     }
 
-    data class RegisteredPatient(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String)
+    data class RegisteredPatient(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String, val branch: String = "")
     data class CollectionSummary(val total: Double, val patientCount: Int, val paymentCount: Int)
-    data class CollectionRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val payType: String, val paidOn: String)
+    data class CollectionRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val payType: String, val paidOn: String, val branch: String = "")
     data class ProductSaleSummary(val total: Double, val saleCount: Int)
-    data class ProductSaleRow(val productRowId: String, val customer: String, val mobile: String, val product: String, val bill: Double, val deposit: Double, val due: Double, val mode: String, val soldOn: String)
-    data class EnquiryRow(val enquiryRowId: String, val name: String, val mobile: String, val disease: String, val enquiryDate: String)
+    data class ProductSaleRow(val productRowId: String, val customer: String, val mobile: String, val product: String, val bill: Double, val deposit: Double, val due: Double, val mode: String, val soldOn: String, val branch: String = "")
+    data class EnquiryRow(val enquiryRowId: String, val name: String, val mobile: String, val disease: String, val enquiryDate: String, val branch: String = "")
     data class RefundSummary(val total: Double, val refundCount: Int)
-    data class RefundRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val refundedOn: String)
+    data class RefundRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val refundedOn: String, val branch: String = "")
     data class HandoverSummary(val total: Double, val dayCount: Int)
-    data class HandoverRow(val handoverDate: String, val cash: Double, val receiverName: String, val receivedAt: String)
+    data class HandoverRow(val handoverDate: String, val cash: Double, val receiverName: String, val receivedAt: String, val branch: String = "")
     data class RmpDueSummary(val totalDue: Double, val rmpCount: Int)
-    data class RmpDueRow(val rmpId: String, val rmpName: String, val rmpMobile: String, val due: Double)
+    data class RmpDueRow(val rmpId: String, val rmpName: String, val rmpMobile: String, val due: Double, val branch: String = "")
     data class ProductDueSummary(val total: Double, val rowCount: Int)
-    data class ProductDueRow(val productRowId: String, val customer: String, val mobile: String, val product: String, val due: Double, val soldOn: String)
-    data class CallRow(val callRowId: String, val staffCode: String, val targetMobileMask: String, val callDate: String)
-    data class TrashRow(val trashRowId: String, val tableName: String, val deletedAt: String, val deletedBy: String)
+    data class ProductDueRow(val productRowId: String, val customer: String, val mobile: String, val product: String, val due: Double, val soldOn: String, val branch: String = "")
+    data class CallRow(val callRowId: String, val staffCode: String, val targetMobileMask: String, val callDate: String, val branch: String = "")
+    data class TrashRow(val trashRowId: String, val tableName: String, val deletedAt: String, val deletedBy: String, val branch: String = "")
     data class RmpAdvanceSummary(val total: Double, val advanceCount: Int)
-    data class RmpAdvanceRow(val advanceId: String, val rmpName: String, val amount: Double, val mode: String, val paidOn: String)
+    data class RmpAdvanceRow(val advanceId: String, val rmpName: String, val amount: Double, val mode: String, val paidOn: String, val branch: String = "")
     // V1420
-    data class AppointmentRow(val enquiryRowId: String, val name: String, val mobile: String, val disease: String, val appointmentDate: String, val registered: Boolean)
-    data class ExpectedRow(val markId: String, val patientRowId: String, val name: String, val mobile: String, val expectedOn: String)
+    data class AppointmentRow(val enquiryRowId: String, val name: String, val mobile: String, val disease: String, val appointmentDate: String, val registered: Boolean, val branch: String = "")
+    data class ExpectedRow(val markId: String, val patientRowId: String, val name: String, val mobile: String, val expectedOn: String, val branch: String = "")
     data class HandoverPendingSummary(val total: Double, val dayCount: Int)
-    data class HandoverPendingRow(val handoverDate: String, val cash: Double, val status: String)
+    data class HandoverPendingRow(val handoverDate: String, val cash: Double, val status: String, val branch: String = "")
     data class PaymentRequestsSummary(val backdate: Int, val edit: Int, val refund: Int, val total: Int)
-    data class PaymentRequestRow(val requestId: String, val requestType: String, val name: String, val mobile: String, val amount: Double, val requestedOn: String)
+    data class PaymentRequestRow(val requestId: String, val requestType: String, val name: String, val mobile: String, val amount: Double, val requestedOn: String, val branch: String = "")
     data class ReferralRequestsSummary(val total: Int, val deleteCount: Int)
-    data class ReferralRequestRow(val requestId: String, val requestType: String, val newAmount: Double, val requestedOn: String)
+    data class ReferralRequestRow(val requestId: String, val requestType: String, val newAmount: Double, val requestedOn: String, val branch: String = "")
     data class LeaveSummary(val total: Int, val confirmed: Int, val pending: Int, val rejected: Int)
-    data class LeaveRow(val staffCode: String, val leaveDate: String, val status: String, val appliedOn: String)
+    data class LeaveRow(val staffCode: String, val leaveDate: String, val status: String, val appliedOn: String, val branch: String = "")
     data class DoctorReminderSummary(val total: Int, val notAccepted: Int)
-    data class DoctorReminderRow(val reminderId: String, val remindDate: String, val createdOn: String, val accepted: Boolean, val cancelled: Boolean)
-    data class StaffReminderRow(val reminderId: String, val toName: String, val toCode: String, val reminderType: String, val remindOn: String, val status: String)
+    data class DoctorReminderRow(val reminderId: String, val remindDate: String, val createdOn: String, val accepted: Boolean, val cancelled: Boolean, val branch: String = "")
+    data class StaffReminderRow(val reminderId: String, val toName: String, val toCode: String, val reminderType: String, val remindOn: String, val status: String, val branch: String = "")
     data class FeeReturnSummary(val total: Double, val patientCount: Int)
-    data class FeeReturnRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val returnedOn: String)
+    data class FeeReturnRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val returnedOn: String, val branch: String = "")
     // V1421
-    data class UnclosedRow(val chamberDate: String, val arrived: Int, val money: Double)
+    data class UnclosedRow(val chamberDate: String, val arrived: Int, val money: Double, val branch: String = "")
     data class NoShowSummary(val noShow: Int, val arrived: Int, val expectedTotal: Int)
-    data class NoShowRow(val name: String, val mobile: String, val expectedOn: String, val arrived: Boolean)
+    data class NoShowRow(val name: String, val mobile: String, val expectedOn: String, val arrived: Boolean, val branch: String = "")
     data class OutMissingSummary(val total: Int, val staffCount: Int)
-    data class OutMissingRow(val staffCode: String, val workDate: String, val checkIn: String)
+    data class OutMissingRow(val staffCode: String, val workDate: String, val checkIn: String, val branch: String = "")
     data class WfhSummary(val total: Int, val approved: Int, val pending: Int, val rejected: Int)
-    data class WfhRow(val staffName: String, val staffCode: String, val workDate: String, val status: String, val requestedOn: String)
+    data class WfhRow(val staffName: String, val staffCode: String, val workDate: String, val status: String, val requestedOn: String, val branch: String = "")
     data class DuplicateSummary(val mobileGroups: Int, val nameGroups: Int, val paymentGroups: Int)
-    data class DuplicateRow(val mobile: String, val rowCount: Int, val names: String)
-    data class FeeUnpaidRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String)
-    data class CallPendingRow(val followupId: String, val name: String, val mobile: String, val stage: String, val nextFollow: String)
+    data class DuplicateRow(val mobile: String, val rowCount: Int, val names: String, val branch: String = "")
+    data class FeeUnpaidRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String, val branch: String = "")
+    data class CallPendingRow(val followupId: String, val name: String, val mobile: String, val stage: String, val nextFollow: String, val branch: String = "")
     data class MessagesSummary(val total: Int, val whatsapp: Int, val sms: Int)
-    data class MessageRow(val name: String, val mobile: String, val kind: String, val channel: String, val sentOn: String)
+    data class MessageRow(val name: String, val mobile: String, val kind: String, val channel: String, val sentOn: String, val branch: String = "")
     // V1422
-    data class NewPatientRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String)
+    data class NewPatientRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String, val branch: String = "")
     data class FuCallsDoneSummary(val total: Int, val patientCount: Int)
-    data class FuCallDoneRow(val followupId: String, val name: String, val mobile: String, val callDay: String, val remarks: Int)
+    data class FuCallDoneRow(val followupId: String, val name: String, val mobile: String, val callDay: String, val remarks: Int, val branch: String = "")
     data class DiseaseSummary(val total: Int, val allPatients: Int)
-    data class DiseaseRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val disease: String, val registrationDate: String)
-    data class RmpCallRow(val rmpId: String, val name: String, val mobile: String, val lastCallDate: String, val nextCallDate: String)
+    data class DiseaseRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val disease: String, val registrationDate: String, val branch: String = "")
+    data class RmpCallRow(val rmpId: String, val name: String, val mobile: String, val lastCallDate: String, val nextCallDate: String, val branch: String = "")
     data class FieldVisitSummary(val visits: Int, val km: Double, val staffCount: Int)
-    data class FieldVisitRow(val staffCode: String, val workDate: String, val visits: Int, val km: Double)
+    data class FieldVisitRow(val staffCode: String, val workDate: String, val visits: Int, val km: Double, val branch: String = "")
     data class StaffHoursSummary(val totalHours: Double, val staffCount: Int)
-    data class StaffHoursRow(val staffCode: String, val hours: Double, val days: Int, val leaveDays: Int, val outMissingDays: Int)
+    data class StaffHoursRow(val staffCode: String, val hours: Double, val days: Int, val leaveDays: Int, val outMissingDays: Int, val branch: String = "")
     // 🎤 V1428 — RMP-কে দেওয়া কমিশন · IN-বাদ · ব্রাঞ্চ-তুলনা
     data class RmpPaidSummary(val total: Double, val rmpCount: Int, val paymentCount: Int)
-    data class RmpPaidRow(val paymentId: String, val rmpId: String, val rmpName: String, val paidOn: String, val amount: Double, val kind: String, val patientName: String, val mode: String)
+    data class RmpPaidRow(val paymentId: String, val rmpId: String, val rmpName: String, val paidOn: String, val amount: Double, val kind: String, val patientName: String, val mode: String, val branch: String = "")
     data class InMissingSummary(val total: Int, val staffCount: Int)
-    data class InMissingRow(val staffCode: String, val staffName: String, val workDate: String, val checkOut: String)
+    data class InMissingRow(val staffCode: String, val staffName: String, val workDate: String, val checkOut: String, val branch: String = "")
     data class BranchRank(val branch: String, val value: Double, val patients: Int)
     data class StaffPresentSummary(val total: Int, val staffCount: Int)
-    data class StaffPresentRow(val staffCode: String, val workDate: String, val checkIn: String, val checkOut: String)
+    data class StaffPresentRow(val staffCode: String, val workDate: String, val checkIn: String, val checkOut: String, val branch: String = "")
 
     private fun args(branch: String, from: String, to: String): JSONObject = JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to)
     private fun args(branch: String): JSONObject = JSONObject().put("p_branch", branch)
@@ -174,16 +174,16 @@ object VoiceReportRepository {
 
     fun appointmentCount(b: String, f: String, t: String): RepoResult<Int> = scalarInt("appointment_count", args(b, f, t))
     fun appointmentList(b: String, f: String, t: String): RepoResult<List<AppointmentRow>> = rowList("appointment_list", args(b, f, t)).mapRows {
-        AppointmentRow(it.optString("enquiry_row_id"), it.optString("name"), it.optString("mobile"), it.optString("disease"), it.optString("appointment_date"), it.optBoolean("registered", false)) }
+        AppointmentRow(it.optString("enquiry_row_id"), it.optString("name"), it.optString("mobile"), it.optString("disease"), it.optString("appointment_date"), it.optBoolean("registered", false), it.optString("branch")) }
 
     fun expectedCount(b: String, f: String, t: String): RepoResult<Int> = scalarInt("expected_count", args(b, f, t))
     fun expectedList(b: String, f: String, t: String): RepoResult<List<ExpectedRow>> = rowList("expected_list", args(b, f, t)).mapRows {
-        ExpectedRow(it.optString("mark_id"), it.optString("patient_row_id"), it.optString("name"), it.optString("mobile"), it.optString("expected_on")) }
+        ExpectedRow(it.optString("mark_id"), it.optString("patient_row_id"), it.optString("name"), it.optString("mobile"), it.optString("expected_on"), it.optString("branch")) }
 
     fun handoverPendingSummary(b: String): RepoResult<HandoverPendingSummary> = firstRow("handover_pending_summary", args(b)).mapRow {
         HandoverPendingSummary(it.optDouble("total", 0.0), it.optInt("day_count", 0)) }
     fun handoverPendingList(b: String): RepoResult<List<HandoverPendingRow>> = rowList("handover_pending_list", args(b)).mapRows {
-        HandoverPendingRow(it.optString("handover_date"), it.optDouble("cash", 0.0), it.optString("status")) }
+        HandoverPendingRow(it.optString("handover_date"), it.optDouble("cash", 0.0), it.optString("status"), it.optString("branch")) }
 
     fun paymentRequestsSummary(b: String): RepoResult<PaymentRequestsSummary> = firstRow("payment_requests_summary", args(b)).mapRow {
         PaymentRequestsSummary(it.optInt("backdate_count", 0), it.optInt("edit_count", 0), it.optInt("refund_count", 0), it.optInt("total", 0)) }
