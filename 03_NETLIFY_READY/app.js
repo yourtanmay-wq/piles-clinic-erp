@@ -24523,19 +24523,19 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     } else if(metric==='DUPLICATE_PATIENTS'){
       const rows=await listOf('duplicate_list',oneArg); if(!rows) return; const s=await first('duplicate_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`${s.mobile_groups} same mobile · ${s.name_groups} same name · ${s.payment_groups} same payment (list shows same-mobile groups)`:'Total: —';
-      render(rows,'No same-mobile duplicate groups.',p=>card(p.mobile||'',p.names||'',`${p.row_count} records`,'#B45309',mob(p.mobile)));
+      render(rows,'No same-mobile duplicate groups.',p=>card(p.mobile||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.names||''}`,`${p.row_count} records`,'#B45309',mob(p.mobile)));
     } else if(metric==='FEE_UNPAID'){
       const rows=await listOf('fee_unpaid_list',oneArg); if(!rows) return; const s=await first('fee_unpaid_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Visit fee not received: ${s.total} patients (registered from 05/09/2026)`:'Total: —';
-      render(rows,"Everyone's visit fee is recorded.",p=>card(p.name||mob(p.mobile)||'-',`${p.patient_code||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
+      render(rows,"Everyone's visit fee is recorded.",p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.patient_code||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
     } else if(metric==='CALLS_PENDING'){
       const rows=await listOf('calls_pending_list',oneArg); if(!rows) return; const s=await first('calls_pending_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Pending follow-up calls today: ${s.total}`:'Total: —';
-      render(rows,'No pending follow-up calls today.',p=>card(p.name||mob(p.mobile)||'-',`${p.stage||''} · due ${fmtDate(p.next_follow||'')}`,'','',mob(p.mobile)));
+      render(rows,'No pending follow-up calls today.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.stage||''} · due ${fmtDate(p.next_follow||'')}`,'','',mob(p.mobile)));
     } else {
       const rows=await listOf('messages_list',rangeArgs); if(!rows) return; const s=await first('messages_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Messages opened to send: ${s.total} · ${s.whatsapp} WhatsApp · ${s.sms} SMS`:'Total: —';
-      render(rows,'No messages in this period.',p=>card(p.name||mob(p.mobile)||'-',`${p.kind||''} · ${fmtDate(p.sent_on||'')}`,esc(p.channel||''),'#0C8F3A',mob(p.mobile)));
+      render(rows,'No messages in this period.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.kind||''} · ${fmtDate(p.sent_on||'')}`,esc(p.channel||''),'#0C8F3A',mob(p.mobile)));
     }
   } else if(['NEW_PATIENTS','FOLLOWUP_CALLS_DONE','DISEASE_COUNT','RMP_CALLED','RMP_CALL_DUE','FIELD_VISIT','STAFF_HOURS','STAFF_PRESENT'].includes(metric)){
     // V1422 — শেষ ব্যাচের আটটা পাতা, একই ছাঁচে
