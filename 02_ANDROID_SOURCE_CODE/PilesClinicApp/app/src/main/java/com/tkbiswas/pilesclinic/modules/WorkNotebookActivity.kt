@@ -391,7 +391,39 @@ class WorkNotebookActivity : AppCompatActivity() {
             if (fromButton) {
                 try { com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this) } catch (_: Throwable) { }
                 ModuleUi.toast(this, "Location is on - km is being counted.")
+                if (fv.isFieldStaff(this)) askFieldBatterySettingsOnce()
             }
+        } catch (_: Throwable) { }
+    }
+
+    /* 🏍️🔒 V1471 (১৪.০৯.২০২৬, TK: "RUPAM ৩০ কিমি ঘুরেছে, অ্যাপ ০.১ দেখাচ্ছে —
+       বাড়তি সুরক্ষা বসান") — খাতা মিলিয়ে দেখা গেছে GPS-সেবা ফোনের নিজস্ব
+       ব্যাটারি-ম্যানেজার/অটোস্টার্ট-সেটিংসে বারবার (তালিকা ৪৫১·৪৬৫·৫০৫·৫৪২·৫৪৮)
+       থেমে গেছে — কোড দিয়ে এটা ১০০% আটকানো যায় না (Android-এর নিজস্ব সীমা),
+       কিন্তু RUPAM/ARMAN নিজে ফোনের Settings-এ একটা কাজ করলে অনেকটাই কমে।
+       শুধু এই দুজনের ফোনে, IN TIME-এ **একবারই** স্পষ্ট নির্দেশ — না করলেও
+       IN TIME/OUT TIME আটকায় না। */
+    private fun askFieldBatterySettingsOnce() {
+        try {
+            val prefs = getSharedPreferences("piles_field_battery_prompt", MODE_PRIVATE)
+            if (prefs.getBoolean("asked_once", false)) return
+            prefs.edit().putBoolean("asked_once", true).apply()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("কিলোমিটার যেন কখনো বাদ না পড়ে")))
+                .setMessage(NoBengali.s("ফোনের নিজস্ব ব্যাটারি-সেভার মাঝেমধ্যে লোকেশন-সেবা বন্ধ করে দিতে পারে, তখন কিলোমিটার আর গোনা হয় না।") + "\n\n" +
+                    NoBengali.s("এখন এই অ্যাপের জন্য ফোনের Settings → Battery-তে গিয়ে \"No restriction\"/\"Don't optimize\" বেছে দিন, আর থাকলে Autostart-ও চালু করে দিন — এতে সারাদিনের কিলোমিটার সঠিক থাকবে।"))
+                .setPositiveButton(NoBengali.s("Settings খুলি")) { _, _ ->
+                    try {
+                        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+                        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                            startActivity(android.content.Intent(
+                                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                android.net.Uri.parse("package:$packageName")))
+                        } else openAppSettings()
+                    } catch (_: Throwable) { try { openAppSettings() } catch (_: Throwable) { } }
+                }
+                .setNegativeButton(NoBengali.s("এখন নয়"), null)
+                .show().also { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) }
         } catch (_: Throwable) { }
     }
 

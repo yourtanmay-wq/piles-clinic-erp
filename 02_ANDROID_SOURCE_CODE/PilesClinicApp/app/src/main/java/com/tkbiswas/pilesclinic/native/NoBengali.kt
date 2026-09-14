@@ -503,6 +503,12 @@ object NoBengali {
         "এই রোগীর আজ একটি Prescription সেভ হয়েছে। আপনি কি আবার Prescription করতে চান?" to "A Prescription has already been saved for this patient today. Do you want to make another one?",
         "Prescription যাচাই করা যায়নি" to "Prescription could not be verified",
         "ইন্টারনেট সংযোগ পরীক্ষা করে আবার Save করুন। কোনো Prescription সেভ হয়নি।" to "Check the internet connection and Save again. No Prescription was saved.",
+        // 🏍️🔒 V1471 (১৪.০৯.২০২৬) — WorkNotebookActivity.kt-এর নতুন ব্যাটারি-
+        // সেটিংস পপ-আপ (RUPAM/ARMAN-এর কিলোমিটার যেন বাদ না পড়ে)।
+        "কিলোমিটার যেন কখনো বাদ না পড়ে" to "So the km is never missed",
+        "ফোনের নিজস্ব ব্যাটারি-সেভার মাঝেমধ্যে লোকেশন-সেবা বন্ধ করে দিতে পারে, তখন কিলোমিটার আর গোনা হয় না।" to "The phone's own battery saver can sometimes stop the location service — then the km stops counting.",
+        "এখন এই অ্যাপের জন্য ফোনের Settings → Battery-তে গিয়ে \"No restriction\"/\"Don't optimize\" বেছে দিন, আর থাকলে Autostart-ও চালু করে দিন — এতে সারাদিনের কিলোমিটার সঠিক থাকবে।" to "Now go to phone Settings → Battery for this app and choose \"No restriction\"/\"Don't optimize\", and turn on Autostart too if it exists — this keeps the whole day's km correct.",
+        "Settings খুলি" to "Open Settings",
     )
 
     /** পর্দার বাংলা লেখা → ইংরেজি।
