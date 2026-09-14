@@ -168,8 +168,8 @@ td{padding:6px 10px;border-bottom:1px solid #f0f3f1;color:#111;}
 td.k{color:#6b7680;}
 td.r,th.r{text-align:right;}
 tbody tr:last-child td{border-bottom:0;}
-.free td{color:#6b7680;}
-.free .amt{text-decoration:line-through;color:#8a949e;}
+.free td{color:#3B434B;}
+.free .amt{text-decoration:line-through;color:#5B6570;font-weight:600;}
 .sum{margin-top:8px;display:flex;justify-content:flex-end;}
 .sumbox{width:300px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden;}
 .sumbox div{display:flex;justify-content:space-between;padding:6px 12px;font-size:11.5px;font-family:Arial;border-bottom:1px solid #f0f3f1;}

@@ -31444,13 +31444,12 @@ function wlv1EstScreen(){
     /* 🇧🇩🔒 V1327 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — প্রকল্পের আগে থেকে প্রমাণিত
        বাংলা অনুবাদ (WLV1_A4_TITLES.bn.recovery-এর হুবহু যমজ)। */
     +'<span style="font-size:13px;color:#123A26;white-space:nowrap">কতদিন সময় চাওয়া হল</span>'
-    /* 📏🔒 V1340 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — "উচ্চতা আরো কম হবে") —
-       `.input` ক্লাসের প্রকল্প-জোড়া ডিফল্ট height:50px!important-কে এখানেই
-       (শুধু এই দুটো বাক্সে) ছোট করে ওভাররাইড — বাকি সব ফর্মের `.input` অছোঁয়া। */
-    +'<input id="wlv1EstTaAmt" class="input" inputmode="numeric" style="width:56px;height:28px!important;min-height:0!important;padding:0 8px!important;margin:0" value="'+esc(wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[0])+'" oninput="wlv1EstTaChange()">'
-    /* 📏🔒 V1327/V1340 (TK: "Days এর বক্স এত বড় কেন হবে" → পরে "উচ্চতা আরো কম") —
-       flex:1 বাদ, ফিক্সড চওড়া (Android-এর যমজ) + চিকন উচ্চতা। */
-    +'<select id="wlv1EstTaUnit" class="input" style="width:100px;flex:none;height:28px!important;min-height:0!important;padding:0 6px!important;margin:0" onchange="wlv1EstTaChange()">'+WLV1_TA_UNITS.map(function(u){var cur=wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[1]||'Days';return '<option'+(u===cur?' selected':'')+'>'+u+'</option>'}).join('')+'</select></div>'
+        /* 🎨🔒 V1460 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — "Treatment Medicine
+       Other এর বক্স গুলি যেমন ঠিক তেমন ই হতে হবে"। এখন এই দুই বাক্সও উপরের
+       +Treatment/+Medicine/+Other/Price List বোতামের (button.small.ghost)
+       হুবহু একই রং/বর্ডার/উচ্চতা — আগের আলাদা নীলচে .input সাজ বাদ। */
+    +'<input id="wlv1EstTaAmt" class="input" inputmode="numeric" style="width:56px;height:36px!important;min-height:36px!important;padding:0 8px!important;margin:0;text-align:center;font-weight:700;background:linear-gradient(135deg,#F4F6F9,#D6DBE2 60%,#A7ADB8)!important;border:1px solid #fff!important;border-radius:12px!important;color:#1B2432!important" value="'+esc(wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[0])+'" oninput="wlv1EstTaChange()">'
+    +'<select id="wlv1EstTaUnit" class="input" style="width:100px;flex:none;height:36px!important;min-height:36px!important;padding:0 6px!important;margin:0;font-weight:700;background:linear-gradient(135deg,#F4F6F9,#D6DBE2 60%,#A7ADB8)!important;border:1px solid #fff!important;border-radius:12px!important;color:#1B2432!important" onchange="wlv1EstTaChange()">'+WLV1_TA_UNITS.map(function(u){var cur=wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[1]||'Days';return '<option'+(u===cur?' selected':'')+'>'+u+'</option>'}).join('')+'</select></div>'
     +'<div id="wlv1EstStage" style="flex:1;overflow:auto;padding:12px"></div>'
     +'<div style="background:#fff;display:flex;gap:8px;padding:8px 10px 12px;border-top:1px solid #DCE4DE">'
     +'<button type="button" class="ghost" style="flex:1" onclick="wlv1EstSave()">&#128190; SAVE</button>'
@@ -31897,7 +31896,7 @@ function wlv1EstPaperHtml(editable){
    +'table{width:100%;border-collapse:collapse;font-size:11.3px}'
    +'thead th{background:#eef5f0;color:#0f5132;text-align:left;padding:6px 10px;font-size:10px;border-bottom:1px solid #d5ddd7}'
    +'td{padding:6px 10px;border-bottom:1px solid #f0f3f1}td.k{color:#6b7680}td.r,th.r{text-align:right}'
-   +'tbody tr:last-child td{border-bottom:0}.free td{color:#6b7680}.free .amt{text-decoration:line-through;color:#8a949e}'
+   +'tbody tr:last-child td{border-bottom:0}.free td{color:#3B434B}.free .amt{text-decoration:line-through;color:#5B6570;font-weight:600}'
    +'.sum{margin-top:8px;display:flex;justify-content:flex-end}'
    +'.sumbox{width:300px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden}'
    +'.sumbox div{display:flex;justify-content:space-between;padding:6px 12px;font-size:11.5px;font-family:Arial;border-bottom:1px solid #f0f3f1}'

@@ -26829,3 +26829,16 @@ TK "হ্যাঁ" বলার পর স্পষ্ট শর্ত দি�
 
 ⛔ কোনো প্ল্যাটফর্মেই `payType == "attendance_mark"` ছাড়া কিছুই ডিলিট হতে পারে না — আসল টাকার সারি এই বোতামে কখনো হারাবে না। মার্ক-করা/Cancel Expected/বাকি সব পুরনো ফ্লো এক অক্ষরও বদলায়নি।
 পাহারা: verify_android_resources PASS · node --check PASS · tk_guard PASS (cache-tag v1451→v1459) · web_browser_test PASS · verify_kotlin_compile PASS।
+
+## V1460 — Cost Estimate: Days বক্স + বাতিল আইটেমের গাঢ় রং (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ)
+
+TK-রিপোর্ট (JOYONTI ROY এস্টিমেট স্ক্রিনশট): "Days এর বক্সের উচ্চতা এত বেশি কেন? কত দিন সময় চাওয়া হল সেটার বক্স ও ঠিক নেই, Treatment/Medicine/Other এর বক্স গুলি যেমন ঠিক তেমন ই হতে হবে, পেজের উজ্জ্বলতা কম"। দুটো ফটো-প্রুফ (টুলবার + গাঢ় রং) দেখিয়ে TK "হ্যাঁ পাশ, বসিয়ে দিন" বললেন।
+
+**ফোন (`EstimatePaperActivity.kt`):** Days-এর সংখ্যা-বাক্স ও "Days ▾" ইউনিট-বাক্স এখন উপরের +Treatment/+Medicine/+Other/Price List বোতামের (chip()) হুবহু একই সাজ — সাদা ব্যাকগ্রাউন্ড, নীল বর্ডার, বোল্ড নীল লেখা, একই উচ্চতা। নেটিভ Spinner সরিয়ে TextView+PopupMenu বসানো হলো (উচ্চতা কমানোর জন্য)।
+
+**ফোন (`EstimateHtmlPrint.kt`):** বাতিল-আইটেমের রং গাঢ় — `.free td` `#6b7680→#3B434B`, `.free .amt` `#8a949e→#5B6570`+বোল্ড। সক্রিয় লাইনের `#111` কালো রং অক্ষত (TK-র "উজ্জ্বলতা কম" আসলে বাতিল-আইটেমের ধূসর নিয়েই ছিল, যাচাই করে নিশ্চিত হওয়া গেছে)।
+
+**ওয়েব (`app.js`):** একই দুই বদল — এস্টিমেট-স্ক্রিনের Days/ইউনিট বাক্স এখন ওয়েবের নিজের +Treatment/+Medicine/+Other/Price List বোতামের (button.small.ghost) রং/বর্ডার/উচ্চতা মেনে চলে; এস্টিমেট-কাগজের `.free td`/`.free .amt` রংও একই ভাবে গাঢ় করা হলো।
+
+⛔ টাকার হিসাব/ডেটা কিছুই বদলায়নি — শুধু রং ও বাক্সের সাজ।
+পাহারা: verify_android_resources PASS · node --check PASS · tk_guard PASS (cache-tag v1459→v1460) · web_browser_test PASS · verify_kotlin_compile PASS (নতুন ভুল ০)।

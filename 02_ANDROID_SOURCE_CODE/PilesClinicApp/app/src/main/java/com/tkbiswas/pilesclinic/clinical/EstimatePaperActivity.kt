@@ -244,35 +244,39 @@ class EstimatePaperActivity : AppCompatActivity() {
             setPadding(0, 0, dp(10), 0)
         })
         val (taAmt0, taUnit0) = CounselModel.splitTimeAsked(sheet.timeAsked)
+        /* 🎨🔒 V1460 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — "Days এর বক্সের
+           উচ্চতা এত বেশি কেন... Treatment Medicine Other এর বক্স গুলি যেমন ঠিক
+           তেমন ই হতে হবে"। এখন দুটো বাক্সই উপরের chip()-এর মতোই সাদা+নীল-বর্ডার
+           সাজ ও উচ্চতা — নেটিভ Spinner সরিয়ে TextView+PopupMenu বসানো হলো। */
+        var taUnitSel = CounselModel.UNITS.indexOf(taUnit0).let { if (it < 0) 0 else it }
         val taAmt = android.widget.EditText(this).apply {
             setText(taAmt0)
             // ⛔ পাহারা ৯.১৭ — প্রকল্পের নিয়ম: TYPE_CLASS_TEXT + DigitsKeyListener (কীবোর্ড না-খোলার ফাঁদ এড়াতে)
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
-            textSize = 14f; setTextColor(Color.parseColor("#101C2E"))
-            background = box("#F7FAFC", "#CFE0EE", 10)
-            // 📏🔒 V1340 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — "উচ্চতা আরো কম
-            // হবে") — উলম্ব padding ৮dp থেকে ৪dp করে বাক্সটা চিকন করা হলো।
-            setPadding(dp(10), dp(4), dp(10), dp(4))
-            layoutParams = LinearLayout.LayoutParams(dp(56), LinearLayout.LayoutParams.WRAP_CONTENT)
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#0B66D8"))
+            background = box("#FFFFFF", "#B9CBE0", 11)
+            setPadding(dp(4), dp(9), dp(4), dp(9))
+            layoutParams = LinearLayout.LayoutParams(dp(44), LinearLayout.LayoutParams.WRAP_CONTENT)
                 .apply { rightMargin = dp(6) }
         }
-        val taUnit = android.widget.Spinner(this).apply {
-            adapter = android.widget.ArrayAdapter(this@EstimatePaperActivity,
-                android.R.layout.simple_spinner_dropdown_item, CounselModel.UNITS)
-            setSelection(CounselModel.UNITS.indexOf(taUnit0).let { if (it < 0) 0 else it })
-            background = box("#F7FAFC", "#CFE0EE", 10)
-            // 📏🔒 V1340 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — V1327-এর
-            // ৯২dp ফিক্সড চওড়ায় "Days" কেটে "Da.." দেখাচ্ছিল (TK-র রিপোর্ট)।
-            // এখন নিজস্ব চিকন padding + সামান্য বেশি চওড়া (১০০dp), যাতে "Days"
-            // পুরো লেখা ও ছোট্ট ▾ তির — দুটোই এক লাইনে ধরে, কাটা না যায়।
-            setPadding(dp(10), dp(4), dp(6), dp(4))
-            layoutParams = LinearLayout.LayoutParams(dp(100), LinearLayout.LayoutParams.WRAP_CONTENT)
+        val taUnit = TextView(this).apply {
+            text = "$taUnit0 ▾"
+            textSize = 12.5f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#0B66D8"))
+            background = box("#FFFFFF", "#B9CBE0", 11)
+            setPadding(dp(10), dp(9), dp(10), dp(9))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         fun pushTimeAsked() {
             sheet.timeAsked = CounselModel.timeAsked(
                 taAmt.text?.toString().orEmpty(),
-                CounselModel.UNITS.getOrElse(taUnit.selectedItemPosition) { "Days" })
+                CounselModel.UNITS.getOrElse(taUnitSel) { "Days" })
             render()
         }
         taAmt.addTextChangedListener(object : android.text.TextWatcher {
@@ -280,9 +284,16 @@ class EstimatePaperActivity : AppCompatActivity() {
             override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
         })
-        taUnit.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: android.view.View?, pos: Int, id: Long) { pushTimeAsked() }
-            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+        taUnit.setOnClickListener {
+            val popup = android.widget.PopupMenu(this, taUnit)
+            CounselModel.UNITS.forEachIndexed { idx, u -> popup.menu.add(0, idx, idx, u) }
+            popup.setOnMenuItemClickListener { item ->
+                taUnitSel = item.itemId
+                taUnit.text = "${CounselModel.UNITS[taUnitSel]} ▾"
+                pushTimeAsked()
+                true
+            }
+            popup.show()
         }
         taRow.addView(taAmt); taRow.addView(taUnit)
         root.addView(taRow)
