@@ -26714,3 +26714,21 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > ⛔ ওয়েবে এই তিন-পিল ডিজাইনই নেই (শুধু Android-এর নিজস্ব V1207 ডিজাইন), তাই ওখানে ছোঁয়ার কিছু নেই।
 > "সম্পূর্ণ কার্ড প্রফেশনাল লাগছে না" — এটা ডিজাইন-মতামত, TK-কে ফটো-প্রুফে কয়েকটা প্রস্তাব দেখিয়ে সিদ্ধান্ত নেওয়া হবে (নিয়ম ৪)।
 > পাহারা: verify_kotlin_compile PASS · verify_android_resources PASS · verify_kotlin_patterns PASS · tk_guard PASS।
+
+> V1445-V1447 — 🔍 **Search-এর প্রশ্ন-উত্তর ফিচার একদম কাজ করছিল না ("Invalid schema: reports" ইত্যাদি) — সার্ভারের অনুমতির তিনটে বাদ-পড়া ধাপ (১৪.০৯.২০২৬ সকাল, TK-রিপোর্ট ছবিসহ, তালিকা ৫৬৯):**
+> V1415-এ (১৩.০৯.২০২৬) `reports` স্কিমা ও তার RPC ফাংশনগুলো (enquiry_count ইত্যাদি) তৈরি হয়েছিল, কিন্তু TK প্রথমবার Search-এ প্রশ্ন লিখতেই তিনটে ভিন্ন সার্ভার-ভুল একের পর এক ধরা পড়ল, প্রতিটাই আলাদা SQL দিয়ে সারানো হলো:
+> · V1445: `reports` স্কিমা PostgREST-এর exposed-schema তালিকাতেই ছিল না (`pgrst.db_schemas`-এ যোগ হয়নি) — V246-এর hr/wn/fin-এর হুবহু একই append-only পদ্ধতিতে যোগ করা হলো।
+> · V1446: exposed হওয়ার পরেও PostgREST-এর নিজের ফাংশন-ক্যাশ রিফ্রেশ হয়নি ("Could not find the function…") — `notify pgrst, 'reload schema'` দিয়ে সারানো।
+> · V1447: স্কিমার উপর `grant usage` কখনোই দেওয়া হয়নি (শুধু প্রতিটা ফাংশনে আলাদা EXECUTE ছিল, কিন্তু স্কিমায় ঢোকার অনুমতিই ছিল না) — "permission denied for schema reports"। `grant usage on schema reports to authenticated` দিয়ে সারানো।
+> সাথে একই V1447-এ: "গতকাল **কয়টা** নতুন এনকোয়ারি" লিখলে প্রশ্ন হিসেবে ধরা পড়ছিল না (isQuestionLike/wlv1VoiceIsQuestionLike শুধু "কত" শব্দ চিনত, "কয়টা"/"কয়জন" নয়) — ফোন ও ওয়েব দুটোতেই যোগ করা হলো, NoBengali.kt-তেও অনুবাদ যোগ।
+> তিনটে SQL-ই TK নিজে Supabase SQL Editor-এ চালিয়ে যাচাই করেছেন (প্রতিটার পর ফলাফল/পরের ভুল স্ক্রিনশট দিয়ে জানিয়েছেন)।
+> পাহারা: node --check PASS · tk_guard PASS · verify_kotlin_compile PASS। SQL-গুলো sql_local_check.py-তে পুরোপুরি চালানো যায়নি (local sandbox-এ authenticator/reports স্কিমা তৈরিই হয় না) — এই সীমাবদ্ধতা TK-কে আগেই জানানো হয়েছিল।
+
+> V1448 — 🌍 **"All branches" প্রশ্নে প্রতিটা তালিকার সারিতে কোন ব্রাঞ্চ সেটা বোঝা যাচ্ছিল না (১৪.০৯.২০২৬ সকাল, TK-রিপোর্ট ছবিসহ, তালিকা ৫৭০):**
+> TK: "সবগুলো প্রশ্নেই একসাথে ব্রাঞ্চ-নাম যোগ করে দিন"।
+> আসল কারণ: প্রশ্নে কোনো ব্রাঞ্চের নাম না থাকলে অ্যাপ ৫টা ব্রাঞ্চের জন্য একই সার্ভার-ফাংশন ৫বার আলাদাভাবে ডেকে ফলাফল একসাথে জোড়ে (V1423), কিন্তু `reports.*` স্কিমার একটাও "তালিকা" ফাংশন (৩৮টা) কখনো নিজের সারিতে কোন ব্রাঞ্চ সেটা পাঠাতই না।
+> V1448 SQL: সবগুলো (৩৮টা) `_list` ফাংশনে `branch` কলাম যোগ (মান = কলের `p_branch`, আলাদা করে খোঁজার দরকার নেই) — WHERE-শর্ত/টাকার হিসাব/অর্ডার/লিমিট এক অক্ষরও বদলায়নি। ব্যতিক্রম: `field_visit_list`-এ ভেতরের পজিশন-ধরা `order by 2 desc, 1` ভাঙা এড়াতে branch শেষে বসানো হয়েছে; `messages_list`/`field_visit_list` ডাইনামিক SQL বলে `$1 as branch`; `payment_requests_list`-এর ভেতরের `select *` স্পষ্ট কলাম-তালিকায় বদলাতে হয়েছে (union-অংশ অক্ষত)। TK নিজে SQL চালিয়ে যাচাই করেছেন।
+> ফোন: VoiceReportRepository.kt-এর সবগুলো (৩৭টা) row data class-এ `branch` ঘর যোগ, RPC থেকে পড়া হয়। VoiceReportDetailActivity.kt-এর প্রতিটা metric-এর তালিকায় — প্রশ্নটা "সব ব্রাঞ্চ" হলেই সারির শুরুতে ব্রাঞ্চের নাম বসে, একটা নির্দিষ্ট ব্রাঞ্চ জিজ্ঞেস করলে বাড়তি কিছু দেখায় না (দরকার নেই বলে)। BRANCH_TOP_COLLECTION/PATIENTS (যেটার পুরো কাজই ব্রাঞ্চ-তুলনা) ছোঁয়া হয়নি।
+> ওয়েব: app.js-এর wlv1VoiceReportDetail()-এর সবগুলো metric-এও হুবহু একই নিয়ম।
+> index.html-এর app.js `?v=` v1443→v1448 (শুধু cache-tag — build.gradle.kts/version.json-এর ভার্সন নম্বর অপরিবর্তিত, TK ফাইল না চাওয়া পর্যন্ত)।
+> পাহারা: verify_android_resources PASS · node --check PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)।
