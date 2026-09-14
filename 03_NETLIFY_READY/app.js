@@ -24490,11 +24490,11 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
       const rows=await listOf('staff_reminder_open_list',oneArg); if(!rows) return; const s=await first('staff_reminder_open_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Open: ${s.total}`:'Total: —';
       const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.to_name||'',p.to_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`Open for ${extra}: ${fr.length}`;   // V1428 — নাম ধরে
-      render(fr,'No open staff reminders.',p=>card(p.to_name||p.to_code||'',`${p.reminder_type||''} · ${fmtDate(p.remind_on||'')}`,esc(p.status||''),'#B45309',''));
+      render(fr,'No open staff reminders.',p=>card(p.to_name||p.to_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.reminder_type||''} · ${fmtDate(p.remind_on||'')}`,esc(p.status||''),'#B45309',''));
     } else {
       const rows=await listOf('fee_return_list',rangeArgs); if(!rows) return; const s=await first('fee_return_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Visit fee returned: ${money(s.total)} · ${s.patient_count} patients`:'Total: —';
-      render(rows,'No visit fee returned in this period.',p=>card(p.name||mob(p.mobile)||'-',fmtDate(p.returned_on||''),money(p.amount),'#B42318',mob(p.mobile)));
+      render(rows,'No visit fee returned in this period.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${fmtDate(p.returned_on||'')}`,money(p.amount),'#B42318',mob(p.mobile)));
     }
   } else if(['CHAMBER_UNCLOSED','NO_SHOW','OUT_MISSING','WFH_COUNT','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING','MESSAGES_SENT'].includes(metric)){
     // V1421 — আরও আটটা পাতা, একই ছাঁচে
@@ -24506,20 +24506,20 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     if(metric==='CHAMBER_UNCLOSED'){
       const rows=await listOf('chamber_unclosed_list',rangeArgs); if(!rows) return;
       $('#wlv1VoiceDetailSummary').textContent=`Not closed: ${rows.length} days (today not counted)`;
-      render(rows,'Every active day was closed.',p=>card(fmtDate(p.chamber_date||''),`${p.arrived} patients had activity`,money(p.money),'#B45309',''));
+      render(rows,'Every active day was closed.',p=>card(fmtDate(p.chamber_date||''),`${branch==='ALL'?(p.branch||'')+' · ':''}${p.arrived} patients had activity`,money(p.money),'#B45309',''));
     } else if(metric==='NO_SHOW'){
       const rows=await listOf('no_show_list',rangeArgs); if(!rows) return; const s=await first('no_show_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Did not come: ${s.no_show} · came: ${s.arrived} · expected: ${s.expected_total}`:'Total: —';
-      render(rows,'Nobody was marked expected for this period.',p=>card(p.name||mob(p.mobile)||'-',`${p.mobile||''} · expected ${fmtDate(p.expected_on||'')}`,p.arrived?'came':'no-show',p.arrived?'#0C8F3A':'#B42318',mob(p.mobile)));
+      render(rows,'Nobody was marked expected for this period.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.mobile||''} · expected ${fmtDate(p.expected_on||'')}`,p.arrived?'came':'no-show',p.arrived?'#0C8F3A':'#B42318',mob(p.mobile)));
     } else if(metric==='OUT_MISSING'){
       const rows=await listOf('out_missing_list',rangeArgs); if(!rows) return; const s=await first('out_missing_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`OUT time not given: ${s.total} days · ${s.staff_count} staff`:'Total: —';
       const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`OUT time not given · ${extra}: ${fr.length} days`;   // V1428
-      render(fr,'No missing OUT time in this period.',p=>card(p.staff_code||'',`IN ${esc(p.check_in||'')} · ${fmtDate(p.work_date||'')}`,'OUT —','#B42318',''));
+      render(fr,'No missing OUT time in this period.',p=>card(p.staff_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}IN ${esc(p.check_in||'')} · ${fmtDate(p.work_date||'')}`,'OUT —','#B42318',''));
     } else if(metric==='WFH_COUNT'){
       const rows=await listOf('wfh_list',rangeArgs); if(!rows) return; const s=await first('wfh_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`WFH applications: ${s.total} · ${s.approved} approved · ${s.pending} pending · ${s.rejected} rejected`:'Total: —';
-      render(rows,'No WFH applications in this period.',p=>card(p.staff_name||p.staff_code||'',`WFH ${fmtDate(p.work_date||'')} · applied ${fmtDate(p.requested_on||'')}`,esc(p.status||''),p.status==='approved'?'#0C8F3A':(p.status==='rejected'?'#B42318':'#B45309'),''));
+      render(rows,'No WFH applications in this period.',p=>card(p.staff_name||p.staff_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}WFH ${fmtDate(p.work_date||'')} · applied ${fmtDate(p.requested_on||'')}`,esc(p.status||''),p.status==='approved'?'#0C8F3A':(p.status==='rejected'?'#B42318':'#B45309'),''));
     } else if(metric==='DUPLICATE_PATIENTS'){
       const rows=await listOf('duplicate_list',oneArg); if(!rows) return; const s=await first('duplicate_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`${s.mobile_groups} same mobile · ${s.name_groups} same name · ${s.payment_groups} same payment (list shows same-mobile groups)`:'Total: —';
