@@ -1,17 +1,25 @@
 package com.tkbiswas.pilesclinic.clinical
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.widget.EditText
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.tkbiswas.pilesclinic.R
 import com.tkbiswas.pilesclinic.native.NativeSession
+import com.tkbiswas.pilesclinic.native.PhotoUtils
+import com.tkbiswas.pilesclinic.native.PremiumAlert
+import com.tkbiswas.pilesclinic.native.SupabaseClient
+import com.tkbiswas.pilesclinic.native.ZoomableImageHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +38,179 @@ import com.tkbiswas.pilesclinic.native.UppercaseInputUtil
 class InvestigationAdviceActivity : AppCompatActivity() {
 
     private lateinit var categoryContainer: LinearLayout
+
+    /* 🩸🔒 V1464 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — ব্লাড টেস্ট
+       রিপোর্টের ছবি এই পর্দাতেই তোলা/জমা রাখা যায়, ঠিক PatientPhotoActivity-র
+       প্রমাণিত ক্যামেরা/গ্যালারি ধাঁচেই (PhotoUtils.encodeResized — 600px/85%,
+       ~৭০ KB প্রতিটা)। জমা হয় `medical.photos`-এ `{"reports":[...]}` আকারে —
+       Doctor Checkup-এর আগে-পরের ছবির (`{"before":...}`) পাশাপাশি, একই ঘর
+       শুধু আলাদা `type` (Investigation) বলে দুটো কখনো মেশে না।
+       ⛔ ফাঁকা রাখলে (ছবি না যোগ করলে) আগের মতোই কিছুই বদলায় না। */
+    private val reportPhotos = mutableListOf<String>()
+    private var reportCameraUri: Uri? = null
+    private lateinit var llReportPhotos: LinearLayout
+
+    private val pickReportImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) addReportPhotoFromUri(uri)
+    }
+    private val requestReportCameraPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) openReportCamera()
+            else Toast.makeText(this, "Camera permission is required", Toast.LENGTH_SHORT).show()
+        }
+    private val takeReportPicture =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            val uri = reportCameraUri
+            if (success && uri != null) addReportPhotoFromUri(uri)
+        }
+
+    private fun openReportCamera() {
+        try {
+            val dir = java.io.File(cacheDir, "images").apply { mkdirs() }
+            val file = java.io.File(dir, "invreport_${System.currentTimeMillis()}.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            reportCameraUri = uri
+            takeReportPicture.launch(uri)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Camera could not open", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** ⛔ PatientPhotoActivity.showPhotoSourceDialog()-এর হুবহু একই পপ-আপ। */
+    private fun showReportPhotoSourceDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Report Photo"))
+            .setItems(arrayOf("📷 Camera", "🖼️ Gallery")) { _, which ->
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    this, android.Manifest.permission.CAMERA
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (which == 0) {
+                    if (granted) openReportCamera() else requestReportCameraPermission.launch(android.Manifest.permission.CAMERA)
+                } else pickReportImage.launch("image/*")
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    private fun addReportPhotoFromUri(uri: Uri) {
+        lifecycleScope.launch {
+            val dataUrl = withContext(Dispatchers.IO) { PhotoUtils.encodeResized(this@InvestigationAdviceActivity, uri) }
+            if (dataUrl == null) {
+                Toast.makeText(this@InvestigationAdviceActivity, "Could not read image", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            reportPhotos.add(dataUrl)
+            renderReportPhotoRow()
+        }
+    }
+
+    /** থাম্বনেইল + একটা "+" বোতাম — চাপলে ক্যামেরা/গ্যালারি খোলে; কোনো থাম্বনেইলে
+     *  চাপলে বড় করে দেখায় (zoom) সহ মোছার সুযোগ থাকে। */
+    private fun renderReportPhotoRow() {
+        val dens = resources.displayMetrics.density
+        fun dp(v: Int) = (v * dens).toInt()
+        llReportPhotos.removeAllViews()
+        reportPhotos.forEachIndexed { idx, dataUrl ->
+            val bmp = PhotoUtils.decodeDataUrl(dataUrl)
+            llReportPhotos.addView(ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(56), dp(56)).apply { rightMargin = dp(8) }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                if (bmp != null) setImageBitmap(bmp)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat()
+                    setStroke(dp(1), android.graphics.Color.parseColor("#B9CBE0"))
+                }
+                clipToOutline = true
+                setOnClickListener { showReportPhotoViewer(dataUrl, "Report Photo") { reportPhotos.removeAt(idx); renderReportPhotoRow() } }
+            })
+        }
+        llReportPhotos.addView(TextView(this).apply {
+            text = "+"
+            gravity = android.view.Gravity.CENTER
+            textSize = 20f
+            setTextColor(android.graphics.Color.parseColor("#0B66D8"))
+            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setStroke(dp(1) * 2, android.graphics.Color.parseColor("#0B66D8"))
+                color = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            }
+            setOnClickListener { showReportPhotoSourceDialog() }
+        })
+    }
+
+    /** ফুল-স্ক্রিন জুম-করা ভিউয়ার (ZoomableImageHelper, PatientPhotoActivity-র
+     *  প্রমাণিত ধাঁচ)। [onDelete] ফাঁকা মানে মোছার বোতাম দেখাবে না (পুরনো
+     *  রিপোর্ট দেখার সময় — সেগুলো এখান থেকে মোছা যায় না, ভুল করে ডেটা
+     *  হারানোর ঝুঁকি এড়াতে)। */
+    private fun showReportPhotoViewer(dataUrl: String, title: String, onDelete: (() -> Unit)? = null) {
+        val bmp = PhotoUtils.decodeDataUrl(dataUrl) ?: return
+        val iv = ImageView(this).apply {
+            setImageBitmap(bmp)
+            adjustViewBounds = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+        }
+        ZoomableImageHelper.attach(iv)
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, title))
+            .setView(iv)
+            .setPositiveButton("Close", null)
+        if (onDelete != null) builder.setNegativeButton("Remove") { _, _ -> onDelete() }
+        builder.show().also { PremiumAlert.paint(it) }
+    }
+
+    /** এই রোগীর আগে সেভ করা Investigation-এর রিপোর্ট ছবি — সস্তা প্রশ্ন
+     *  (`select=id`, `photos=not.is.null`) দিয়ে আগে কোন সারিতে ছবি আছে তা
+     *  জানা হয়, তারপর সেই কয়েকটা সারিরই `photos` আলাদা করে আনা হয় — বাকি
+     *  পুরো তালিকার (MEDICAL_COLS, V794) ছবি-ছাড়া পড়া এক অক্ষরও বদলায় না। */
+    private fun loadPreviousReports() {
+        val pid = RoleSession.currentPatientId
+        if (pid.isBlank()) return
+        lifecycleScope.launch {
+            val rows = withContext(Dispatchers.IO) {
+                try {
+                    val enc = java.net.URLEncoder.encode(pid, "UTF-8")
+                    SupabaseClient.fetchListOrNull(
+                        "medical", "patientId=eq.$enc&type=eq.Investigation&photos=not.is.null",
+                        20, order = "createdAt.desc", select = "id,date,photos"
+                    )
+                } catch (_: Throwable) { null }
+            } ?: return@launch
+            if (isFinishing || isDestroyed) return@launch
+            val lblPrev = findViewById<TextView>(R.id.tvPrevReportsLabel)
+            val hsv = findViewById<HorizontalScrollView>(R.id.hsvPrevReports)
+            val container = findViewById<LinearLayout>(R.id.llPrevReports)
+            container.removeAllViews()
+            val dens = resources.displayMetrics.density
+            fun dp(v: Int) = (v * dens).toInt()
+            var any = false
+            for (i in 0 until rows.length()) {
+                val row = rows.optJSONObject(i) ?: continue
+                val photosJson = try { org.json.JSONObject(row.optString("photos", "")) } catch (_: Throwable) { null } ?: continue
+                val arr = photosJson.optJSONArray("reports") ?: continue
+                val date = row.optString("date", "")
+                for (j in 0 until arr.length()) {
+                    val dataUrl = arr.optString(j, "")
+                    if (dataUrl.isBlank()) continue
+                    val bmp = PhotoUtils.decodeDataUrl(dataUrl) ?: continue
+                    any = true
+                    container.addView(ImageView(this@InvestigationAdviceActivity).apply {
+                        layoutParams = LinearLayout.LayoutParams(dp(56), dp(56)).apply { rightMargin = dp(8) }
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        setImageBitmap(bmp)
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            cornerRadius = dp(8).toFloat()
+                            setStroke(dp(1), android.graphics.Color.parseColor("#B9CBE0"))
+                        }
+                        clipToOutline = true
+                        setOnClickListener { showReportPhotoViewer(dataUrl, "Report Photo · $date") }
+                    })
+                }
+            }
+            lblPrev.visibility = if (any) android.view.View.VISIBLE else android.view.View.GONE
+            hsv.visibility = if (any) android.view.View.VISIBLE else android.view.View.GONE
+        }
+    }
 
     /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
        ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
@@ -88,6 +269,11 @@ class InvestigationAdviceActivity : AppCompatActivity() {
         // 🔒 TK-এর নির্দেশ (01.08.2026): Share বোতাম — Medicine Slip/Prescription-এর
         // হুবহু একই প্যাটার্ন (plain-text ACTION_SEND)। শুধু এখন যা টিক করা তাই যায়।
         findViewById<MaterialButton>(R.id.btnShareInvestigations).setOnClickListener { shareInvestigations() }
+
+        // 🩸🔒 V1464 — এই সেশনে নতুন তোলা রিপোর্ট-ছবির সারি + আগে সেভ করা রিপোর্ট।
+        llReportPhotos = findViewById(R.id.llReportPhotos)
+        renderReportPhotoRow()
+        loadPreviousReports()
 
         buildScreen()
     }
@@ -175,12 +361,22 @@ class InvestigationAdviceActivity : AppCompatActivity() {
            থাকলে Warning আসে: **Cancel** = সেভ হবে না · **OK** = তবুও সেভ।
            ⛔ নেটের খরচ শূন্য (শুধু ফোনের জমা তালিকা দেখা হয়)।
            ⛔ Toast · প্রিন্ট · সেভ — তিনটেই আগের মতোই, শুধু সিদ্ধান্তের পরে। */
+        // 🩸🔒 V1464 — এই সেশনে যোগ করা রিপোর্ট-ছবি (থাকলে) `{"reports":[...]}`
+        //   আকারে যায়, Doctor Checkup-এর `{"before":...}`-এর পাশাপাশি একই ঘরে —
+        //   `type` আলাদা (Investigation) বলে দুটো কখনো একে অন্যকে ছোঁয় না।
+        //   ⛔ ফাঁকা থাকলে আগের মতোই কিছুই যায় না (photos = "")।
+        val photosStr = if (reportPhotos.isNotEmpty())
+            org.json.JSONObject().put("reports", org.json.JSONArray(reportPhotos)).toString() else ""
         DuplicateSaveGuard.run(this, pid, "Investigation", selectedStr, detailsStr) {
         Toast.makeText(this@InvestigationAdviceActivity, "Saved (${requested.size} test/s).", Toast.LENGTH_SHORT).show()
         com.tkbiswas.pilesclinic.native.BackgroundWork.run {
             ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Investigation", selectedStr,
-                detailsStr, createdBy)
+                detailsStr, createdBy, photos = photosStr)
         }
+        // ⛔ সেভের পরেও থাম্বনেইলগুলো এই পর্দাতেই দেখা যায় (মোছা হয় না) —
+        // স্টাফ চোখেই দেখতে পান কোন ছবিগুলো এই মুহূর্তে সেভ হলো। পরের বার
+        // পর্দাটা নতুন করে খুললে এগুলো "🗂 Previous Reports"-এ চলে আসবে
+        // (`loadPreviousReports()`, `onCreate`-এ একবারই চলে)।
         if (openPrintAfter) {
             /* 🩸🔒 V596 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-ফটো দেখে): Blood Test এখন
                **অনুমোদিত A4 ডিজাইনে** ছাপে — ওয়েবের (`wlv1InvestigationA4`)
