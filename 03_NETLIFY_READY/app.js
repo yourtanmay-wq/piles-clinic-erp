@@ -24311,12 +24311,12 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
       const rows=all.filter(p=>wlv1VoiceNameMatch(extra,p.rmp_name||''));
       $('#wlv1VoiceDetailSummary').textContent = extra ? `Paid to ${extra}: ${money(rows.reduce((a,p)=>a+Number(p.amount||0),0))} · ${rows.length} payments`
         : (s?`Paid: ${money(s.total)} · ${s.rmp_count} RMPs · ${s.payment_count} payments (same as RMP Commission Sheet)`:'Total: —');
-      render(rows,'No RMP commission paid in this period.',p=>card(p.rmp_name||p.rmp_id||'',`${p.kind==='advance'?'Advance':'For '+(p.patient_name||'patient')} · ${p.mode||''} · ${fmtDate(p.paid_on||'')}`,money(p.amount),'#0C8F3A',''));
+      render(rows,'No RMP commission paid in this period.',p=>card(p.rmp_name||p.rmp_id||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.kind==='advance'?'Advance':'For '+(p.patient_name||'patient')} · ${p.mode||''} · ${fmtDate(p.paid_on||'')}`,money(p.amount),'#0C8F3A',''));
     } else if(metric==='IN_MISSING'){
       const all=await listOf('in_missing_list',rangeArgs); if(!all) return; const s=await first('in_missing_summary',rangeArgs);
       const rows=all.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'',p.staff_name||''));
       $('#wlv1VoiceDetailSummary').textContent = extra ? `IN time not given · ${extra}: ${rows.length} days` : (s?`IN time not given: ${s.total} days · ${s.staff_count} staff (only days the notebook was opened)`:'Total: —');
-      render(rows,'No missing IN time in this period.',p=>card(p.staff_name||p.staff_code||'',`${p.staff_code||''} · ${fmtDate(p.work_date||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'IN —','#B42318',''));
+      render(rows,'No missing IN time in this period.',p=>card(p.staff_name||p.staff_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.staff_code||''} · ${fmtDate(p.work_date||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'IN —','#B42318',''));
     } else {
       const isMoney=metric==='BRANCH_TOP_COLLECTION', lowest=extra==='min';
       const rows=await wlv1VoiceBranchRank(c,isMoney,from,to,lowest); if(!rows){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
@@ -24333,10 +24333,10 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const rows=r.data||[];
     $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} patients`;
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
-      const m=mob(p.mobile);
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
         + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
-        + `<span class="tiny">${esc(p.mobile||'')} · ${esc(fmtDate(p.registration_date||''))}</span></div>`;
+        + `<span class="tiny">${esc(branchTag)}${esc(p.mobile||'')} · ${esc(fmtDate(p.registration_date||''))}</span></div>`;
     }).join('') || '<div class="card mut">No patients found for this period.</div>';
   } else if(metric==='MEDICINE_SALE'||metric==='SALINE_SALE'){
     const kind = metric==='MEDICINE_SALE'?'medicinePayment':'salinePayment';
@@ -24347,10 +24347,10 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
     $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.sale_count} sales` : 'Total: —';
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
-      const m=mob(p.mobile);
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
         + `<b style="${m?'color:#1457B8':''}">${esc(p.customer||m||'-')}${m?' ›':''}</b><br>`
-        + `<span class="tiny">${esc(p.product||'')} · ${esc(p.mode||'')} · ${esc(fmtDate(p.sold_on||''))}</span>`
+        + `<span class="tiny">${esc(branchTag)}${esc(p.product||'')} · ${esc(p.mode||'')} · ${esc(fmtDate(p.sold_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:#0C8F3A">${money(p.bill)}</span></div>`;
     }).join('') || '<div class="card mut">No sales found for this period.</div>';
   } else if(metric==='ENQUIRY_COUNT'){
@@ -24359,10 +24359,10 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const rows=r.data||[];
     $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} enquiries`;
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
-      const m=mob(p.mobile);
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
         + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
-        + `<span class="tiny">${esc(p.disease||'')} · ${esc(fmtDate(p.enquiry_date||''))}</span></div>`;
+        + `<span class="tiny">${esc(branchTag)}${esc(p.disease||'')} · ${esc(fmtDate(p.enquiry_date||''))}</span></div>`;
     }).join('') || '<div class="card mut">No enquiries found for this period.</div>';
   } else if(metric==='REFUND'){
     const r = await c.rpc('refund_list',{p_branch:branch,p_from:from,p_to:to});
@@ -24372,10 +24372,10 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
     $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.refund_count} refunds` : 'Total: —';
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
-      const m=mob(p.mobile);
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
         + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
-        + `<span class="tiny">${esc(fmtDate(p.refunded_on||''))}</span>`
+        + `<span class="tiny">${esc(branchTag)}${esc(fmtDate(p.refunded_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:#B42318">${money(p.amount)}</span></div>`;
     }).join('') || '<div class="card mut">No refunds found for this period.</div>';
   } else if(metric==='CASH_HANDOVER'){
@@ -24386,8 +24386,9 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
     $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.day_count} days` : 'Total: —';
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card"><b>${esc(fmtDate(p.handover_date||''))}</b><br>`
-        + `<span class="tiny">Received by ${esc(p.receiver_name||'—')}</span>`
+        + `<span class="tiny">${esc(branchTag)}Received by ${esc(p.receiver_name||'—')}</span>`
         + `<span style="float:right;font-weight:700;color:#0C8F3A">${money(p.cash)}</span></div>`;
     }).join('') || '<div class="card mut">No handover found for this period.</div>';
   } else if(metric==='RMP_DUE'){
@@ -24398,8 +24399,9 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
     $('#wlv1VoiceDetailSummary').textContent = s ? `Total due: ${money(s.total_due)} · ${s.rmp_count} RMP` : 'Total: —';
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card"><b>${esc(p.rmp_name||p.rmp_mobile||'-')}</b><br>`
-        + `<span class="tiny">${esc(p.rmp_mobile||'')}</span>`
+        + `<span class="tiny">${esc(branchTag)}${esc(p.rmp_mobile||'')}</span>`
         + `<span style="float:right;font-weight:700;color:#B42318">${money(p.due)}</span></div>`;
     }).join('') || '<div class="card mut">No due commission found.</div>';
   } else if(metric==='MEDICINE_DUE'){
@@ -24410,10 +24412,10 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
     $('#wlv1VoiceDetailSummary').textContent = s ? `Total due: ${money(s.total)} · ${s.row_count} bills` : 'Total: —';
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
-      const m=mob(p.mobile);
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
         + `<b style="${m?'color:#1457B8':''}">${esc(p.customer||m||'-')}${m?' ›':''}</b><br>`
-        + `<span class="tiny">${esc(p.product||'')} · ${esc(fmtDate(p.sold_on||''))}</span>`
+        + `<span class="tiny">${esc(branchTag)}${esc(p.product||'')} · ${esc(fmtDate(p.sold_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:#B42318">${money(p.due)}</span></div>`;
     }).join('') || '<div class="card mut">No medicine/saline due found.</div>';
   } else if(metric==='CALL_COUNT'){
