@@ -416,8 +416,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No pending follow-up calls today.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.stage} · due ${FollowUpModel.displayDate(p.nextFollow)}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.stage} · due ${FollowUpModel.displayDate(p.nextFollow)}", "›", "#94A3B8", onTap))
                     }
                 }
                 "MESSAGES_SENT" -> {
@@ -428,8 +429,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No messages in this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.kind} · ${FollowUpModel.displayDate(p.sentOn)}", p.channel, "#0C8F3A", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.kind} · ${FollowUpModel.displayDate(p.sentOn)}", p.channel, "#0C8F3A", onTap))
                     }
                 }
                 // ── V1422 ──
@@ -440,8 +442,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Registered, treatment not started: ${rows.size}"
                     if (rows.isEmpty()) empty("Everyone registered in this period has started treatment.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.patientCode} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.patientCode} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
                     }
                 }
                 "FOLLOWUP_CALLS_DONE" -> {
@@ -452,8 +455,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No follow-up calls noted in this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${FollowUpModel.displayDate(p.callDay)} · ${p.remarks} remark(s)", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${FollowUpModel.displayDate(p.callDay)} · ${p.remarks} remark(s)", "›", "#94A3B8", onTap))
                     }
                 }
                 "DISEASE_COUNT" -> {
@@ -464,8 +468,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No $extra patients registered in this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.disease} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.disease} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
                     }
                 }
                 "RMP_CALLED", "RMP_CALL_DUE" -> {
