@@ -24424,8 +24424,9 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const rows=r.data||[];
     $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} calls from app`;
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card"><b>${esc(p.staff_code||'-')}</b><br>`
-        + `<span class="tiny">${esc(p.target_mobile_mask||'')} · ${esc(fmtDate(p.call_date||''))}</span></div>`;
+        + `<span class="tiny">${esc(branchTag)}${esc(p.target_mobile_mask||'')} · ${esc(fmtDate(p.call_date||''))}</span></div>`;
     }).join('') || '<div class="card mut">No app calls found for this period.</div>';
   } else if(metric==='TRASH_COUNT'){
     const r = await c.rpc('trash_list',{p_branch:branch,p_from:from,p_to:to});
@@ -24433,8 +24434,9 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const rows=r.data||[];
     $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} records in Trash`;
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card"><b>${esc(p.table_name||'record')}</b><br>`
-        + `<span class="tiny">${esc(fmtDate(String(p.deleted_at||'').slice(0,10)))} · by ${esc(p.deleted_by||'—')}</span></div>`;
+        + `<span class="tiny">${esc(branchTag)}${esc(fmtDate(String(p.deleted_at||'').slice(0,10)))} · by ${esc(p.deleted_by||'—')}</span></div>`;
     }).join('') || '<div class="card mut">No deleted records found for this period.</div>';
   } else if(metric==='RMP_ADVANCE'){
     const r = await c.rpc('rmp_advance_list',{p_branch:branch,p_from:from,p_to:to});
@@ -24444,8 +24446,9 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
     $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.advance_count} advance payments` : 'Total: —';
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card"><b>${esc(p.rmp_name||'-')}</b><br>`
-        + `<span class="tiny">${esc(p.mode||'')} · ${esc(fmtDate(p.paid_on||''))}</span>`
+        + `<span class="tiny">${esc(branchTag)}${esc(p.mode||'')} · ${esc(fmtDate(p.paid_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:#0C8F3A">${money(p.amount)}</span></div>`;
     }).join('') || '<div class="card mut">No RMP advance found for this period.</div>';
   } else if(['APPOINTMENT_COUNT','EXPECTED_COUNT','HANDOVER_PENDING','PAYMENT_REQUESTS','REFERRAL_REQUESTS','LEAVE_COUNT','DOCTOR_REMINDER','STAFF_REMINDER_OPEN','FEE_RETURN'].includes(metric)){
@@ -24458,15 +24461,15 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     if(metric==='APPOINTMENT_COUNT'){
       const rows=await listOf('appointment_list',rangeArgs); if(!rows) return;
       $('#wlv1VoiceDetailSummary').textContent=`Total: ${rows.length} appointments`;
-      render(rows,'No appointments found for this period.',p=>card(p.name||mob(p.mobile)||'-',`${p.disease||''} · ${fmtDate(p.appointment_date||'')}${p.registered?' · already registered':''}`,'','',mob(p.mobile)));
+      render(rows,'No appointments found for this period.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.disease||''} · ${fmtDate(p.appointment_date||'')}${p.registered?' · already registered':''}`,'','',mob(p.mobile)));
     } else if(metric==='EXPECTED_COUNT'){
       const rows=await listOf('expected_list',rangeArgs); if(!rows) return;
       $('#wlv1VoiceDetailSummary').textContent=`Total: ${rows.length} marked expected`;
-      render(rows,'Nobody marked expected for this period.',p=>card(p.name||mob(p.mobile)||'-',`${p.mobile||''} · ${fmtDate(p.expected_on||'')}`,'','',mob(p.mobile)));
+      render(rows,'Nobody marked expected for this period.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.mobile||''} · ${fmtDate(p.expected_on||'')}`,'','',mob(p.mobile)));
     } else if(metric==='HANDOVER_PENDING'){
       const rows=await listOf('handover_pending_list',oneArg); if(!rows) return; const s=await first('handover_pending_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Not handed over: ${money(s.total)} · ${s.day_count} days`:'Total: —';
-      render(rows,'No pending handover.',p=>card(fmtDate(p.handover_date||''),p.status||'',money(p.cash),'#B42318',''));
+      render(rows,'No pending handover.',p=>card(fmtDate(p.handover_date||''),`${branch==='ALL'?(p.branch||'')+' · ':''}${p.status||''}`,money(p.cash),'#B42318',''));
     } else if(metric==='PAYMENT_REQUESTS'){
       const rows=await listOf('payment_requests_list',oneArg); if(!rows) return; const s=await first('payment_requests_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Pending: ${s.total} (${s.backdate_count} backdate · ${s.edit_count} edit · ${s.refund_count} refund)`:'Total: —';
