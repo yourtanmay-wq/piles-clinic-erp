@@ -8,10 +8,14 @@
 -- ১২.০৯-এ সেখানেই ₹৫০০ জমা দিয়েছেন (V1466-এর ফলে যাচাই হয়েছে)।
 --
 -- এখন ঠিক ফালাকাটার "TK BISWAS" (dv_8ad730969a2542f2bef8e26b97c6cbc7)-এ
--- সরানো হচ্ছে, আর হার — TK-র বলা ৬০% আন্দাজে না বসিয়ে সরাসরি
--- fin.rmp_commission_branch_defaults থেকে (rmp_id, branch='Falakata')
--- মিলিয়ে আসল জমা-করা হারটাই বসানো হচ্ছে (V1395-এ TAPOSHI BARMAN-এর
--- সংশোধনেও এই একই পদ্ধতি — নিয়মের বাইরে আন্দাজে কিছু বসানো হয়নি)।
+-- সরানো হচ্ছে। হার — V1469-এর ফলে যাচাই হয়েছে: এই rmp_id-র জন্য
+-- fin.rmp_commission_branch_defaults-এ আলাদা ব্রাঞ্চ-সারি নেই, কিন্তু
+-- fin.rmp_commission_defaults-এ এই rmp_id-র নিজের "global default" ৬০%
+-- (FLK-1 স্টাফ, ১৪.০৮.২০২৬-এ বসানো) — যেহেতু এই RMP-রেকর্ডটা নিজেই শুধু
+-- ফালাকাটার জন্য, তার "global" মানেই ফালাকাটার হার। সার্ভারের নিজের নিয়মের
+-- (rmp_set_patient_commission) হুবহু একই দুই-ধাপের অগ্রাধিকার এখানেও —
+-- ব্রাঞ্চ-নির্দিষ্ট থাকলে সেটা, নইলে এই rmp_id-র global default — আন্দাজে
+-- কিছু বসানো হয়নি।
 --
 -- ⛔ শুধু এই একজন রোগীর কমিশন-সারি ছোঁয়া হচ্ছে (patient_row_id দিয়ে বাঁধা)।
 -- ⛔ পেমেন্ট/বিল/রোগীর কোনো সারি ছোঁয়া হয় না।
@@ -31,12 +35,19 @@ declare
   v_old jsonb;
   v_comm_id uuid;
 begin
-  -- আসল জমা-করা ব্রাঞ্চ-হার খুঁজে বার করা (আন্দাজ নয়)।
+  -- আসল জমা-করা হার খুঁজে বার করা (আন্দাজ নয়) — সার্ভারের নিজের নিয়মের
+  -- মতোই দুই ধাপ: ① এই rmp_id-র ব্রাঞ্চ-নির্দিষ্ট সারি থাকলে সেটা আগে।
   select commission_value into v_rate
     from fin.rmp_commission_branch_defaults
    where rmp_id = v_correct_rmp_id and branch = v_branch;
+  -- ② না থাকলে, এই rmp_id-র নিজের global default (V1469-এ যাচাই করা ৬০%)।
   if v_rate is null then
-    raise exception 'Falakata branch default rate not found for this RMP — stopping, nothing changed';
+    select commission_value into v_rate
+      from fin.rmp_commission_defaults
+     where rmp_id = v_correct_rmp_id;
+  end if;
+  if v_rate is null then
+    raise exception 'No rate on file for this RMP (branch or global) — stopping, nothing changed';
   end if;
 
   select id, to_jsonb(c) into v_comm_id, v_old
