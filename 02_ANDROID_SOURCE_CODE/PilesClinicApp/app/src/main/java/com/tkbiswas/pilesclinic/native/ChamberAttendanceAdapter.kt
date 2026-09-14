@@ -255,11 +255,23 @@ class ChamberAttendanceAdapter(
             b.tvPatientIdW.text = pidWithRmpMark(whenV, refByVW)
             b.tvPatientIdW.visibility = if (pidTextVW.isNotBlank()) View.VISIBLE else View.GONE
             val note = row.remark.trim()
-            b.tvTreatmentW.text = if (note.isNotBlank()) note else "—"
             // 🟢🔒 V668 — compact/wide লেআউটেও একই today-vs-old রঙের নিয়ম।
             val isAutoStubW = note.equals("Registered patient / Visit created", ignoreCase = true)
             val hasRealRemarkW = note.isNotBlank() && !isAutoStubW
             val isFromTodayW = row.remarkUpdatedAt.take(10) == todayV668
+            /* 🔴🔒 V1450 (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ) — TK: "এই ব্যক্তি তো আজকে
+               আসে নাই, তাহলে একে টেস্ট করতে দেয়া হয়েছে এই লেখাটা কেন থাকে…
+               গ্রামার অনুযায়ী টেস্ট করতে পাঠানো হয়েছিল এত তারিখে এরকম কিছু হবে"।
+               আসল কারণ: এই সারিটা "আসার কথা" (এখনো আসেননি), তাই এখানে যা-ই
+               লেখা থাকুক সেটা বাধ্যতামূলকভাবে **আগের কোনো ভিজিটের** — অথচ
+               লেখাটা কোনো তারিখ ছাড়াই বসত, তাই আজকের কাজের মতো পড়া যেত।
+               ⇒ পুরনো (আজকের নয়) সত্যিকারের রিমার্কের আগে তারিখ বসানো হলো
+               (DateUtil.display — প্রকল্পের সব জায়গায় dd/MM/yyyy, TK-লক করা)।
+               ⛔ আজকের লেখা বা ফাঁকা/স্টাব ঘরে কিছুই বদলায়নি। */
+            val noteDateW = if (hasRealRemarkW && !isFromTodayW) DateUtil.display(row.remarkUpdatedAt) else ""
+            val noteTextW = if (noteDateW.isNotBlank()) "$noteDateW: $note"
+                else if (note.isNotBlank()) note else "—"
+            b.tvTreatmentW.text = noteTextW
             b.tvTreatmentW.setTextColor(android.graphics.Color.parseColor(
                 when {
                     note.isBlank() || isAutoStubW -> "#C47B00"

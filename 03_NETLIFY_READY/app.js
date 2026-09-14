@@ -22727,6 +22727,14 @@ function wlv1ChamberRowHtml(r, __sn){
         ? `<span style="color:#0B4F2A;font-weight:700">${esc(treat)}</span>`
         : `<span style="color:#9AA4B2">${esc(treat)}</span>`)
     : `<span style="color:#C47B00">${isAutoStubRemark ? 'Nothing written — tap to add' : '\u2014'}</span>`;
+  /* 🔴🔒 V1450 (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, ফোনের হুবহু একই ফিক্স) — "আসার কথা" (এখনো আসেননি) সারিতে পুরনো রিমার্ক তারিখ ছাড়াই বসত, তাই আজকের কাজের
+     মতো পড়া যেত। এই সারিতেই (নিচে) শুধু পুরনো সত্যিকারের রিমার্কের আগে তারিখ
+     বসানো হলো (wlv1Dot — dd/MM/yyyy, প্রকল্পের সব জায়গার নিয়ম)। ⛔ Arrived
+     সারির treatHtml অপরিবর্তিত। */
+  const __wDate1450 = (treat && !isAutoStubRemark && !isTreatFromToday) ? wlv1Dot(String(r.treatmentUpdatedAt||'').slice(0,10)) : '';
+  const treatHtmlWaiting = __wDate1450
+    ? `<span style="color:#9AA4B2">${esc(__wDate1450)}: ${esc(treat)}</span>`
+    : treatHtml;
   const feeHtml = Number(r.fee||0)>0 ? `<span style="color:#334155">${money(r.fee)}</span>`
                                      : `<span style="color:#8A97AB">OLD</span>`;
   /* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"নাম · তার নিচে মোবাইল · তার
@@ -22768,7 +22776,7 @@ function wlv1ChamberRowHtml(r, __sn){
      বসানো হলো, যাতে ভুল করে চাপ লেগে বাতিল হয়ে না যায়। */
   return `<div class="wlv1CbRow" style="background:${bg}"${r.expected?` oncontextmenu="event.preventDefault();event.stopPropagation();wlv1CancelExpected('${esc(r.mobile)}');return false;"`:''}>
     ${patientBox}
-    <div class="wlv1CbTreat">${treatHtml}</div>
+    <div class="wlv1CbTreat">${treatHtmlWaiting}</div>
     <button class="wlv1CbGo" onclick="wlv1MarkArrived('${esc(r.mobile)}')">&#8594;</button></div>`;
 }
 
