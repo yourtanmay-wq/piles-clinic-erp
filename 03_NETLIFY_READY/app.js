@@ -22446,7 +22446,16 @@ function wlv1ChamberRows(date, branch){
          ফলে পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হয়ে যেত।
          ⛔ পুরনো সারিতে ঘরটা ফাঁকা ⇒ আগের নিয়মেই (`updatedAt`) চলে।
          ⛔ ফোনের `ChamberAttendanceRepository`-তেও হুবহু একই বদল। */
-      if(!r.__hasProgressToday){ r.treatment = String(f.lastRemark||''); r.treatmentUpdatedAt = String(f.lastRemarkAt||f.updatedAt||f.createdAt||''); }
+      /* 🔴🔒 V1451 (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — "Called via COB" Treatment
+         Progress-এ, "এটা তো ট্রিটমেন্টের ঘর") — গভীরে দেখে পাওয়া গেল: আজকের
+         বোর্ডের এই লাইনে `wlv1ChamberAutoRemark()` ফিল্টারটাই কখনো বসানো
+         হয়নি (নিচের পুরনো-দিনের বোর্ডে বসানো ছিল, খাতার সারি নিচেই দেখুন) —
+         তাই ফোনের মতো এখানেও অ্যাপের নিজের-লেখা কল-লগ/বাতিল/বিল-সংশোধন
+         সরাসরি "ট্রিটমেন্ট" সেজে ছাপা হত। ⛔ মানুষের লেখা আসল progress
+         কখনো এই ফিল্টারে ধরা পড়ে না — শুধু স্কিপ হলে ঘরটা আগের মতোই ফাঁকা
+         থাকে ("—"), অন্য কিছু বদলায় না। */
+      const remW1451 = String(f.lastRemark||'');
+      if(!r.__hasProgressToday && !wlv1ChamberAutoRemark(remW1451)){ r.treatment = remW1451; r.treatmentUpdatedAt = String(f.lastRemarkAt||f.updatedAt||f.createdAt||''); }
     }
   });
   /* 🕓🔒 V1157 (০৭.০৯.২০২৬, TK-রিপোর্ট · ফোনের V535-এর যমজ — ওয়েবে এতদিন
@@ -22617,7 +22626,14 @@ function wlv1ChamberAutoRemark(remark){
   if(/^chamber( .+)? payment$/i.test(r)) return true;
   if(/^₹\s?[\d,]+(\.\d+)?$/.test(r)) return true;
   if(/^(cash|online|upi)$/i.test(r)) return true;
-  if(/^bill corrected:.*$/i.test(r)) return true;
+  /* 🔴🔒 V1451 (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — ফোনের হুবহু একই ফিক্স,
+     PaymentModel.isAutoPaymentRemark দ্রষ্টব্য) — "Called via COB" ইত্যাদি
+     Dialer-এর কল-লগ আর "আসার কথা" বাতিলের কারণ এই তালিকায় কখনো যোগ হয়নি;
+     আর নিচের পুরনো "bill corrected:" লাইনটা আসল লেখার (💰 Bill corrected
+     ₹X → ₹Y by নাম — কোলন নেই) সাথে মেলেই না, তাই সেটাও এতদিন পার হয়ে যেত। */
+  if(/^called via \S+$/i.test(r)) return true;
+  if(r.indexOf('আসার কথা বাতিল:')===0) return true;
+  if(/^bill corrected\b.*$/i.test(r.replace(/^[^A-Za-z]+/,''))) return true;
   if(/^marked (arrived|expected)\b.*$/i.test(r)) return true;
   return /^\d+(st|nd|rd|th)( payment)?$/i.test(r);
 }
@@ -24687,6 +24703,12 @@ function wlv1IsAutoPayRemark(remark,label){
   if(l&&r.toLowerCase()===l.toLowerCase()) return true;
   const fixed=['advance','advance payment','visit fee','registration fee','treatment payment','marked arrived','marked expected'];
   if(fixed.includes(r.toLowerCase())) return true;
+  // 🔴🔒 V1451 (১৪.০৯.২০২৬) — Chamber-এর wlv1ChamberAutoRemark()-এ যোগ হওয়া
+  // একই ৩টে অ্যাপ-নিজের-লেখা প্যাটার্ন, Timeline/Report Card-এও যেন একইভাবে
+  // বাদ যায় (নইলে ওখানে দেখাত, যদিও এটা TK-র রিপোর্টের সরাসরি জায়গা নয়)।
+  if(/^called via \S+$/i.test(r)) return true;
+  if(r.indexOf('আসার কথা বাতিল:')===0) return true;
+  if(/^bill corrected\b.*$/i.test(r.replace(/^[^A-Za-z]+/,''))) return true;
   return /^\d+(st|nd|rd|th)( payment)?$/i.test(r);
 }
 window["wlv1IsAutoPayRemark"]=wlv1IsAutoPayRemark;

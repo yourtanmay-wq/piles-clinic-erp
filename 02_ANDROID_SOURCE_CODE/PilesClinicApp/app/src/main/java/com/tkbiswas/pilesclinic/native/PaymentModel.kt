@@ -697,7 +697,22 @@ object PaymentModel {
         // বিল সংশোধনের লাইন, "(Chamber Attendance)" জাতীয় লেজ।
         if (Regex("^₹\\s?[\\d,]+(\\.\\d+)?$").matches(r)) return true
         if (Regex("^(cash|online|upi)$", RegexOption.IGNORE_CASE).matches(r)) return true
-        if (Regex("^bill corrected:.*$", RegexOption.IGNORE_CASE).matches(r)) return true
+        /* 🔴🔒 V1451 (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — "Called via COB" Chamber
+           Date-এর Treatment Progress-এ, TK: "এটা তো ট্রিটমেন্টের ঘর") — গভীরে
+           দেখে পাওয়া গেল: এই ফাংশনই (V236, ০১.০৮.২০২৬) ঠিক এই কাজের জন্য
+           বসানো হয়েছিল, কিন্তু পরে যোগ হওয়া অ্যাপ-নিজের-লেখা কথাগুলো (Dialer
+           কল-লগ — B464/B602 · "আসার কথা" বাতিলের কারণ) এই তালিকায় কখনো
+           যোগই হয়নি। সাথে এটাও ধরা পড়ল: নিচের পুরনো "bill corrected:" লাইনটা
+           **আসল লেখার সাথেই মেলে না** (আসল লেখা `💰 Bill corrected ₹X → ₹Y
+           by নাম` — কোলন নেই, ইমোজি আছে) — তাই বিল-সংশোধনের নোটও এতদিন এই
+           পাহারা এড়িয়ে যেত। এখন তিনটেই ঠিক করা হলো। ⛔ মানুষের নিজের হাতে
+           লেখা কোনো কথা এই প্যাটার্নে ভুল করে ধরা পড়বে না (প্রতিটা প্যাটার্নই
+           অ্যাপের নিজের নির্দিষ্ট বাক্য-গঠন, কাকতালীয়ভাবে মেলার সম্ভাবনা নেই)। */
+        if (Regex("^called via \\S+$", RegexOption.IGNORE_CASE).matches(r)) return true
+        if (r.startsWith("আসার কথা বাতিল:")) return true
+        // ⛔ শুরুর ইমোজি (💰) বাদ দিয়ে মেলানো — surrogate-pair-নির্ভর \p{So}
+        // এড়ানো হলো, কারণ Java regex ডিফল্টে সেটা নির্ভরযোগ্যভাবে ধরে না।
+        if (Regex("^bill corrected\\b.*$", RegexOption.IGNORE_CASE).matches(r.replaceFirst(Regex("^[^A-Za-z]+"), ""))) return true
         if (Regex("^marked (arrived|expected)\\b.*$", RegexOption.IGNORE_CASE).matches(r)) return true
         // "2nd Payment", "3rd Payment", "11th Payment" ... (with or without the
         // word Payment), exactly as ordinalPaymentLabel() builds them.
