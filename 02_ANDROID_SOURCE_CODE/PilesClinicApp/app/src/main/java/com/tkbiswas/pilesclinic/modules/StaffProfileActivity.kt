@@ -1166,11 +1166,40 @@ class StaffProfileActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                 .apply { bottomMargin = dp(12) }
         }
-        hero.addView(TextView(this).apply {
+        /* 🎨🔒 V1456 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ পাশ — "হ্যাঁ পাশ, এবার
+           বসিয়ে দিন") — TK: *"Card গুলি আরো প্রফেশনাল লুক বানাতে হবে তাছাড়া
+           Edit এর অপশন ও রাখতে হবে"*। আগে "Edit Profile"/"Editing Enabled"
+           পুরো-চওড়া একটা লেখা-বোতাম নিচে আলাদা লাইনে থাকত, যেটা বোতাম বলে
+           বোঝা কঠিন ছিল (TK-এর প্রশ্ন: "কারো প্রোফাইল Edit/update কেন করতে
+           পারবো না")। এখন শিরোনামের ঠিক পাশেই ছোট, স্পষ্ট "✏️ Edit" বোতাম। */
+        val heroTop = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.TOP
+        }
+        heroTop.addView(TextView(this).apply {
             text = "View $code"; textSize = 19f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
+        val editAllBtn = TextView(this).apply {
+            text = "✏️ Edit"; textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(dp(11), dp(5), dp(11), dp(5))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(android.graphics.Color.parseColor("#26FFFFFF"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#4DFFFFFF"))
+            }
+            isClickable = true; isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = dp(8) }
+        }
+        heroTop.addView(editAllBtn)
+        hero.addView(heroTop)
         val photoRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(0, dp(12), 0, 0)
@@ -1217,8 +1246,6 @@ class StaffProfileActivity : AppCompatActivity() {
         val idType = ModuleUi.input(this, "ID Type (Aadhaar/PAN/Voter)")
         val idNum = ModuleUi.input(this, "ID Number (stored masked)")
         val notes = ModuleUi.input(this, "Notes")
-        val sheet = ModuleUi.card(this)
-        col.addView(sheet)
         val fieldList = listOf(
             Triple("👤", "Full Name", name), Triple("🏢", "Branch", branch), Triple("💼", "Designation", designation),
             Triple("📌", "Join Date", join), Triple("🎂", "Date of Birth", dob), Triple("⚧", "Gender", gender),
@@ -1227,34 +1254,32 @@ class StaffProfileActivity : AppCompatActivity() {
             Triple("🚨", "Emergency Contact", emg), Triple("👪", "Emergency Relationship", emgRel),
             Triple("🪪", "ID Type", idType), Triple("🔢", "ID Number", idNum), Triple("📝", "Notes", notes)
         )
-        val editAllBtn = TextView(this).apply {
-            text = "Edit Profile"; textSize = 12f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            gravity = android.view.Gravity.CENTER
-            setTextColor(android.graphics.Color.WHITE)
-            setPadding(dp(14), dp(8), dp(14), dp(8))
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(10).toFloat()
-                setColor(android.graphics.Color.parseColor("#26FFFFFF"))
-                setStroke(dp(1), android.graphics.Color.parseColor("#4DFFFFFF"))
-            }
-            isClickable = true; isFocusable = true
-            setOnClickListener {
-                fieldList.forEach { unlockField(it.third) }
-                text = "Editing Enabled"
-                ModuleUi.toast(this@StaffProfileActivity, "Profile can now be edited — press Save after changes")
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(10) }
+        editAllBtn.setOnClickListener {
+            fieldList.forEach { unlockField(it.third) }
+            editAllBtn.text = "✏️ Editing"
+            ModuleUi.toast(this@StaffProfileActivity, "Profile can now be edited — press Save after changes")
         }
-        hero.addView(editAllBtn)
-        // 🔴🆕🔒 TK-নির্দেশ (08.08.2026, ফটো-প্রুফে লক) — এক স্ক্রিনে সব দেখাতে
-        // দুই-কলাম কম্প্যাক্ট সাজ। কিছু লম্বা ঘর (নাম/ঠিকানা/জরুরি যোগাযোগ/নোট)
-        // পুরো চওড়া, বাকিগুলো পাশাপাশি দুটো করে। ⛔ প্রতিটা ঘরে lockField()-এর
-        // ৩-ট্যাপ এডিট অক্ষত; শুধু সাজ বদলেছে (আগে প্রতিটা ঘর আলাদা পুরো-চওড়া সারি ছিল)।
+        /* 🎨🔒 V1456 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — আগে সবকটা ঘর একটাই
+           লম্বা কার্ডে মেশানো থাকত। TK: *"Card গুলি আরো প্রফেশনাল লুক বানাতে
+           হবে"* — এখন বিষয়ভিত্তিক পাঁচটা ছোট কার্ডে ভাগ, প্রতিটার উপরে ছোট
+           শিরোনাম (Personal Details/Work/Contact/Emergency Contact/ID & Notes)
+           — ওয়েবের "My Profile"-এ TK আগেই পাশ করা প্যানেল-ডিজাইনের ফোন-সংস্করণ।
+           ⛔ প্রতিটা ঘরে lockField()-এর ৩-ট্যাপ এডিট ও দুই-কলাম/পুরো-চওড়া সাজ
+           (fullWidth সেট) অক্ষত — শুধু কার্ড আলাদা-আলাদা হলো, ঘরের সংখ্যা/নাম/
+           সেভ-লজিক এক অক্ষরও বদলায়নি। */
         val fullWidth = setOf("Full Name", "Address", "Emergency Contact", "Notes")
-        var pendingRow: LinearLayout? = null
+        // 🔗 সেকশনের নাম ইচ্ছে করে ওয়েবের profile.js-এর profEdit()-এর panel() নামগুলোর
+        // সাথে হুবহু মেলানো (Personal Details/Employment/Contact/Emergency Contact/
+        // Identification/Notes) — TK-এরই আগে পাশ করা সেই ডিজাইন, দুই প্ল্যাটফর্মে
+        // একই ভাগ যাতে কখনো গুলিয়ে না যায়।
+        val sections = listOf(
+            "Personal Details" to listOf(fieldList[0], fieldList[4], fieldList[5], fieldList[6], fieldList[7]),
+            "Employment" to listOf(fieldList[1], fieldList[2], fieldList[3]),
+            "Contact" to listOf(fieldList[8], fieldList[9]),
+            "Emergency Contact" to listOf(fieldList[10], fieldList[11]),
+            "Identification" to listOf(fieldList[12], fieldList[13]),
+            "Notes" to listOf(fieldList[14])
+        )
         fun freshRow(): LinearLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
@@ -1264,25 +1289,36 @@ class StaffProfileActivity : AppCompatActivity() {
         fun spacerCell() = android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, dp(1), 1f)
         }
-        for (trip in fieldList) {
-            val (icon, label, field) = trip
-            lockField(field)
-            val cellView = fieldRow(icon, label, field)
-            cellView.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            if (label in fullWidth) {
-                pendingRow?.let { pr -> pr.addView(spacerCell()); sheet.addView(pr) }
-                pendingRow = null
-                val r = freshRow(); r.addView(cellView); sheet.addView(r)
-            } else if (pendingRow == null) {
-                pendingRow = freshRow()
-                pendingRow!!.addView(cellView)
-            } else {
-                pendingRow!!.addView(cellView)
-                sheet.addView(pendingRow!!)
-                pendingRow = null
+        for ((sectionTitle, sectionFields) in sections) {
+            col.addView(TextView(this).apply {
+                text = sectionTitle.uppercase(Locale.US); textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#6B7A70"))
+                setPadding(dp(4), dp(10), dp(4), dp(5))
+            })
+            val sheet = ModuleUi.card(this)
+            col.addView(sheet)
+            var pendingRow: LinearLayout? = null
+            for (trip in sectionFields) {
+                val (icon, label, field) = trip
+                lockField(field)
+                val cellView = fieldRow(icon, label, field)
+                cellView.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                if (label in fullWidth) {
+                    pendingRow?.let { pr -> pr.addView(spacerCell()); sheet.addView(pr) }
+                    pendingRow = null
+                    val r = freshRow(); r.addView(cellView); sheet.addView(r)
+                } else if (pendingRow == null) {
+                    pendingRow = freshRow()
+                    pendingRow!!.addView(cellView)
+                } else {
+                    pendingRow!!.addView(cellView)
+                    sheet.addView(pendingRow!!)
+                    pendingRow = null
+                }
             }
+            pendingRow?.let { pr -> pr.addView(spacerCell()); sheet.addView(pr) }
         }
-        pendingRow?.let { pr -> pr.addView(spacerCell()); sheet.addView(pr) }
 
         val footer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
