@@ -606,6 +606,23 @@
          ⛔ ফোনের `HourSalary.compute`-এর হুবহু একই নিয়ম, তাই দুই পর্দা মেলে। */
       if(d && d.is_wfh){ worked += SAL_DAY_MINUTES; return; }
       var a = salHourMinutes(d && d.check_in), b = salHourMinutes(d && d.check_out);
+      /* 🐞🔒 V1455 (১৪.০৯.২০২৬) — এই ফাংশনের মন্তব্যে (উপরে) দাবি ছিল ফোনের
+         `HourSalary.compute()`-এর "হুবহু একই নিয়ম", কিন্তু V1200-এর "IN আছে
+         অথচ OUT নেই ⇒ ৭ ঘণ্টা" শাখাটাই এখানে বসানো হয়নি — শুধু "IN বা OUT
+         যেকোনো একটা না থাকলে ০" ধরত, তাই সত্যিই OUT ভুলে যাওয়া দিনে ফোন ৭ ঘণ্টা
+         দেখাত, কম্পিউটার ০। এখন ফোনের নিয়মই বসানো হলো — আজকের এখনো-চলতে-থাকা
+         দিনে (TK-রিপোর্ট, তালিকা ৫৭৬) ফ্ল্যাট ৭ ঘণ্টা নয়, এখন পর্যন্ত IN থেকে
+         সত্যিকারের সময়; আগের কোনো দিনে সত্যিই OUT ভুলে গেলে ৭ ঘণ্টাই। */
+      if (a !== null && b === null) {
+        var wdSal = String((d && d.work_date) || '').slice(0, 10);
+        var todayIsoSal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        if (wdSal === todayIsoSal) {
+          var nowMinSal = (function(){ var n = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'})); return n.getHours()*60+n.getMinutes(); })();
+          if (nowMinSal > a) worked += (nowMinSal - a);
+          return;
+        }
+        missing++; worked += SAL_DAY_MINUTES; return;
+      }
       if(a === null || b === null || b <= a){ missing++; return; }
       worked += (b - a);
     });
@@ -2578,8 +2595,18 @@
       else if (d.is_other_branch){ mins = DAYM; tag = 'DUTY · ' + String(d.branch||'').trim().toUpperCase(); kind='br'; }
       else {
         var a = attMins(d.check_in), b = attMins(d.check_out);
-        /* ⏰ V1200 (TK-সিদ্ধান্ত) — IN আছে অথচ OUT নেই ⇒ ৭ ঘণ্টা (আগে ০ ছিল)। */
-        if (a!==null && b===null){ mins = DAYM; outMissing = true; }
+        /* ⏰ V1200 (TK-সিদ্ধান্ত) — IN আছে অথচ OUT নেই ⇒ ৭ ঘণ্টা (আগে ০ ছিল)।
+           🐞🔒 V1455 (১৪.০৯.২০২৬, TK-রিপোর্ট — "আজকের তারিখে এখনও staff চেম্বারে
+           আছে, Missing 7hr এটা তো ঠিক না") — TK-র কথা ছিল "আউট টাইম চাপতে
+           **ভুলে যায়**" (দিন শেষ হওয়ার পরে) — আজকের এখনো-চলতে-থাকা দিনের জন্য
+           নয়। আজকের তারিখে OUT না থাকলে এখন পর্যন্ত IN থেকে সত্যিকারের সময়ই
+           দেখায় (লাল MISSING/আন্দাজি ৭ ঘণ্টা নয়); আগের দিনগুলোয় নিয়ম অটুট। */
+        var todayIsoAtt = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        if (a!==null && b===null && iso === todayIsoAtt){
+          var nowMinAtt = (function(){ var n = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'})); return n.getHours()*60+n.getMinutes(); })();
+          mins = nowMinAtt > a ? (nowMinAtt - a) : 0;
+        }
+        else if (a!==null && b===null){ mins = DAYM; outMissing = true; }
         else if (a===null || b===null || b<=a){ mins = 0; }
         else mins = b - a;
         var br = String(d.branch||'').trim();

@@ -76,6 +76,20 @@ object HourSalary {
         return h * 60 + m
     }
 
+    /* 🐞🔒 V1455 (১৪.০৯.২০২৬) — নিচের compute()-এর "IN আছে, OUT নেই ⇒ ৭ ঘণ্টা"
+       নিয়মটা TK যা বলেছিলেন তার জন্যই ("সেই দিন যদি আউট টাইম চাপতে ভুলে যায়") —
+       অর্থাৎ দিন **শেষ হয়ে যাওয়ার পরেও ভুলে যাওয়া**, আজকের এখনো-চলতে-থাকা দিনের
+       জন্য নয়। আজকের তারিখেই এখনো OUT না থাকলে সেটা যোগ হয় Calendar.YEAR
+       ইত্যাদি দিয়ে যাচাই করে (নিচে)। */
+    private fun todayIso(): String {
+        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+        return String.format(Locale.US, "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
+    }
+    private fun nowMinutesIst(): Int {
+        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+        return c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+    }
+
     /**
      * এক মাসের হিসাব।
      * @param days ওই স্টাফের ওই মাসের `wn.notebook_days` সারিগুলো
@@ -135,6 +149,17 @@ object HourSalary {
                      TK আজ নিজে নিয়মটা বদলেছেন)।
                    ⛔ IN-ই না থাকলে আগের মতোই ০ — নইলে না এসেও ঘণ্টা পাওয়া যেত।
                    ⛔ OUT যদি IN-এর আগে হয় (ভুল বসানো) সেটাও গোনায় ঢোকে না। */
+                /* 🐞🔒 V1455 (১৪.০৯.২০২৬, TK-রিপোর্ট — "আজকের তারিখে এখনও staff
+                   চেম্বারে আছে, আর আপনি বানিয়েছেন Missing 7hr এটা তো ঠিক না") —
+                   আজকের এখনো-চলতে-থাকা দিনে "ভুলে যাওয়া"-র প্রশ্নই নেই (দিন শেষই
+                   হয়নি), তাই এই দিনে ফ্ল্যাট ৭ ঘণ্টা বা "missing" ধরা হয় না —
+                   এখন পর্যন্ত IN থেকে সত্যিকারের যত সময় কেটেছে সেটাই যোগ হয়।
+                   আগের যেকোনো দিনে (সত্যিই OUT ভুলে যাওয়া) নিয়ম অটুট। */
+                if (a != null && b == null && d.optString("work_date", "").take(10) == todayIso()) {
+                    val now = nowMinutesIst()
+                    if (now > a) worked += (now - a)
+                    continue
+                }
                 if (a != null && b == null) { missing++; worked += DAY_MINUTES; continue }
                 if (a == null || b == null || b <= a) { missing++; continue }
                 worked += (b - a)

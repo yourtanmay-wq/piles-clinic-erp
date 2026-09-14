@@ -3690,8 +3690,26 @@ class StaffProfileActivity : AppCompatActivity() {
                     else -> {
                         val a = HourSalary.minutesOf(ci); val b = HourSalary.minutesOf(co)
                         /* ⏰ V1200 (TK-সিদ্ধান্ত) — IN আছে অথচ OUT নেই ⇒ **৭ ঘণ্টা**
-                           (আগে ০ ছিল)। IN-ই না থাকলে আগের মতোই ০। */
-                        if (a != null && b == null) { mins = (HourSalary.DAY_HOURS * 60).toInt(); outMissing = true }
+                           (আগে ০ ছিল)। IN-ই না থাকলে আগের মতোই ০।
+                           🐞🔒 V1455 (১৪.০৯.২০২৬, TK-রিপোর্ট — "আজকের তারিখে এখনও staff
+                           চেম্বারে আছে, আর আপনি বানিয়েছেন Missing 7hr এটা তো ঠিক না") —
+                           TK-র নিজের কথা ছিল ("চেম্বারে আসার পরে in time চাপবে, কিন্তু
+                           সেই দিন যদি আউট টাইম চাপতে **ভুলে যায়**...") — অর্থাৎ এই নিয়ম
+                           **দিন শেষ হয়ে যাওয়ার পরেও ভুলে-যাওয়া** দিনের জন্য, আজকের এখনো
+                           চলতে-থাকা দিনের জন্য নয়। আজকের তারিখে এখনো OUT না চাপা মানে
+                           "ভুলে গেছেন" নয় — দিনটাই শেষ হয়নি। ⇒ আজকের সারিতে এখন লাল
+                           "MISSING"/আন্দাজি ৭ ঘণ্টা বসে না — এখন পর্যন্ত IN থেকে সত্যিকারের
+                           যত সময় কেটেছে সেটাই দেখায় (OUT না দেওয়া পর্যন্ত), "—" (OUT TIME
+                           ফাঁকা)। আজকের আগের যেকোনো দিনে (সত্যিই OUT ভুলে যাওয়া) আগের
+                           নিয়ম (৭ ঘণ্টা, লাল MISSING) অটুট। */
+                        val isTodayRow = iso == todayIso()
+                        if (a != null && b == null && isTodayRow) {
+                            val nowMin = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).let {
+                                it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE)
+                            }
+                            mins = if (nowMin > a) nowMin - a else 0
+                        }
+                        else if (a != null && b == null) { mins = (HourSalary.DAY_HOURS * 60).toInt(); outMissing = true }
                         else if (a == null || b == null || b <= a) { mins = 0 }
                         else mins = b - a
                         val br = ns(d, "branch")
@@ -3716,16 +3734,33 @@ class StaffProfileActivity : AppCompatActivity() {
                ⛔ পড়া ব্যর্থ হলে "…" বসে, মিথ্যা ০ নয়।
                ⛔ egress: মোট তিনটে ছোট গোনা-কল (count/HEAD), সারি টেনে আনা হয় না। */
             val perfObj: com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf = run {
-                val mob10 = ns(pr, "link_mobile").filter { it.isDigit() }.takeLast(10)
+                val linkMobileRaw = ns(pr, "link_mobile")
+                val mob10 = linkMobileRaw.filter { it.isDigit() }.takeLast(10)
                 val monthOr = "or(createdAt.gte.$ym-01,date.gte.$ym-01,registrationDate.gte.$ym-01)"
-                fun cnt(table: String, filter: String): String = try {
+                /* 🐞🔒 V1454 (১৪.০৯.২০২৬, TK-রিপোর্ট — "Enquiry কতগুলি করেছে সেটা কেন
+                   দেখাচ্ছে না", COB-UTTAMA-র ছবিতে REGISTRATION ১৮ ঠিকই এসেছিল কিন্তু
+                   NEW ENQUIRY "…" রয়ে গেছিল) — V1204-এর মন্তব্যে দাবি ছিল এই গোনা
+                   "হুবহু WorkNotebook-এর fetchStats(month)-এর মতোই", কিন্তু আসল কোডে
+                   ফাঁক ছিল: fetchStats()-এর নিজস্ব `countBoth()` প্রথম (উদার, `.like.*`)
+                   ছাঁকনি ব্যর্থ হলে **পুরনো নির্ভুল (`.eq.`) ছাঁকনিতে আবার একবার**
+                   চেষ্টা করে (দুটো সুযোগ) — এই পর্দায় সেই দ্বিতীয় সুযোগটাই বসানো হয়নি,
+                   প্রথমবার ব্যর্থ হলেই সরাসরি "…"। এখন এখানেও ঠিক সেই একই দুই-ধাপের
+                   পড়া — Registration-এর মতোই Enquiry-ও দ্বিতীয় সুযোগ পাবে। */
+                val monthOld = "createdAt=gte.$ym-01&createdAt=lt.$ym-32"
+                fun cnt(table: String, filter: String, oldFilter: String? = null): String = try {
                     val r = ModuleAuth.countPublicChecked(table, filter)
-                    if (r.ok) r.count.toString() else "…"
+                    if (r.ok) r.count.toString()
+                    else if (oldFilter != null) {
+                        val r2 = ModuleAuth.countPublicChecked(table, oldFilter)
+                        if (r2.ok) r2.count.toString() else "…"
+                    } else "…"
                 } catch (_: Throwable) { "…" }
                 val enqTxt = if (mob10.length != 10) "…"
-                    else cnt("enquiries", "and=(or(createdBy.like.*$mob10,receivedBy.like.*$mob10),$monthOr)")
+                    else cnt("enquiries", "and=(or(createdBy.like.*$mob10,receivedBy.like.*$mob10),$monthOr)",
+                        "or=(createdBy.eq.$linkMobileRaw,receivedBy.eq.$linkMobileRaw)&$monthOld")
                 val regTxt = if (mob10.length != 10) "…"
-                    else cnt("patients", "and=(or(registeredBy.like.*$mob10,createdBy.like.*$mob10),$monthOr)")
+                    else cnt("patients", "and=(or(registeredBy.like.*$mob10,createdBy.like.*$mob10),$monthOr)",
+                        "or=(registeredBy.eq.$linkMobileRaw,createdBy.eq.$linkMobileRaw)&$monthOld")
                 val appTxt = try {
                     val r = ModuleAuth.getRowsChecked("wn", "call_taps",
                         "select=id&staff_code=eq.$code&call_date=gte.$from&call_date=lt.$end")
