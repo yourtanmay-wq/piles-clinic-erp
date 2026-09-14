@@ -268,8 +268,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No pending payment requests.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.requestType} · ${FollowUpModel.displayDate(p.requestedOn)}", "₹${"%,.0f".format(p.amount)}", "#B45309", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.requestType} · ${FollowUpModel.displayDate(p.requestedOn)}", "₹${"%,.0f".format(p.amount)}", "#B45309", onTap))
                     }
                 }
                 "REFERRAL_REQUESTS" -> {
@@ -279,7 +280,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = if (s != null) "Pending: ${s.total} (${s.deleteCount} delete)" else "Total: —"
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No pending referral requests.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.requestType, FollowUpModel.displayDate(p.requestedOn), if (p.requestType == "Delete") "—" else "₹${"%,.0f".format(p.newAmount)}", "#B45309", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.requestType, "$branchTag${FollowUpModel.displayDate(p.requestedOn)}", if (p.requestType == "Delete") "—" else "₹${"%,.0f".format(p.newAmount)}", "#B45309", null))
+                    }
                 }
                 "LEAVE_COUNT" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.leaveSummary(branch, from, to) to VoiceReportRepository.leaveList(branch, from, to) }
@@ -288,7 +292,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = if (s != null) "Leave-days applied: ${s.total} · ${s.confirmed} confirmed · ${s.pending} pending · ${s.rejected} rejected" else "Total: —"
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No leave applications for this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, "Leave ${FollowUpModel.displayDate(p.leaveDate)} · applied ${FollowUpModel.displayDate(p.appliedOn)}", p.status, if (p.status == "confirmed") "#0C8F3A" else if (p.status == "rejected") "#B42318" else "#B45309", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffCode, "${branchTag}Leave ${FollowUpModel.displayDate(p.leaveDate)} · applied ${FollowUpModel.displayDate(p.appliedOn)}", p.status, if (p.status == "confirmed") "#0C8F3A" else if (p.status == "rejected") "#B42318" else "#B45309", null))
+                    }
                 }
                 "DOCTOR_REMINDER" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.doctorReminderSummary(branch, from, to) to VoiceReportRepository.doctorReminderList(branch, from, to) }
@@ -297,7 +304,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = if (s != null) "Sent: ${s.total} · ${s.notAccepted} not accepted yet" else "Total: —"
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No doctor reminders for this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row("Remind on ${FollowUpModel.displayDate(p.remindDate)}", "sent ${FollowUpModel.displayDate(p.createdOn)}", if (p.cancelled) "cancelled" else if (p.accepted) "accepted" else "open", if (p.cancelled) "#94A3B8" else if (p.accepted) "#0C8F3A" else "#B45309", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row("Remind on ${FollowUpModel.displayDate(p.remindDate)}", "${branchTag}sent ${FollowUpModel.displayDate(p.createdOn)}", if (p.cancelled) "cancelled" else if (p.accepted) "accepted" else "open", if (p.cancelled) "#94A3B8" else if (p.accepted) "#0C8F3A" else "#B45309", null))
+                    }
                 }
                 "STAFF_REMINDER_OPEN" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.staffReminderOpenSummary(branch) to VoiceReportRepository.staffReminderOpenList(branch) }
@@ -306,7 +316,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = (if (list.ok) list.value ?: emptyList() else emptyList()).filter { VoiceReportModel.nameMatch(extra, it.toName, it.toCode) }   // V1428/V1429 — নাম ধরে, ছেঁকে তবেই ফাঁকা-যাচাই
                     if (extra.isNotBlank()) binding.tvSummary.text = "Open for $extra: ${rows.size}"
                     if (rows.isEmpty()) empty("No open staff reminders.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.toName.ifBlank { p.toCode }, "${p.reminderType} · ${FollowUpModel.displayDate(p.remindOn)}", p.status, "#B45309", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.toName.ifBlank { p.toCode }, "$branchTag${p.reminderType} · ${FollowUpModel.displayDate(p.remindOn)}", p.status, "#B45309", null))
+                    }
                 }
                 "FEE_RETURN" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.feeReturnSummary(branch, from, to) to VoiceReportRepository.feeReturnList(branch, from, to) }
@@ -316,8 +329,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No visit fee returned in this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, FollowUpModel.displayDate(p.returnedOn), "₹${"%,.0f".format(p.amount)}", "#B42318", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${FollowUpModel.displayDate(p.returnedOn)}", "₹${"%,.0f".format(p.amount)}", "#B42318", onTap))
                     }
                 }
                 // ── V1421 ──
@@ -327,7 +341,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = got.value ?: emptyList()
                     binding.tvSummary.text = "Not closed: ${rows.size} days (today not counted)"
                     if (rows.isEmpty()) empty("Every active day was closed.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(FollowUpModel.displayDate(p.chamberDate), "${p.arrived} patients had activity", "₹${"%,.0f".format(p.money)}", "#B45309", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(FollowUpModel.displayDate(p.chamberDate), "$branchTag${p.arrived} patients had activity", "₹${"%,.0f".format(p.money)}", "#B45309", null))
+                    }
                 }
                 "NO_SHOW" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.noShowSummary(branch, from, to) to VoiceReportRepository.noShowList(branch, from, to) }
@@ -337,8 +354,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("Nobody was marked expected for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · expected ${FollowUpModel.displayDate(p.expectedOn)}", if (p.arrived) "came" else "no-show", if (p.arrived) "#0C8F3A" else "#B42318", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.mobile} · expected ${FollowUpModel.displayDate(p.expectedOn)}", if (p.arrived) "came" else "no-show", if (p.arrived) "#0C8F3A" else "#B42318", onTap))
                     }
                 }
                 "OUT_MISSING" -> {
@@ -349,7 +367,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = (if (list.ok) list.value ?: emptyList() else emptyList()).filter { VoiceReportModel.nameMatch(extra, it.staffCode) }   // V1428/V1429
                     if (extra.isNotBlank()) binding.tvSummary.text = "OUT time not given · $extra: ${rows.size} days"
                     if (rows.isEmpty()) empty("No missing OUT time in this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffCode, "IN ${p.checkIn} · ${FollowUpModel.displayDate(p.workDate)}", "OUT —", "#B42318", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffCode, "${branchTag}IN ${p.checkIn} · ${FollowUpModel.displayDate(p.workDate)}", "OUT —", "#B42318", null))
+                    }
                 }
                 "WFH_COUNT" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.wfhSummary(branch, from, to) to VoiceReportRepository.wfhList(branch, from, to) }
@@ -358,7 +379,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = if (s != null) "WFH applications: ${s.total} · ${s.approved} approved · ${s.pending} pending · ${s.rejected} rejected" else "Total: —"
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No WFH applications in this period.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(p.staffName.ifBlank { p.staffCode }, "WFH ${FollowUpModel.displayDate(p.workDate)} · applied ${FollowUpModel.displayDate(p.requestedOn)}", p.status, if (p.status == "approved") "#0C8F3A" else if (p.status == "rejected") "#B42318" else "#B45309", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffName.ifBlank { p.staffCode }, "${branchTag}WFH ${FollowUpModel.displayDate(p.workDate)} · applied ${FollowUpModel.displayDate(p.requestedOn)}", p.status, if (p.status == "approved") "#0C8F3A" else if (p.status == "rejected") "#B42318" else "#B45309", null))
+                    }
                 }
                 "DUPLICATE_PATIENTS" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.duplicateSummary(branch) to VoiceReportRepository.duplicateList(branch) }
@@ -368,8 +392,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No same-mobile duplicate groups.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: () -> Unit = { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) }
-                        binding.rowsHost.addView(row(p.mobile, p.names, "${p.rowCount} records", "#B45309", onTap))
+                        binding.rowsHost.addView(row(p.mobile, "$branchTag${p.names}", "${p.rowCount} records", "#B45309", onTap))
                     }
                 }
                 "FEE_UNPAID" -> {
@@ -379,8 +404,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("Everyone's visit fee is recorded.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.patientCode} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.patientCode} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
                     }
                 }
                 "CALLS_PENDING" -> {
