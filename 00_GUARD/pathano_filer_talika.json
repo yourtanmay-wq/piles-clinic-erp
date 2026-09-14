@@ -1,5 +1,24 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1463_FINAL.zip",
+    "versionCode": 1463,
+    "when": "14.09.2026 09.19 am",
+    "size_mb": 26.07,
+    "total_files": 1990,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 833,
+      "(root)": 605,
+      "00_SQL": 168,
+      "04_SUPABASE_DATABASE_SETUP": 131,
+      "00_GUARD": 65,
+      "03_NETLIFY_READY": 59,
+      "08_ASSETS_BACKUP": 39,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 32
+    },
+    "excluded": ".git/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ; এবার আলাদা করে কোনো ছবি/ফোল্ডার বাদ দেওয়া হয়নি",
+    "note": "V1458-V1463 — Chamber Date Undo Arrived (V1459) · Cost Estimate Days-বক্স + বাতিল-আইটেম রং (V1460) · Egress cache-clear টেবিল-ধরে (V1461) · ANAND KUMAR ডুপ্লিকেট Prescription মোছা (V1463); ভার্সন ১৪৫৭→১৪৬৩"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1457_FINAL.zip",
     "versionCode": 1457,
     "when": "14.09.2026 06.13 am",
