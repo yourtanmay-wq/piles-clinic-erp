@@ -26732,3 +26732,5 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > ওয়েব: app.js-এর wlv1VoiceReportDetail()-এর সবগুলো metric-এও হুবহু একই নিয়ম।
 > index.html-এর app.js `?v=` v1443→v1448 (শুধু cache-tag — build.gradle.kts/version.json-এর ভার্সন নম্বর অপরিবর্তিত, TK ফাইল না চাওয়া পর্যন্ত)।
 > পাহারা: verify_android_resources PASS · node --check PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)।
+
+> 📦 **V1448 ফাইল পাঠানো (১৪.০৯.২০২৬ রাত ২.২২, TK: "তাহলে ফাইল পাঠাও"):** PILES_CLINIC_APP_V1448_FINAL.zip — 26.13 MB · 1890 ফাইল। ভার্সন ১৪৪৩→১৪৪৮ (build.gradle.kts · version.json · index.html-এর app.js `?v=`)। এই সেশনের নতুন কাজ: V1444 (Enquiry পিলের মাপ) · V1445-V1447 (Search-এর প্রশ্ন-উত্তর ফিচার সার্ভারে চালু করা) · V1448 (সব ব্রাঞ্চ প্রশ্নে প্রতিটা তালিকা-সারিতে ব্রাঞ্চ-নাম)। পাহারা: tk_guard --release · verify_zip_root_name · verify_zip_contents — সব ✅ PASS।
