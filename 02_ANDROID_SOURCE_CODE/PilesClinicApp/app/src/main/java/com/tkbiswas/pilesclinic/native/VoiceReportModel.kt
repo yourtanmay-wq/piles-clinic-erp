@@ -249,7 +249,8 @@ object VoiceReportModel {
     /** এই লেখাটা প্রশ্নের মতো মনে হচ্ছে কিনা — এটাই দেখা হয় সাধারণ নাম/নম্বর
      *  খোঁজার (ভারী ক্লাউড-পড়া) আগে, যাতে সাধারণ Search কখনো আটকে না যায়। */
     fun isQuestionLike(q: String): Boolean =
-        q.contains("কত") || q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির") ||
+        q.contains("কত") || q.contains("কয়টা") || q.contains("কয়জন") ||   // V1447 (TK-রিপোর্ট: "কয়টা" ধরা পড়ছিল না)
+            q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির") ||
             q.contains("সবচেয়ে") || q.contains("কোন ব্রাঞ্চ") || q.contains("কোন শাখা") || q.contains("কমিশন")   // V1428
 
     fun parse(q: String): Parsed? {

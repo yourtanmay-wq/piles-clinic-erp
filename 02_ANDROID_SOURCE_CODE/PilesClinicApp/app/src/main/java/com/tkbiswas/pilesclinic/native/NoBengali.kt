@@ -530,6 +530,8 @@ object NoBengali {
         "জমা" to "deposit",
         "টাকা" to "money",
         "কতজন" to "how many",
+        "কয়টা" to "how many",   // 🎤 V1447 (TK-রিপোর্ট: "কয়টা" প্রশ্ন ধরা পড়ছিল না)
+        "কয়জন" to "how many",   // 🎤 V1447
         "এসেছিল" to "came",
         "এসেছে" to "has come",
         "কত" to "how much",

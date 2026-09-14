@@ -23980,7 +23980,7 @@ function wlv1VoiceDateRange(q){
   if(q.includes('এই মাস')||q.includes('this month')){ const f=new Date(kolkataNow); f.setDate(1); return {from:wlv1VoiceIsoDate(f),to:day(0),label:'This month'}; }
   return null;
 }
-function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির')||q.includes('সবচেয়ে')||q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('কমিশন'); }   // V1428
+function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কয়টা')||q.includes('কয়জন')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির')||q.includes('সবচেয়ে')||q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('কমিশন'); }   // V1428 · V1447 (TK-রিপোর্ট: "কয়টা" ধরা পড়ছিল না, ফোনের হুবহু একই ফিক্স)
 /* 🎤 V1428 (তালিকা ৫৩৮) — নাম ধরে প্রশ্ন (ফোনের VoiceReportModel.findNameTokens/nameMatch-এর হুবহু নিয়ম):
    প্রশ্নে ইংরেজি অক্ষরের শব্দ (JPE-CRP, JAKIR HOSSAIN) = ছাঁকনি; প্রশ্ন-চেনার ইংরেজি শব্দ ও ব্রাঞ্চের নাম বাদ।
    ⚠️ সৎ সীমা: বাংলায় বলা নাম ইংরেজি নামের সাথে মেলে না — নামটা ইংরেজি অক্ষরেই লিখতে/বলতে হবে। */
