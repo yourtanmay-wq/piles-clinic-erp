@@ -510,8 +510,8 @@ object SupabaseClient {
                             // ইতিমধ্যেই ক্লাউডে আছে — এটাই সফল।
                             try { CloudWriteQueue.forget("UPSERT", "payments", payId) } catch (_: Throwable) { }
                             try { CloudReadCache.clear() } catch (_: Throwable) { }
-                            try { CloudReadDedupe.clear() } catch (_: Throwable) { }
-                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
+                            try { CloudReadDedupe.clear("payments") } catch (_: Throwable) { }
+                            try { CloudListRevalidate.clear("payments") } catch (_: Throwable) { }
                             return@use existing
                         }
                         // পড়া গেল না — আগের মতোই retry-র জন্য রেখে দেওয়া হয়।
@@ -533,8 +533,8 @@ object SupabaseClient {
                     null
                 } else {
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
-                    try { CloudReadDedupe.clear() } catch (_: Throwable) { }
-                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
+                    try { CloudReadDedupe.clear("payments") } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear("payments") } catch (_: Throwable) { }
                     obj
                 }
             }
@@ -648,8 +648,8 @@ object SupabaseClient {
                     // row cloud-এ জীবিত, তাই tombstone সাফ ও cache fresh রাখা হয়।
                     try { DeletedGuard.unmark(table, row.optString("id", "")) } catch (_: Throwable) { }
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
-                    try { CloudReadDedupe.clear() } catch (_: Throwable) { }
-                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
+                    try { CloudReadDedupe.clear(table) } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear(table) } catch (_: Throwable) { }
                 }
                 else -> {
                     // 1 = LANDED — আমাদের data সত্যিই cloud-এ বসেছে।
@@ -661,8 +661,8 @@ object SupabaseClient {
                     // TK'S DATA-CONSISTENCY RULE (2026-07-25): every write passes through here,
                     // so clearing the short-lived read cache guarantees the next read is fresh.
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
-                    try { CloudReadDedupe.clear() } catch (_: Throwable) { }
-                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
+                    try { CloudReadDedupe.clear(table) } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear(table) } catch (_: Throwable) { }
                 }
             }
             // LANDED বা SUPERSEDED — দুটোতেই cloud-এ (আমাদের বা নবীন) data আছে, তাই
@@ -1240,8 +1240,8 @@ object SupabaseClient {
                     // 🔒 V223 (§C2): SUPERSEDED — trigger পুরোনো patch আটকেছে, cloud নবীন।
                     // clearConfirmed **নয়** (concern 2), remember **নয়** (obsolete)। cache fresh।
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
-                    try { CloudReadDedupe.clear() } catch (_: Throwable) { }
-                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
+                    try { CloudReadDedupe.clear(table) } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear(table) } catch (_: Throwable) { }
                 }
                 3 -> {
                     // 🔒🔒 B593: row_not_matched (terminal) — remember **নয়** (কোনোদিন
@@ -1255,8 +1255,8 @@ object SupabaseClient {
                 else -> {
                     // 1 = LANDED — আমাদের update সত্যিই বসেছে।
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
-                    try { CloudReadDedupe.clear() } catch (_: Throwable) { }
-                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
+                    try { CloudReadDedupe.clear(table) } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear(table) } catch (_: Throwable) { }
                     try { CloudWriteQueue.clearConfirmed("UPDATE", table, id, fields, writeStart) } catch (_: Throwable) { }
                 }
             }
@@ -1301,8 +1301,8 @@ object SupabaseClient {
                 try { DeletedGuard.markDeleted(table, id) } catch (_: Throwable) { }
                 // Same data-consistency rule as upsert() above.
                 try { CloudReadCache.clear() } catch (_: Throwable) { }
-                    try { CloudReadDedupe.clear() } catch (_: Throwable) { }
-                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
+                    try { CloudReadDedupe.clear(table) } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear(table) } catch (_: Throwable) { }
             } else {
                 // 🚨🚨 খাতার সারি B166 (TK, 30.07.2026 — TK-এর ৩ নম্বর সন্দেহ):
                 // *"ব্যর্থ Delete-এর স্থায়ী Retry নেই। Save এবং Update ব্যর্থ হলে
