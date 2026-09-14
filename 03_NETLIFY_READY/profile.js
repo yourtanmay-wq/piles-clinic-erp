@@ -1052,8 +1052,22 @@
       var docs = (byDate[date] || []).length;
       var map = '';
       if (r.last_lat && r.last_lng) {
-        map = '<a class="pill blueP" style="text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
-          encodeURIComponent(r.last_lat + ',' + r.last_lng) + '">OPEN IN GOOGLE MAPS</a>';
+        /* 🗺️🔒 V1452 (১৪.০৯.২০২৬, TK-নির্দেশ) — route_points থাকলে (নতুন
+           দিনের সারি) পুরো দিনের রুট Google Maps-এর "dir" লিংক দিয়ে দেখানো
+           হয় (প্রথম বিন্দু origin, শেষটা destination, মাঝেরগুলো waypoints);
+           পুরনো দিনের সারিতে এই কলাম না থাকলে আগের মতোই শুধু শেষ বিন্দু। */
+        var pts = Array.isArray(r.route_points) ? r.route_points : null;
+        var mapUrl;
+        if (pts && pts.length >= 2) {
+          var ll = function (i) { return pts[i][0] + ',' + pts[i][1]; };
+          var mid = pts.slice(1, -1).map(function (_, i) { return ll(i + 1); }).join('|');
+          mapUrl = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(ll(0)) +
+            '&destination=' + encodeURIComponent(ll(pts.length - 1)) + '&travelmode=driving' +
+            (mid ? '&waypoints=' + encodeURIComponent(mid) : '');
+        } else {
+          mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(r.last_lat + ',' + r.last_lng);
+        }
+        map = '<a class="pill blueP" style="text-decoration:none" target="_blank" rel="noopener" href="' + mapUrl + '">OPEN IN GOOGLE MAPS</a>';
       }
       /* 📍🔒 V1333 — আসল কারণ (V1156-এ কোডে সারানো): লোকেশন-অনুমতি না থাকলে
          GPS একটাও অবস্থান দেয় না, তাই দূরত্ব চিরকাল ০.০। এই ফিক্সের আগের

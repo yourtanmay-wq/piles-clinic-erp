@@ -185,6 +185,42 @@ object FieldVisit {
     fun lastLng(context: Context): Double =
         java.lang.Double.longBitsToDouble(prefs(context).getLong("last_lng", 0L))
 
+    /* 🗺️🔒 V1452 (১৪.০৯.২০২৬, TK-নির্দেশ, তালিকা ৫৭২ — "বিগত দিনে সে কোথায়
+       কোথায় ঘুরেছে তা যেন দেখতে পাই") — আগে শুধু দিনের **শেষ** অবস্থান জমা
+       থাকত (route রাখা হত না — TK-এরই আগের সিদ্ধান্ত, ফ্রি প্ল্যানের ঝুঁকিতে,
+       ০২.০৯.২০২৬)। TK-কে সুবিধা-অসুবিধা জানানোর পর তিনি নিজেই বেছেছেন:
+       "Google Maps রুট" পদ্ধতি — বাড়তি কোনো মানচিত্র-সেবা/খরচ ছাড়াই, দিনে
+       সর্বোচ্চ ROUTE_MAX_POINTS-টা থামার বিন্দু জমিয়ে Google Maps-কেই
+       বাকি রাস্তা আঁকতে দেওয়া হয় (ঠিক TK-এরই পাঠানো স্ক্রিনশটের মতো)।
+       ⛔ প্রতিটা GPS-ফিক্সে বিন্দু জমানো হয় না — নইলে দিনে শত শত বিন্দু জমে
+          Google Maps-এর লিংক ভেঙে যেত (২৫-বিন্দুর সীমা, যাচাই করা)। তাই
+          আগেরটা থেকে অন্তত ROUTE_STEP_M দূরে গেলে তবেই নতুন বিন্দু, আর
+          ক্যাপে পৌঁছালে আর নতুন বিন্দু জমে না (দিনের প্রথম অংশটাই থাকে)।
+       ⛔ পুরনো দিনের সারিতে এই কলাম ফাঁকা — সেখানে আগের মতোই শুধু শেষ
+          অবস্থান দেখানো হবে (FieldVisitActivity/profile.js উভয়েই)। */
+    private const val ROUTE_STEP_M = 800f
+    private const val ROUTE_MAX_POINTS = 20
+
+    fun routePointsJson(context: Context): String =
+        prefs(context).getString("route_pts", "[]").orEmpty().ifBlank { "[]" }
+
+    private fun addRoutePoint(context: Context, lat: Double, lng: Double) {
+        try {
+            val arr = org.json.JSONArray(routePointsJson(context))
+            if (arr.length() >= ROUTE_MAX_POINTS) return
+            if (arr.length() > 0) {
+                val last = arr.optJSONArray(arr.length() - 1)
+                if (last != null) {
+                    val prev = Location("prev").apply { latitude = last.optDouble(0); longitude = last.optDouble(1) }
+                    val here = Location("here").apply { latitude = lat; longitude = lng }
+                    if (prev.distanceTo(here) < ROUTE_STEP_M) return
+                }
+            }
+            arr.put(org.json.JSONArray().put(lat).put(lng))
+            prefs(context).edit().putString("route_pts", arr.toString()).apply()
+        } catch (_: Throwable) { }
+    }
+
     /** এই ফোনে আজ কোনটা বাছা হয়েছিল — CHAMBER / FIELD / ফাঁকা। */
     fun chosenMode(context: Context): String {
         val p = prefs(context)
@@ -208,6 +244,7 @@ object FieldVisit {
             .putInt("last_acc", 0)
             .putBoolean("has_fix", false)
             .putLong("acc_lat", 0L).putLong("acc_lng", 0L).putBoolean("has_acc_fix", false)   // V1431
+            .putString("route_pts", "[]")   // V1452
             .apply()
     }
 
@@ -254,6 +291,7 @@ object FieldVisit {
                 e.putLong("acc_lat", java.lang.Double.doubleToRawLongBits(loc.latitude))
                     .putLong("acc_lng", java.lang.Double.doubleToRawLongBits(loc.longitude))
                     .putBoolean("has_acc_fix", true)
+                addRoutePoint(context, loc.latitude, loc.longitude)   // V1452
             } else if (p.getBoolean("has_acc_fix", false) && p.getInt("last_acc", 0) <= MAX_ACCURACY_M.toInt()
                 && System.currentTimeMillis() - lastSeenAt(context) < 15 * 60_000L) {
                 // V1431 — ১৫ মিনিটের মধ্যে নির্ভুল অবস্থান থাকলে সেটাই থাক; আনুমানিকটা তার উপরে লিখব না
@@ -296,6 +334,11 @@ object FieldVisit {
             }
             val seen = lastSeenAt(context)
             if (seen > 0L) row.put("last_seen_at", iso(seen))
+            // 🗺️ V1452 — দিনের রুট-বিন্দুগুলো (থাকলে); অন্তত ২টা না হলে রাস্তা আঁকা যায় না।
+            try {
+                val pts = org.json.JSONArray(routePointsJson(context))
+                if (pts.length() >= 2) row.put("route_points", pts)
+            } catch (_: Throwable) { }
             if (ended) {
                 row.put("ended_at", iso(p.getLong("ended_at", System.currentTimeMillis())))
                 row.put("auto_closed", auto)

@@ -365,8 +365,12 @@ class FieldVisitActivity : AppCompatActivity() {
                 card.addView(ModuleUi.body(this,
                     "Last seen " + (if (seen.isBlank()) "-" else seen) +
                         "  ·  accuracy ±" + accM + " m" + (if (accM > 60) " (approx.)" else "")))
+                /* 🗺️🔒 V1452 — route_points থাকলে (নতুন দিনের সারি) পুরো দিনের
+                   রুট Google Maps-কে দিয়ে আঁকানো হয়; পুরনো দিনের সারিতে এই
+                   কলাম না থাকলে আগের মতোই শুধু শেষ বিন্দু খোলে। */
+                val routePts = r.optJSONArray("route_points")
                 card.addView(ModuleUi.buttonSoft(this, "OPEN IN GOOGLE MAPS") {
-                    openMap(lat, lng)
+                    if (routePts != null && routePts.length() >= 2) openRoute(routePts) else openMap(lat, lng)
                 })
             }
             col.addView(card)
@@ -393,6 +397,28 @@ class FieldVisitActivity : AppCompatActivity() {
                 startActivity(Intent(Intent.ACTION_VIEW,
                     Uri.parse("https://www.google.com/maps/search/?api=1&query=$lat,$lng")))
             } catch (_: Throwable) { ModuleUi.toast(this, "No map app found") }
+        }
+    }
+
+    /* 🗺️🔒 V1452 (১৪.০৯.২০২৬, TK-নির্দেশ) — দিনের জমানো বিন্দুগুলো (প্রতিটা
+       [lat,lng]) দিয়ে Google Maps-এর "dir" রুট-লিংক বানানো — প্রথমটা origin,
+       শেষটা destination, মাঝেরগুলো waypoints। Google-এর নিজস্ব সীমা (২৫
+       বিন্দু) যাচাই করে দেখা — আমরা দিনে সর্বোচ্চ ২০টাই জমাই, তাই সবসময়
+       সীমার ভিতরে। */
+    private fun openRoute(pts: JSONArray) {
+        try {
+            fun ll(i: Int): String {
+                val p = pts.optJSONArray(i)
+                return (p?.optDouble(0) ?: 0.0).toString() + "," + (p?.optDouble(1) ?: 0.0).toString()
+            }
+            val origin = ll(0)
+            val dest = ll(pts.length() - 1)
+            val mid = (1 until pts.length() - 1).joinToString("|") { ll(it) }
+            var url = "https://www.google.com/maps/dir/?api=1&origin=$origin&destination=$dest&travelmode=driving"
+            if (mid.isNotBlank()) url += "&waypoints=" + Uri.encode(mid)
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: Throwable) {
+            ModuleUi.toast(this, "No map app found")
         }
     }
 
