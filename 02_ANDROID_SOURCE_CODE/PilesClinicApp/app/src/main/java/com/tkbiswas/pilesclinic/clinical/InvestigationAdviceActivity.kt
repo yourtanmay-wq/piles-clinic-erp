@@ -241,14 +241,32 @@ class InvestigationAdviceActivity : AppCompatActivity() {
            পরিষ্কার কার্ডে — কাটার প্রশ্নই ওঠে না।
            ⛔ পিছনে ফেরা ফোনের নিজের Back-এ চলে (Check-Up-এ ঠিক যেভাবে চলে)।
            ⛔ নাম/ID/রোগ যেখান থেকে আসে (`RoleSession`) তা এক অক্ষরও বদলায়নি। */
+        /* 🎨🔒 V1473 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ, "প্রস্তাব ১ পাশ") —
+           প্রফেশনাল কার্ড, এখনো এই একই তিনটে তথ্য (নাম·ID·রোগ) দিয়েই —
+           `RoleSession`-এ যা আগে থেকেই আছে, নতুন কোনো নেটওয়ার্ক ডাক নেই। */
         run {
             // 🔒 খাতার সারি B175 — মানুষ-পড়া-যায় Patient ID।
-            val line = listOf(RoleSession.currentPatientName, RoleSession.displayId(), RoleSession.currentPatientDisease)
-                .map { it.trim() }.filter { it.isNotBlank() }
-            val head = findViewById<TextView>(R.id.tvPatientHead)
-            if (head != null && line.isNotEmpty()) {
-                head.text = "👤 " + line.joinToString("\n")
-                head.visibility = android.view.View.VISIBLE
+            val name = RoleSession.currentPatientName.trim()
+            val pid = RoleSession.displayId().trim()
+            val disease = RoleSession.currentPatientDisease.trim()
+            val branch = RoleSession.currentPatientBranch.trim()
+            val card = findViewById<android.view.View>(R.id.llInvPatientCard)
+            if (card != null && name.isNotBlank()) {
+                findViewById<TextView>(R.id.tvInvPatientName).text = name
+                findViewById<TextView>(R.id.tvInvAvatarInitials).text = name
+                    .split(Regex("\\s+")).filter { it.isNotBlank() }
+                    .take(2).joinToString("") { it.first().uppercaseChar().toString() }
+                    .ifBlank { "?" }
+                val sub = listOf(disease, branch).filter { it.isNotBlank() }.joinToString(" · ")
+                val tvSub = findViewById<TextView>(R.id.tvInvPatientSub)
+                tvSub.text = sub
+                tvSub.visibility = if (sub.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
+                val idChip = findViewById<android.view.View>(R.id.llInvIdChip)
+                if (pid.isNotBlank()) {
+                    findViewById<TextView>(R.id.tvInvPatientIdValue).text = pid
+                    idChip.visibility = android.view.View.VISIBLE
+                } else idChip.visibility = android.view.View.GONE
+                card.visibility = android.view.View.VISIBLE
             }
         }
 

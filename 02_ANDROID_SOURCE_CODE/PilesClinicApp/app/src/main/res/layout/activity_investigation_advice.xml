@@ -21,19 +21,98 @@
             নিচের লাইনটা **কেটে যেত** — সেটাই TK ধরিয়ে দিয়েছেন।
          ⛔ পিছনে ফেরা: ফোনের নিজের Back (গেসচার/বোতাম) — Check-Up-এ ঠিক
             যেভাবে চলে। এই পর্দায় আলাদা কোনো onBackPressed override নেই। -->
-    <TextView
-        android:id="@+id/tvPatientHead"
+    <!-- 🎨🔒 V1473 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ, "প্রস্তাব ১ পাশ") —
+         আগের সাদাসিধা tvPatientHead বাক্সের বদলে প্রফেশনাল কার্ড (আদ্যক্ষর-
+         অক্ষরের অ্যাভাটার + নাম + রোগ/ব্রাঞ্চ + ID-চিপ) — যা এমনিতেই এই
+         পর্দায় আগে থেকে জমা আছে (নাম·ID·রোগ) তা দিয়েই, নতুন কোনো নেটওয়ার্ক
+         ডাক নেই। -->
+    <LinearLayout
+        android:id="@+id/llInvPatientCard"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
         android:layout_marginEnd="12dp"
         android:layout_marginTop="12dp"
-        android:background="@drawable/bg_input_field"
+        android:background="@drawable/bg_inv_patient_card"
         android:padding="12dp"
-        android:textColor="#17312A"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvInvAvatarInitials"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:background="@drawable/bg_inv_avatar"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:textSize="17sp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvInvPatientName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#0F2B45"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/tvInvPatientSub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="#3A5674"
+                android:textSize="12.5sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <LinearLayout
+                android:id="@+id/llInvIdChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_inv_id_outer"
+                android:paddingStart="9dp"
+                android:paddingEnd="3dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ID"
+                    android:textColor="#0B66D8"
+                    android:textStyle="bold"
+                    android:textSize="11.5sp" />
+
+                <TextView
+                    android:id="@+id/tvInvPatientIdValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:background="@drawable/bg_inv_id_inner"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="7dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ): "Blood Test /
          Investigation Advice" লম্বা বলে ২ লাইনে ভেঙে বড় দেখাত। TK-এর
