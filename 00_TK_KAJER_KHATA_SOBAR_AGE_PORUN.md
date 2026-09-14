@@ -26881,3 +26881,7 @@ TK V1463 চালিয়ে CSV পাঠালেন — ঠিক সেই
 **Return Visit (তালিকা ৪৭৭):** কোডে যাচাই করে নিশ্চিত হওয়া গেল — বর্তমান নিয়মে Refunded ও Return Visit একই শর্তে বসে, তাই Return Visit সংখ্যা Refunded-এর চেয়ে কখনো কম হতে পারে না। "Refunded 5, Return Visit 0" শুধু V1355-এর আগের পুরনো APK-তেই সম্ভব — TK-কে ফোনের ভার্সন দেখতে বলা হয়েছে। বন্ধ।
 
 **এই সেশনে তালিকা ৪৬২ (সম্পূর্ণ), ৪০৫, ৪৫৭, ৪৭৭, ৪৮০, ৪৯২, ৪৯৭ — সবগুলো প্রশ্নই এখন বন্ধ।**
+
+## ১৪.০৯.২০২৬ সকাল ৯.১৯ — 📦 PILES_CLINIC_APP_V1463_FINAL.zip পাঠানো (TK: "ফাইল পাঠান")
+
+ভার্সন ১৪৫৭→১৪৬৩ (build.gradle.kts · version.json)। ভিতরে V1458–V1463 (Undo Arrived · Cost Estimate Days-বক্স ও রং · Egress cache-clear টেবিল-ধরে · ANAND KUMAR-এর ডুপ্লিকেট মোছা)। সব পাহারা পাশ, ZIP-নাম/ভিতর যাচাই পাশ। হিসাব pathano_filer_talika.json-এ (26.07 MB, 1990 ফাইল)।
