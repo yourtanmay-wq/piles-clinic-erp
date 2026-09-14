@@ -391,7 +391,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             if (fromButton) {
                 try { com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this) } catch (_: Throwable) { }
                 ModuleUi.toast(this, "Location is on - km is being counted.")
-                if (fv.isFieldStaff(this)) askFieldBatterySettingsOnce()
+                askFieldBatterySettingsOnce()
             }
         } catch (_: Throwable) { }
     }
@@ -400,8 +400,12 @@ class WorkNotebookActivity : AppCompatActivity() {
        বাড়তি সুরক্ষা বসান") — খাতা মিলিয়ে দেখা গেছে GPS-সেবা ফোনের নিজস্ব
        ব্যাটারি-ম্যানেজার/অটোস্টার্ট-সেটিংসে বারবার (তালিকা ৪৫১·৪৬৫·৫০৫·৫৪২·৫৪৮)
        থেমে গেছে — কোড দিয়ে এটা ১০০% আটকানো যায় না (Android-এর নিজস্ব সীমা),
-       কিন্তু RUPAM/ARMAN নিজে ফোনের Settings-এ একটা কাজ করলে অনেকটাই কমে।
-       শুধু এই দুজনের ফোনে, IN TIME-এ **একবারই** স্পষ্ট নির্দেশ — না করলেও
+       কিন্তু নিজে ফোনের Settings-এ একটা কাজ করলে অনেকটাই কমে।
+       🟢🔒 V1472 (১৪.০৯.২০২৬, TK-নির্দেশ: "শুধু ওই ২ staff নয়, সবার ক্ষেত্রেই
+       একই নিয়ম রাখুন") — RUPAM/ARMAN-এই সীমাবদ্ধ ছিল, এখন হাজিরা-ব্যবহারকারী
+       **সব স্টাফ/ব্রাঞ্চের** ফোনে (এই ফাংশনটা যেহেতু আগে থেকেই শুধু
+       `tracksAttendanceLocation()`-এর ভিতরেই ডাকা হয় — V1346, staff+branch
+       উভয়েই কভার করে)। IN TIME-এ **একবারই** স্পষ্ট নির্দেশ — না করলেও
        IN TIME/OUT TIME আটকায় না। */
     private fun askFieldBatterySettingsOnce() {
         try {

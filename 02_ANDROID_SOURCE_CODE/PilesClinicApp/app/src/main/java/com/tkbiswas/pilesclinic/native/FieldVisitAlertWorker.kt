@@ -8,8 +8,8 @@ import androidx.work.WorkerParameters
 import com.tkbiswas.pilesclinic.R
 
 /**
- * 🛰️🔒 V1345 (১১.০৯.২০২৬, TK-নির্দেশ) — **দুপুর ৩টায় মাস্টারকে জানানো: কোন
- * ফিল্ড-স্টাফের লোকেশন আজ কাজ করছে না।**
+ * 🛰️🔒 V1345 (১১.০৯.২০২৬, TK-নির্দেশ) — **মাস্টারকে জানানো: কোন স্টাফের
+ * লোকেশন আজ কাজ করছে না।**
  *
  * প্রেক্ষাপট: RUPAM-এর কিমি/লোকেশন বারবার ০.০ থাকার আসল কারণ (V1344-এ
  * সারানো অনুমতির ফাঁক) কোডেই ধরা পড়েছিল, কিন্তু TK প্রশ্ন করেছিলেন — এর
@@ -17,16 +17,26 @@ import com.tkbiswas.pilesclinic.R
  * সতর্কতা ছাড়া TK কখনো জানতেই পারতেন না, যতক্ষণ না নিজে গিয়ে Field Visit
  * Tracking পর্দাটা খুলে দেখতেন। TK নিজেই বেছেছেন এই মাস্টার-অ্যালার্ট।
  *
+ * 🏍️🔒 V1471 (১৪.০৯.২০২৬) — আগে দিনে **একবারই** (দুপুর ৩টা) চেক হতো, তাই
+ * সেদিনই RUPAM-এর ২.৫ ঘন্টার ফাঁক TK সন্ধ্যায় নিজে পর্দা খুলে দেখার আগে
+ * কখনো জানতেই পারেননি। এখন `FieldVisitAlertScheduler` কাজের সময় (সকাল
+ * ৯টা–রাত ৯টা) **প্রতি ৪৫ মিনিটে** আবার বসায়।
+ *
+ * 🟢🔒 V1472 (১৪.০৯.২০২৬, TK-নির্দেশ: "শুধু ওই ২ staff নয়, সবার ক্ষেত্রেই
+ * একই নিয়ম রাখুন") — আগে শুধু RUPAM/ARMAN (`FieldVisit.isFieldStaff`)। এখন
+ * হাজিরা-ব্যবহারকারী **সব staff/branch** অ্যাকাউন্ট (role=="staff")।
+ *
  * ─── যা করে ───────────────────────────────────────────────────────────────
- * দুপুর ৩টায় (একবার) আজকের সব ফিল্ড-স্টাফের (`FieldVisit.isFieldStaff`)
- * `wn.field_visit_days` সারি দেখে — যাঁদের IN TIME/শুরু হয়েছে (`started_at`),
- * এখনো OUT হননি (`ended_at` ফাঁকা), কিন্তু গত ৪৫ মিনিটে একটাও লোকেশন আসেনি
- * (`last_seen_at` ফাঁকা বা পুরনো) — তাঁদের নাম নিয়ে মাস্টারের ফোনে নোটিফিকেশন।
+ * প্রতি ৪৫ মিনিটে আজকের সব হাজিরা-স্টাফের `wn.field_visit_days` সারি দেখে —
+ * যাঁদের IN TIME/শুরু হয়েছে (`started_at`), এখনো OUT হননি (`ended_at` ফাঁকা),
+ * আজ **অন্তত একবার** লোকেশন এসেছিল (`last_seen_at` আছে — নইলে হয়তো তিনি
+ * লোকেশন-অনুমতিই দেননি, যেটা staff/branch-এর জন্য ঐচ্ছিক, দোষ নয়), কিন্তু
+ * গত ৪৫ মিনিটে নতুন কিছু আসেনি — তাঁদের নাম নিয়ে মাস্টারের ফোনে নোটিফিকেশন।
  * কেউ বাকি না থাকলে/সবার লোকেশন ঠিক থাকলে **একদম চুপ**।
  *
  * ─── ⛔ নিরাপত্তা ও খরচ ───────────────────────────────────────────────────
- *  • শুধু মাস্টারের ফোনে চলে, আর শুধু আজ ফিল্ড-স্টাফ হিসেবে চিহ্নিত থাকা
- *    কয়েকজনের (এই মুহূর্তে ১ জন) সারি পড়ে — Egress নগণ্য।
+ *  • শুধু মাস্টারের ফোনে চলে, আর শুধু আজ IN TIME করা স্টাফদের সারি পড়ে
+ *    (সাধারণত হাতে-গোনা কয়েকজন, একটা ছোট ডাক) — Egress নগণ্য।
  *  • `MasterOutTimeWorker`/`MasterOutTimeScheduler`-এ এতটুকুও হাত পড়েনি —
  *    সম্পূর্ণ আলাদা, স্বাধীন WorkManager-চেইন।
  *  • কিছু ভুল হলে চুপচাপ ফিরে যায় — কোনো কিছু ভাঙে না, কোনো তথ্য লেখা হয় না।
@@ -62,7 +72,12 @@ class FieldVisitAlertWorker(
                 val ma = com.tkbiswas.pilesclinic.modules.ModuleAuth
                 if (!ma.isSignedIn) { try { ma.signInCurrentSession(ctx) } catch (_: Throwable) { } }
                 if (!ma.isSignedIn) return@withContext emptyList<String>()
-                val roster = StaffDirectory.allAccounts().filter { FieldVisit.isFieldStaff(it.mobile) }
+                /* 🟢🔒 V1472 (১৪.০৯.২০২৬, TK-নির্দেশ: "শুধু ওই ২ staff নয়, সবার
+                   ক্ষেত্রেই একই নিয়ম রাখুন") — আগে শুধু RUPAM/ARMAN (isFieldStaff)।
+                   এখন হাজিরা-ব্যবহারকারী সব staff/branch অ্যাকাউন্ট (role=="staff",
+                   RoleRules.usesAttendance()-এর হুবহু একই সংজ্ঞা — Doctor/Field-role/
+                   Master বাদ)। */
+                val roster = StaffDirectory.allAccounts().filter { it.role == "staff" }
                 if (roster.isEmpty()) return@withContext emptyList<String>()
                 val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
                     .apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata") }
@@ -84,8 +99,18 @@ class FieldVisitAlertWorker(
                     val started = row.optString("started_at", "")
                     val ended = row.optString("ended_at", "")
                     if (started.isBlank() || ended.isNotBlank()) continue
-                    val lastSeenMs = parseIsoMs(row.optString("last_seen_at", ""))
-                    if (lastSeenMs < cutoffMs) out.add(acc.name)
+                    /* 🟢🔒 V1472 — সাধারণ staff/branch-এর জন্য লোকেশন-অনুমতি
+                       **ঐচ্ছিক** (V1346-এর নিজের নিয়ম, "না দিলেও IN TIME আটকাবে
+                       না")। তাই যাঁর আজ একটাও লোকেশন-ফিক্স কখনোই আসেনি (হয়তো
+                       অনুমতিই দেননি — এটা তাঁর অধিকার, দোষ নয়), তাঁকে "থেমে
+                       গেছে" বলে বারবার সতর্ক করা ভুল — RUPAM-এর মতো সত্যিকারের
+                       বিচ্ছিন্নতা (আগে ঠিকই চলছিল, তারপর থেমে গেছে) থেকে আলাদা
+                       করতে হবে। শুধু last_seen_at-এ **আসল কোনো মান আছে** (মানে
+                       ট্র্যাকিং সত্যিই একবার চলেছিল) অথচ এখন পুরনো — তবেই সতর্ক। */
+                    val lastSeenStr = row.optString("last_seen_at", "")
+                    if (lastSeenStr.isBlank()) continue
+                    val lastSeenMs = parseIsoMs(lastSeenStr)
+                    if (lastSeenMs in 1 until cutoffMs) out.add(acc.name)
                 }
                 out.distinct()
             }
@@ -116,8 +141,8 @@ class FieldVisitAlertWorker(
         try {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             val channel = NoticeChannels.ensure(
-                ctx, CHANNEL_ID, "Field Visit location not working",
-                "Tells the Master which field staff's location has stopped updating today"
+                ctx, CHANNEL_ID, "Staff location not working",
+                "Tells the Master which staff's location has stopped updating today"
             )
             val names = codes.joinToString(", ")
             val intent = Intent(ctx, com.tkbiswas.pilesclinic.modules.WorkNotebookActivity::class.java).apply {
@@ -129,7 +154,7 @@ class FieldVisitAlertWorker(
             )
             val n = NotificationCompat.Builder(ctx, channel)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("📍 Field Visit location not updating (${codes.size})")
+                .setContentTitle("📍 Staff location not updating (${codes.size})")
                 .setContentText(names)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(names))
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
