@@ -24547,35 +24547,35 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     if(metric==='NEW_PATIENTS'){
       const rows=await listOf('new_patients_list',rangeArgs); if(!rows) return;
       $('#wlv1VoiceDetailSummary').textContent=`Registered, treatment not started: ${rows.length}`;
-      render(rows,'Everyone registered in this period has started treatment.',p=>card(p.name||mob(p.mobile)||'-',`${p.patient_code||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
+      render(rows,'Everyone registered in this period has started treatment.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.patient_code||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
     } else if(metric==='FOLLOWUP_CALLS_DONE'){
       const rows=await listOf('followup_calls_done_list',rangeArgs); if(!rows) return; const s=await first('followup_calls_done_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Follow-up calls noted: ${s.total} (one per patient per day) · ${s.patient_count} patients`:'Total: —';
-      render(rows,'No follow-up calls noted in this period.',p=>card(p.name||mob(p.mobile)||'-',`${fmtDate(p.call_day||'')} · ${p.remarks} remark(s)`,'','',mob(p.mobile)));
+      render(rows,'No follow-up calls noted in this period.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${fmtDate(p.call_day||'')} · ${p.remarks} remark(s)`,'','',mob(p.mobile)));
     } else if(metric==='DISEASE_COUNT'){
       const a={...rangeArgs,p_disease:extra||''};
       const rows=await listOf('disease_list',a); if(!rows) return; const s=await first('disease_count',a);
       $('#wlv1VoiceDetailSummary').textContent=s?`${extra}: ${s.total} of ${s.all_patients} registered`:'Total: —';
-      render(rows,`No ${esc(extra||'')} patients registered in this period.`,p=>card(p.name||mob(p.mobile)||'-',`${p.disease||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
+      render(rows,`No ${esc(extra||'')} patients registered in this period.`,p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.disease||''} · ${fmtDate(p.registration_date||'')}`,'','',mob(p.mobile)));
     } else if(metric==='RMP_CALLED'||metric==='RMP_CALL_DUE'){
       const due=metric==='RMP_CALL_DUE';
       const rows=await listOf(due?'rmp_call_due_list':'rmp_called_list',rangeArgs); if(!rows) return;
       $('#wlv1VoiceDetailSummary').textContent=(due?'RMP doctors due for a call: ':'RMP doctors called: ')+rows.length;
-      render(rows,due?'No RMP call due in this period.':'No RMP called in this period.',p=>card(p.name||p.mobile||'-',`${p.mobile||''} · last call ${fmtDate(p.last_call_date||'')} · next ${fmtDate(p.next_call_date||'')}`,'','',''));
+      render(rows,due?'No RMP call due in this period.':'No RMP called in this period.',p=>card(p.name||p.mobile||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.mobile||''} · last call ${fmtDate(p.last_call_date||'')} · next ${fmtDate(p.next_call_date||'')}`,'','',''));
     } else if(metric==='FIELD_VISIT'){
       const rows=await listOf('field_visit_list',rangeArgs); if(!rows) return; const s=await first('field_visit_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Visits marked: ${s.visits} · ${Number(s.km||0).toFixed(1)} km · ${s.staff_count} field staff`:'Total: —';
-      render(rows,'No field visit in this period.',p=>card(p.staff_code||'',fmtDate(p.work_date||''),`${p.visits} visits · ${Number(p.km||0).toFixed(1)} km`,'#0C8F3A',''));
+      render(rows,'No field visit in this period.',p=>card(p.staff_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${fmtDate(p.work_date||'')}`,`${p.visits} visits · ${Number(p.km||0).toFixed(1)} km`,'#0C8F3A',''));
     } else if(metric==='STAFF_HOURS'){
       const rows=await listOf('staff_hours_list',rangeArgs); if(!rows) return; const s=await first('staff_hours_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Total ${Number(s.total_hours||0).toFixed(1)} h · ${s.staff_count} staff (leave/WFH/other-branch = 7 h, OUT missing = 7 h)`:'Total: —';
       const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`Hours · ${extra}: ${fr.reduce((a,p)=>a+Number(p.hours||0),0).toFixed(1)} h`;   // V1428
-      render(fr,'No attendance in this period.',p=>card(p.staff_code||'',`${p.days} days · ${p.leave_days} leave · ${p.out_missing_days} OUT missing`,`${Number(p.hours||0).toFixed(1)} h`,'#0C8F3A',''));
+      render(fr,'No attendance in this period.',p=>card(p.staff_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.days} days · ${p.leave_days} leave · ${p.out_missing_days} OUT missing`,`${Number(p.hours||0).toFixed(1)} h`,'#0C8F3A',''));
     } else {
       const rows=await listOf('staff_present_list',rangeArgs); if(!rows) return; const s=await first('staff_present_summary',rangeArgs);
       $('#wlv1VoiceDetailSummary').textContent=s?`Present: ${s.staff_count} staff · ${s.total} attendance days`:'Total: —';
       const fr=rows.filter(p=>wlv1VoiceNameMatch(extra,p.staff_code||'')); if(extra) $('#wlv1VoiceDetailSummary').textContent=`Present · ${extra}: ${fr.length} attendance days`;   // V1428
-      render(fr,'Nobody marked IN in this period.',p=>card(p.staff_code||'',fmtDate(p.work_date||''),`IN ${esc(p.check_in||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'#0C8F3A',''));
+      render(fr,'Nobody marked IN in this period.',p=>card(p.staff_code||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${fmtDate(p.work_date||'')}`,`IN ${esc(p.check_in||'')}${p.check_out?' · OUT '+esc(p.check_out):''}`,'#0C8F3A',''));
     }
   } else {
     const r = await c.rpc('collection_list',{p_branch:branch,p_from:from,p_to:to});
@@ -24585,10 +24585,10 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
     const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
     $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.patient_count} patients · ${s.payment_count} payments` : 'Total: —';
     $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
-      const m=mob(p.mobile), isRefund=String(p.pay_type||'').toLowerCase()==='refund';
+      const m=mob(p.mobile), isRefund=String(p.pay_type||'').toLowerCase()==='refund', branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
       return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
         + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
-        + `<span class="tiny">${esc(p.pay_type||'')} · ${esc(p.mode||'')} · ${esc(fmtDate(p.paid_on||''))}</span>`
+        + `<span class="tiny">${esc(branchTag)}${esc(p.pay_type||'')} · ${esc(p.mode||'')} · ${esc(fmtDate(p.paid_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:${isRefund?'#B42318':'#0C8F3A'}">${money(p.amount)}</span></div>`;
     }).join('') || '<div class="card mut">No payments found for this period.</div>';
   }
