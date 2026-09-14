@@ -26896,3 +26896,9 @@ TK V1463 চালিয়ে CSV পাঠালেন — ঠিক সেই
 
 **ভবিষ্যতের পাহারা (V1469, TK-নির্দেশ, ফোন + ওয়েব দুটোতেই):** Patient Commission পর্দায় এখন রোগীর নিজের ব্রাঞ্চ আর খোলা RMP-কার্ডের ব্রাঞ্চ না মিললে সেভের আগে সতর্কবার্তা ("এই রোগী X ব্রাঞ্চের, কার্ডটা Y ব্রাঞ্চের — তাও কি এখানেই সেভ করবেন?") — সেভ আটকায় না (সত্যিকারের cross-branch referral হলে TK এগোতে পারবেন), শুধু ভুল করে অন্য কার্ডে বসে যাওয়া রোধ করে। কোনো একটা ব্রাঞ্চ ফাঁকা থাকলে (পুরনো ডেটা) তুলনাই হয় না, আগের মতোই সরাসরি সেভ হয়।
 পাহারা: verify_android_resources PASS · node --check PASS · tk_guard PASS (rmp_commission.js v1402→v1469) · web_browser_test PASS · verify_kotlin_compile বাকি (শেষবার চালানো হবে)।
+
+## ১৪.০৯.২০২৬ — V1464 (ওয়েব): ব্লাড টেস্ট রিপোর্টের ছবি — কাজ সম্পূর্ণ
+
+ফোনের V1464-এর হুবহু একই নিয়ম ওয়েবেও বসানো হলো — Test/Investigation পর্দায় "📎 Report Photo" ঘর (ক্যামেরা/গ্যালারি থেকে ছবি, প্রমাণিত `fileData()` দিয়েই ছোট করে জমা, নতুন কিছু বানানো হয়নি), সেভে `medical.photos`-এ `{"reports":[...]}` আকারে (Doctor Checkup-এর `{"before":...}`-এর পাশে, `type` আলাদা বলে কখনো মেশে না)। আগে সেভ করা রিপোর্ট ("🗂 Previous Reports") সস্তা প্রশ্নে (শুধু এই রোগীর, ছবিসহ) লোড হয়, বাকি Blood Test তালিকার পড়া (৫০০ পর্যন্ত, ছবি-ছাড়া, V794) অক্ষত।
+
+পাহারা: verify_android_resources PASS · node --check PASS · tk_guard PASS (app.js/styles.css v1464) · web_browser_test PASS · verify_kotlin_compile PASS (নতুন ভুল ০, kotlin_noise_baseline আপডেট করা হয়েছে PatientPhotoActivity-র সাথে মেলা পরিচিত সীমাবদ্ধতার জন্য)। ফোন ও ওয়েব দুটোতেই কাজ সম্পূর্ণ।

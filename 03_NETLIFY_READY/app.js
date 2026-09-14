@@ -20189,10 +20189,15 @@ function wlv1TodaysSameMedical(id,type,selected,details){
     return out;
   }catch(e){return null}
 }
-function saveMedicalRecord(id,type,selected,details){let p=patientById(id);if(!p)return toast('Patient not found');
+/* 🩸🔒 V1464 (১৪.০৯.২০২৬) — ঐচ্ছিক ৫ম প্যারামিটার `photos` (data-URL-এর JSON
+   স্ট্রিং, যেমন `{"reports":[...]}`) — ফাঁকা রাখলে (ডিফল্ট) আগের মতোই
+   `photos` ঘরটাই সারিতে বসে না, কোনো পুরনো caller ভাঙে না। */
+function saveMedicalRecord(id,type,selected,details,photos){let p=patientById(id);if(!p)return toast('Patient not found');
  var dup=wlv1TodaysSameMedical(id,type,selected,details);
  if(dup&&!confirm('Already saved today\n\nThe same '+type+' is already saved for this patient today.\n\nCancel  -  do not save again (recommended)\nOK  -  save it anyway'))return;
- add('medical',{id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type,date:today(),selected:selected||'',details:details||'',createdBy:user.mobile});toast(type+' saved')}
+ var row={id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type,date:today(),selected:selected||'',details:details||'',createdBy:user.mobile};
+ if(photos) row.photos=photos;
+ add('medical',row);toast(type+' saved')}
 window["saveMedicalRecord"]=saveMedicalRecord;
 /* WEB APP . Prescription / Medicine Slip extra buttons, same as the native
    screen: Save & Print and Share as Text (the native screen has Save,
@@ -20334,9 +20339,72 @@ function wlv1BloodOpen(id,keepRemarks){
      ⛔ ভিতরের কিচ্ছু বদলায়নি — শুধু `<h2>` বাদ ও "Close"-এর বদলে পাতার `←`।
      ⛔ ⏰ Previous / ⭐ Common-এর টিক-তালিকা আগের মতোই **পপ-আপই** থাকল — ফোনেও
         ওটা AlertDialog (`InvestigationAdviceActivity.kt:468`), তাই এটাই মিল। */
-  page('Test / Investigation', `${patientDetailsPanel(p)}<button class="wlv1InvCommon" onclick="wlv1InvOpenPrevious('${id}')">⏰ Previous Patient Blood Test<small>Re-checks whatever was saved last time</small></button><button class="wlv1InvCommon" onclick="wlv1InvOpenFixed('${id}')">⭐ Common Blood Test<small>${esc(WLV1_INVEST_FIXED.join(' · '))}</small></button><div id="wlv1InvBox"></div><div id="wlv1InvHidden" style="display:none"></div><label>Advice / Remarks</label><textarea id="btRem" rows="2" placeholder="Advice / Remarks">${esc(keepRemarks||'')}</textarea><div class="actions bloodActions"><button class="ghost" onclick="wlv1InvSave('${id}',false)">Save</button><button class="ghost" onclick="wlv1InvShare('${id}')">Share</button><button onclick="wlv1InvSave('${id}',true)">Print</button></div>`);
+  /* 🩸🔒 V1464 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, ফোনের হুবহু একই
+     নিয়ম) — Blood Test রিপোর্টের ছবি এই পর্দাতেই তোলা/জমা রাখা যায়। */
+  wlv1InvReportPhotos=[]; wlv1InvReportPatientId=id;
+  page('Test / Investigation', `${patientDetailsPanel(p)}<button class="wlv1InvCommon" onclick="wlv1InvOpenPrevious('${id}')">⏰ Previous Patient Blood Test<small>Re-checks whatever was saved last time</small></button><button class="wlv1InvCommon" onclick="wlv1InvOpenFixed('${id}')">⭐ Common Blood Test<small>${esc(WLV1_INVEST_FIXED.join(' · '))}</small></button><div id="wlv1InvBox"></div><div id="wlv1InvHidden" style="display:none"></div><label>Advice / Remarks</label><textarea id="btRem" rows="2" placeholder="Advice / Remarks">${esc(keepRemarks||'')}</textarea><label>📎 Report Photo (optional)</label><input type="file" id="wlv1InvReportFile" accept="image/*" style="display:none" onchange="wlv1InvReportFilePicked()"><div id="wlv1InvReportThumbs" class="wlv1InvThumbs"></div><div id="wlv1InvPrevReports" style="display:none"><label>🗂 Previous Reports</label><div id="wlv1InvPrevReportsThumbs" class="wlv1InvThumbs"></div></div><div class="actions bloodActions"><button class="ghost" onclick="wlv1InvSave('${id}',false)">Save</button><button class="ghost" onclick="wlv1InvShare('${id}')">Share</button><button onclick="wlv1InvSave('${id}',true)">Print</button></div>`);
   setTimeout(()=>{try{wlv1InvRender()}catch(e){}},40);
+  wlv1InvRenderReportThumbs();
+  wlv1InvLoadPreviousReports(id);
 }
+
+/* 🩸🔒 V1464 — এই সেশনে যোগ করা রিপোর্ট-ছবি (data-URL, ফোনের PhotoUtils-এর
+   হুবহু একই মাপে — fileData() আগে থেকেই ৫২০px/adaptive-quality, ≤160KB
+   টার্গেট, Registration-এ প্রমাণিত)। */
+let wlv1InvReportPhotos=[];
+let wlv1InvReportPatientId='';
+async function wlv1InvReportFilePicked(){
+  const inp=document.getElementById('wlv1InvReportFile'); if(!inp) return;
+  const dataUrl=await fileData(inp);
+  inp.value='';
+  if(!dataUrl) return;
+  wlv1InvReportPhotos.push(dataUrl);
+  wlv1InvRenderReportThumbs();
+}
+window["wlv1InvReportFilePicked"]=wlv1InvReportFilePicked;
+function wlv1InvRenderReportThumbs(){
+  const box=document.getElementById('wlv1InvReportThumbs'); if(!box) return;
+  box.innerHTML=wlv1InvReportPhotos.map(function(u,i){
+    return '<img class="wlv1InvThumb" src="'+u+'" onclick="wlv1InvShowReportPhoto('+i+')">';
+  }).join('')+'<div class="wlv1InvThumbAdd" onclick="document.getElementById(\'wlv1InvReportFile\').click()">+</div>';
+}
+function wlv1InvShowReportPhoto(idx){
+  const u=wlv1InvReportPhotos[idx]; if(!u) return;
+  modal('<h2>Report Photo</h2><img src="'+u+'" style="max-width:100%;border-radius:10px">' +
+    '<div class="actions"><button class="ghost" onclick="wlv1InvReportPhotos.splice('+idx+',1);wlv1InvRenderReportThumbs();closeModal()">Remove</button>' +
+    '<button onclick="closeModal()">Close</button></div>');
+}
+window["wlv1InvShowReportPhoto"]=wlv1InvShowReportPhoto;
+/* 🩸🔒 V1464 — এই রোগীর আগে সেভ করা Investigation রিপোর্ট — সস্তা প্রশ্ন
+   (শুধু id/date/photos, শুধু এই রোগীরই, ফোনের একই নিয়ম) — বাকি Blood Test
+   তালিকার পড়া (৫০০ পর্যন্ত, ছবি-ছাড়া, V794) এক অক্ষরও বদলায় না। */
+async function wlv1InvLoadPreviousReports(id){
+  try{
+    if(typeof sb==='undefined'||!sb) return;
+    var r=await sb.from('medical').select('id,date,photos').eq('patientId',id).eq('type','Blood Test').not('photos','is',null).order('createdAt',{ascending:false}).limit(20);
+    if(r.error||!r.data||!r.data.length) return;
+    var thumbs=[];
+    r.data.forEach(function(row){
+      var parsed; try{ parsed=JSON.parse(row.photos||'{}'); }catch(_e){ parsed=null; }
+      var arr=(parsed&&parsed.reports)||[];
+      arr.forEach(function(u){ if(u) thumbs.push({u:u,date:row.date||''}); });
+    });
+    if(!thumbs.length) return;
+    var wrap=document.getElementById('wlv1InvPrevReports'), box=document.getElementById('wlv1InvPrevReportsThumbs');
+    if(!wrap||!box) return;
+    box.innerHTML=thumbs.map(function(t,i){
+      return '<img class="wlv1InvThumb" src="'+t.u+'" title="'+esc(wlv1Dot(t.date))+'" onclick="wlv1InvShowPrevReportPhoto('+i+')">';
+    }).join('');
+    window.__wlv1InvPrevThumbs=thumbs;
+    wrap.style.display='';
+  }catch(_e){}
+}
+function wlv1InvShowPrevReportPhoto(idx){
+  var t=(window.__wlv1InvPrevThumbs||[])[idx]; if(!t) return;
+  modal('<h2>Report Photo · '+esc(wlv1Dot(t.date))+'</h2><img src="'+t.u+'" style="max-width:100%;border-radius:10px">' +
+    '<div class="actions"><button onclick="closeModal()">Close</button></div>');
+}
+window["wlv1InvShowPrevReportPhoto"]=wlv1InvShowPrevReportPhoto;
 window["wlv1BloodOpen"]=wlv1BloodOpen;
 // ⛔ TK-এর ঠিক ৭টা ফিক্সড টেস্ট (ফোনের ClinicalRepository.commonBloodTestFixed-এর হুবহু নকল)।
 const WLV1_INVEST_FIXED=['CBC','ESR','HB','SUGAR','HIV','VDRL','LIPID PROFILE'];
@@ -25209,6 +25277,9 @@ function wlv1InvSave(id, alsoPrint){
   wlv1InvCommonSet(picked);                       // same memory rule as the phone app
   const rem = (document.getElementById('btRem')||{}).value || '';
   const selected = picked.join(', ');
+  // 🩸🔒 V1464 — এই সেশনে যোগ করা রিপোর্ট-ছবি (থাকলে) {"reports":[...]}
+  //   আকারে যায়, ফোনের হুবহু একই ঘর/গঠন। ফাঁকা থাকলে আগের মতোই কিছুই যায় না।
+  const photosStr = wlv1InvReportPhotos.length ? JSON.stringify({reports:wlv1InvReportPhotos}) : '';
   // NOTE (checked, not assumed): printBlood() reads the ticked boxes straight
   // out of the open popup and then closes it, while saveMedicalRecord() needs
   // no popup at all. So printing must happen FIRST, saving after . otherwise
@@ -25217,10 +25288,10 @@ function wlv1InvSave(id, alsoPrint){
     const box = document.getElementById('wlv1InvHidden');
     if(box) box.innerHTML = picked.map(t=>`<input type="checkbox" class="bt" value="${t}" checked>`).join('');
     try{ printBlood(id); }catch(e){}
-    saveMedicalRecord(id,'Blood Test',selected,rem);
+    saveMedicalRecord(id,'Blood Test',selected,rem,photosStr);
     return;
   }
-  saveMedicalRecord(id,'Blood Test',selected,rem);
+  saveMedicalRecord(id,'Blood Test',selected,rem,photosStr);
   closeModal();
   summary(id);
 }

@@ -8990,3 +8990,9 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   font-size:17px;font-weight:600;letter-spacing:.4px;cursor:pointer}
 .wlv1EstSum{margin:10px 0 4px;background:#F4F8FB;border:1px solid #E2ECF3;border-radius:13px;padding:10px 13px;
   font-size:14.5px;color:#123A26;line-height:1.55}
+/* 🩸🔒 V1464 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — Blood Test রিপোর্ট-ছবির
+   থাম্বনেইল সারি (নতুন যোগ করা + আগের রিপোর্ট, দুই জায়গাতেই একই সাজ)। */
+.wlv1InvThumbs{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
+.wlv1InvThumb{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #B9CBE0;cursor:pointer}
+.wlv1InvThumbAdd{width:56px;height:56px;border-radius:8px;border:2px dashed #0B66D8;color:#0B66D8;
+  display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;cursor:pointer}
