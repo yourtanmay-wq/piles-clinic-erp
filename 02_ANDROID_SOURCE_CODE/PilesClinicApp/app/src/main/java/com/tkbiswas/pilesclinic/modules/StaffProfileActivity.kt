@@ -5677,7 +5677,22 @@ class StaffProfileActivity : AppCompatActivity() {
             setBackgroundColor(android.graphics.Color.parseColor("#75A98B"))
             layoutParams = LinearLayout.LayoutParams(dp(1), dp(42)).apply { leftMargin = dp(7); rightMargin = dp(7) }
         })
-        footer.addView(footerTile("Net Paid", money(totSalary + totExtra)))
+        /* 🐞🔒 V1453 (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — "Grand Total একই স্ক্রিনে
+           উপর নিচে ২ যায়গায় কেন") — আসল কারণ (কোডে মিলিয়ে): "Total Entries"
+           উপরের ফিল্টার (`only`) মেনে শুধু দেখানো তালিকাটাই গোনে (SALARY
+           বাছলে ৮টা), কিন্তু "Net Paid" সবসময় **অফিল্টার্ড গোটা তালিকার**
+           (totSalary + totExtra) যোগফল দেখাত — উপরের "Grand total paid"
+           কার্ডের হুবহু কপি, আর "৮টা এন্ট্রি"-র পাশে যেটা মেলেই না। এখন
+           "Net Paid" **ওই একই ফিল্টার** মেনে শুধু দেখানো তালিকার যোগফল
+           দেখায় — SALARY-তে শুধু বেতন, EXTRA-তে শুধু দেওয়া এক্সট্রা, "All
+           Entries"-এ আগের মতোই দুটো মিলিয়ে। উপরের Summary কার্ড (V961-এ
+           TK-লক করা "সবসময় গোটা তালিকা") এক অক্ষরও বদলায়নি। */
+        val netPaidValue = when (only) {
+            "SALARY" -> totSalary
+            "EXTRA" -> totExtra
+            else -> totSalary + totExtra
+        }
+        footer.addView(footerTile("Net Paid", money(netPaidValue)))
         col.addView(footer)
 
         col.addView(ModuleUi.button(this, "Back") { salary(code) }.apply {

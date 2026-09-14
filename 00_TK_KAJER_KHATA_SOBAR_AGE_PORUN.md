@@ -26768,3 +26768,10 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > ফোন: `FieldVisit.kt` (startDay/onLocation/push/addRoutePoint) · `FieldVisitActivity.kt` (renderOwner + openRoute)। ওয়েব: `profile.js` (profField-এর ম্যাপ-লিংক অংশ)।
 > স্টোরেজ-ঝুঁকি মেপে দেখা হয়েছে: শুধু ২ জন ফিল্ড-স্টাফের (RUPAM/ARMAN) জন্য, দিনে সর্বোচ্চ ২০টা ছোট্ট বিন্দু — মাসে কয়েক MB-রও কম, ফ্রি প্ল্যানে কোনো ঝুঁকি নেই।
 > পাহারা: SQL — `sql_local_check.py`-তে `wn` স্কিমা স্থানীয়ভাবে না থাকায় সরাসরি PASS দেখায়নি, তাই ম্যানুয়ালি স্টাব টেবিল বসিয়ে আসল SQL (কলাম যোগ + দ্বিতীয়বার idempotent) ও route_points-এ আসল ডেটা বসিয়ে-পড়ে যাচাই — নির্ভুল। verify_android_resources PASS · node --check PASS · tk_guard PASS (cache-tag v1451→v1452) · web_browser_test PASS। verify_kotlin_compile PASS।
+
+> V1453 — 🐞 **Salary Statement-এ Grand Total দুই জায়গায় (১৪.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, তালিকা ৫৭৫):**
+> TK: "Grand Total একই স্ক্রিনে উপর নিচে ২ যায়গায় কেন" — COB-UTTAMA-র "Salary History" (শুধু বেতন, ৮টা এন্ট্রি) স্ক্রিনে উপরের কার্ডে "Grand total paid ₹1,04,100" আর নিচের ফুটারে "Net Paid ₹1,04,100" — হুবহু একই সংখ্যা দুবার।
+> **আসল কারণ (কোডে মিলিয়ে):** `showAllPayments()`-এর ফুটারে "Total Entries" ঠিকই ফিল্টার (`only`) মেনে শুধু দেখানো তালিকার (`shownPays`) সংখ্যা গোনে, কিন্তু "Net Paid" সবসময় `totSalary + totExtra` — অর্থাৎ ফিল্টার-নির্বিশেষে **গোটা তালিকার** যোগফল, উপরের "Grand total paid" কার্ডের (V961-এ TK-লক করা "সবসময় গোটা তালিকা" নিয়ম) হুবহু নকল। তাই "৮টা এন্ট্রি"-র পাশে এমন একটা সংখ্যা বসত যেটা আসলে ঐ ৮টার যোগফলই নয় (আসল বেতন-মোট ₹৫৭,০০০, দেখাচ্ছিল ₹১,০৪,১০০)।
+> **সমাধান:** "Net Paid" এখন একই `only` ফিল্টার মেনে — SALARY-তে শুধু `totSalary`, EXTRA-তে শুধু `totExtra`, "All Entries"-এ আগের মতোই দুটো মিলিয়ে। উপরের Summary কার্ডের তিনটে সংখ্যা (TK-লক করা নিয়ম) এক অক্ষরও বদলায়নি।
+> ⛔ ওয়েবে (`profile.js salaryTable()`) এই ফিল্টার (SALARY-only/EXTRA-only) ধরনের বোতামই কখনো ছিল না — সবসময় গোটা তালিকা দেখায়, তাই ওখানে এই মিসম্যাচ সম্ভবই না (সৎ প্ল্যাটফর্ম-পার্থক্য, নতুন কিছু ভাঙেনি)।
+> পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)।
