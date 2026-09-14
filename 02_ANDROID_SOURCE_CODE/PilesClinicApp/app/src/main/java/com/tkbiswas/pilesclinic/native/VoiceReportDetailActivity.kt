@@ -81,8 +81,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Total: ${rows.size} patients"
                     if (rows.isEmpty()) empty("No patients found for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.mobile} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
                     }
                 }
                 "COLLECTION" -> {
@@ -95,8 +96,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No payments found for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.payType} · ${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", if (p.payType.equals("refund", true)) "#B42318" else "#0C8F3A", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.payType} · ${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", if (p.payType.equals("refund", true)) "#B42318" else "#0C8F3A", onTap))
                     }
                 }
                 "MEDICINE_SALE", "SALINE_SALE" -> {
@@ -110,8 +112,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No sales found for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.customer.ifBlank { p.mobile }, "${p.product} · ${p.mode} · ${FollowUpModel.displayDate(p.soldOn)}", "₹${"%,.0f".format(p.bill)}", "#0C8F3A", onTap))
+                        binding.rowsHost.addView(row(p.customer.ifBlank { p.mobile }, "$branchTag${p.product} · ${p.mode} · ${FollowUpModel.displayDate(p.soldOn)}", "₹${"%,.0f".format(p.bill)}", "#0C8F3A", onTap))
                     }
                 }
                 "ENQUIRY_COUNT" -> {
@@ -121,8 +124,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Total: ${rows.size} enquiries"
                     if (rows.isEmpty()) empty("No enquiries found for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.disease} · ${FollowUpModel.displayDate(p.enquiryDate)}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.disease} · ${FollowUpModel.displayDate(p.enquiryDate)}", "›", "#94A3B8", onTap))
                     }
                 }
                 "REFUND" -> {
@@ -135,8 +139,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No refunds found for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, FollowUpModel.displayDate(p.refundedOn), "₹${"%,.0f".format(p.amount)}", "#B42318", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${FollowUpModel.displayDate(p.refundedOn)}", "₹${"%,.0f".format(p.amount)}", "#B42318", onTap))
                     }
                 }
                 "CASH_HANDOVER" -> {
@@ -149,7 +154,8 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No handover found for this period.")
                     rows.forEach { p ->
-                        binding.rowsHost.addView(row(FollowUpModel.displayDate(p.handoverDate), "Received by ${p.receiverName.ifBlank { "—" }}", "₹${"%,.0f".format(p.cash)}", "#0C8F3A", null))
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(FollowUpModel.displayDate(p.handoverDate), "${branchTag}Received by ${p.receiverName.ifBlank { "—" }}", "₹${"%,.0f".format(p.cash)}", "#0C8F3A", null))
                     }
                 }
                 "RMP_DUE" -> {
@@ -162,7 +168,8 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No due commission found.")
                     rows.forEach { p ->
-                        binding.rowsHost.addView(row(p.rmpName.ifBlank { p.rmpMobile }, p.rmpMobile, "₹${"%,.0f".format(p.due)}", "#B42318", null))
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.rmpName.ifBlank { p.rmpMobile }, "$branchTag${p.rmpMobile}", "₹${"%,.0f".format(p.due)}", "#B42318", null))
                     }
                 }
                 "MEDICINE_DUE" -> {
@@ -175,8 +182,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No medicine/saline due found.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.customer.ifBlank { p.mobile }, "${p.product} · ${FollowUpModel.displayDate(p.soldOn)}", "₹${"%,.0f".format(p.due)}", "#B42318", onTap))
+                        binding.rowsHost.addView(row(p.customer.ifBlank { p.mobile }, "$branchTag${p.product} · ${FollowUpModel.displayDate(p.soldOn)}", "₹${"%,.0f".format(p.due)}", "#B42318", onTap))
                     }
                 }
                 "CALL_COUNT" -> {
@@ -186,7 +194,8 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Total: ${rows.size} calls from app"
                     if (rows.isEmpty()) empty("No app calls found for this period.")
                     rows.forEach { p ->
-                        binding.rowsHost.addView(row(p.staffCode, "${p.targetMobileMask} · ${FollowUpModel.displayDate(p.callDate)}", "›", "#94A3B8", null))
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.staffCode, "$branchTag${p.targetMobileMask} · ${FollowUpModel.displayDate(p.callDate)}", "›", "#94A3B8", null))
                     }
                 }
                 "TRASH_COUNT" -> {
@@ -196,7 +205,8 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Total: ${rows.size} records in Trash"
                     if (rows.isEmpty()) empty("No deleted records found for this period.")
                     rows.forEach { p ->
-                        binding.rowsHost.addView(row(p.tableName.ifBlank { "record" }, "${FollowUpModel.displayDate(p.deletedAt.take(10))} · by ${p.deletedBy.ifBlank { "—" }}", "›", "#94A3B8", null))
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.tableName.ifBlank { "record" }, "$branchTag${FollowUpModel.displayDate(p.deletedAt.take(10))} · by ${p.deletedBy.ifBlank { "—" }}", "›", "#94A3B8", null))
                     }
                 }
                 "RMP_ADVANCE" -> {
@@ -209,7 +219,8 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No RMP advance found for this period.")
                     rows.forEach { p ->
-                        binding.rowsHost.addView(row(p.rmpName, "${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", "#0C8F3A", null))
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.rmpName, "$branchTag${p.mode} · ${FollowUpModel.displayDate(p.paidOn)}", "₹${"%,.0f".format(p.amount)}", "#0C8F3A", null))
                     }
                 }
                 // ── V1420 ──
@@ -220,8 +231,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Total: ${rows.size} appointments"
                     if (rows.isEmpty()) empty("No appointments found for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.disease} · ${FollowUpModel.displayDate(p.appointmentDate)}${if (p.registered) " · already registered" else ""}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.disease} · ${FollowUpModel.displayDate(p.appointmentDate)}${if (p.registered) " · already registered" else ""}", "›", "#94A3B8", onTap))
                     }
                 }
                 "EXPECTED_COUNT" -> {
@@ -231,8 +243,9 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = "Total: ${rows.size} marked expected"
                     if (rows.isEmpty()) empty("Nobody marked expected for this period.")
                     rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
                         val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · ${FollowUpModel.displayDate(p.expectedOn)}", "›", "#94A3B8", onTap))
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.mobile} · ${FollowUpModel.displayDate(p.expectedOn)}", "›", "#94A3B8", onTap))
                     }
                 }
                 "HANDOVER_PENDING" -> {
@@ -242,7 +255,10 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                     binding.tvSummary.text = if (s != null) "Not handed over: ₹${"%,.0f".format(s.total)} · ${s.dayCount} days" else "Total: —"
                     val rows = if (list.ok) list.value ?: emptyList() else emptyList()
                     if (rows.isEmpty()) empty("No pending handover.")
-                    rows.forEach { p -> binding.rowsHost.addView(row(FollowUpModel.displayDate(p.handoverDate), p.status, "₹${"%,.0f".format(p.cash)}", "#B42318", null)) }
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(FollowUpModel.displayDate(p.handoverDate), "$branchTag${p.status}", "₹${"%,.0f".format(p.cash)}", "#B42318", null))
+                    }
                 }
                 "PAYMENT_REQUESTS" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.paymentRequestsSummary(branch) to VoiceReportRepository.paymentRequestsList(branch) }

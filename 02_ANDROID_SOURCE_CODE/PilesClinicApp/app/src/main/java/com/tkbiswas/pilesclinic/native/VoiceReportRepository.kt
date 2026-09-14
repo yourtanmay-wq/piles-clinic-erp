@@ -188,115 +188,115 @@ object VoiceReportRepository {
     fun paymentRequestsSummary(b: String): RepoResult<PaymentRequestsSummary> = firstRow("payment_requests_summary", args(b)).mapRow {
         PaymentRequestsSummary(it.optInt("backdate_count", 0), it.optInt("edit_count", 0), it.optInt("refund_count", 0), it.optInt("total", 0)) }
     fun paymentRequestsList(b: String): RepoResult<List<PaymentRequestRow>> = rowList("payment_requests_list", args(b)).mapRows {
-        PaymentRequestRow(it.optString("request_id"), it.optString("request_type"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("requested_on")) }
+        PaymentRequestRow(it.optString("request_id"), it.optString("request_type"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("requested_on"), it.optString("branch")) }
 
     fun referralRequestsSummary(b: String): RepoResult<ReferralRequestsSummary> = firstRow("referral_requests_summary", args(b)).mapRow {
         ReferralRequestsSummary(it.optInt("total", 0), it.optInt("delete_count", 0)) }
     fun referralRequestsList(b: String): RepoResult<List<ReferralRequestRow>> = rowList("referral_requests_list", args(b)).mapRows {
-        ReferralRequestRow(it.optString("request_id"), it.optString("request_type"), it.optDouble("new_amount", 0.0), it.optString("requested_on")) }
+        ReferralRequestRow(it.optString("request_id"), it.optString("request_type"), it.optDouble("new_amount", 0.0), it.optString("requested_on"), it.optString("branch")) }
 
     fun leaveSummary(b: String, f: String, t: String): RepoResult<LeaveSummary> = firstRow("leave_summary", args(b, f, t)).mapRow {
         LeaveSummary(it.optInt("total", 0), it.optInt("confirmed", 0), it.optInt("pending", 0), it.optInt("rejected", 0)) }
     fun leaveList(b: String, f: String, t: String): RepoResult<List<LeaveRow>> = rowList("leave_list", args(b, f, t)).mapRows {
-        LeaveRow(it.optString("staff_code"), it.optString("leave_date"), it.optString("status"), it.optString("applied_on")) }
+        LeaveRow(it.optString("staff_code"), it.optString("leave_date"), it.optString("status"), it.optString("applied_on"), it.optString("branch")) }
 
     fun doctorReminderSummary(b: String, f: String, t: String): RepoResult<DoctorReminderSummary> = firstRow("doctor_reminder_summary", args(b, f, t)).mapRow {
         DoctorReminderSummary(it.optInt("total", 0), it.optInt("not_accepted", 0)) }
     fun doctorReminderList(b: String, f: String, t: String): RepoResult<List<DoctorReminderRow>> = rowList("doctor_reminder_list", args(b, f, t)).mapRows {
-        DoctorReminderRow(it.optString("reminder_id"), it.optString("remind_date"), it.optString("created_on"), it.optBoolean("accepted", false), it.optBoolean("cancelled", false)) }
+        DoctorReminderRow(it.optString("reminder_id"), it.optString("remind_date"), it.optString("created_on"), it.optBoolean("accepted", false), it.optBoolean("cancelled", false), it.optString("branch")) }
 
     fun staffReminderOpenSummary(b: String): RepoResult<Int> = firstRow("staff_reminder_open_summary", args(b)).mapRow { it.optInt("total", 0) }
     fun staffReminderOpenList(b: String): RepoResult<List<StaffReminderRow>> = rowList("staff_reminder_open_list", args(b)).mapRows {
-        StaffReminderRow(it.optString("reminder_id"), it.optString("to_name"), it.optString("to_code"), it.optString("reminder_type"), it.optString("remind_on"), it.optString("status")) }
+        StaffReminderRow(it.optString("reminder_id"), it.optString("to_name"), it.optString("to_code"), it.optString("reminder_type"), it.optString("remind_on"), it.optString("status"), it.optString("branch")) }
 
     fun feeReturnSummary(b: String, f: String, t: String): RepoResult<FeeReturnSummary> = firstRow("fee_return_summary", args(b, f, t)).mapRow {
         FeeReturnSummary(it.optDouble("total", 0.0), it.optInt("patient_count", 0)) }
     fun feeReturnList(b: String, f: String, t: String): RepoResult<List<FeeReturnRow>> = rowList("fee_return_list", args(b, f, t)).mapRows {
-        FeeReturnRow(it.optString("payment_id"), it.optString("patient_row_id"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("returned_on")) }
+        FeeReturnRow(it.optString("payment_id"), it.optString("patient_row_id"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("returned_on"), it.optString("branch")) }
 
     // ── V1421 ──
     fun chamberUnclosedSummary(b: String, f: String, t: String): RepoResult<Int> = firstRow("chamber_unclosed_summary", args(b, f, t)).mapRow { it.optInt("day_count", 0) }
     fun chamberUnclosedList(b: String, f: String, t: String): RepoResult<List<UnclosedRow>> = rowList("chamber_unclosed_list", args(b, f, t)).mapRows {
-        UnclosedRow(it.optString("chamber_date"), it.optInt("arrived", 0), it.optDouble("money", 0.0)) }
+        UnclosedRow(it.optString("chamber_date"), it.optInt("arrived", 0), it.optDouble("money", 0.0), it.optString("branch")) }
 
     fun noShowSummary(b: String, f: String, t: String): RepoResult<NoShowSummary> = firstRow("no_show_summary", args(b, f, t)).mapRow {
         NoShowSummary(it.optInt("no_show", 0), it.optInt("arrived", 0), it.optInt("expected_total", 0)) }
     fun noShowList(b: String, f: String, t: String): RepoResult<List<NoShowRow>> = rowList("no_show_list", args(b, f, t)).mapRows {
-        NoShowRow(it.optString("name"), it.optString("mobile"), it.optString("expected_on"), it.optBoolean("arrived", false)) }
+        NoShowRow(it.optString("name"), it.optString("mobile"), it.optString("expected_on"), it.optBoolean("arrived", false), it.optString("branch")) }
 
     fun outMissingSummary(b: String, f: String, t: String): RepoResult<OutMissingSummary> = firstRow("out_missing_summary", args(b, f, t)).mapRow {
         OutMissingSummary(it.optInt("total", 0), it.optInt("staff_count", 0)) }
     fun outMissingList(b: String, f: String, t: String): RepoResult<List<OutMissingRow>> = rowList("out_missing_list", args(b, f, t)).mapRows {
-        OutMissingRow(it.optString("staff_code"), it.optString("work_date"), it.optString("check_in")) }
+        OutMissingRow(it.optString("staff_code"), it.optString("work_date"), it.optString("check_in"), it.optString("branch")) }
 
     fun wfhSummary(b: String, f: String, t: String): RepoResult<WfhSummary> = firstRow("wfh_summary", args(b, f, t)).mapRow {
         WfhSummary(it.optInt("total", 0), it.optInt("approved", 0), it.optInt("pending", 0), it.optInt("rejected", 0)) }
     fun wfhList(b: String, f: String, t: String): RepoResult<List<WfhRow>> = rowList("wfh_list", args(b, f, t)).mapRows {
-        WfhRow(it.optString("staff_name"), it.optString("staff_code"), it.optString("work_date"), it.optString("status"), it.optString("requested_on")) }
+        WfhRow(it.optString("staff_name"), it.optString("staff_code"), it.optString("work_date"), it.optString("status"), it.optString("requested_on"), it.optString("branch")) }
 
     fun duplicateSummary(b: String): RepoResult<DuplicateSummary> = firstRow("duplicate_summary", args(b)).mapRow {
         DuplicateSummary(it.optInt("mobile_groups", 0), it.optInt("name_groups", 0), it.optInt("payment_groups", 0)) }
     fun duplicateList(b: String): RepoResult<List<DuplicateRow>> = rowList("duplicate_list", args(b)).mapRows {
-        DuplicateRow(it.optString("mobile"), it.optInt("row_count", 0), it.optString("names")) }
+        DuplicateRow(it.optString("mobile"), it.optInt("row_count", 0), it.optString("names"), it.optString("branch")) }
 
     fun feeUnpaidSummary(b: String): RepoResult<Int> = firstRow("fee_unpaid_summary", args(b)).mapRow { it.optInt("total", 0) }
     fun feeUnpaidList(b: String): RepoResult<List<FeeUnpaidRow>> = rowList("fee_unpaid_list", args(b)).mapRows {
-        FeeUnpaidRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("registration_date")) }
+        FeeUnpaidRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("registration_date"), it.optString("branch")) }
 
     fun callsPendingSummary(b: String): RepoResult<Int> = firstRow("calls_pending_summary", args(b)).mapRow { it.optInt("total", 0) }
     fun callsPendingList(b: String): RepoResult<List<CallPendingRow>> = rowList("calls_pending_list", args(b)).mapRows {
-        CallPendingRow(it.optString("followup_id"), it.optString("name"), it.optString("mobile"), it.optString("stage"), it.optString("next_follow")) }
+        CallPendingRow(it.optString("followup_id"), it.optString("name"), it.optString("mobile"), it.optString("stage"), it.optString("next_follow"), it.optString("branch")) }
 
     fun messagesSummary(b: String, f: String, t: String): RepoResult<MessagesSummary> = firstRow("messages_summary", args(b, f, t)).mapRow {
         MessagesSummary(it.optInt("total", 0), it.optInt("whatsapp", 0), it.optInt("sms", 0)) }
     fun messagesList(b: String, f: String, t: String): RepoResult<List<MessageRow>> = rowList("messages_list", args(b, f, t)).mapRows {
-        MessageRow(it.optString("name"), it.optString("mobile"), it.optString("kind"), it.optString("channel"), it.optString("sent_on")) }
+        MessageRow(it.optString("name"), it.optString("mobile"), it.optString("kind"), it.optString("channel"), it.optString("sent_on"), it.optString("branch")) }
 
     // ── V1422 ──
     fun newPatientsCount(b: String, f: String, t: String): RepoResult<Int> = firstRow("new_patients_count", args(b, f, t)).mapRow { it.optInt("total", 0) }
     fun newPatientsList(b: String, f: String, t: String): RepoResult<List<NewPatientRow>> = rowList("new_patients_list", args(b, f, t)).mapRows {
-        NewPatientRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("registration_date")) }
+        NewPatientRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("registration_date"), it.optString("branch")) }
 
     fun fuCallsDoneSummary(b: String, f: String, t: String): RepoResult<FuCallsDoneSummary> = firstRow("followup_calls_done_summary", args(b, f, t)).mapRow {
         FuCallsDoneSummary(it.optInt("total", 0), it.optInt("patient_count", 0)) }
     fun fuCallsDoneList(b: String, f: String, t: String): RepoResult<List<FuCallDoneRow>> = rowList("followup_calls_done_list", args(b, f, t)).mapRows {
-        FuCallDoneRow(it.optString("followup_id"), it.optString("name"), it.optString("mobile"), it.optString("call_day"), it.optInt("remarks", 0)) }
+        FuCallDoneRow(it.optString("followup_id"), it.optString("name"), it.optString("mobile"), it.optString("call_day"), it.optInt("remarks", 0), it.optString("branch")) }
 
     fun diseaseCount(b: String, f: String, t: String, disease: String): RepoResult<DiseaseSummary> = firstRow("disease_count", args(b, f, t).put("p_disease", disease)).mapRow {
         DiseaseSummary(it.optInt("total", 0), it.optInt("all_patients", 0)) }
     fun diseaseList(b: String, f: String, t: String, disease: String): RepoResult<List<DiseaseRow>> = rowList("disease_list", args(b, f, t).put("p_disease", disease)).mapRows {
-        DiseaseRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("disease"), it.optString("registration_date")) }
+        DiseaseRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("disease"), it.optString("registration_date"), it.optString("branch")) }
 
     fun rmpCalledCount(b: String, f: String, t: String): RepoResult<Int> = firstRow("rmp_called_count", args(b, f, t)).mapRow { it.optInt("total", 0) }
     fun rmpCalledList(b: String, f: String, t: String): RepoResult<List<RmpCallRow>> = rowList("rmp_called_list", args(b, f, t)).mapRows {
-        RmpCallRow(it.optString("rmp_id"), it.optString("name"), it.optString("mobile"), it.optString("last_call_date"), it.optString("next_call_date")) }
+        RmpCallRow(it.optString("rmp_id"), it.optString("name"), it.optString("mobile"), it.optString("last_call_date"), it.optString("next_call_date"), it.optString("branch")) }
     fun rmpCallDueCount(b: String, f: String, t: String): RepoResult<Int> = firstRow("rmp_call_due_count", args(b, f, t)).mapRow { it.optInt("total", 0) }
     fun rmpCallDueList(b: String, f: String, t: String): RepoResult<List<RmpCallRow>> = rowList("rmp_call_due_list", args(b, f, t)).mapRows {
-        RmpCallRow(it.optString("rmp_id"), it.optString("name"), it.optString("mobile"), it.optString("last_call_date"), it.optString("next_call_date")) }
+        RmpCallRow(it.optString("rmp_id"), it.optString("name"), it.optString("mobile"), it.optString("last_call_date"), it.optString("next_call_date"), it.optString("branch")) }
 
     fun fieldVisitSummary(b: String, f: String, t: String): RepoResult<FieldVisitSummary> = firstRow("field_visit_summary", args(b, f, t)).mapRow {
         FieldVisitSummary(it.optInt("visits", 0), it.optDouble("km", 0.0), it.optInt("staff_count", 0)) }
     fun fieldVisitList(b: String, f: String, t: String): RepoResult<List<FieldVisitRow>> = rowList("field_visit_list", args(b, f, t)).mapRows {
-        FieldVisitRow(it.optString("staff_code"), it.optString("work_date"), it.optInt("visits", 0), it.optDouble("km", 0.0)) }
+        FieldVisitRow(it.optString("staff_code"), it.optString("work_date"), it.optInt("visits", 0), it.optDouble("km", 0.0), it.optString("branch")) }
 
     fun staffHoursSummary(b: String, f: String, t: String): RepoResult<StaffHoursSummary> = firstRow("staff_hours_summary", args(b, f, t)).mapRow {
         StaffHoursSummary(it.optDouble("total_hours", 0.0), it.optInt("staff_count", 0)) }
     fun staffHoursList(b: String, f: String, t: String): RepoResult<List<StaffHoursRow>> = rowList("staff_hours_list", args(b, f, t)).mapRows {
-        StaffHoursRow(it.optString("staff_code"), it.optDouble("hours", 0.0), it.optInt("days", 0), it.optInt("leave_days", 0), it.optInt("out_missing_days", 0)) }
+        StaffHoursRow(it.optString("staff_code"), it.optDouble("hours", 0.0), it.optInt("days", 0), it.optInt("leave_days", 0), it.optInt("out_missing_days", 0), it.optString("branch")) }
 
     fun staffPresentSummary(b: String, f: String, t: String): RepoResult<StaffPresentSummary> = firstRow("staff_present_summary", args(b, f, t)).mapRow {
         StaffPresentSummary(it.optInt("total", 0), it.optInt("staff_count", 0)) }
     fun staffPresentList(b: String, f: String, t: String): RepoResult<List<StaffPresentRow>> = rowList("staff_present_list", args(b, f, t)).mapRows {
-        StaffPresentRow(it.optString("staff_code"), it.optString("work_date"), it.optString("check_in"), it.optString("check_out")) }
+        StaffPresentRow(it.optString("staff_code"), it.optString("work_date"), it.optString("check_in"), it.optString("check_out"), it.optString("branch")) }
 
     fun rmpPaidSummary(b: String, f: String, t: String): RepoResult<RmpPaidSummary> = firstRow("rmp_paid_summary", args(b, f, t)).mapRow {
         RmpPaidSummary(it.optDouble("total", 0.0), it.optInt("rmp_count", 0), it.optInt("payment_count", 0)) }
     fun rmpPaidList(b: String, f: String, t: String): RepoResult<List<RmpPaidRow>> = rowList("rmp_paid_list", args(b, f, t)).mapRows {
-        RmpPaidRow(it.optString("payment_id"), it.optString("rmp_id"), it.optString("rmp_name"), it.optString("paid_on"), it.optDouble("amount", 0.0), it.optString("kind"), it.optString("patient_name"), it.optString("mode")) }
+        RmpPaidRow(it.optString("payment_id"), it.optString("rmp_id"), it.optString("rmp_name"), it.optString("paid_on"), it.optDouble("amount", 0.0), it.optString("kind"), it.optString("patient_name"), it.optString("mode"), it.optString("branch")) }
     fun inMissingSummary(b: String, f: String, t: String): RepoResult<InMissingSummary> = firstRow("in_missing_summary", args(b, f, t)).mapRow {
         InMissingSummary(it.optInt("total", 0), it.optInt("staff_count", 0)) }
     fun inMissingList(b: String, f: String, t: String): RepoResult<List<InMissingRow>> = rowList("in_missing_list", args(b, f, t)).mapRows {
-        InMissingRow(it.optString("staff_code"), it.optString("staff_name"), it.optString("work_date"), it.optString("check_out")) }
+        InMissingRow(it.optString("staff_code"), it.optString("staff_name"), it.optString("work_date"), it.optString("check_out"), it.optString("branch")) }
 
     /* 🎤 V1428 (আইটেম ২০) — "কোন ব্রাঞ্চে সবচেয়ে বেশি/কম": পাঁচ ব্রাঞ্চের **একই** ফাংশন পাঁচবার
        (নতুন SQL নেই), ফল সাজিয়ে ফেরত — বেশি→কম, "min" হলে কম→বেশি। একটা ব্রাঞ্চে ভুল হলে পুরোটা ভুল। */
@@ -336,7 +336,7 @@ object VoiceReportRepository {
             val out = ArrayList<RegisteredPatient>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(RegisteredPatient(x.optString("patient_row_id"), x.optString("patient_code"), x.optString("name"), x.optString("mobile"), x.optString("registration_date")))
+                out.add(RegisteredPatient(x.optString("patient_row_id"), x.optString("patient_code"), x.optString("name"), x.optString("mobile"), x.optString("registration_date"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -361,7 +361,7 @@ object VoiceReportRepository {
             val out = ArrayList<CollectionRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(CollectionRow(x.optString("payment_id"), x.optString("patient_row_id"), x.optString("name"), x.optString("mobile"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("pay_type"), x.optString("paid_on")))
+                out.add(CollectionRow(x.optString("payment_id"), x.optString("patient_row_id"), x.optString("name"), x.optString("mobile"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("pay_type"), x.optString("paid_on"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -389,7 +389,7 @@ object VoiceReportRepository {
             val out = ArrayList<ProductSaleRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(ProductSaleRow(x.optString("product_row_id"), x.optString("customer"), x.optString("mobile"), x.optString("product"), x.optDouble("bill", 0.0), x.optDouble("deposit", 0.0), x.optDouble("due", 0.0), x.optString("mode"), x.optString("sold_on")))
+                out.add(ProductSaleRow(x.optString("product_row_id"), x.optString("customer"), x.optString("mobile"), x.optString("product"), x.optDouble("bill", 0.0), x.optDouble("deposit", 0.0), x.optDouble("due", 0.0), x.optString("mode"), x.optString("sold_on"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -415,7 +415,7 @@ object VoiceReportRepository {
             val out = ArrayList<EnquiryRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(EnquiryRow(x.optString("enquiry_row_id"), x.optString("name"), x.optString("mobile"), x.optString("disease"), x.optString("enquiry_date")))
+                out.add(EnquiryRow(x.optString("enquiry_row_id"), x.optString("name"), x.optString("mobile"), x.optString("disease"), x.optString("enquiry_date"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -440,7 +440,7 @@ object VoiceReportRepository {
             val out = ArrayList<RefundRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(RefundRow(x.optString("payment_id"), x.optString("patient_row_id"), x.optString("name"), x.optString("mobile"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("refunded_on")))
+                out.add(RefundRow(x.optString("payment_id"), x.optString("patient_row_id"), x.optString("name"), x.optString("mobile"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("refunded_on"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -469,7 +469,7 @@ object VoiceReportRepository {
             val out = ArrayList<HandoverRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(HandoverRow(x.optString("handover_date"), x.optDouble("cash", 0.0), x.optString("receiver_name"), x.optString("received_at")))
+                out.add(HandoverRow(x.optString("handover_date"), x.optDouble("cash", 0.0), x.optString("receiver_name"), x.optString("received_at"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -494,7 +494,7 @@ object VoiceReportRepository {
             val out = ArrayList<RmpDueRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(RmpDueRow(x.optString("rmp_id"), x.optString("rmp_name"), x.optString("rmp_mobile"), x.optDouble("due", 0.0)))
+                out.add(RmpDueRow(x.optString("rmp_id"), x.optString("rmp_name"), x.optString("rmp_mobile"), x.optDouble("due", 0.0), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -522,7 +522,7 @@ object VoiceReportRepository {
             val out = ArrayList<ProductDueRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(ProductDueRow(x.optString("product_row_id"), x.optString("customer"), x.optString("mobile"), x.optString("product"), x.optDouble("due", 0.0), x.optString("sold_on")))
+                out.add(ProductDueRow(x.optString("product_row_id"), x.optString("customer"), x.optString("mobile"), x.optString("product"), x.optDouble("due", 0.0), x.optString("sold_on"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -545,7 +545,7 @@ object VoiceReportRepository {
             val out = ArrayList<CallRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(CallRow(x.optString("call_row_id"), x.optString("staff_code"), x.optString("target_mobile_mask"), x.optString("call_date")))
+                out.add(CallRow(x.optString("call_row_id"), x.optString("staff_code"), x.optString("target_mobile_mask"), x.optString("call_date"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -569,7 +569,7 @@ object VoiceReportRepository {
             val out = ArrayList<TrashRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(TrashRow(x.optString("trash_row_id"), x.optString("table_name"), x.optString("deleted_at"), x.optString("deleted_by")))
+                out.add(TrashRow(x.optString("trash_row_id"), x.optString("table_name"), x.optString("deleted_at"), x.optString("deleted_by"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
@@ -594,7 +594,7 @@ object VoiceReportRepository {
             val out = ArrayList<RmpAdvanceRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
-                out.add(RmpAdvanceRow(x.optString("advance_id"), x.optString("rmp_name"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("paid_on")))
+                out.add(RmpAdvanceRow(x.optString("advance_id"), x.optString("rmp_name"), x.optDouble("amount", 0.0), x.optString("mode"), x.optString("paid_on"), x.optString("branch")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
