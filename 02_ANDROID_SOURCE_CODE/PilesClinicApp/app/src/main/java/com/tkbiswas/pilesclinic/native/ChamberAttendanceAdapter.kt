@@ -45,7 +45,11 @@ class ChamberAttendanceAdapter(
     // TK-DECISION (2026-07-22): long-press an "আসার কথা" (waiting) row to
     // cancel / reschedule it with a reason. Default no-op so existing call
     // sites keep compiling.
-    private val onCancelExpected: (ChamberAttendanceRow) -> Unit = {}
+    private val onCancelExpected: (ChamberAttendanceRow) -> Unit = {},
+    /* ↩️🔒 V1459 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — Arrived সারিতে
+       লম্বা চাপ দিয়ে ভুল করে হয়ে যাওয়া "Arrived" মার্ক আনডু করা। ⛔ ডিফল্ট
+       no-op, তাই আগের কোনো call site ভাঙে না। */
+    private val onUndoArrived: (ChamberAttendanceRow) -> Unit = {}
 ) : RecyclerView.Adapter<ChamberAttendanceAdapter.VH>() {
 
     // TK-REPORTED BUG FIX (2026-07-19): this used to always be thrown away
@@ -334,10 +338,23 @@ class ChamberAttendanceAdapter(
                 android.widget.Toast.makeText(it.context, "Patient ID copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }
+            /* ↩️🔒 V1459 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, তালিকা ৫৭৯) — Arrived
+               সারিতে লম্বা চাপ: টাকার সবকটা ঘর ০ হলে (Fees/Payment/Medicine, TK-এর
+               স্পষ্ট শর্ত — "পেমেন্টের ঘর জিরো হলে তবেই আনডু হবে") তবেই "Undo Arrived?"
+               জিজ্ঞাসা করে (onUndoArrived); নইলে আগের মতোই শুধু কপি হয় — টাকা/চিকিৎসা
+               বসে যাওয়া কোনো সারিতে এখান থেকে কখনো ডিলিট হয় না। */
+            val noMoneyOnRow = row.arrived &&
+                row.feesCash == 0.0 && row.feesOnline == 0.0 &&
+                row.paymentCash == 0.0 && row.paymentOnline == 0.0 &&
+                row.medicineCash == 0.0 && row.medicineOnline == 0.0
             b.cellPatient.setOnLongClickListener {
-                val details = listOf(row.name, row.mobile, row.patientId).filter { it.isNotBlank() }.joinToString("\n")
-                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "patient", details)   // 🤫 V772
-                android.widget.Toast.makeText(it.context, "Patient details copied", android.widget.Toast.LENGTH_SHORT).show()
+                if (noMoneyOnRow) {
+                    onUndoArrived(row)
+                } else {
+                    val details = listOf(row.name, row.mobile, row.patientId).filter { it.isNotBlank() }.joinToString("\n")
+                    com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "patient", details)   // 🤫 V772
+                    android.widget.Toast.makeText(it.context, "Patient details copied", android.widget.Toast.LENGTH_SHORT).show()
+                }
                 true
             }
 

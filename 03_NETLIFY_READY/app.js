@@ -22780,7 +22780,11 @@ function wlv1ChamberRowHtml(r, __sn){
      ওয়েবে ঘরগুলো এতদিন নিষ্ক্রিয় ছিল — কিছুই করা যেত না।
      ⛔ টাকা বদলানোর অনুমতির নিয়ম আগেরটাই (`editPaymentEntry` নিজেই যাচাই করে)। */
   if(r.arrived){
-    return `<div class="wlv1CbRow" style="background:${bg}">
+    /* ↩️🔒 V1459 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, তালিকা ৫৭৯) — Arrived
+       সারিতে right-click/চেপে-ধরা — ফোনের long-press-এর ওয়েব-সমতুল্য, "আসার কথা"
+       সারির oncontextmenu (V430)-এর হুবহু একই প্যাটার্ন — দিয়ে ভুল Arrived-মার্ক
+       আনডু করার সুযোগ। */
+    return `<div class="wlv1CbRow" style="background:${bg}" oncontextmenu="event.preventDefault();event.stopPropagation();wlv1UndoArrived('${esc(r.mobile)}');return false;">
       ${patientBox}
       <div class="wlv1CbTreat" style="cursor:pointer" onclick="event.stopPropagation();wlv1ChamberWriteTreatment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${treatHtml}</div>
       <div class="wlv1CbFee">${feeHtml}</div>
@@ -23072,6 +23076,32 @@ async function wlv1CancelExpected(mobile){
   try{chamberAttendance();}catch(e){}
 }
 window["wlv1CancelExpected"]=wlv1CancelExpected;
+
+/* ↩️🔒 V1459 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, তালিকা ৫৭৯) — Arrived সারিতে
+   right-click দিয়ে ভুল করে হয়ে যাওয়া "Arrived" মার্ক আনডু (উপরের oncontextmenu থেকে
+   ডাকা হয়)। TK-এর স্পষ্ট শর্ত: *"পেমেন্টের ঘর জিরো হলে তবেই আনডু হবে"* — Fees/Cash/
+   Online/Medicine যেকোনো একটাতেও টাকা থাকলে এখানেই আটকে যায়, Payment History-র
+   দিকে পাঠানো হয় (রিফান্ড/ক্যানসেল আগে)। ⛔ `wlv1CancelExpected`-এর হুবহু একই নিরাপদ
+   ডিলিট-প্যাটার্ন — `payType==='attendance_mark'` ছাড়া কিছুই মোছা যায় না। */
+async function wlv1UndoArrived(mobile){
+  if(typeof sb==='undefined'||!sb)return toast('No internet connection');
+  var m=mob(mobile);
+  var rows=(wlv1ChamberRows(wlv1ChamberDate, wlv1ChamberBranch||'All')||[]);
+  var r=rows.find(function(x){return mob(x.mobile)===m;});
+  var hasMoney = r && ((Number(r.feeCash||0)+Number(r.feeOnline||0)+Number(r.cash||0)+Number(r.online||0)+Number(r.medicineCash||0)+Number(r.medicineOnline||0)) !== 0);
+  if(hasMoney) return toast((r&&r.name||shownMob(mobile))+' already has payment/treatment recorded today. Refund or cancel that payment first.');
+  var all=load('payments')||[];
+  var row=all.find(function(x){ return mob(x.mobile)===m && String(x.date||'').slice(0,10)===String(wlv1ChamberDate).slice(0,10) && String(x.payType||'')==='attendance_mark'; });
+  if(!row)return toast('Nothing to undo — already removed');
+  if(!(await wlv1AreYouSure('Undo Arrived?', (row.name||shownMob(mobile))+' will be removed from today\'s Arrived list. No payment has been recorded for them today, so nothing else changes.')))return;
+  var gone=await wlv1CloudDeleteRow('payments',row.id);
+  if(!gone)return toast('Could not undo — check connection');
+  try{var a2=load('payments')||[];var j=a2.findIndex(function(x){return String(x.id)===String(row.id);});if(j>-1){a2.splice(j,1);put('payments',a2);}}catch(_e){}
+  try{await wlv1MarkDeletedCloud('payments',row.id);}catch(_e){}
+  toast('Undone — '+(row.name||shownMob(mobile))+' removed from Arrived');
+  try{chamberAttendance();}catch(e){}
+}
+window["wlv1UndoArrived"]=wlv1UndoArrived;
 
 /* 🔵🔒 TK-অনুমোদিত (R5): Appointment এডিট — ফোনের showApptEdit-এর হুবহু: enquiries সারির
    name/mobile/remarks এডিট (upd = updateById-এর সমতুল্য)। stage/appointmentDate/followup ছোঁয়া হয় না। */

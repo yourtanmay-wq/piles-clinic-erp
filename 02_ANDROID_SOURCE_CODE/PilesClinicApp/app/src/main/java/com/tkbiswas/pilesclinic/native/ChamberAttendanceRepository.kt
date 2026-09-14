@@ -1858,6 +1858,31 @@ object ChamberAttendanceRepository {
         return true
     }
 
+    /* ↩️🔒 V1459 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, তালিকা ৫৭৯) — বোর্ডেই
+       সরাসরি "Undo Arrived"। আগে এই Undo শুধু "Patient Search" ডায়ালগে,
+       ঠিক মার্ক-করার মুহূর্তেই থাকত (`markedRowId` ওই ডায়ালগেরই স্থানীয় চলক);
+       বোর্ডের সারিতে (ChamberAttendanceRow) কোনো নির্দিষ্ট payments-সারির id
+       ধরে রাখা হয় না (একই মোবাইলের একাধিক সারি যোগ হয়ে বসে), তাই এখানে
+       mobile+branch+date+payType দিয়ে খুঁজে বার করে তারপর ওই একই প্রমাণিত
+       `undoAttendanceMark(context, id)` ডাকা হয় — নতুন কোনো ডিলিট-নিয়ম নয়।
+       ⛔ TK-এর স্পষ্ট শর্ত: "যে পেমেন্ট করবে তাকে আনডো করা যাবে না... পেমেন্টের
+       ঘর জিরো হলে তবেই আনডু হবে" — এই যাচাইটা UI-তে (ChamberAttendanceActivity)
+       আগেই হয়ে যায় (row-এর fees/payment/medicine সব ০ কিনা), এখানে আসারই কথা
+       নয় যদি টাকা থাকে; তবু এখানেও কখনো কোনো টাকার সারি ছোঁয়া হয় না —
+       `payType == "attendance_mark"` ছাড়া কিছুই ডিলিট হয় না (আগের নিয়মই)। */
+    fun undoArrivedFromBoard(context: android.content.Context, mobile: String, branch: String, date: String): Boolean {
+        return try {
+            val filter = "mobile=eq.${java.net.URLEncoder.encode(mobile, "UTF-8")}" +
+                "&branch=eq.${java.net.URLEncoder.encode(branch, "UTF-8")}" +
+                "&date=eq.$date&payType=eq.attendance_mark"
+            val rows = SupabaseClient.fetchList("payments", filter, 1)
+            if (rows.length() == 0) return false
+            val id = rows.optJSONObject(0)?.optString("id", "").orEmpty()
+            if (id.isBlank()) return false
+            undoAttendanceMark(context, id)
+        } catch (_: Throwable) { false }
+    }
+
     /** Old signature, kept in case anything else references it -- same
      *  cloud-only behavior as before, no local/queue cleanup. */
     fun undoAttendanceMark(paymentRowId: String): Boolean {

@@ -26815,3 +26815,17 @@ TK-রিপোর্ট (ছবিসহ, "1 · BISHAKHA M..." সারি): �
 
 **⏳ TK-কে জিজ্ঞাসা করা বাকি:** বোর্ডেই সরাসরি (arrived সারিতে long-press বা অনুরূপ) একটা স্থায়ী "Undo Arrived" যোগ করা হবে কিনা — যাতে ভবিষ্যতে এরকম ভুল হলে SQL/আমার সাহায্য ছাড়াই স্টাফ নিজে ঠিক করতে পারেন। প্রুফ-অনুমোদনের নিয়ম মেনে (এটা নতুন বোতাম, ডিজাইন-স্পর্শ) আগে ছবি-প্রুফ দেখাতে হবে।
 পাহারা: `sql_local_check.py` PASS।
+
+## V1459 — ↩️ বোর্ডেই স্থায়ী "Undo Arrived" (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ, তালিকা ৫৭৯)
+
+TK "হ্যাঁ" বলার পর স্পষ্ট শর্ত দিলেন: *"যে পেমেন্ট করবে তাকে আনডো করা যাবে না, পেমেন্টের ক্ষেত্রে আগে পেমেন্ট রিফান্ড করতে হবে অথবা ক্যানসেল করতে হবে, পেমেন্টের ঘর জিরো হলে তবেই আনডু হবে"* — ঠিক আমার মকআপের দ্বিতীয় (ব্লক করা) কেসটাই।
+
+**ফোন (`ChamberAttendanceRepository.kt`/`ChamberAttendanceAdapter.kt`/`ChamberAttendanceActivity.kt`):**
+- নতুন `ChamberAttendanceRepository.undoArrivedFromBoard(context, mobile, branch, date)` — mobile+branch+date+`payType="attendance_mark"` দিয়ে সারি খুঁজে বার করে, তারপর আগে থেকে প্রমাণিত `undoAttendanceMark(context, id)`-ই ডাকে (নতুন কোনো ডিলিট-নিয়ম নয়)।
+- Adapter-এ `cellPatient`-এর long-press এখন দুই-পথ: Row-এর Fees/Payment/Medicine সবকটা ০ হলে (`noMoneyOnRow`) → `onUndoArrived(row)`; নইলে আগের মতোই শুধু কপি (কোনো আগের আচরণ ভাঙেনি)।
+- Activity-তে `showUndoArrivedDialog(row)` — টাকা থাকলে "Cannot undo here" তথ্য-বার্তা (refund/cancel আগে বলা), নইলে "↩️ Undo Arrived?" নিশ্চিত করার পপ-আপ (V773-এর হুবহু একই ভাষা/সাজ)।
+
+**ওয়েব (`app.js`):** Arrived সারির `oncontextmenu` (V430-এর "আসার কথা" সারির right-click প্যাটার্নের যমজ) থেকে নতুন `wlv1UndoArrived(mobile)` — একই দুই-ধাপ যাচাই (টাকা থাকলে toast দিয়ে আটকে, নইলে `wlv1AreYouSure()` দিয়ে নিশ্চিত করে `payType='attendance_mark'`-বাঁধা ডিলিট, `wlv1CancelExpected()`-এর হুবহু একই নিরাপদ প্যাটার্ন পুনর্ব্যবহার)।
+
+⛔ কোনো প্ল্যাটফর্মেই `payType == "attendance_mark"` ছাড়া কিছুই ডিলিট হতে পারে না — আসল টাকার সারি এই বোতামে কখনো হারাবে না। মার্ক-করা/Cancel Expected/বাকি সব পুরনো ফ্লো এক অক্ষরও বদলায়নি।
+পাহারা: verify_android_resources PASS · node --check PASS · tk_guard PASS (cache-tag v1451→v1459) · web_browser_test PASS · verify_kotlin_compile PASS।

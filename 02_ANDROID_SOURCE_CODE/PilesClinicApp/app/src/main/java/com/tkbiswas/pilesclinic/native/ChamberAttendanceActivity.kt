@@ -391,7 +391,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 onOnlineTap = guardedEdit { row -> takeOrEditPayment(row, "ONLINE") },
                 onTreatmentTap = guardedEdit { row -> writeTreatment(row) },
                 onMarkArrived = guardedEdit { row -> markArrivedFromRow(row) },
-                onCancelExpected = guardedEdit { row -> showCancelExpectedDialog(row) }
+                onCancelExpected = guardedEdit { row -> showCancelExpectedDialog(row) },
+                onUndoArrived = guardedEdit { row -> showUndoArrivedDialog(row) }
             )
             binding.recyclerBoard.layoutManager = LinearLayoutManager(this)
             // 🔴🎨🔒 B448 (TK-নির্দেশ, 05.08.2026) — উপরের ৫টা বক্স এখন
@@ -1779,6 +1780,45 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             android.widget.Toast.makeText(this@ChamberAttendanceActivity, NoBengali.s(if (ok) "${row.name.ifBlank { digits }} — এসেছেন ✅" else "Failed — retry"), android.widget.Toast.LENGTH_SHORT).show()
             if (ok) loadBoard()
         }
+    }
+
+    /* ↩️🔒 V1459 (১৪.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, তালিকা ৫৭৯) — বোর্ডের
+       Arrived সারিতে লম্বা চাপে "Undo Arrived?" — শুধু তখনই ডাকা হয় যখন Adapter
+       আগেই দেখেছে এই সারিতে Fees/Payment/Medicine সবকটা ০ (TK-এর শর্ত: "পেমেন্টের
+       ঘর জিরো হলে তবেই আনডু হবে")। ⛔ টাকা থাকলে এই ফাংশনই ডাকা হয় না — Adapter-এর
+       `noMoneyOnRow` পাহারা। এখানেও দ্বিতীয়বার নিশ্চিত হওয়া হয় (সৎ, একবার-না-দুবার)। */
+    private fun showUndoArrivedDialog(row: ChamberAttendanceRow) {
+        val hasMoney = (row.feesCash + row.feesOnline + row.paymentCash + row.paymentOnline +
+            row.medicineCash + row.medicineOnline) != 0.0
+        if (hasMoney) {
+            AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "Cannot undo here"))
+                .setMessage("${row.name.ifBlank { row.mobile }} already has payment/treatment recorded today. Refund or cancel that payment first, then try again.")
+                .setPositiveButton("OK", null)
+                .show().also { try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
+            return
+        }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "↩️ Undo Arrived?"))
+            .setMessage("${row.name.ifBlank { row.mobile }} will be removed from today's Arrived list. No payment has been recorded for them today, so nothing else changes.")
+            .setPositiveButton("Yes, undo") { _, _ ->
+                val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
+                if (digits.length != 10) { android.widget.Toast.makeText(this, "No valid mobile", android.widget.Toast.LENGTH_SHORT).show(); return@setPositiveButton }
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) {
+                        try { ChamberAttendanceRepository.undoArrivedFromBoard(this@ChamberAttendanceActivity, "+91$digits", row.branch, selectedDate) }
+                        catch (_: Throwable) { false }
+                    }
+                    android.widget.Toast.makeText(
+                        this@ChamberAttendanceActivity,
+                        if (ok) "Undone — ${row.name.ifBlank { digits }} removed from Arrived" else "Could not undo — check connection",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    if (ok) loadBoard()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
     }
 
     /** TK-DECISION (2026-07-22): cancel an "আসার কথা" (Expected) entry with a
