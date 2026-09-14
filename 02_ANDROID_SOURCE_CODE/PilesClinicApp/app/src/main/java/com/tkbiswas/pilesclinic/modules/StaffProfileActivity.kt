@@ -3622,6 +3622,13 @@ class StaffProfileActivity : AppCompatActivity() {
        ═══════════════════════════════════════════════════════════════════ */
     private var attSheetRows: List<AttRow> = emptyList()
     private var attSheetMonth: String = ""
+    /* 🎨🔒 V1457 (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ — "হ্যাঁ পাশ, বসিয়ে দিন") —
+       TK: *"print Whatsapp chang Month এগুলি উপরে ডান সাইডে LG 3 dot এর মধ্যে
+       থাকবে"*। Salary Statement-এ TK আগেই পাশ করা একই ⋮ মেনু-প্যাটার্ন (V1181,
+       `salMenuAnchor`/`salMenuAction`) — এখানে Performance Sheet-এর জন্য
+       আলাদা নাম দিয়ে হুবহু পুনর্ব্যবহার। */
+    private var perfMenuAnchor: android.view.View? = null
+    private var perfMenuAction: (() -> Unit)? = null
 
     private data class AttRow(
         val dateIso: String, val date: String, val inTime: String, val outTime: String,
@@ -3645,23 +3652,47 @@ class StaffProfileActivity : AppCompatActivity() {
         val prevBack = backAction
         backAction = { prevBack() }
         attSheetMonth = ym
-        val col = ModuleUi.screen(this, "Performance Sheet")   // 📊 V1204
+        val col = ModuleUi.screen(this, "")   // V1457 — শিরোনাম এখন নিজের হেডার-সারিতে
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
-        col.addView(TextView(this).apply {
+        perfMenuAction = null
+        val headRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(10))
+        }
+        val headTextCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        headTextCol.addView(TextView(this).apply {
+            text = "Performance Sheet"; textSize = 19f
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+        })
+        headTextCol.addView(TextView(this).apply {
             text = code + "  \u00b7  " + salaryMonthLabel(ym)
             textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#5B6B81"))
-            setPadding(dp(2), 0, dp(2), dp(8))
+            setPadding(0, dp(2), 0, 0)
         })
+        headRow.addView(headTextCol)
+        val perfDots = TextView(this).apply {
+            text = "⋮"; textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            setPadding(dp(16), dp(4), dp(4), dp(4))
+            isClickable = true
+            setOnClickListener {
+                val a = perfMenuAction
+                if (a == null) ModuleUi.toast(this@StaffProfileActivity, "Loading...") else a()
+            }
+        }
+        perfMenuAnchor = perfDots
+        headRow.addView(perfDots)
+        col.addView(headRow)
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(box)
         box.addView(ModuleUi.body(this, "Loading..."))
 
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(10), 0, 0)
-        }
-        col.addView(actions)
         col.addView(android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
@@ -3820,20 +3851,24 @@ class StaffProfileActivity : AppCompatActivity() {
                 box.addView(attPerfStrip(perfObj))   // 📊 V1204 — কাগজে যা, পর্দাতেও তাই
                 box.addView(attSummary(res, worked))
                 box.addView(attTable(code, rows))
-                actions.removeAllViews()
-                fun act(label: String, colour: String, go: () -> Unit) =
-                    ModuleUi.button(this, label, go).apply {
-                        textSize = 13f
-                        background = android.graphics.drawable.GradientDrawable().apply {
-                            cornerRadius = dp(10).toFloat()
-                            setColor(android.graphics.Color.parseColor(colour))
-                        }
-                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                            .apply { rightMargin = dp(6) }
-                    }
-                actions.addView(act("Print / PDF", "#0B4F2A") { attPrint(code, ym, pr, amount, res, worked) })
-                actions.addView(act("WhatsApp", "#128C7E") { attWhatsApp(code, ym, pr, res) })
-                actions.addView(act("Change month", "#B45309") { attPickMonth(code) })
+                /* 🎨🔒 V1457 (TK-অনুমোদিত ফটো-প্রুফ) — TK: "print Whatsapp
+                   chang Month এগুলি উপরে ডান সাইডে LG 3 dot এর মধ্যে থাকবে"।
+                   আগের তিনটে বড় বোতাম বাদ, এখন হেডারের ⋮-এ (Salary Statement-এর
+                   V1181-এর হুবহু একই প্যাটার্ন)। ⛔ প্রতিটা বোতামের কাজ এক
+                   অক্ষরও বদলায়নি — একই ফাংশনই ডাকা হয়, শুধু জায়গা। */
+                perfMenuAction = {
+                    val items: List<Pair<String, () -> Unit>> = listOf(
+                        "Print / PDF" to ({ attPrint(code, ym, pr, amount, res, worked) }),
+                        "WhatsApp" to ({ attWhatsApp(code, ym, pr, res) }),
+                        "Change month" to ({ attPickMonth(code) })
+                    )
+                    try {
+                        val pm = android.widget.PopupMenu(this, perfMenuAnchor ?: box)
+                        items.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+                        pm.setOnMenuItemClickListener { mi -> items.getOrNull(mi.itemId)?.second?.invoke(); true }
+                        pm.show()
+                    } catch (_: Throwable) { }
+                }
             }
         }.start()
     }

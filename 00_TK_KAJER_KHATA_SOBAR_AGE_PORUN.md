@@ -26796,6 +26796,11 @@ IN চাপলে / পর্দা খুললে (V1364) একই ক্র
 > ⛔ প্রতিটা ঘরের lockField()-এর ৩-ট্যাপ এডিট, দুই-কলাম/পুরো-চওড়া সাজ, Save/লোড/আপলোডের আসল লজিক এক অক্ষরও বদলায়নি — শুধু কার্ড আলাদা-আলাদা ভাগ হলো ও Edit বোতামের চেহারা।
 > পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)।
 
+> V1457 — 🎨 **Performance Sheet — Print/WhatsApp/Change month এখন উপরে ⋮-এ (১৪.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ, তালিকা ৫৭৮):**
+> TK: "print Whatsapp chang Month এগুলি উপরে ডান সাইডে LG 3 dot এর মধ্যে থাকবে"। Artifact-এ প্রুফ দেখানো হলো (আগে-টেবিলের-নিচে-তিনটে-বোতাম বনাম হেডারের ⋮), TK মাঝে "17 July calendar emoji থাকবে না" বললেন (Change month ঘরের 📅 ইমোজি বাদ দেওয়া হলো), তারপর "হ্যাঁ পাশ, বসিয়ে দিন"।
+> **বাস্তবায়ন:** Salary Statement-এ TK আগেই পাশ করা ⋮-মেনু প্যাটার্ন (V1181, `salMenuAnchor`/`salMenuAction`/`PopupMenu`) — Performance Sheet-এর জন্য আলাদা নামে (`perfMenuAnchor`/`perfMenuAction`) হুবহু পুনর্ব্যবহার করা হলো। শিরোনাম ("Performance Sheet" + কোড/মাস) ও ⋮ এখন একই হেডার-সারিতে; পুরনো তিনটে বড় বোতাম (Print/PDF · WhatsApp · Change month) সরিয়ে ⋮-এর ভিতরে, প্লেইন লেখা (কোনো ইমোজি নেই)।
+> ⛔ তিনটে বোতামের আসল কাজ (`attPrint`/`attWhatsApp`/`attPickMonth`) এক অক্ষরও বদলায়নি — শুধু জায়গা বদলেছে। ডেটা লোড হওয়ার আগে ⋮ চাপলে "Loading..." টোস্ট (Salary Statement-এর হুবহু একই পাহারা)।
+> পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)।
+
 > **⏳ চলমান, উত্তর বাকি:**
-> - "৩-ডট মেনু"-তে Print/PDF · WhatsApp · Change Month সরানো (Performance Sheet) — ডিজাইন-বদল, ফটো-প্রুফ ছাড়া করা যাবে না (নিয়ম ৪); প্রুফ বানিয়ে TK-কে দেখানো বাকি।
 > - Supabase Egress গভীর অনুসন্ধান (TK-নির্দেশ) — সবচেয়ে সম্ভাব্য সন্দেহ: `CloudBackup.kt`/`ExportDataActivity.kt`-এর "Backup Now"/"Export Data" (৭টা টেবিল, ছবিসহ, সীমাহীন, কোনো cooldown নেই) — ১৩.০৯-এ কেউ চেপেছিলেন কিনা TK-কে জিজ্ঞাসা করা হয়েছে। বাকি সব পরিচিত জায়গা (পোলিং/ছবি-রিফ্রেশ/ড্যাশবোর্ড) যাচাই করে আগের মতোই সুরক্ষিত পাওয়া গেছে।
