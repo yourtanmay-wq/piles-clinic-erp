@@ -5463,55 +5463,84 @@ class DoctorVisitActivity : AppCompatActivity() {
                 if (customMode != null && (customValue == null || customValue < 0 || (customMode == RmpCommissionModel.Mode.PERCENT && customValue > 100))) {
                     Toast.makeText(this@DoctorVisitActivity, "Enter a valid commission value", Toast.LENGTH_SHORT).show(); return@setOnClickListener
                 }
-                isEnabled = false
-                lifecycleScope.launch {
-                    val result = withContext(Dispatchers.IO) {
-                        val existing = RmpCommissionRepository.getPatientCommission(p.id)
-                        if (!existing.ok) Pair(false, existing.message)
-                        else if (existing.value != null && existing.value.rmpId != item.id) {
-                            if (ModuleAuth.isMaster) {
-                                val action = RmpCommissionRepository.reassignPatient(p.id, item.id)
-                                Pair(action.ok, action.message)
-                            } else {
-                                val action = RmpCommissionRepository.requestReassignment(p.id, existing.value.rmpId, item.id, "")
-                                Pair(action.ok, action.message)
-                            }
-                        } else if (existing.value != null && existing.value.setOn < DoctorVisitModel.today() && !ModuleAuth.isMaster) {
-                            val desired = if (customMode != null && customValue != null) {
-                                Pair(customMode, customValue)
-                            } else {
-                                // 🔴🔒 V470 (20.08.2026) — সততার সাথে সীমা: এই নির্দিষ্ট
-                                // পথে (পুরনো তারিখ পরিবর্তনের অনুরোধ) রোগীর আসল ব্রাঞ্চ
-                                // এখানে সহজে পাওয়া যায় না (`PatientRef`-এ branch ফিল্ড
-                                // নেই), তাই এখনো বৈশ্বিক Default-ই ব্যবহার হচ্ছে — এটা
-                                // পুরনো, প্রমাণিত আচরণ, রিগ্রেশন নয়। সাধারণ (বেশিরভাগ)
-                                // সেভ-পথ ইতিমধ্যেই সার্ভার-স্তরে ব্রাঞ্চ-সচেতন (নিচে দেখুন)।
-                                val default = RmpCommissionRepository.getDefault(item.id)
-                                if (!default.ok || default.value == null) return@withContext Pair(false, "RMP Default is not set")
-                                Pair(default.value.mode, default.value.value)
-                            }
-                            val action = RmpCommissionRepository.requestPastCommissionChange(
-                                p.id, item.id, desired.first, desired.second, existing.value.mode,
-                                existing.value.value, existing.value.setOn, "")
-                            Pair(action.ok, action.message)
-                        } else {
-                            val action = RmpCommissionRepository.setPatientCommission(p.id, item.id, customMode, customValue)
-                            Pair(action.ok, action.message)
-                        }
-                    }
-                    isEnabled = true
-                    if (result.first) {
-                        parts.dialog.dismiss()
-                        Toast.makeText(this@DoctorVisitActivity,
-                            if (!ModuleAuth.isMaster) "Patient commission saved / change request sent when Master approval is required"
-                            else "Patient commission saved", Toast.LENGTH_LONG).show()
-                    }
-                    else Toast.makeText(this@DoctorVisitActivity, result.second.ifBlank { "Save failed — nothing changed" }, Toast.LENGTH_LONG).show()
+                /* 🚦🔒 V1469 (১৪.০৯.২০২৬, TK-নির্দেশ, তালিকা ৫৮১ — DURDARS PAL,
+                   Cooch Behar-এর "TK BISWAS" কার্ড খোলা অবস্থায় Falakata-র
+                   রোগীর কমিশন ভুল ব্রাঞ্চে বসে গিয়েছিল): একই নামে/মোবাইলে RMP-র
+                   একাধিক ব্রাঞ্চ-কার্ড থাকতে পারে (TK নিজেই এভাবে বানান), তাই
+                   রোগীর নিজের ব্রাঞ্চ আর এখন খোলা কার্ডের ব্রাঞ্চ না মিললে
+                   সেভের আগে জিজ্ঞাসা করা হয় — সেভ আটকায় না, শুধু নিশ্চিত হওয়া।
+                   ⛔ কোনো একটা ব্রাঞ্চ ফাঁকা থাকলে (পুরনো/অপরিচিত ডেটা) তুলনাই
+                      হয় না — চুপচাপ আগের মতোই সরাসরি সেভ হয়। */
+                val patientBranch = p.branch.trim()
+                val cardBranch = item.branch.trim()
+                if (patientBranch.isNotBlank() && cardBranch.isNotBlank() &&
+                    !patientBranch.equals(cardBranch, ignoreCase = true)) {
+                    androidx.appcompat.app.AlertDialog.Builder(this@DoctorVisitActivity)
+                        .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "⚠️ Branch mismatch"))
+                        .setMessage("${p.name.ifBlank { p.mobile }} is a $patientBranch patient, but this RMP card is for $cardBranch.\n\nSave the commission here anyway?")
+                        .setPositiveButton("Yes, save here") { _, _ -> doSavePatientCommission(parts, item, p, customMode, customValue, this) }
+                        .setNegativeButton("Cancel", null)
+                        .show().also { PremiumAlert.paint(it) }
+                    return@setOnClickListener
                 }
+                doSavePatientCommission(parts, item, p, customMode, customValue, this)
             }
         })
         parts.dialog.show()
         try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
+    }
+
+    /** 🚦🔒 V1469 — `showPatientCommission()`-এর আসল সেভ-লজিক, আগের কোডের
+     *  হুবহু একই — শুধু ব্রাঞ্চ-মিলের প্রশ্নটা আলাদা করার জন্য বার করা হলো। */
+    private fun doSavePatientCommission(
+        parts: PremiumDialogParts, item: DoctorVisitItem, p: PatientPhotoRepository.PatientRef,
+        customMode: RmpCommissionModel.Mode?, customValue: Double?, saveBtn: android.view.View
+    ) {
+        saveBtn.isEnabled = false
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val existing = RmpCommissionRepository.getPatientCommission(p.id)
+                if (!existing.ok) Pair(false, existing.message)
+                else if (existing.value != null && existing.value.rmpId != item.id) {
+                    if (ModuleAuth.isMaster) {
+                        val action = RmpCommissionRepository.reassignPatient(p.id, item.id)
+                        Pair(action.ok, action.message)
+                    } else {
+                        val action = RmpCommissionRepository.requestReassignment(p.id, existing.value.rmpId, item.id, "")
+                        Pair(action.ok, action.message)
+                    }
+                } else if (existing.value != null && existing.value.setOn < DoctorVisitModel.today() && !ModuleAuth.isMaster) {
+                    val desired = if (customMode != null && customValue != null) {
+                        Pair(customMode, customValue)
+                    } else {
+                        // 🔴🔒 V470 (20.08.2026) — সততার সাথে সীমা: এই নির্দিষ্ট
+                        // পথে (পুরনো তারিখ পরিবর্তনের অনুরোধ) রোগীর আসল ব্রাঞ্চ
+                        // এখানে সহজে পাওয়া যায় না (`PatientRef`-এ branch ফিল্ড
+                        // নেই), তাই এখনো বৈশ্বিক Default-ই ব্যবহার হচ্ছে — এটা
+                        // পুরনো, প্রমাণিত আচরণ, রিগ্রেশন নয়। সাধারণ (বেশিরভাগ)
+                        // সেভ-পথ ইতিমধ্যেই সার্ভার-স্তরে ব্রাঞ্চ-সচেতন (নিচে দেখুন)।
+                        val default = RmpCommissionRepository.getDefault(item.id)
+                        if (!default.ok || default.value == null) return@withContext Pair(false, "RMP Default is not set")
+                        Pair(default.value.mode, default.value.value)
+                    }
+                    val action = RmpCommissionRepository.requestPastCommissionChange(
+                        p.id, item.id, desired.first, desired.second, existing.value.mode,
+                        existing.value.value, existing.value.setOn, "")
+                    Pair(action.ok, action.message)
+                } else {
+                    val action = RmpCommissionRepository.setPatientCommission(p.id, item.id, customMode, customValue)
+                    Pair(action.ok, action.message)
+                }
+            }
+            saveBtn.isEnabled = true
+            if (result.first) {
+                parts.dialog.dismiss()
+                Toast.makeText(this@DoctorVisitActivity,
+                    if (!ModuleAuth.isMaster) "Patient commission saved / change request sent when Master approval is required"
+                    else "Patient commission saved", Toast.LENGTH_LONG).show()
+            }
+            else Toast.makeText(this@DoctorVisitActivity, result.second.ifBlank { "Save failed — nothing changed" }, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun showCommissionPayment(patient: PatientPhotoRepository.PatientRef, expectedRmpId: String) {

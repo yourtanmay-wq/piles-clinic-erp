@@ -29,14 +29,19 @@ class PatientPhotoRepository {
 
     // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও দেখাতে হবে।
     // ডিফল্ট ফাঁকা রাখা হয়েছে, তাই পুরনো কোনো ডাক ভাঙে না।
-    data class PatientRef(val id: String, val name: String, val mobile: String, val photo: String, val patientId: String = "")
+    // 🚦🔒 V1469 (১৪.০৯.২০২৬, তালিকা ৫৮১ — DURDARS PAL) — রোগীর নিজের `branch`ও
+    //   এখানে যোগ হলো, ডিফল্ট ফাঁকা (পুরনো কোনো caller ভাঙে না)। কারণ:
+    //   Patient Commission পর্দায় রোগীর ব্রাঞ্চ আর RMP-কার্ডের ব্রাঞ্চ মিলিয়ে
+    //   দেখার জন্য এই ঘরটাই দরকার হলো (`DoctorVisitActivity.showPatientCommission`)।
+    data class PatientRef(val id: String, val name: String, val mobile: String, val photo: String, val patientId: String = "", val branch: String = "")
 
     private fun refOf(r: org.json.JSONObject) = PatientRef(
         id = r.s("id"),
         name = r.s("name"),
         mobile = r.s("mobile"),
         photo = r.s("photo"),
-        patientId = r.s("patientId")
+        patientId = r.s("patientId"),
+        branch = r.s("branch")
     )
 
     /**
@@ -61,7 +66,7 @@ class PatientPhotoRepository {
         preferPatientCode: String = ""
     ): PatientRef? {
         val rows = SupabaseClient.findByMobile(
-            "patients", "+91$mobileDigits", "id,name,mobile,photo,patientId", 20
+            "patients", "+91$mobileDigits", "id,name,mobile,photo,patientId,branch", 20
         )
         if (rows.length() == 0) return null
         if (preferRowId.isNotBlank() || preferPatientCode.isNotBlank()) {
