@@ -580,6 +580,10 @@ class GlobalSearchActivity : AppCompatActivity() {
             VoiceReportModel.Metric.DUPLICATE_PATIENTS -> { openDetail("DUPLICATE_PATIENTS"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.duplicateSummary(parsed.branch) }
                 if (got.ok && got.value != null) show((got.value.mobileGroups + got.value.nameGroups + got.value.paymentGroups).toString(), "${got.value.mobileGroups} same mobile · ${got.value.nameGroups} same name · ${got.value.paymentGroups} same payment") else showFail(got.message) } }
+            // 🎤🔒 V1504 (TK-নির্দেশ: "পাহারা ব্যবস্থা রাখতে হবে") — RIMPA ROY/KHAGEN BHAGAT-এর মতো ডুপ্লিকেট পেমেন্ট।
+            VoiceReportModel.Metric.DUPLICATE_PAYMENTS -> { openDetail("DUPLICATE_PAYMENTS"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.duplicatePaymentsSummary(parsed.branch) }
+                if (got.ok && got.value != null) show(got.value.extraCount.toString(), "extra rows across ${got.value.patientCount} patients") else showFail(got.message) } }
             VoiceReportModel.Metric.FEE_UNPAID -> { openDetail("FEE_UNPAID"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.feeUnpaidSummary(parsed.branch) }
                 if (got.ok && got.value != null) show(got.value.toString(), "patients' visit fee not received (registered from 05/09/2026)") else showFail(got.message) } }

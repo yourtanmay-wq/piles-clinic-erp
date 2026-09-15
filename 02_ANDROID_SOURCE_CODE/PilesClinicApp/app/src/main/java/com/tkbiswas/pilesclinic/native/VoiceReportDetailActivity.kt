@@ -409,6 +409,21 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.mobile, "$branchTag${p.names}", "${p.rowCount} records", "#B45309", onTap))
                     }
                 }
+                // 🎤🔒 V1504 (TK-নির্দেশ: "পাহারা ব্যবস্থা") — RIMPA ROY/KHAGEN BHAGAT-এর
+                // মতো ডুপ্লিকেট পেমেন্ট: একই রোগী+দিন+লেবেল+অঙ্ক+ধরন, ১৫ মিনিটের মধ্যে।
+                "DUPLICATE_PAYMENTS" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.duplicatePaymentsList(branch) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    val totalExtra = rows.sumOf { it.extraAmount }
+                    binding.tvSummary.text = if (rows.isEmpty()) "No duplicate payments found" else "${rows.size} groups · ₹${"%,.0f".format(totalExtra)} extra"
+                    if (rows.isEmpty()) empty("No duplicate payments found — nothing to check.")
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.payLabel} · ₹${"%,.0f".format(p.amount)} · ${p.mode} · ${FollowUpModel.displayDate(p.payDate)} · ${p.extraCount} extra", "₹${"%,.0f".format(p.extraAmount)}", "#B42318", onTap))
+                    }
+                }
                 "FEE_UNPAID" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.feeUnpaidSummary(branch) to VoiceReportRepository.feeUnpaidList(branch) }
                     if (!sum.ok) { fail(sum.message); return@launch }

@@ -111,6 +111,9 @@ object VoiceReportRepository {
     data class WfhRow(val staffName: String, val staffCode: String, val workDate: String, val status: String, val requestedOn: String, val branch: String = "")
     data class DuplicateSummary(val mobileGroups: Int, val nameGroups: Int, val paymentGroups: Int)
     data class DuplicateRow(val mobile: String, val rowCount: Int, val names: String, val branch: String = "")
+    // 🎤🔒 V1504 — "ডুপ্লিকেট পেমেন্ট" (RIMPA ROY/KHAGEN BHAGAT-এর মতো) — ডুপ্লিকেট রোগী থেকে আলাদা।
+    data class DuplicatePaymentSummary(val extraCount: Int, val patientCount: Int)
+    data class DuplicatePaymentRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val payDate: String, val payLabel: String, val amount: Double, val mode: String, val extraCount: Int, val extraAmount: Double, val branch: String = "")
     data class FeeUnpaidRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String, val branch: String = "")
     data class CallPendingRow(val followupId: String, val name: String, val mobile: String, val stage: String, val nextFollow: String, val branch: String = "")
     data class MessagesSummary(val total: Int, val whatsapp: Int, val sms: Int)
@@ -240,6 +243,14 @@ object VoiceReportRepository {
         DuplicateSummary(it.optInt("mobile_groups", 0), it.optInt("name_groups", 0), it.optInt("payment_groups", 0)) }
     fun duplicateList(b: String): RepoResult<List<DuplicateRow>> = rowList("duplicate_list", args(b)).mapRows {
         DuplicateRow(it.optString("mobile"), it.optInt("row_count", 0), it.optString("names"), it.optString("branch")) }
+
+    // 🎤🔒 V1504 — একই রোগী+দিন+লেবেল+অঙ্ক+ধরন, ১৫ মিনিটের মধ্যে তৈরি হলে তবেই "ডুপ্লিকেট"।
+    fun duplicatePaymentsSummary(b: String): RepoResult<DuplicatePaymentSummary> = firstRow("duplicate_payments_summary", args(b)).mapRow {
+        DuplicatePaymentSummary(it.optInt("total", 0), it.optInt("patient_count", 0)) }
+    fun duplicatePaymentsList(b: String): RepoResult<List<DuplicatePaymentRow>> = rowList("duplicate_payments_list", args(b)).mapRows {
+        DuplicatePaymentRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"),
+            it.optString("pay_date"), it.optString("pay_label"), it.optDouble("amount", 0.0), it.optString("mode"),
+            it.optInt("extra_count", 0), it.optDouble("extra_amount", 0.0), it.optString("branch")) }
 
     fun feeUnpaidSummary(b: String): RepoResult<Int> = firstRow("fee_unpaid_summary", args(b)).mapRow { it.optInt("total", 0) }
     fun feeUnpaidList(b: String): RepoResult<List<FeeUnpaidRow>> = rowList("fee_unpaid_list", args(b)).mapRows {

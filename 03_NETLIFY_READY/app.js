@@ -24138,7 +24138,7 @@ function wlv1VoiceDateRange(q){
   if(q.includes('এই মাস')||q.includes('this month')){ const f=new Date(kolkataNow); f.setDate(1); return {from:wlv1VoiceIsoDate(f),to:day(0),label:'This month'}; }
   return null;
 }
-function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কয়টা')||q.includes('কয়জন')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির')||q.includes('সবচেয়ে')||q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('কমিশন'); }   // V1428 · V1447 (TK-রিপোর্ট: "কয়টা" ধরা পড়ছিল না, ফোনের হুবহু একই ফিক্স)
+function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কয়টা')||q.includes('কয়জন')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির')||q.includes('সবচেয়ে')||q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('কমিশন')||q.includes('ডুপ্লিকেট')||q.toLowerCase().includes('duplicate'); }   // V1428 · V1447 (TK-রিপোর্ট: "কয়টা" ধরা পড়ছিল না, ফোনের হুবহু একই ফিক্স) · 🎤🔒 V1504
 /* 🎤 V1428 (তালিকা ৫৩৮) — নাম ধরে প্রশ্ন (ফোনের VoiceReportModel.findNameTokens/nameMatch-এর হুবহু নিয়ম):
    প্রশ্নে ইংরেজি অক্ষরের শব্দ (JPE-CRP, JAKIR HOSSAIN) = ছাঁকনি; প্রশ্ন-চেনার ইংরেজি শব্দ ও ব্রাঞ্চের নাম বাদ।
    ⚠️ সৎ সীমা: বাংলায় বলা নাম ইংরেজি নামের সাথে মেলে না — নামটা ইংরেজি অক্ষরেই লিখতে/বলতে হবে। */
@@ -24202,6 +24202,8 @@ function wlv1VoiceParse(q){
   const hasOutMissing = (lower.includes('out')||q.includes('আউট')) && (q.includes('হয়নি')||q.includes('দেয়নি'));
   const hasWfh = lower.includes('wfh')||lower.includes('work from home')||q.includes('বাড়ি থেকে');
   const hasDuplicate = q.includes('ডুপ্লিকেট')||lower.includes('duplicate');
+  // 🎤🔒 V1504 — "ডুপ্লিকেট পেমেন্ট/টাকা" আলাদা (ফোনের VoiceReportModel.kt-এর হুবহু নিয়ম)
+  const hasDuplicatePayment = hasDuplicate && (q.includes('পেমেন্ট')||q.includes('টাকা')||lower.includes('payment'));
   const hasCallsPending = q.includes('ফলো') && q.includes('কল') && (hasDueWord||q.includes('হয়নি'));
   const hasMessages = q.includes('বার্তা')||q.includes('মেসেজ')||q.includes('হোয়াটসঅ্যাপ')||lower.includes('whatsapp')||lower.includes('sms');
   const hasFeeUnpaid = (q.includes('ভিজিট')||q.includes('ফি')) && (q.includes('জমা পড়েনি')||q.includes('জমা হয়নি')||q.includes('দেয়নি')||q.includes('দেননি')||hasDueWord);
@@ -24231,7 +24233,7 @@ function wlv1VoiceParse(q){
     [hasCompare&&hasMoney,'MONTH_COMPARE_COLLECTION'],[hasCompare,'MONTH_COMPARE_PATIENTS'],
     [hasSale&&hasMedicine,'MEDICINE_SALE'],[hasSale&&hasSaline,'SALINE_SALE'],
     [hasNoShow,'NO_SHOW'],[hasChamberUnclosed,'CHAMBER_UNCLOSED'],[hasOutMissing,'OUT_MISSING'],[hasWfh,'WFH_COUNT'],
-    [hasDuplicate,'DUPLICATE_PATIENTS'],[hasCallsPending,'CALLS_PENDING'],[hasFuCallsDone,'FOLLOWUP_CALLS_DONE'],[hasMessages,'MESSAGES_SENT'],[hasFeeUnpaid,'FEE_UNPAID'],
+    [hasDuplicatePayment,'DUPLICATE_PAYMENTS'],[hasDuplicate,'DUPLICATE_PATIENTS'],[hasCallsPending,'CALLS_PENDING'],[hasFuCallsDone,'FOLLOWUP_CALLS_DONE'],[hasMessages,'MESSAGES_SENT'],[hasFeeUnpaid,'FEE_UNPAID'],
     [hasFeeReturn,'FEE_RETURN'],
     [hasReferralReq,'REFERRAL_REQUESTS'],[hasPayReq,'PAYMENT_REQUESTS'],[hasProductDue,'MEDICINE_DUE'],
     [hasHandoverPending,'HANDOVER_PENDING'],[hasHandover,'CASH_HANDOVER'],[hasAppointment,'APPOINTMENT_COUNT'],
@@ -24246,7 +24248,7 @@ function wlv1VoiceParse(q){
     : WLV1_VOICE_NAME_METRICS.includes(metric) ? wlv1VoiceNameTokens(q)   // V1428 — নাম-ছাঁকনি (ফাঁকা = সবাই)
     : (metric==='BRANCH_TOP_COLLECTION'||metric==='BRANCH_TOP_PATIENTS') ? ((q.includes('সবচেয়ে কম')||lower.includes('least')||lower.includes('lowest'))?'min':'') : '';
   // 🔒 V1418/V1419/V1420 — "এখন পর্যন্ত মোট" প্রশ্নগুলো সময়-সীমা নেয় না, তারিখ-ছাঁচ মেলা লাগে না
-  const WLV1_VOICE_SNAPSHOT=['RMP_DUE','MEDICINE_DUE','HANDOVER_PENDING','PAYMENT_REQUESTS','REFERRAL_REQUESTS','STAFF_REMINDER_OPEN','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING'];
+  const WLV1_VOICE_SNAPSHOT=['RMP_DUE','MEDICINE_DUE','HANDOVER_PENDING','PAYMENT_REQUESTS','REFERRAL_REQUESTS','STAFF_REMINDER_OPEN','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING','DUPLICATE_PAYMENTS'];   // 🎤🔒 V1504
   const branchLabel = branch==='ALL' ? 'All branches' : branch;
   // 📊 V1426 — মাস-তুলনা: এই মাসের ১ থেকে আজ, বনাম গত মাসের ১ থেকে একই তারিখ (ফোনের VoiceReportModel-এর হুবহু নিয়ম)
   if(metric==='MONTH_COMPARE_PATIENTS'||metric==='MONTH_COMPARE_COLLECTION'){
@@ -24336,6 +24338,9 @@ async function wlv1ShowVoiceAnswer(q){
     const s=await vFirst('wfh_summary',rangeArgs); if(!s) return vBad(); vOk(String(s.total),`WFH applications: ${s.approved} approved · ${s.pending} pending · ${s.rejected} rejected`,'WFH_COUNT');
   } else if(parsed.metric==='DUPLICATE_PATIENTS'){
     const s=await vFirst('duplicate_summary',oneArg); if(!s) return vBad(); vOk(String((s.mobile_groups||0)+(s.name_groups||0)+(s.payment_groups||0)),`${s.mobile_groups} same mobile · ${s.name_groups} same name · ${s.payment_groups} same payment`,'DUPLICATE_PATIENTS');
+  // 🎤🔒 V1504 (TK-নির্দেশ: "পাহারা ব্যবস্থা") — RIMPA ROY/KHAGEN BHAGAT-এর মতো ডুপ্লিকেট পেমেন্ট।
+  } else if(parsed.metric==='DUPLICATE_PAYMENTS'){
+    const s=await vFirst('duplicate_payments_summary',oneArg); if(!s) return vBad(); vOk(String(s.total||0),`extra rows across ${s.patient_count||0} patients`,'DUPLICATE_PAYMENTS');
   } else if(parsed.metric==='FEE_UNPAID'){
     const s=await vFirst('fee_unpaid_summary',oneArg); if(!s) return vBad(); vOk(String(s.total),"patients' visit fee not received (registered from 05/09/2026)",'FEE_UNPAID');
   } else if(parsed.metric==='CALLS_PENDING'){
@@ -24673,7 +24678,7 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
       $('#wlv1VoiceDetailSummary').textContent=s?`Visit fee returned: ${money(s.total)} · ${s.patient_count} patients`:'Total: —';
       render(rows,'No visit fee returned in this period.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${fmtDate(p.returned_on||'')}`,money(p.amount),'#B42318',mob(p.mobile)));
     }
-  } else if(['CHAMBER_UNCLOSED','NO_SHOW','OUT_MISSING','WFH_COUNT','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING','MESSAGES_SENT'].includes(metric)){
+  } else if(['CHAMBER_UNCLOSED','NO_SHOW','OUT_MISSING','WFH_COUNT','DUPLICATE_PATIENTS','DUPLICATE_PAYMENTS','FEE_UNPAID','CALLS_PENDING','MESSAGES_SENT'].includes(metric)){
     // V1421 — আরও আটটা পাতা, একই ছাঁচে
     const rangeArgs={p_branch:branch,p_from:from,p_to:to}, oneArg={p_branch:branch};
     const listOf=async(fn,a)=>{ const r=await c.rpc(fn,a); if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return null; } return r.data||[]; };
@@ -24701,6 +24706,12 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
       const rows=await listOf('duplicate_list',oneArg); if(!rows) return; const s=await first('duplicate_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`${s.mobile_groups} same mobile · ${s.name_groups} same name · ${s.payment_groups} same payment (list shows same-mobile groups)`:'Total: —';
       render(rows,'No same-mobile duplicate groups.',p=>card(p.mobile||'',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.names||''}`,`${p.row_count} records`,'#B45309',mob(p.mobile)));
+    // 🎤🔒 V1504 (TK-নির্দেশ: "পাহারা ব্যবস্থা") — RIMPA ROY/KHAGEN BHAGAT-এর মতো ডুপ্লিকেট পেমেন্ট।
+    } else if(metric==='DUPLICATE_PAYMENTS'){
+      const rows=await listOf('duplicate_payments_list',oneArg); if(!rows) return;
+      const totalExtra=rows.reduce((s,p)=>s+Number(p.extra_amount||0),0);
+      $('#wlv1VoiceDetailSummary').textContent=rows.length?`${rows.length} groups · ${money(totalExtra)} extra`:'No duplicate payments found';
+      render(rows,'No duplicate payments found — nothing to check.',p=>card(p.name||mob(p.mobile)||'-',`${branch==='ALL'?(p.branch||'')+' · ':''}${p.pay_label||''} · ${money(p.amount)} · ${p.mode||''} · ${fmtDate(p.pay_date||'')} · ${p.extra_count} extra`,money(p.extra_amount),'#B42318',mob(p.mobile)));
     } else if(metric==='FEE_UNPAID'){
       const rows=await listOf('fee_unpaid_list',oneArg); if(!rows) return; const s=await first('fee_unpaid_summary',oneArg);
       $('#wlv1VoiceDetailSummary').textContent=s?`Visit fee not received: ${s.total} patients (registered from 05/09/2026)`:'Total: —';

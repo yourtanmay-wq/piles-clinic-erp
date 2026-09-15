@@ -31,7 +31,14 @@ object VoiceReportModel {
         // রোগী ধরে (নতুন রেজিস্ট্রেশন + পুরনো রোগীর সেদিনের ভিজিট-প্রমাণ)।
         // পুরনো REGISTRATION_COUNT অক্ষত — অন্য জায়গায় (Yearly Registration)
         // "শুধু রেজিস্ট্রেশন" অর্থেই ব্যবহৃত হয়, তাই আলাদা রাখা হলো।
-        PATIENTS_VISITED
+        PATIENTS_VISITED,
+        // 🎤🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ: "ভবিষ্যতে যেন এরকম সমস্যা না
+        // হয়, তার পাহারা ব্যবস্থা রাখতে হবে") — RIMPA ROY/KHAGEN BHAGAT-এর
+        // মতো ডুপ্লিকেট পেমেন্ট (একই রোগী+দিন+লেবেল+অঙ্ক+ধরন, কাছাকাছি
+        // সময়ে) TK নিজে যেকোনো সময় জিজ্ঞেস করে ধরতে পারবেন। পুরনো
+        // DUPLICATE_PATIENTS (ডুপ্লিকেট রোগী) থেকে সম্পূর্ণ আলাদা —
+        // "পেমেন্ট"/"টাকা" শব্দ থাকলে তবেই এটা, নইলে আগের মতোই রোগী।
+        DUPLICATE_PAYMENTS
     }
 
     // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
@@ -51,7 +58,8 @@ object VoiceReportModel {
     /** যে প্রশ্নগুলো "এখন পর্যন্ত মোট" — কোনো তারিখ/সময়-সীমা লাগে না (V1418–V1421)। */
     private val SNAPSHOT = setOf(Metric.RMP_DUE, Metric.MEDICINE_DUE, Metric.HANDOVER_PENDING,
         Metric.PAYMENT_REQUESTS, Metric.REFERRAL_REQUESTS, Metric.STAFF_REMINDER_OPEN,
-        Metric.DUPLICATE_PATIENTS, Metric.FEE_UNPAID, Metric.CALLS_PENDING)
+        Metric.DUPLICATE_PATIENTS, Metric.FEE_UNPAID, Metric.CALLS_PENDING,
+        Metric.DUPLICATE_PAYMENTS)   // 🎤🔒 V1504
 
     data class Parsed(
         val metric: Metric,
@@ -174,6 +182,8 @@ object VoiceReportModel {
         val hasOutMissing = (lower.contains("out") || q.contains("আউট")) && (q.contains("হয়নি") || q.contains("দেয়নি"))
         val hasWfh = lower.contains("wfh") || lower.contains("work from home") || q.contains("বাড়ি থেকে")
         val hasDuplicate = q.contains("ডুপ্লিকেট") || lower.contains("duplicate")
+        // 🎤🔒 V1504 — "ডুপ্লিকেট পেমেন্ট/টাকা" আলাদা, নইলে পুরনো "ডুপ্লিকেট রোগী"-ই বসে যেত।
+        val hasDuplicatePayment = hasDuplicate && (q.contains("পেমেন্ট") || q.contains("টাকা") || lower.contains("payment"))
         val hasCallsPending = q.contains("ফলো") && q.contains("কল") && (hasDueWord || q.contains("হয়নি"))
         val hasMessages = q.contains("বার্তা") || q.contains("মেসেজ") || q.contains("হোয়াটসঅ্যাপ") || lower.contains("whatsapp") || lower.contains("sms")
         val hasFeeUnpaid = (q.contains("ভিজিট") || q.contains("ফি")) &&
@@ -215,6 +225,7 @@ object VoiceReportModel {
             hasChamberUnclosed -> Metric.CHAMBER_UNCLOSED
             hasOutMissing -> Metric.OUT_MISSING
             hasWfh -> Metric.WFH_COUNT
+            hasDuplicatePayment -> Metric.DUPLICATE_PAYMENTS   // 🎤🔒 V1504 — আগে চেক, নইলে নিচেরটাই জিতে যেত
             hasDuplicate -> Metric.DUPLICATE_PATIENTS
             hasCallsPending -> Metric.CALLS_PENDING
             hasFuCallsDone -> Metric.FOLLOWUP_CALLS_DONE
@@ -256,7 +267,8 @@ object VoiceReportModel {
     fun isQuestionLike(q: String): Boolean =
         q.contains("কত") || q.contains("কয়টা") || q.contains("কয়জন") ||   // V1447 (TK-রিপোর্ট: "কয়টা" ধরা পড়ছিল না)
             q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির") ||
-            q.contains("সবচেয়ে") || q.contains("কোন ব্রাঞ্চ") || q.contains("কোন শাখা") || q.contains("কমিশন")   // V1428
+            q.contains("সবচেয়ে") || q.contains("কোন ব্রাঞ্চ") || q.contains("কোন শাখা") || q.contains("কমিশন") ||   // V1428
+            q.contains("ডুপ্লিকেট") || q.lowercase().contains("duplicate")   // 🎤🔒 V1504 — "আছে কিনা"-জাতীয় প্রশ্নেও যেন ধরা পড়ে
 
     fun parse(q: String): Parsed? {
         // 🌐 V1423 (TK: "সব ব্রাঞ্চ মিলিয়ে মোট দেখান") — ব্রাঞ্চের নাম না বললে সব ব্রাঞ্চ মিলিয়ে
