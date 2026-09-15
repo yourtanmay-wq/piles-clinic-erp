@@ -82,8 +82,12 @@
     <!-- 🔒 B601 (TK-নির্দেশ 09.08.2026): ওয়েবের মতো সমান ৪ বোতাম — WhatsApp / Save /
          Print / Close (২x২ গ্রিড, সব একই মাপ)। এই পর্দা Print Center + বার্তা-বাক্স
          দুটোতেই ব্যবহার হয়, তাই সব প্রিন্ট-প্রিভিউতে একরকম। ⛔ বোতামের কাজ অপরিবর্তিত;
-         SHARE PDF এখন সরাসরি WhatsApp টার্গেট করে (না থাকলে সাধারণ Share)। -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+         SHARE PDF এখন সরাসরি WhatsApp টার্গেট করে (না থাকলে সাধারণ Share)।
+         📱🔒 V1495 (১৫.০৯.২০২৬, TK-রিপোর্ট — Report Card-এ এই বোতাম-বার নিচে
+         কাটা দেখাচ্ছিল) — `id/actionButtonBar` যোগ হলো যাতে PrintPreviewActivity
+         থেকে ফোনের নিজের নিচের নেভিগেশন-বার (gesture bar) বাদ দিয়ে বাড়তি
+         প্যাডিং বসানো যায়। ⛔ বোতামের রং/লেখা/মাপ/কাজ কিছুই বদলায়নি। -->
+    <LinearLayout android:id="@+id/actionButtonBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
         android:padding="10dp" android:background="@color/clinic_card" android:elevation="8dp">
         <!-- 🔵🔒 V954 (TK-নির্দেশ: *"প্রিন্ট শেয়ার ক্লোজ — এগুলো এক লাইনে পাশাপাশি
              থাকবে"*) — আগে ২x২ গ্রিড ছিল। ⛔ একটাও বোতাম বাদ যায়নি, কাজও

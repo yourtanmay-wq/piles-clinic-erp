@@ -15,6 +15,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.tkbiswas.pilesclinic.R
 import java.io.File
@@ -40,6 +42,26 @@ class PrintPreviewActivity : AppCompatActivity() {
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
         toolbar.setNavigationOnClickListener { finish() }
+
+        /* 📱🔒 V1495 (১৫.০৯.২০২৬, TK-রিপোর্ট) — Report Card-এ নিচের Print/
+           Share/Save/Close বার কাটা দেখাচ্ছিল (TK নিশ্চিত করলেন: শুধু Report
+           Card-এই, প্রতিবার, স্ক্রল করে দেখারও উপায় নেই — মানে ছবিটাই এত লম্বা
+           যে বোতাম-বারটা একদম নিচের কিনারায় গিয়ে ঠেকে, আর কিছু ফোনের নিজের
+           নিচের জেসচার-বার সেই কিনারাটুকু ঢেকে দেয়)। অন্য কাগজে ছবি ছোট বলে
+           এত নিচ অবধি যায় না, তাই ওখানে সমস্যাটা দেখা যায়নি। ⛔ কোনো নতুন
+           edge-to-edge/থিম বসানো হয়নি — শুধু ফোনের নিজের নিচের বার যতটুকু
+           জায়গা নেয়, ততটুকু বাড়তি প্যাডিং এই বোতাম-বারে যোগ হলো, যাতে
+           বোতাম কখনো তার নিচে ঢাকা না পড়ে। বাকি সব পর্দায় (যেখানে এমনিতেই
+           ফাঁকা জায়গা ছিল) এতে দৃশ্যত কিছু বদলাবে না। */
+        try {
+            val actionBar = findViewById<android.view.View>(R.id.actionButtonBar)
+            val basePadBottom = actionBar.paddingBottom
+            ViewCompat.setOnApplyWindowInsetsListener(actionBar) { view, insets ->
+                val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, basePadBottom + bars.bottom)
+                insets
+            }
+        } catch (_: Throwable) { }
 
         // TK-REQUESTED (2026-07-25): a screen that already built its own
         // PDF (Chamber Register) hands it off here directly -- same Save/
