@@ -27179,3 +27179,11 @@ TK: "Print Share Save Close এই বোতামগুলো তো দেখ�
 পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। ভার্সন বাড়ানো হয়নি (নিয়ম ৩খ)। কমিট+পুশ হয়ে গেছে।
 
 ⚠️ **সৎ কথা:** এটা কোডের যুক্তি দিয়ে বোঝা কারণ — TK-র আসল ফোনে সরাসরি চোখে দেখে যাচাই করা যায়নি। TK পরের বার Report Card খুলে বোতাম দেখা যাচ্ছে কিনা নিশ্চিত করে জানালে ভালো হয়।
+
+## ১৫.০৯.২০২৬ সকাল ০৬.০২ — ফাইল পাঠানো: PILES_CLINIC_APP_V1496_FINAL.zip
+
+TK "ফাইল পাঠান" বললেন। V1488-এর পর থেকে জমে থাকা সব কাজ (V1489-V1495 — Take Action ⋮-মেনু ডুপ্লিকেট, Mark Arrived ডুপ্লিকেট বন্ধ, Report Card বারকোড-লাইন, Timeline বোতাম কম্প্যাক্ট, Estimate-এর বারবার-একই-কথা বন্ধ, Checkup ৭-ধাপ নম্বরিং, Report Card বোতাম-কাটা ফিক্স) একসাথে প্যাক করা হলো।
+
+ভার্সন এই মুহূর্তেই বাড়ানো হলো ১৪৮৮→১৪৯৬ (build.gradle.kts + version.json দুটোতেই একসাথে, নিয়ম ৩খ অনুযায়ী শুধু এখনই)। `tk_guard.py --release` চালিয়ে নাম বাঁধা হলো, সব ১৯১৩টা git-এ-জমা ফাইল প্যাক করে ZIP বানানো হলো (২৬.২২ MB), `verify_zip_root_name.py` ও `verify_zip_contents.py` দুটোই PASS। হিসাব `pathano_filer_talika.json`-এ লেখা হয়েছে।
+
+পাহারা: verify_android_resources · tk_guard · verify_kotlin_compile (নতুন ভুল ০) — এই সেশনেই আগে সবকটা PASS হয়েছে, ভার্সন-বদলের পর নতুন কোনো কোড ছোঁয়া হয়নি তাই আবার চালানো লাগেনি।
