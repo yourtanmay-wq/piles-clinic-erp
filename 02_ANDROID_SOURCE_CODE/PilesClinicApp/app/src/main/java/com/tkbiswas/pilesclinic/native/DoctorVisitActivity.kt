@@ -4744,10 +4744,24 @@ class DoctorVisitActivity : AppCompatActivity() {
                 val bg = if (idx % 2 == 0) "#FFFFFF" else "#F7FBF8"
                 // 🟢🔒 V661 — recorded_at থেকে সময়টুকু বার করা (আগে থেকেই
                 // ছিল, শুধু sort-এর জন্য ব্যবহার হতো, এখন দেখানোও হয়)।
+                /* 🕒🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — "টাইম ভুল
+                   দেখাচ্ছে") — recorded_at আসলে সার্ভারের timestamptz (UTC),
+                   কিন্তু আগের কোড টাইমজোন না ধরেই সরাসরি সংখ্যাগুলো পড়ে
+                   নিচ্ছিল — তাই সবসময় প্রায় সাড়ে ৫ ঘণ্টা আগের (ভুল) সময়
+                   দেখাত। এখন RmpCommissionSheetActivity.kt-এর প্রমাণিত
+                   timeIst()-এর হুবহু একই নিয়ম — UTC অফসেট ধরে পার্স করে,
+                   তারপর Asia/Kolkata-তে দেখায়। তারিখ (paidOn) আলাদা ঘর
+                   থেকে আসে, তাই এতে ছোঁয়া হয়নি — শুধু সময়টাই ঠিক হলো। */
                 val timeTxt = try {
-                    val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-                        .parse(r.recordedAt.take(19))
-                    java.text.SimpleDateFormat("h.mm a", java.util.Locale.US).format(d!!)
+                    val raw = r.recordedAt.trim()
+                    val m = Regex("^(\\d{4}-\\d{2}-\\d{2})[T ](\\d{2}:\\d{2}:\\d{2})(?:\\.\\d+)?(Z|[+-]\\d{2}:?\\d{2})?$").find(raw)
+                    if (m == null) "—" else {
+                        val f = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ", java.util.Locale.US)
+                        val off = m.groupValues[3].let { if (it.isBlank() || it == "Z") "+0000" else it.replace(":", "") }
+                        val d = f.parse(m.groupValues[1] + " " + m.groupValues[2] + off)
+                        val out = java.text.SimpleDateFormat("h.mm a", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata") }
+                        if (d == null) "—" else out.format(d)
+                    }
                 } catch (_: Throwable) { "—" }
                 val row = LinearLayout(this@DoctorVisitActivity).apply {
                     orientation = LinearLayout.HORIZONTAL
