@@ -2,7 +2,6 @@ package com.tkbiswas.pilesclinic.native
 
 import android.app.Activity
 import android.app.Application
-import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -290,25 +289,28 @@ object NoAutofill {
      *    নিজের কাজ যাচাই করতে গিয়ে ধরা পড়েছে (২৭.০৮.২০২৬)।
      * ⛔ কখনো ব্যতিক্রম ছোড়ে না; Android 8-এর আগে কিছুই করে না।
      */
+    /* 🔴🔒 V1505 (১৫.০৯.২০২৬, TK-নির্দেশ, স্টাফ-রিপোর্ট — "অন্য অ্যাপে ভয়েস
+       কাজ করে, এই অ্যাপে করে না") — যাচাই করে ধরা পড়ল: `IME_FLAG_NO_
+       PERSONALIZED_LEARNING` পতাকাটাই Gboard-এর ভয়েস-টাইপিং বন্ধ করে
+       দিচ্ছিল, আর এই পতাকা এই অ্যাপের **প্রতিটা** লেখার ঘরে বসানো হতো
+       (V774)। TK-র নির্দেশ: "ভয়েস ফিরিয়ে দিন, পুরনো সাজেশনের ঝুঁকি
+       নেব না একদম — সঠিকভাবে করতে পারলে করুন, নাহলে বাদ দিন।"
+
+       ⇒ এই পতাকাটা এখান (`harden()`, সাধারণ সব ঘরে প্রযোজ্য) থেকে সরানো
+       হলো, তাই সাধারণ ঘরে (নাম/মন্তব্য/সার্চ) ভয়েস আবার কাজ করবে।
+       ⛔ **আসল ঝুঁকিটা (V758-এর ফোন-নম্বর সাজেশন) এখনো ঠিক আগের মতোই
+       বন্ধ থাকছে**, কারণ:
+       ① মোবাইল নম্বরের ঘরে (`MobileInput.attach()`) এই পতাকা **আলাদাভাবে,
+          অক্ষত** রাখা হয়েছে — ফোন-নম্বরের কীবোর্ডে এমনিতেই ভয়েস বোতাম
+          থাকে না, তাই ওখানে হারানোর কিছু নেই।
+       ② Android-এর নিজস্ব Autofill Framework-এর (যেটাই আসল "সাজেশন-বার"
+          দেখাত) বাকি চারটে স্তর (`importantForAutofill` · `disable
+          AutofillServices()` · ফোকাস-বদলে `cancel()` · প্রতি-উইন্ডো জাল
+          `netForEveryWindow`) এক অক্ষরও বদলানো হয়নি — সব ঘরেই আগের মতোই
+          সক্রিয়।
+       ⛔ যা বদলায়নি: টাইপ করা, সেভ, `inputType`, বাংলা/হিন্দি লেখা। */
     fun harden(et: android.widget.EditText) {
         try {
-            // ⛔ V774 — যে ঘরে পতাকা **আগেই** বসে গেছে সেটা আর ছোঁয়া হয় না।
-            //    layout-এর পরে বারবার ডাকা হয় বলে এই ছাঁকনিটা জরুরি — নইলে
-            //    অকারণে কাজ হত, আর টাইপ করার সময় কীবোর্ড রিফ্রেশ হতে পারত।
-            if ((et.imeOptions and IME_FLAG_NO_PERSONALIZED_LEARNING) == 0) {
-                et.imeOptions = et.imeOptions or IME_FLAG_NO_PERSONALIZED_LEARNING
-                /* ⌨️ V774 — ঘরটা যদি **এই মুহূর্তে খোলা** থাকে, কীবোর্ড পুরনো
-                   নিয়ম ধরে বসে আছে; তাই একবার নতুন করে জানানো হয়। এটা ঘরে
-                   একবারই ঘটে (উপরের ছাঁকনির জন্য), তাই বাংলা/হিন্দি টাইপ করার
-                   মাঝপথে বারবার ব্যাঘাত ঘটার ভয় নেই। */
-                if (et.hasFocus()) {
-                    try {
-                        val imm = et.context?.getSystemService(Context.INPUT_METHOD_SERVICE)
-                            as? android.view.inputmethod.InputMethodManager
-                        imm?.restartInput(et)
-                    } catch (_: Throwable) {}
-                }
-            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 et.importantForAutofill != View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS) {
                 et.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
@@ -316,9 +318,6 @@ object NoAutofill {
             }
         } catch (_: Throwable) {}
     }
-
-    /** `android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING` */
-    private const val IME_FLAG_NO_PERSONALIZED_LEARNING = 0x1000000
 
     /**
      * 🪟 V752 — **পপ-আপের নিজের আলাদা উইন্ডো থাকে**, তাই পর্দার পাহারা

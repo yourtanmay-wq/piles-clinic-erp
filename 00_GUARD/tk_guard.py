@@ -1461,8 +1461,16 @@ def check_dialog_suggestion_guard():
         if "keepScrubbing(" not in s_na or "addOnGlobalLayoutListener" not in s_na:
             fail("৯.৩০", "NoAutofill-এ layout-এর পরে বারবার মেলানো (`keepScrubbing`) নেই ⇒ "
                          "পরে তৈরি হওয়া ঘরে পতাকা বসবে না — এটাই ছিল আসল ফাঁক (V774)")
-        if "restartInput" not in s_na:
-            fail("৯.৩০", "NoAutofill-এ `restartInput` নেই ⇒ খোলা ঘরে নতুন নিয়ম পৌঁছাবে না")
+        # 🟢 V1505 (১৫.০৯.২০২৬, TK-নির্দেশ, স্টাফ-রিপোর্ট) — এই `restartInput`
+        # চেকটা ছিল শুধু `IME_FLAG_NO_PERSONALIZED_LEARNING`-এর জন্য (খোলা
+        # ঘরে পতাকা বসলে কীবোর্ডকে নতুন করে জানানো লাগত)। TK-নির্দেশে এই
+        # পতাকাটাই `harden()` থেকে সরানো হয়েছে (এটাই Gboard-এর ভয়েস-টাইপিং
+        # বন্ধ করে দিচ্ছিল — "অন্য অ্যাপে ভয়েস কাজ করে, এখানে করে না")।
+        # ⛔ আসল সুরক্ষা (Android Autofill Framework — `importantForAutofill`
+        # · `scrubAnyDialog` · `keepScrubbing` · প্রতি-উইন্ডো জাল) সব অক্ষত;
+        # `importantForAutofill` বদলাতে `restartInput` লাগে না। মোবাইল-নম্বরের
+        # ঘরে (`MobileInput.attach()`) পতাকাটা আলাদাভাবে এখনো বসানো আছে —
+        # ওখানে ভয়েস বোতামই থাকে না বলে হারানোর কিছু নেই।
     bad = []
     for f in kt_files():
         lines = read(f).split("\n")
