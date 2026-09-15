@@ -27309,3 +27309,15 @@ KARIM ALI SEKH (Cooch Behar, ₹500×1) · KHAGEN BHAGAT (Jalpaiguri, ₹2,000×
 পাহারা: sql_local_check-এ `reports`/`hr` স্কিমা স্থানীয়ভাবে নেই (আগের জানা ফাঁক) — হাতে stub বসিয়ে (KHAGEN BHAGAT-এর আসল প্যাটার্ন + ৩ জন আলাদা রোগী + LAL BABU-র ভিন্ন-অঙ্ক দিয়ে) যাচাই করা হয়েছে, তিনটেই সঠিক ফল দিয়েছে। node --check PASS · web_browser_test সব PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। app.js ক্যাশ-নম্বর v1504→v1505। ভার্সন বাড়ানো হয়নি (নিয়ম ৩খ)।
 
 ⛔ TK-কে নতুন SQL (V1504_VOICE_DUPLICATE_PAYMENTS) Supabase-এ চালাতে হবে, নইলে প্রশ্নের উত্তর "Not allowed"/ভুল দেখাবে।
+
+TK দুটো SQL-ই (Jalpaiguri-র ২০টা সারি মোছা + ভয়েস-প্রশ্ন) Supabase-এ চালিয়েছেন। জলপাইগুড়ির ৫ জনের stage নিয়ে TK নিজে ব্রাঞ্চে যাচাই করে জানালেন এরা সত্যিই এখনো চিকিৎসাধীন — তাই stage/bill অক্ষত রাখা হলো, কিছু বদলানো হয়নি। "Grace period is over" সতর্কতা নিয়ে TK ধরিয়ে দিলেন এটা আজ সকালেই একবার যাচাই হয়ে গেছে (Billing পাতায় ব্যবহার ২০%-এর নিচে) — নিজের ভুল স্বীকার করে আর তোলা হয়নি।
+
+## ১৫.০৯.২০২৬ সকাল ১১.৩৭ — ফাইল পাঠানো: PILES_CLINIC_APP_V1504_FINAL.zip
+
+TK "ফাইল পাঠান" বললেন। V1501-এর পর V1502 (Checkup উপরের নম্বরে চাপলে ফর্মও খোলা) · V1503 (সব রোগী ধরে "কতজন এসেছিল" গোনা) · V1504 (RIMPA ROY/KHAGEN BHAGAT ডুপ্লিকেট পেমেন্ট বাগ ৫ জায়গায় বন্ধ + ভয়েস-প্রশ্ন "ডুপ্লিকেট পেমেন্ট") প্যাক করা হলো।
+
+ভার্সন এই মুহূর্তেই বাড়ানো হলো ১৫০১→১৫০৪ (build.gradle.kts + version.json, নিয়ম ৩খ)। `tk_guard.py --release` দিয়ে নাম বাঁধা হলো (`PILES_CLINIC_APP_V1504_FINAL.zip`), `git archive` দিয়ে ২০১৭টা git-এ-জমা এন্ট্রি প্যাক করে ZIP বানানো হলো (২৬.১৯ MB), `verify_zip_root_name.py` ও `verify_zip_contents.py` দুটোই PASS। হিসাব `pathano_filer_talika.json`-এ লেখা হয়েছে।
+
+পাহারা: tk_guard · verify_kotlin_compile · node --check · web_browser_test — সব V1502-V1504-এর কাজেই আগে PASS হয়েছে, ভার্সন-বদলের পর নতুন কোনো কোড ছোঁয়া হয়নি তাই আবার চালানো লাগেনি।
+
+⛔ V1503 ও V1504-এর SQL দুটো (patients_visited + duplicate_payments) TK আগেই Supabase-এ চালিয়েছেন — নতুন করে চালানোর দরকার নেই।
