@@ -27400,3 +27400,7 @@ TK-র নিয়ম: History/Clinical/Estimate/Photo জীবনে এক�
 ---
 **১৫.০৯.২০২৬ ১৫:০৫ — V1505 ZIP পাঠানোর জন্য ভার্সন বাড়ানো হলো (TK-র "ফাইল পাঠাও" অনুরোধে):**
 এই সেশনের সব কাজ (RMP ডুপ্লিকেট-সার্চ ফিক্স, কমিশন-লেখা স্পষ্ট করা, RMP ড্রপডাউন ডিজাইন, CHECK-UP Queue-তে New/Old ছাঁকা ফোন+ওয়েব, Checkup ফর্মের SAVED-বাক্স স্মার্ট করা) ধরে ভার্সন ১৫০৪ → ১৫০৫ (build.gradle.kts + version.json)।
+
+---
+**১৫.০৯.২০২৬ ১৫:১২ — PILES_CLINIC_APP_V1505_FINAL.zip পাঠানো হলো (TK-র "ফাইল পাঠাও" অনুরোধে):**
+২৬.২ MB · ১৯২২টা ফাইল। ভার্সন ১৫০৪→১৫০৫। এই সেশনের সব কাজ একসাথে: RMP ডুপ্লিকেট-সার্চ ফিক্স, কমিশন-লেখা স্পষ্ট, RMP ড্রপডাউন ডিজাইন, CHECK-UP Queue New/Old ছাঁকা (ফোন+ওয়েব), Checkup ফর্মের SAVED-বাক্স স্মার্ট করা। পাহারা সব PASS (verify_android_resources · tk_guard · verify_kotlin_compile · verify_zip_root_name · verify_zip_contents)। হিসাব `00_GUARD/pathano_filer_talika.json`-এ লেখা হলো (নিয়ম ৩ক)।
