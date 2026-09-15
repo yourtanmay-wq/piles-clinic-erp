@@ -281,6 +281,24 @@ object FieldVisit {
      * নতুন একটা অবস্থান এলে — দূরত্ব জমা করা।
      * ⛔ অনিশ্চিত · খুব ছোট · লাফিয়ে-যাওয়া মাপ গোনায় ঢোকে না।
      */
+    /* 🚨🔒 V1497 (১৫.০৯.২০২৬, TK-রিপোর্ট — JPE-CRP সারাদিন এক চেম্বারেই বসে,
+       অথচ অ্যাপ "Distance 47.4 km" দেখাচ্ছিল) — **এটা আমারই কালকের V1471-এর
+       ভুল।** V1471-এ নির্ভুলতার সীমা ৬০→১৫০ মিটার আর এক-লাফের সীমা ৩০০০→৮০০০
+       মিটার ঢিলা করা হয়েছিল যাতে RUPAM-এর মতো বাইক-স্টাফের আসল চলাচল বাদ না
+       পড়ে — কিন্তু এই ঢিলা সীমা **সব স্টাফের** (এমনকি যারা কখনো বাইরে যানই
+       না তাদেরও) GPS-এ প্রয়োগ হচ্ছিল। ঘরের ভিতরের স্বাভাবিক GPS কাঁপুনি
+       (multipath) এখন "নির্ভুল" (≤১৫০মি) ধরা পড়ে যাচ্ছিল, আর প্রতিটা ছোট
+       কাঁপুনি-লাফ (২০মি–৮কিমি) যোগ হয়ে ঘণ্টার পর ঘণ্টায় বড় মিথ্যা সংখ্যা
+       তৈরি করছিল — একজন স্টাফকে অন্যায় সন্দেহে ফেলার মতো গুরুতর ঝুঁকি।
+       **সমাধান:** কিলোমিটার শুধু তখনই জমা হবে যখন আজকের জন্য সত্যিই "Field
+       Visit" বাছা হয়েছে (`chosenMode == MODE_FIELD`) — এটা শুধু ২ জন
+       নির্দিষ্ট বাইক-স্টাফের (RUPAM/ARMAN) পর্দাতেই বাছার সুযোগ আছে, আর
+       ডিফল্ট সবসময় "At Chamber"। বাকি সবার (JPE-CRP-সহ) জন্য chosenMode
+       কখনো MODE_FIELD হয়ই না, তাই কিলোমিটার এখন থেকে চিরকাল ০.০ — সঠিক,
+       কারণ তাদের বাইরে ঘোরার কথাই নয়। ⛔ "Last seen" অবস্থান (Master-এর
+       পর্দায় কোথায় আছেন দেখার জন্য) আগের মতোই কাজ করবে — শুধু কিলোমিটার
+       জমা হওয়া বন্ধ হলো। RUPAM/ARMAN নিজে "Field Visit" বাছলে তাঁদের
+       বেলায় কিছুই বদলায়নি (V1471-এর ঢিলা সীমাই এখনো প্রযোজ্য)। */
     fun onLocation(context: Context, loc: Location) {
         try {
             if (!isRunning(context)) return
@@ -289,9 +307,10 @@ object FieldVisit {
             if (isMock(loc)) return
             val p = prefs(context)
             val e = p.edit()
+            val fieldToday = chosenMode(context) == MODE_FIELD   // V1497
             if (acc <= MAX_ACCURACY_M) {
                 // নির্ভুল অবস্থান — কিলোমিটার এখান থেকেই (আগের হুবহু নিয়ম, নোঙর শুধু নির্ভুল বিন্দু)
-                if (p.getBoolean("has_acc_fix", false)) {
+                if (fieldToday && p.getBoolean("has_acc_fix", false)) {
                     val prev = Location("prev").apply {
                         latitude = java.lang.Double.longBitsToDouble(p.getLong("acc_lat", 0L))
                         longitude = java.lang.Double.longBitsToDouble(p.getLong("acc_lng", 0L))
@@ -307,7 +326,7 @@ object FieldVisit {
                 e.putLong("acc_lat", java.lang.Double.doubleToRawLongBits(loc.latitude))
                     .putLong("acc_lng", java.lang.Double.doubleToRawLongBits(loc.longitude))
                     .putBoolean("has_acc_fix", true)
-                addRoutePoint(context, loc.latitude, loc.longitude)   // V1452
+                if (fieldToday) addRoutePoint(context, loc.latitude, loc.longitude)   // V1452 · V1497 শুধু আসল Field Visit-দিনেই রুট জমে
             } else if (p.getBoolean("has_acc_fix", false) && p.getInt("last_acc", 0) <= MAX_ACCURACY_M.toInt()
                 && System.currentTimeMillis() - lastSeenAt(context) < 15 * 60_000L) {
                 // V1431 — ১৫ মিনিটের মধ্যে নির্ভুল অবস্থান থাকলে সেটাই থাক; আনুমানিকটা তার উপরে লিখব না
