@@ -31,15 +31,23 @@ object PaymentDayGuard {
      * @param onProceed স্টাফ "Add to today's payment" বললে existing daily payment-এ
      * new money যোগ করার একই save path চলবে।
      */
+    /* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট — RIMPA ROY-র ₹2,000 দুবার, ছবিসহ) —
+       নতুন ঐচ্ছিক `onCancel` (ডিফল্ট কিছুই করে না, তাই পুরনো কোনো ডাক এক
+       অক্ষরও বদলায় না)। কল-করা পর্দাগুলো এখন "No, cancel"-এও Save-বোতামের
+       তালা খুলে দিতে পারে — নইলে জিজ্ঞাসা করার মুহূর্তে (যেটা ক্লাউড-যাচাই
+       শেষে আসে) বোতাম আটকে থাকত না, তাই ধীর নেটে বারবার চাপলে একাধিক
+       প্রশ্ন একসাথে চলত আর প্রতিটায় "হ্যাঁ" চাপলে সত্যিকারের বাড়তি টাকা
+       জমা হয়ে যেত। বিস্তারিত কারণ `confirmBeforeSave`-এর মন্তব্যে। */
     fun confirmIfAlreadyPaidToday(
         activity: Activity,
         alreadyPaid: Double,
         patientName: String,
         todayLabel: String,
-        onProceed: () -> Unit
+        onProceed: () -> Unit,
+        onCancel: () -> Unit = {}
     ) {
         if (alreadyPaid <= 0.0) { onProceed(); return }
-        if (activity.isFinishing || activity.isDestroyed) return
+        if (activity.isFinishing || activity.isDestroyed) { onCancel(); return }
         val who = patientName.ifBlank { "this patient" }
         // অ্যাপের সব জায়গার মতোই একই ধাঁচ — `₹10,000`।
         val amt = "₹" + "%,.0f".format(alreadyPaid)
@@ -55,7 +63,7 @@ object PaymentDayGuard {
             .setCustomTitle(PremiumAlert.header(activity, "Already paid today"))
             .setMessage(msg)
             .setPositiveButton("Add to today's payment") { _, _ -> onProceed() }
-            .setNegativeButton("No, cancel", null)
+            .setNegativeButton("No, cancel") { _, _ -> onCancel() }
             .setCancelable(false)
             .show().also { PremiumAlert.paint(it) }
     }
@@ -92,20 +100,24 @@ object PaymentDayGuard {
            ⛔ ব্যাকডেট হলে এখন **ওই দিনের** সারি দেখে প্রশ্ন করা হয় —
               আগে ব্যাকডেটে কোনো প্রশ্নই আসত না। */
         forDate: String = "",
-        onProceed: () -> Unit
+        onProceed: () -> Unit,
+        /* 🔴🔒 V1504 — ডিফল্ট কিছুই করে না (পুরনো ডাক অটুট)। ক্লাউড-যাচাই
+           (Thread) চলাকালীন Save-বোতাম আটকে রাখার জন্য কল-করা পর্দা এই
+           তালা এখানে-ওখানে (onProceed শেষে ও onCancel-এ) খুলে দেয়। */
+        onCancel: () -> Unit = {}
     ) {
         if (skipCloudCheck || amount <= 0.0) {
-            confirmIfAlreadyPaidToday(activity, alreadyPaid, patient.name, todayLabel, onProceed); return
+            confirmIfAlreadyPaidToday(activity, alreadyPaid, patient.name, todayLabel, onProceed, onCancel); return
         }
         Thread {
             val dup = try { repo.todaysPaymentLike(patient, amount, mode, forDate) } catch (_: Throwable) { null }
             activity.runOnUiThread {
-                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                if (activity.isFinishing || activity.isDestroyed) { onCancel(); return@runOnUiThread }
                 if (dup == null) {
-                    confirmIfAlreadyPaidToday(activity, alreadyPaid, patient.name, todayLabel, onProceed)
+                    confirmIfAlreadyPaidToday(activity, alreadyPaid, patient.name, todayLabel, onProceed, onCancel)
                     return@runOnUiThread
                 }
-                askSameAmount(activity, patient.name, amount, dup, onProceed, forDate)
+                askSameAmount(activity, patient.name, amount, dup, onProceed, forDate, onCancel)
             }
         }.start()
     }
@@ -117,9 +129,10 @@ object PaymentDayGuard {
         activity: Activity, patientName: String, amount: Double,
         dup: org.json.JSONObject, onProceed: () -> Unit,
         /* 🔴 V1272 — কোন দিনের টাকা। ফাঁকা/আজ হলে লেখা হুবহু আগের মতোই "TODAY"। */
-        forDate: String = ""
+        forDate: String = "",
+        onCancel: () -> Unit = {}   // 🔴🔒 V1504 — ডিফল্ট কিছুই করে না
     ) {
-        if (activity.isFinishing || activity.isDestroyed) return
+        if (activity.isFinishing || activity.isDestroyed) { onCancel(); return }
         val who = patientName.ifBlank { "this patient" }
         val amt = "₹" + "%,.0f".format(amount)
         val day = DateUtil.iso(forDate).take(10)
@@ -141,7 +154,7 @@ object PaymentDayGuard {
                 "Is this a SECOND, different payment?"
             )
             .setPositiveButton("Yes, take it again") { _, _ -> onProceed() }
-            .setNegativeButton("No, cancel", null)
+            .setNegativeButton("No, cancel") { _, _ -> onCancel() }
             .setCancelable(false)
             .show().also { PremiumAlert.paint(it) }
     }

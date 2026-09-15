@@ -262,6 +262,15 @@ class ChamberAttendanceActivity : AppCompatActivity() {
     private var closeTapCount = 0
     private var closeTapAt = 0L
 
+    /* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট — RIMPA ROY-র ₹2,000 দুবার, ছবিসহ) —
+       Payment/Follow-up-এর মতো এখানেও একই ধরনের ফাঁক: `confirmedTakePayment`-এর
+       ক্লাউড-যাচাই + "আজ ইতিমধ্যে..." প্রশ্নের পুরো সময়টায় স্টাফ যদি Cash/Online
+       ঘর আবার খুলে গোটা পথটা নতুন করে শুরু করেন (ধীর নেটে বোঝা যায় না কিছু
+       হচ্ছে), দুটো সমান্তরাল পথই "Yes" পেলে সত্যিকারের বাড়তি টাকা জমা হতে
+       পারত। ⛔ day-guard-এর নিজের "Yes"-এ ফিরে-আসা কলটা (skipDayGuard=true)
+       এই তালা ছোঁয় না — সেটা একই লক-করা সেশনেরই অংশ। */
+    private var chamberPaySaving = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // ULTIMATE CRASH-SAFETY FIX (TK-reported via video, 2026-07-16): the
@@ -2219,6 +2228,12 @@ class ChamberAttendanceActivity : AppCompatActivity() {
     // হয়, যখন স্টাফ সতর্কবার্তা দেখে নিজে "Yes, add it" বলেছেন। বাকি সব পুরনো
     // ডাক আগের মতোই (ডিফল্ট `false`), তাই কোনো কিছু বদলায়নি।
     private fun confirmedTakePayment(row: ChamberAttendanceRow, mode: String, digits: String, value: Double, enteredBill: Double = 0.0, pickedDate: String = PaymentModel.today(), skipDayGuard: Boolean = false) {
+        // 🔴🔒 V1504 — ফ্রেশ এন্ট্রিতেই তালা (day-guard-এর নিজের "Yes" কল
+        // skipDayGuard=true দিয়ে আসে, ওটা তালা ছোঁয় না — একই সেশনের অংশ)।
+        if (!skipDayGuard) {
+            if (chamberPaySaving) return
+            chamberPaySaving = true
+        }
         val isBackdated = pickedDate != PaymentModel.today()
         // 🚨 TK-এর নিয়ম (28.07.2026, খাতার সারি B30): নেট যাচাই না হলে নতুন রোগী
         // তৈরি হবে না — তখন এই চিহ্নটা ওঠে আর স্টাফকে স্পষ্ট ওয়ার্নিং দেখানো হয়।
@@ -2322,10 +2337,14 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 }
                 // 🔴 V1106 — হুবহু একই অঙ্ক পাওয়া গেলে সেই স্পষ্ট প্রশ্নটাই,
                 //    নইলে আগের B52 প্রশ্ন — লেখা ও আচরণ বাকি তিন পথের হুবহু এক।
+                // 🔴🔒 V1504 — "No, cancel"-এ তালা খুলে যায়, নইলে স্টাফ আর
+                // কখনো এই রোগীর টাকা নিতেই পারতেন না।
                 if (__dup != null) PaymentDayGuard.askSameAmount(
-                    this@ChamberAttendanceActivity, dayGuardName, value, __dup, __again, pickedDate   // 🔴 V1272
+                    this@ChamberAttendanceActivity, dayGuardName, value, __dup, __again, pickedDate,   // 🔴 V1272
+                    onCancel = { chamberPaySaving = false }
                 ) else PaymentDayGuard.confirmIfAlreadyPaidToday(
-                    this@ChamberAttendanceActivity, dayGuardAmount, dayGuardName, dayGuardLabel, __again
+                    this@ChamberAttendanceActivity, dayGuardAmount, dayGuardName, dayGuardLabel, __again,
+                    onCancel = { chamberPaySaving = false }
                 )
                 return@launch
             }
@@ -2369,6 +2388,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     )
                 }
             }
+            chamberPaySaving = false   // 🔴🔒 V1504 — কাজ (সফল/ব্যর্থ যাই হোক) সত্যিই শেষ
         }
     }
 

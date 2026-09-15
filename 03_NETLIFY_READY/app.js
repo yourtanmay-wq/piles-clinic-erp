@@ -8732,7 +8732,13 @@ window["wlv1FuBloodTest"]=wlv1FuBloodTest;
 /* 🔴 V1106 — সেভের আগে ক্লাউড-যাচাইয়ের প্রশ্নটা করতে হয় বলে এই ফাংশনটা
    এখন `async`. ⛔ এটা শুধু onclick থেকেই ডাকা হয় (ফেরত মান কেউ ব্যবহার করে না),
    তাই আর কিছুই বদলায় না — যাচাই করে দেখা হয়েছে। */
-async function saveVisitAdvancePayment(fid,pid){let ps=arr('patients'),i=ps.findIndex(p=>p.id===pid); if(i<0)return toast('Patient link missing'); let p=ps[i],bill=Number($id('visitBill')?.value||p.bill||0),amt=Number($id('visitAdvAmt')?.value||0); if(!wlv1CanTakeMoney(p))return toast(wlv1MoneyBlockMsg(p));
+/* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট — RIMPA ROY-র ₹2,000 দুবার) — saveTreatmentPayment-এর
+   হুবহু একই তালা এখানেও, একই কারণে (ক্লাউড-যাচাইয়ের সময় SAVE আবার চাপা যেত)। */
+var wlv1VisitAdvSaving=false;
+async function saveVisitAdvancePayment(fid,pid){
+ if(wlv1VisitAdvSaving)return; wlv1VisitAdvSaving=true;
+ try{
+ let ps=arr('patients'),i=ps.findIndex(p=>p.id===pid); if(i<0)return toast('Patient link missing'); let p=ps[i],bill=Number($id('visitBill')?.value||p.bill||0),amt=Number($id('visitAdvAmt')?.value||0); if(!wlv1CanTakeMoney(p))return toast(wlv1MoneyBlockMsg(p));
  // 🆕 TK-নির্দেশ (04.08.2026, RABINDRA CHANDRA NAHA-র বিলের একই সমস্যা এখানেও
  // থাকতে পারে বলে TK-কে জানানো হয়েছিল, TK নিজে "ঠিক করুন" বলেছেন): এটা
  // Visit-stage রোগীর **প্রথম** এডভান্সের পথ — কিন্তু স্টাফ যদি এই মুহূর্তে
@@ -8775,7 +8781,9 @@ let __closedFu=__oldFu?{...__oldFu,status:'Closed',convertedPatientId:p.patientI
 let fs=arr('followups').map(f=>String(f.id)===String(fid)&&__closedFu?__closedFu:f); let tr={id:uid('fu'),refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:shownMob(p.mobile),name:p.name,branch:p.branch,disease:p.disease||'',address:p.address||'',stage:'Treatment',status:'Active',date:p.visitDate||p.registrationDate||p.date||todaySafe(),visitDate:p.visitDate||p.registrationDate||p.date||todaySafe(),lastRemark:'Advance Payment received '+(typeof money==='function'?money(amt):amt),nextFollow:'',history:[{date:todaySafe(),time:isoNow(),remark:'Advance Payment received '+amt,staff:user?.mobile||'',status:'Advance Payment'}],createdBy:p.createdBy||'',updatedAt:isoNow()};fs.unshift(tr);put('followups',fs);try{directCloudUpsertRow('patients',p);if(storedPay)directCloudUpsertRow('payments',storedPay);directCloudUpsertRow('followups',tr);
   /* 🔴 V953 — পুরনো সারির "Closed" অবস্থাটাও **সঙ্গে সঙ্গে ক্লাউডে** যায়,
      নইলে আগের মতোই পরের সিঙ্কে ফিরে আসত। */
-  if(__closedFu)directCloudUpsertRow('followups',__closedFu);}catch(e){} toast(Number(bill||0)>0?'Advance saved & moved to Patient':'Advance saved — Total Bill not set yet, please add it later');/* অ্যাডভান্সের বার্তায় শুধু টাকা · মোড · তারিখ যায় — জমা/বাকি নয়, কারণ ওই হিসাব এখানে হাতে নেই; আন্দাজে ভুল অঙ্ক পাঠানো যাবে না। */try{wlv1AskSend(p.branch,p.name,p.mobile,p.patientId,'adv',{amount:Number(amt||0),mode:(mode||'CASH'),date:wlv1Dot(today())})}catch(_e){}closeModal();setTimeout(()=>followup('Treatment'),120);}
+  if(__closedFu)directCloudUpsertRow('followups',__closedFu);}catch(e){} toast(Number(bill||0)>0?'Advance saved & moved to Patient':'Advance saved — Total Bill not set yet, please add it later');/* অ্যাডভান্সের বার্তায় শুধু টাকা · মোড · তারিখ যায় — জমা/বাকি নয়, কারণ ওই হিসাব এখানে হাতে নেই; আন্দাজে ভুল অঙ্ক পাঠানো যাবে না। */try{wlv1AskSend(p.branch,p.name,p.mobile,p.patientId,'adv',{amount:Number(amt||0),mode:(mode||'CASH'),date:wlv1Dot(today())})}catch(_e){}closeModal();setTimeout(()=>followup('Treatment'),120);
+ }finally{ wlv1VisitAdvSaving=false }
+}
 window.saveVisitAdvancePayment=saveVisitAdvancePayment;
 function draftAgeDays(x){let d=x.visitDate||x.registrationDate||x.date||'';if(!d)return 0;return Math.max(0,Math.floor((new Date(today())-new Date(d))/(24*60*60*1000)))}
 window["draftAgeDays"]=draftAgeDays;
@@ -16707,7 +16715,17 @@ function wlv1MoneyBlockMsg(p){
 }
 window["wlv1MoneyBlockMsg"]=wlv1MoneyBlockMsg;
 
+/* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট — RIMPA ROY-র ₹2,000 দুবার, ছবিসহ,
+   ফোনের PaymentActivity/FollowUpActivity/ChamberAttendanceActivity-এ একই
+   ধরনের ফাঁক সারানো হয়েছে) — SAVE বোতাম আগে `wlv1DayGuardOk2`-এর ক্লাউড-
+   যাচাইয়ের (নেটওয়ার্ক রাউন্ড-ট্রিপ, `confirm()` খোলার আগে) পুরো সময়টায়
+   আবার চাপা যেত, তাই ধীর নেটে দুবার চাপলে দুটো সমান্তরাল সেভ-চেষ্টা চলে
+   দুটোতেই "Yes" দিলে সত্যিকারের বাড়তি টাকা জমা হতে পারত। এখন ফাংশনে ঢোকার
+   মুহূর্তেই তালা, `finally`-তে সবসময় খোলে (সফল/ব্যর্থ/থেমে যাওয়া — সবেতেই)। */
+var wlv1PaySaving=false;
 async function saveTreatmentPayment(id){
+ if(wlv1PaySaving)return; wlv1PaySaving=true;
+ try{
  /* 🏷️🔒 V1014 (03.09.2026) — আগে এখানে `discount=0` বসত, তাই ছাড় দেওয়া রোগীর
     পরের পেমেন্ট সেভ করলেই ছাড়ের হিসাবটা **মুছে যেত**। এখন সারিতে যা আছে
     সেটাই থাকে — টাকার কোনো হিসাব বদলায় না, শুধু আর হারায় না। */
@@ -16791,6 +16809,7 @@ async function saveTreatmentPayment(id){
  /* 🔒 B565 (08.08.2026): PRINT বোতামে চাপলে — সেভ *নিশ্চিত* হওয়ার পরে তবেই রসিদ প্রিন্ট (অ্যান্ড্রয়েডের pendingReceiptMode-এর হুবহু আচরণ)। SHARE-এর WhatsApp আগের wlv1AskSend দিয়েই যায়। money-লজিক অপরিবর্তিত। */
  try{if(__treatPayReceipt==='print'){printPaymentReceipt(id);}}catch(_e){} __treatPayReceipt='none';
  try{patientPaymentHome()}catch(e){}
+ }finally{ wlv1PaySaving=false }
 }
 window["saveTreatmentPayment"]=saveTreatmentPayment;
 /* 🔒 ওয়েব Medicine Payment — অ্যান্ড্রয়েডের নতুন ডিজাইনে (একাধিক ওষুধ +

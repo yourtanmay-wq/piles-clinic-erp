@@ -3210,6 +3210,11 @@ class FollowUpActivity : AppCompatActivity() {
                     /* 🔴 V1106 (TK-নির্দেশ) — সেভ চাপার মুহূর্তে ক্লাউডেও
                        একবার দেখা হয়, তাই অন্য ফোনে নেওয়া একই অঙ্কের টাকাও
                        ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+                    /* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট — RIMPA ROY-র ₹2,000
+                       দুবার) — advSaving আগে শুধু "হ্যাঁ" চাপার পরে সেট হতো,
+                       তাই প্রশ্ন ওঠার মুহূর্তেই (ক্লাউড-যাচাই শেষে) বোতাম
+                       খোলা থাকত। এখন প্রশ্ন ওঠার আগেই তালা লাগে, "No, cancel"-এ খোলে। */
+                    advSaving = true
                     PaymentDayGuard.confirmBeforeSave(
                         this@FollowUpActivity,
                         pr,
@@ -3217,9 +3222,8 @@ class FollowUpActivity : AppCompatActivity() {
                         amount,
                         pr.paidOnDateFor(patientNow.id),
                         pr.nextLabelFor(patientNow.id),
-                        mode = mode   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই সতর্কবার্তা
-                    ) {
-                    advSaving = true
+                        mode = mode,   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই সতর্কবার্তা
+                        onProceed = {
                     lifecycleScope.launch {
                         val ok = try {
                             withContext(Dispatchers.IO) {
@@ -3244,7 +3248,9 @@ class FollowUpActivity : AppCompatActivity() {
                             )
                         }
                     }
-                    }   // 🔒 খাতার সারি B52: PaymentDayGuard-এর ব্লক শেষ
+                        },
+                        onCancel = { advSaving = false }
+                    )   // 🔒 খাতার সারি B52: PaymentDayGuard-এর ব্লক শেষ
                 }
             }
             dialog.show()
@@ -3481,6 +3487,9 @@ class FollowUpActivity : AppCompatActivity() {
                     /* 🔴 V1106 (TK-নির্দেশ) — সেভ চাপার মুহূর্তে ক্লাউডেও
                        একবার দেখা হয়, তাই অন্য ফোনে নেওয়া একই অঙ্কের টাকাও
                        ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+                    /* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট — RIMPA ROY-র ₹2,000
+                       দুবার) — প্রশ্ন ওঠার আগেই তালা, "No, cancel"-এ খোলে। */
+                    nthSaving = true
                     PaymentDayGuard.confirmBeforeSave(
                         this@FollowUpActivity,
                         pr,
@@ -3488,9 +3497,8 @@ class FollowUpActivity : AppCompatActivity() {
                         amount,
                         pr.paidOnDateFor(patientNow.id),
                         pr.nextLabelFor(patientNow.id),
-                        mode = mode   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই সতর্কবার্তা
-                    ) {
-                    nthSaving = true
+                        mode = mode,   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই সতর্কবার্তা
+                        onProceed = {
                     lifecycleScope.launch {
                         val ok = try {
                             withContext(Dispatchers.IO) {
@@ -3520,7 +3528,9 @@ class FollowUpActivity : AppCompatActivity() {
                             )
                         }
                     }
-                    }   // 🔒 খাতার সারি B52: PaymentDayGuard-এর ব্লক শেষ
+                        },
+                        onCancel = { nthSaving = false }
+                    )   // 🔒 খাতার সারি B52: PaymentDayGuard-এর ব্লক শেষ
                 }
             }
             dialog.show()

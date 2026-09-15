@@ -2847,13 +2847,19 @@ $dueRow
                         /* 🔴🔒 V1272 — Master-এর অনুমতি থাকা স্টাফও এই পথে
                            সরাসরি সেভ করেন, তাই এখানেও ওই তারিখের ডুপ্লিকেট
                            প্রশ্নটা লাগে — নইলে ফাঁকটা আধখানা বন্ধ হতো। */
+                        /* 🔴🔒 V1504 — ক্লাউড-যাচাই + প্রশ্নের পুরো সময়টায়
+                           বোতাম আটকে রাখতে এখানেই তালা লাগানো হলো (আগে
+                           doDirectSave-এর ভিতরে লাগত, যেটা অনেক দেরিতে)। */
+                        paySaving = true
                         PaymentDayGuard.confirmBeforeSave(
                             this@PaymentActivity, repository, patient, amtVal,
                             0.0, repository.nextLabelFor(patient.id, pickedActualDate),
-                            mode = selectedPayMode, forDate = pickedActualDate
-                        ) {
-                            doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = true, receiptMode = receiptMode)
-                        }
+                            mode = selectedPayMode, forDate = pickedActualDate,
+                            onProceed = {
+                                doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = true, receiptMode = receiptMode)
+                            },
+                            onCancel = { paySaving = false }
+                        )
                         return@launch
                     }
                     // Staff: never saves a real payment directly -- goes to
@@ -2886,6 +2892,12 @@ $dueRow
             /* 🔴 V1106 (TK-নির্দেশ) — এখন সেভ চাপার মুহূর্তে ক্লাউডকেও একবার
                জিজ্ঞাসা করা হয় (হুবহু এই অঙ্ক আজ আগে বসেছে কিনা), তাই অন্য ফোনে
                নেওয়া টাকাও ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+            /* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-রিপোর্ট — RIMPA ROY-র ₹2,000 দুবার) —
+               এই ক্লাউড-যাচাই + প্রশ্নের পুরো সময়টায় paySaving আগে false-ই
+               থাকত (doDirectSave-এ ঢোকার আগে), তাই ধীর নেটে বারবার Save
+               চাপলে একাধিক প্রশ্ন একসাথে চলে যেত। এখন প্রশ্ন ওঠার মুহূর্ত
+               থেকেই বোতাম আটকে থাকে — "No, cancel"-এ খুলে যায়। */
+            paySaving = true
             PaymentDayGuard.confirmBeforeSave(
                 this@PaymentActivity,
                 repository,
@@ -2899,10 +2911,12 @@ $dueRow
                    দুবার বসলেও প্রশ্ন আসত না। এখন **ওই তারিখের** সারি দেখে
                    প্রশ্ন হয়। ⛔ আটকায় না, শুধু জিজ্ঞাসা। */
                 mode = selectedPayMode,  // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই
-                forDate = if (isBackdated) pickedActualDate else ""
-            ) {
-                doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = false, receiptMode = receiptMode)
-            }
+                forDate = if (isBackdated) pickedActualDate else "",
+                onProceed = {
+                    doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = false, receiptMode = receiptMode)
+                },
+                onCancel = { paySaving = false }
+            )
         }
         dialog.show()
         try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
