@@ -993,6 +993,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // 🟢 V1119 — ধাপটা যদি নিচের "SAVED" বাক্সের ভিতরে থাকে, চিপে চাপলে
         // বাক্সটা নিজে থেকেই খুলে যায়; নইলে চিপ চেপে কিছুই দেখা যেত না।
         if (target != null) openSavedGroupIfHolding(target)
+        /* 🟢🔒 V1502 (১৫.০৯.২০২৬, TK-নির্দেশ) — TK: "উপরের যেকোনো সংখ্যায় চাপ
+           দিলে সেই ঘরের ফরমটা ওপেন হতে হবে তো"। V886-এ এটাই accordion-এর
+           নিজের মাথায় (নাম) চাপ দিলে হত ("হ্যাঁ, ধাপ ২ ও ৫-এর মতোই") — কিন্তু
+           উপরের নম্বর-বৃত্তে (showStep) শুধু স্ক্রল হত, ভাঁজ খুলত না। এখন
+           দুটোই একই আচরণ করে — নম্বরে চাপলে স্ক্রলের সাথে সাথে ভাঁজও খোলে,
+           বন্ধ থাকলে। ইতিমধ্যে খোলা থাকলে ছোঁয়া হয় না (কেউ লেখার মাঝপথে
+           পর্দা লাফাবে না)। */
+        if (target != null) sectionFoldKey(target.id)?.let { openFold(it) }
         if (target != null) scroll.post {
             scroll.smoothScrollTo(0, if (i == 0) 0 else yInScroll(target))   // 🟢 V1119
         }
@@ -2578,6 +2586,32 @@ class DoctorCheckupActivity : AppCompatActivity() {
             else -> return false
         }
         return findViewById<android.view.View>(bodyId)?.visibility != android.view.View.VISIBLE
+    }
+
+    /* 🟢🔒 V1502 — সেকশনের id থেকে তার `docFolds` চাবি (attachFold-এ যে নামে
+       জমা হয়েছিল)। `sectionClosed()`-এর ঠিক একই ৮টা সেকশন, শুধু body-id-র
+       বদলে চাবি-নাম ফেরত দেয়। */
+    private fun sectionFoldKey(sectionId: Int): String? = when (sectionId) {
+        R.id.secHistory -> "hist"
+        R.id.secClinical -> "clin"
+        R.id.secCounsel -> "couns"
+        R.id.secEstimate -> "estm"
+        R.id.secDocRemark -> "drem"
+        R.id.secTodayTreat -> "ttd"
+        R.id.secNextVisitPlan -> "nvp"
+        R.id.secPhoto -> "photo"
+        else -> null
+    }
+
+    /** এই ভাঁজটা প্রোগ্রাম থেকেই খুলে দেওয়া (ক্লিক না করেও) — বন্ধ থাকলে তবেই,
+     *  খোলা থাকলে কিছুই বদলায় না। `attachFold`-এর ক্লিক-হ্যান্ডলারের হুবহু
+     *  একই দুটো কাজ (body দেখানো + chevron ঘোরানো + SAVED-বাক্স ঠিক করা)। */
+    private fun openFold(key: String) {
+        val f = docFolds[key] ?: return
+        if (f.body.visibility == android.view.View.VISIBLE) return
+        f.body.visibility = android.view.View.VISIBLE
+        f.chev.text = "⌃"
+        f.body.post { refreshSavedGroup() }
     }
 
     private fun wireSavedGroup() {
