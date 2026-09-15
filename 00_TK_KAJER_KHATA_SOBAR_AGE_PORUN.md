@@ -27396,3 +27396,7 @@ TK-র নিয়ম: History/Clinical/Estimate/Photo জীবনে এক�
 ওয়েব যাচাই: ওয়েবের Checkup ফর্মে এই "SAVED বাক্সে নামা" গ্রুপিং ফিচারটাই নেই (সাধারণ accordion/details), তাই ওখানে বদলানোর কিছু নেই।
 
 পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile চলছে। ভার্সন বাড়ানো হয়নি (নিয়ম ৩খ)।
+
+---
+**১৫.০৯.২০২৬ ১৫:০৫ — V1505 ZIP পাঠানোর জন্য ভার্সন বাড়ানো হলো (TK-র "ফাইল পাঠাও" অনুরোধে):**
+এই সেশনের সব কাজ (RMP ডুপ্লিকেট-সার্চ ফিক্স, কমিশন-লেখা স্পষ্ট করা, RMP ড্রপডাউন ডিজাইন, CHECK-UP Queue-তে New/Old ছাঁকা ফোন+ওয়েব, Checkup ফর্মের SAVED-বাক্স স্মার্ট করা) ধরে ভার্সন ১৫০৪ → ১৫০৫ (build.gradle.kts + version.json)।
