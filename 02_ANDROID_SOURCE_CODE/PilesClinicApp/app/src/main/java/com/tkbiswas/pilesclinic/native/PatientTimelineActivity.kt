@@ -880,17 +880,14 @@ class PatientTimelineActivity : AppCompatActivity() {
                 intArrayOf(android.graphics.Color.parseColor("#0B2B59"), android.graphics.Color.parseColor("#16A36D"))
             ).apply { cornerRadii = floatArrayOf(dp(6).toFloat(), dp(6).toFloat(), dp(6).toFloat(), dp(6).toFloat(), 0f, 0f, 0f, 0f) }
         }
-        /* 📋🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ: *"পেশেন্ট কার্ড যা
-           ছিল তাই থাকবে, শুধুমাত্র অ্যাকশন বটনের মধ্যে চাপ দিলে সেখানে শুধু
-           পরিবর্তন"*) — Patient Card/হেডার একটুও ছোঁয়া হয়নি। এই "Take Action"
-           পপ-আপের নিজের টাইটেল-বারেই একটা ⋮ বসানো হলো — Edit Patient ·
-           Return Fees · Change Branch · Payment চারটে দ্রুত এখানেই।
-           ⛔ নিচের পুরো তালিকা (সব actionRow) অক্ষত, একটাও সরানো/বদলানো হয়নি —
-              ⋮-এর প্রতিটা আইটেম ঠিক সেই একই ফাংশনই ডাকে (কাজ দুই জায়গায় দুরকম
-              হওয়ার সুযোগ নেই)। ⋮-এর দৃশ্যমানতাও নিচের সারির শর্তের সঙ্গে হুবহু
-              মেলানো (master-only Change Branch, registered-only Return
-              Fees/Payment) — যাতে ভবিষ্যতে কোনো role/stage-এ ভুল আইটেম না
-              দেখায়। */
+        /* 📋🔒 V1322/V1323 (১১.০৯.২০২৬) → 🟢 V1489 (১৫.০৯.২০২৬, TK-সংশোধন) —
+           TK জানালেন তাঁর আসল নির্দেশ ছিল Edit Patient/Return Fees/Change
+           Branch/Payment এই চারটে **শুধু** ⋮-এর ভিতরেই থাকবে; V1322-এ ভুল
+           বোঝাবুঝি করে নিচের পুরো তালিকাতেও (duplicate) রেখে দেওয়া হয়েছিল
+           — একই কাজ দুই জায়গায় দেখাচ্ছিল, TK-র চোখে সেটাই দোষ। এখন এই চারটে
+           নিচের actionRow তালিকা থেকে তুলে নেওয়া হলো, শুধু ⋮-এই থাকবে। বাকি
+           সব আইটেম (Give Discount, Next Follow-up, Mark Arrived, Doctor
+           Checkup..., Referring Doctor, ইত্যাদি) আগের মতোই নিচে অক্ষত। */
         val titleRow = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
@@ -971,10 +968,10 @@ class PatientTimelineActivity : AppCompatActivity() {
             .setNegativeButton("Close", null)
             .create()
 
-        /* 📋🔒 V1322 — চারটে কাজ (Edit Patient/Enquiry · Return Fees ·
-           Change Branch · Payment) এখানে **একবারই** বাঁধা হলো, তারপর নিচের
-           actionRow তালিকা আর উপরের ⋮ কুইক-মেনু দুটোই এই একই lambda ডাকে।
-           ⛔ কোনো ভবিষ্যৎ বদলে দুই জায়গায় দুরকম আচরণ হওয়ার সুযোগ নেই। */
+        /* 📋🔒 V1322 → 🟢 V1489 — চারটে কাজ (Edit Patient/Enquiry · Return
+           Fees · Change Branch · Payment) এখানে **একবারই** বাঁধা হলো, ⋮
+           কুইক-মেনু এই lambda-গুলোই ডাকে। এখন নিচের তালিকায় এই চারটের
+           actionRow আর নেই (V1489) — শুধু ⋮-এই আছে, TK-র নির্দেশ মতো। */
         val doEditPatient: () -> Unit = {
             dialog.dismiss()
             if (!isRegistered && currentEnquiryId.isNotBlank()) {
@@ -1029,27 +1026,6 @@ class PatientTimelineActivity : AppCompatActivity() {
                 finish()
             }
         }
-        // TK-APPROVED DESIGN (2026-07-23): "Edit Patient" was confusing to
-        // see for someone who is Enquiry-only (no Registration yet) --
-        // label now reflects what's actually being edited at this stage.
-        // showPatientHeaderEdit() itself is unchanged either way.
-        /* 🔴🔒 V1151 (০৬.০৯.২০২৬, TK-নির্দেশ) — *"Registration হওয়ার আগ অবদি
-           All Branch Enquiry Form, আর Registration-এর পর Registration Form"*।
-           ⇒ রেজিস্টার্ড হলে আগের মতোই "Edit Patient" পপ-আপ (সেখানে V1142/V1145-এ
-             রেজিস্ট্রেশন ফর্মের সব ঘরই বসানো আছে); না হলে **পুরো এনকোয়ারি ফর্ম**
-             খোলে, আগের লেখা ভরা অবস্থায়।
-           ⛔ এনকোয়ারির সারির আইডি না পেলে আগের পপ-আপই খোলে — কিছু ভাঙে না। */
-        actionRow("✏️", if (isRegistered) "Edit Patient" else "Edit Enquiry Form", "#0E7C7B") { doEditPatient() }
-        // 🟢🔒 V616 (২৪.০৮.২০২৬, TK-নির্দেশ — "ভুল ব্রাঞ্চে রেজিস্টার হওয়া
-        // রোগী পরে ঠিক ব্রাঞ্চে সরানোর ব্যবস্থা") — শুধু Master দেখবেন।
-        if (isMasterRole) {
-            actionRow("🔀", "Change Branch (Master)", "#B42318") { doChangeBranch() }
-        }
-        // 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — Visit Card থেকে Fees Return।
-        // ⛔ শুধু রেজিস্টার্ড রোগীর জন্য (Enquiry-only-তে Fees-ই নেই)।
-        if (isRegistered) {
-            actionRow("💸", "Return Fees", "#B45309") { doReturnFees() }
-        }
         // 🏷️ TK-APPROVED (03.09.2026, ছবি-প্রুফসহ) — "Give Discount". TK-এর
         // উদাহরণ: ২৫,০০০ বিলের রোগী ২২,০০০ দিয়ে ৩,০০০ ক্ষমা চাইল — ছাড় দিলে
         // বিল কমে ২২,০০০, বাকি ০, রোগী Complete হয়, আর ছাড়ের হিসাবটা চিরকাল
@@ -1080,13 +1056,6 @@ class PatientTimelineActivity : AppCompatActivity() {
         // still-Enquiry-only person there is no patient record yet to
         // attach a payment or clinical document to.
         if (isRegistered) {
-            actionRow("💳", "Payment", "#0C9E33") {
-                doPayment()
-                // V215 (§11.5/§11.6, 31.07.2026): Follow-up/Queue → Patient Detail
-                // → Action → Payment-এর পর একবার Back দিলে সরাসরি আগের তালিকায়
-                // ফিরবে (Report/Payment থেকে Back করলে Patient Detail-এ আটকে থাকা
-                // যাবে না)। doPayment()-এর ভিতরেই finish() আছে — অপরিবর্তিত।
-            }
             actionRow("📋", "Doctor Checkup / Prescription / Medicine Slip / Blood Test / Diet Chart", "#7A1F3D") {
                 dialog.dismiss(); showClinicalDocumentMenu()
             }
