@@ -86,6 +86,18 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.mobile} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
                     }
                 }
+                // 🎤 V1503 (১৫.০৯.২০২৬, TK-নির্দেশ) — "কতজন পেশেন্ট এসেছিল": নতুন রেজিস্ট্রেশন + পুরনো রোগীর ভিজিট-প্রমাণ, দুটো মিলিয়ে।
+                "PATIENTS_VISITED" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.patientsVisitedList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Total: ${rows.size} patients"
+                    if (rows.isEmpty()) empty("No patients found for this period.")
+                    rows.forEach { p ->
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · ${FollowUpModel.displayDate(p.visitDate)}", "›", "#94A3B8", onTap))
+                    }
+                }
                 "COLLECTION" -> {
                     val (sum, list) = withContext(Dispatchers.IO) {
                         VoiceReportRepository.collectionSummary(branch, from, to) to VoiceReportRepository.collectionList(branch, from, to)

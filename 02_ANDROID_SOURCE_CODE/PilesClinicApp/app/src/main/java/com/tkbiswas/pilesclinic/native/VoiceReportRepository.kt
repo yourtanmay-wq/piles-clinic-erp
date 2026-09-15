@@ -66,6 +66,8 @@ object VoiceReportRepository {
     }
 
     data class RegisteredPatient(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String, val branch: String = "")
+    /** 🎤 V1503 — "কতজন পেশেন্ট এসেছিল": নতুন রেজিস্ট্রেশন + পুরনো রোগীর সেদিনের ভিজিট-প্রমাণ, দুটো মিলিয়ে। */
+    data class VisitedPatient(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val visitDate: String)
     data class CollectionSummary(val total: Double, val patientCount: Int, val paymentCount: Int)
     data class CollectionRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val payType: String, val paidOn: String, val branch: String = "")
     data class ProductSaleSummary(val total: Double, val saleCount: Int)
@@ -337,6 +339,32 @@ object VoiceReportRepository {
             for (i in 0 until arr.length()) {
                 val x = arr.getJSONObject(i)
                 out.add(RegisteredPatient(x.optString("patient_row_id"), x.optString("patient_code"), x.optString("name"), x.optString("mobile"), x.optString("registration_date"), x.optString("branch")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid response") }
+    }
+
+    /** 🎤 V1503 (১৫.০৯.২০২৬, TK-নির্দেশ) — "কতজন পেশেন্ট এসেছিল" এখন সব রোগী
+     *  ধরে (নতুন রেজিস্ট্রেশন + পুরনো রোগীর ভিজিট-প্রমাণ) — patientsRegisteredCount
+     *  এর বদলে (ওটা এখনো অন্য জায়গায় "শুধু রেজিস্ট্রেশন" অর্থে ব্যবহৃত, অক্ষত)। */
+    fun patientsVisitedCount(branch: String, from: String, to: String): RepoResult<Int> {
+        val rpc = reportsRpc("patients_visited_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        val body = rpc.body.trim()
+        if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
+        val n = body.toIntOrNull() ?: return RepoResult(false, message = "Invalid response")
+        return RepoResult(true, n)
+    }
+
+    fun patientsVisitedList(branch: String, from: String, to: String): RepoResult<List<VisitedPatient>> {
+        val rpc = reportsRpc("patients_visited_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<VisitedPatient>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                out.add(VisitedPatient(x.optString("patient_row_id"), x.optString("patient_code"), x.optString("name"), x.optString("mobile"), x.optString("visit_date")))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid response") }

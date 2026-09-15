@@ -26,7 +26,12 @@ object VoiceReportModel {
         NEW_PATIENTS, FOLLOWUP_CALLS_DONE, DISEASE_COUNT, RMP_CALLED, RMP_CALL_DUE, FIELD_VISIT, STAFF_HOURS, STAFF_PRESENT,
         // 🎤 V1428 — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম (কালেকশন · রোগী) · RMP-কে দেওয়া কমিশন · IN-বাদ
         BRANCH_TOP_COLLECTION, BRANCH_TOP_PATIENTS, RMP_PAID, IN_MISSING,
-        MONTH_COMPARE_PATIENTS, MONTH_COMPARE_COLLECTION
+        MONTH_COMPARE_PATIENTS, MONTH_COMPARE_COLLECTION,
+        // 🎤 V1503 (১৫.০৯.২০২৬, TK-নির্দেশ) — "কতজন পেশেন্ট এসেছিল" এখন সব
+        // রোগী ধরে (নতুন রেজিস্ট্রেশন + পুরনো রোগীর সেদিনের ভিজিট-প্রমাণ)।
+        // পুরনো REGISTRATION_COUNT অক্ষত — অন্য জায়গায় (Yearly Registration)
+        // "শুধু রেজিস্ট্রেশন" অর্থেই ব্যবহৃত হয়, তাই আলাদা রাখা হলো।
+        PATIENTS_VISITED
     }
 
     // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
@@ -241,7 +246,7 @@ object VoiceReportModel {
             hasRefund -> Metric.REFUND
             hasEnquiry -> Metric.ENQUIRY_COUNT
             hasMoney -> Metric.COLLECTION
-            hasPatientCount -> Metric.REGISTRATION_COUNT
+            hasPatientCount -> Metric.PATIENTS_VISITED
             else -> null
         }
     }

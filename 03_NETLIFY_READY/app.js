@@ -24220,7 +24220,7 @@ function wlv1VoiceParse(q){
     [hasFieldVisit,'FIELD_VISIT'],[hasStaffHours,'STAFF_HOURS'],[hasStaffPresent,'STAFF_PRESENT'],[hasRmpCallDue,'RMP_CALL_DUE'],[hasRmpCalled,'RMP_CALLED'],
     [hasNewPatients,'NEW_PATIENTS'],[hasDisease,'DISEASE_COUNT'],[hasRmpPaid,'RMP_PAID'],
     [hasAdvance,'RMP_ADVANCE'],[hasRmpDue,'RMP_DUE'],[hasTrash,'TRASH_COUNT'],[hasCall,'CALL_COUNT'],[hasRefund,'REFUND'],
-    [hasEnquiry,'ENQUIRY_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'REGISTRATION_COUNT']];
+    [hasEnquiry,'ENQUIRY_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'PATIENTS_VISITED']];
   const hit = picks.find(p=>p[0]); const metric = hit?hit[1]:null;
   if(!metric) return null;
   const extra = metric==='DISEASE_COUNT' ? (wlv1VoiceDisease(q)||'')
@@ -24348,6 +24348,13 @@ async function wlv1ShowVoiceAnswer(q){
     $('#wlv1VoiceAnswerNum').textContent = String(r.data);
     $('#wlv1VoiceAnswerSub').textContent = 'patients registered • tap to see list ›';
     $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('REGISTRATION_COUNT',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='PATIENTS_VISITED'){
+    // 🎤 V1503 (১৫.০৯.২০২৬, TK-নির্দেশ) — "কতজন পেশেন্ট এসেছিল" এখন সব রোগী ধরে (নতুন + পুরনো)।
+    const r = await c.rpc('patients_visited_count',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||r.data==null){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    $('#wlv1VoiceAnswerNum').textContent = String(r.data);
+    $('#wlv1VoiceAnswerSub').textContent = 'patients visited (new + old) • tap to see list ›';
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('PATIENTS_VISITED',parsed.branch,parsed.from,parsed.to,title);
   } else if(parsed.metric==='MEDICINE_SALE'||parsed.metric==='SALINE_SALE'){
     const kind = parsed.metric==='MEDICINE_SALE'?'medicinePayment':'salinePayment';
     const r = await c.rpc('product_sale_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to,p_kind:kind});
@@ -24476,6 +24483,18 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
       return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
         + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
         + `<span class="tiny">${esc(branchTag)}${esc(p.mobile||'')} · ${esc(fmtDate(p.registration_date||''))}</span></div>`;
+    }).join('') || '<div class="card mut">No patients found for this period.</div>';
+  } else if(metric==='PATIENTS_VISITED'){
+    // 🎤 V1503 — নতুন রেজিস্ট্রেশন + পুরনো রোগীর ভিজিট-প্রমাণ, দুটো মিলিয়ে।
+    const r = await c.rpc('patients_visited_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} patients`;
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile);
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(p.mobile||'')} · ${esc(fmtDate(p.visit_date||''))}</span></div>`;
     }).join('') || '<div class="card mut">No patients found for this period.</div>';
   } else if(metric==='MEDICINE_SALE'||metric==='SALINE_SALE'){
     const kind = metric==='MEDICINE_SALE'?'medicinePayment':'salinePayment';
