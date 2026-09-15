@@ -407,11 +407,21 @@ class WorkNotebookActivity : AppCompatActivity() {
        `tracksAttendanceLocation()`-এর ভিতরেই ডাকা হয় — V1346, staff+branch
        উভয়েই কভার করে)। IN TIME-এ **একবারই** স্পষ্ট নির্দেশ — না করলেও
        IN TIME/OUT TIME আটকায় না। */
+    /* 🔋🔒 V1499 (১৫.০৯.২০২৬, TK-নির্দেশ, তালিকা — ARMAN-এর GPS সকাল ১০.৫৯-এর
+       পরে থেমে যাওয়া) — এতদিন এই সতর্কতা জীবনে **একবারই** (কখনো "এখন নয়"
+       চাপলে চিরকাল আর দেখাত না) আসত। Android কোড দিয়ে মাঝপথে-বন্ধ-হওয়া
+       সেবা জোর করে আবার চালু করা যায় না (উপরের V1364-এর মন্তব্যেই লেখা,
+       "১০০% নিশ্চয়তা কোনো ফোনেই সম্ভব না") — তাই আসল সমাধান স্টাফের নিজের
+       ফোনের Battery সেটিংসই। TK "প্রতিদিন একবার করে আবার চাওয়া হোক"
+       বেছেছেন — এখন IN TIME-এ প্রতিদিন প্রথমবার একবার করে দেখাবে (আগের
+       দিন "এখন নয়" চাপলেও পরের দিন আবার সুযোগ), সেদিন একবার দেখানোর পরে
+       আর বিরক্ত করবে না। ⛔ IN TIME/OUT TIME-এর কাজ এতে কিছুই বদলায় না। */
     private fun askFieldBatterySettingsOnce() {
         try {
             val prefs = getSharedPreferences("piles_field_battery_prompt", MODE_PRIVATE)
-            if (prefs.getBoolean("asked_once", false)) return
-            prefs.edit().putBoolean("asked_once", true).apply()
+            val today = com.tkbiswas.pilesclinic.native.FieldVisit.todayIso()
+            if (prefs.getString("asked_date", "") == today) return
+            prefs.edit().putString("asked_date", today).apply()
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("কিলোমিটার যেন কখনো বাদ না পড়ে")))
                 .setMessage(NoBengali.s("ফোনের নিজস্ব ব্যাটারি-সেভার মাঝেমধ্যে লোকেশন-সেবা বন্ধ করে দিতে পারে, তখন কিলোমিটার আর গোনা হয় না।") + "\n\n" +
