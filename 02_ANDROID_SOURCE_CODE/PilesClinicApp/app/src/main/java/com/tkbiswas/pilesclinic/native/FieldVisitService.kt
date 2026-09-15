@@ -208,10 +208,15 @@ class FieldVisitService : Service() {
         private const val CHANNEL_REMIND = "piles_field_visit_remind"
         private const val NOTIF_ID = 9681
         private const val NOTIF_ID_REMIND = 9682
-        private const val MIN_TIME_MS = 60_000L      // এক মিনিটে একবারের বেশি নয়
+        /* 🗺️🔒 V1500 (১৫.০৯.২০২৬, TK-নির্দেশ — "লাইভ ম্যাপ") — আগে ৩ মিনিটে
+           একবার ক্লাউডে পাঠানো হত, তাতে অ্যাপের ভিতরের নতুন লাইভ মানচিত্র
+           (FieldVisitActivity.kt) পুরনো বিন্দু দেখাত। এখন ৩০ সেকেন্ডে
+           একবার — Master-এর পর্দায় প্রায় সত্যিকারের-লাইভ মনে হবে। ⛔ IN/OUT
+           TIME, কিলোমিটার-গোনার নিয়ম কিছুই বদলায়নি, শুধু কতবার পাঠানো হয়। */
+        private const val MIN_TIME_MS = 30_000L      // ৩০ সেকেন্ডে একবারের বেশি নয়
         private const val MIN_DIST_M = 25f           // ২৫ মিটারের কম সরলে ডাকে না
-        private const val TICK_MS = 60_000L
-        private const val PUSH_EVERY_MS = 180_000L   // ৩ মিনিটে একবার ক্লাউডে
+        private const val TICK_MS = 30_000L
+        private const val PUSH_EVERY_MS = 30_000L    // ৩০ সেকেন্ডে একবার ক্লাউডে
         const val REMIND_EVERY_MS = 1_800_000L // রাত ৯টার পর ৩০ মিনিটে একবার
     }
 }

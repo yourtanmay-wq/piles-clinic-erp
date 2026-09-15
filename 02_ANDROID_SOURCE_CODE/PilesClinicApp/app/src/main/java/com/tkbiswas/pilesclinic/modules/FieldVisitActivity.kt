@@ -10,6 +10,10 @@ import com.tkbiswas.pilesclinic.native.FieldVisit
 import com.tkbiswas.pilesclinic.native.NativeSession
 import org.json.JSONArray
 import org.json.JSONObject
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -41,8 +45,29 @@ class FieldVisitActivity : AppCompatActivity() {
     private var doneToday = HashSet<String>()
     private var doneTime = HashMap<String, String>()
 
+    /* 🗺️🔒 V1500 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — আজকের চলমান
+       (RUNNING) দিনের জন্য অ্যাপের ভিতরেই একটা ছোট্ট লাইভ মানচিত্র (osmdroid,
+       বিনামূল্যে) — শেষ অবস্থানে বিন্দু + আজকের হাঁটা পথ, প্রতি ৪৫ সেকেন্ডে
+       নিজে থেকে আপডেট হয়। ⛔ পুরনো দিনগুলোর "OPEN IN GOOGLE MAPS" বোতাম
+       (V1452) এক অক্ষরও বদলায়নি — এটা শুধু আজকের চলমান দিনে বাড়তি। */
+    private var liveMapView: MapView? = null
+    private var liveMarker: Marker? = null
+    private var livePolyline: Polyline? = null
+    private val liveHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val liveTick = object : Runnable {
+        override fun run() {
+            refreshLiveMap()
+            liveHandler.postDelayed(this, LIVE_REFRESH_MS)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try {
+            org.osmdroid.config.Configuration.getInstance().userAgentValue = packageName
+            org.osmdroid.config.Configuration.getInstance().osmdroidTileCache =
+                java.io.File(cacheDir, "osmdroid")
+        } catch (_: Throwable) { }
         ModuleAuth.attachContext(this)
         val user = NativeSession.current(this)
         ownerMode = intent.getBooleanExtra(EXTRA_OWNER, false)
@@ -60,6 +85,24 @@ class FieldVisitActivity : AppCompatActivity() {
         }
         render(loading = true)
         load()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try { liveMapView?.onResume() } catch (_: Throwable) { }
+        liveHandler.removeCallbacks(liveTick)
+        if (liveMapView != null) liveHandler.postDelayed(liveTick, LIVE_REFRESH_MS)
+    }
+
+    override fun onPause() {
+        liveHandler.removeCallbacks(liveTick)
+        try { liveMapView?.onPause() } catch (_: Throwable) { }
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        liveHandler.removeCallbacks(liveTick)
+        super.onDestroy()
     }
 
     private fun today(): String = FieldVisit.todayIso()
@@ -369,6 +412,9 @@ class FieldVisitActivity : AppCompatActivity() {
                    রুট Google Maps-কে দিয়ে আঁকানো হয়; পুরনো দিনের সারিতে এই
                    কলাম না থাকলে আগের মতোই শুধু শেষ বিন্দু খোলে। */
                 val routePts = r.optJSONArray("route_points")
+                /* 🗺️🔒 V1500 — আজকের চলমান দিনেই শুধু বাড়তি লাইভ মানচিত্র;
+                   পুরনো দিনে আগের মতোই শুধু বোতাম। */
+                if (status == "RUNNING") card.addView(buildLiveMap(lat, lng, routePts))
                 card.addView(ModuleUi.buttonSoft(this, "OPEN IN GOOGLE MAPS") {
                     if (routePts != null && routePts.length() >= 2) openRoute(routePts) else openMap(lat, lng)
                 })
@@ -386,6 +432,79 @@ class FieldVisitActivity : AppCompatActivity() {
             if (e <= 0L) return "-"
             FieldVisit.hoursText(s, e)
         } catch (_: Throwable) { "-" }
+    }
+
+    /** 🗺️ V1500 — আজকের চলমান দিনের জন্য একটাই লাইভ মানচিত্র (MapView) বানায়, রেফারেন্স জমা রাখে
+     *  যাতে পরের প্রতিটা আপডেটে পুরো পর্দা আবার না এঁকে শুধু বিন্দু/পথ সরানো যায়। */
+    private fun buildLiveMap(lat: Double, lng: Double, routePts: JSONArray?): MapView {
+        val map = MapView(this).apply {
+            setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, ModuleUi.dp(this@FieldVisitActivity, 200)
+            ).apply { topMargin = ModuleUi.dp(this@FieldVisitActivity, 6) }
+            controller.setZoom(16.0)
+            controller.setCenter(GeoPoint(lat, lng))
+        }
+        val marker = Marker(map).apply {
+            position = GeoPoint(lat, lng)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = "Now"
+        }
+        map.overlays.add(marker)
+        val poly = Polyline(map)
+        routePointsToGeo(routePts)?.let { poly.setPoints(it) }
+        map.overlays.add(poly)
+        map.invalidate()
+        liveMapView = map
+        liveMarker = marker
+        livePolyline = poly
+        liveHandler.removeCallbacks(liveTick)
+        liveHandler.postDelayed(liveTick, LIVE_REFRESH_MS)
+        return map
+    }
+
+    private fun routePointsToGeo(pts: JSONArray?): List<GeoPoint>? {
+        if (pts == null || pts.length() < 2) return null
+        val out = ArrayList<GeoPoint>(pts.length())
+        for (i in 0 until pts.length()) {
+            val p = pts.optJSONArray(i) ?: continue
+            out.add(GeoPoint(p.optDouble(0, 0.0), p.optDouble(1, 0.0)))
+        }
+        return if (out.size >= 2) out else null
+    }
+
+    /** ৪৫ সেকেন্ড পরপর — শুধু আজকের সারিটাই হালকা করে পড়ে, পুরো পর্দা আবার আঁকা হয় না। */
+    private fun refreshLiveMap() {
+        if (liveMapView == null) return
+        Thread {
+            try {
+                val rows = ModuleAuth.getRows(
+                    "wn", "field_visit_days",
+                    "select=last_lat,last_lng,route_points&staff_code=eq." + Uri.encode(staffCode) +
+                        "&work_date=eq." + today()
+                )
+                val r = rows.optJSONObject(0) ?: return@Thread
+                val lat = r.optDouble("last_lat", Double.NaN)
+                val lng = r.optDouble("last_lng", Double.NaN)
+                if (lat.isNaN() || lng.isNaN()) return@Thread
+                val pts = r.optJSONArray("route_points")
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    updateLiveMap(lat, lng, pts)
+                }
+            } catch (_: Throwable) { }
+        }.start()
+    }
+
+    private fun updateLiveMap(lat: Double, lng: Double, routePts: JSONArray?) {
+        val map = liveMapView ?: return
+        val marker = liveMarker ?: return
+        val poly = livePolyline ?: return
+        marker.position = GeoPoint(lat, lng)
+        routePointsToGeo(routePts)?.let { poly.setPoints(it) }
+        map.controller.animateTo(GeoPoint(lat, lng))
+        map.invalidate()
     }
 
     private fun openMap(lat: Double, lng: Double) {
@@ -453,5 +572,7 @@ class FieldVisitActivity : AppCompatActivity() {
         const val EXTRA_OWNER = "owner_mode"
         const val EXTRA_STAFF_CODE = "staff_code"
         const val EXTRA_STAFF_MOBILE = "staff_mobile"
+        /** 🗺️ V1500 — লাইভ মানচিত্র কত ঘনঘন হালনাগাদ হবে। */
+        private const val LIVE_REFRESH_MS = 45_000L
     }
 }

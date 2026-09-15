@@ -332,6 +332,15 @@ dependencies {
     // android.print APIs — no extra library required.
     implementation("com.google.zxing:core:3.5.3")
 
+    // 🗺️🔒 V1500 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ — "OpenStreetMap
+    // দিয়েই করুন") — Field Visit Tracking-এ RUPAM/ARMAN-এর আজকের চলমান
+    // অবস্থান সরাসরি অ্যাপের ভিতরেই মানচিত্রে দেখানোর জন্য। osmdroid
+    // সম্পূর্ণ বিনামূল্যে/ওপেন-সোর্স, কোনো API-চাবি বা টাকা-লাগা Google
+    // Maps SDK লাগে না, কোনো নতুন অনুমতিও (INTERNET/ACCESS_NETWORK_STATE
+    // আগে থেকেই আছে)। ⛔ Google Maps-এর পুরনো "OPEN IN GOOGLE MAPS"
+    // লিংক-বোতাম (আগের দিনগুলোর জন্য) এক অক্ষরও বদলায়নি।
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+
     // Phase 9: regression unit tests (pure-JVM logic only; anything touching
     // Context/Room/Android framework is covered by the manual test steps in
     // FINAL_TEST_REPORT.md instead, since that needs an instrumented/emulator run).
