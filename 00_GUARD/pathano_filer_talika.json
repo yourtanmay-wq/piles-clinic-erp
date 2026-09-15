@@ -1,5 +1,26 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1488_FINAL.zip",
+    "versionCode": 1488,
+    "when": "15.09.2026 সকাল ৮.৫৭ (IST)",
+    "size_mb": 26.21,
+    "total_files": 1913,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 787,
+      "(root)": 604,
+      "00_SQL": 173,
+      "04_SUPABASE_DATABASE_SETUP": 138,
+      "00_GUARD": 58,
+      "03_NETLIFY_READY": 53,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+      "00_READ_ME_FIRST": 11,
+      "10_FUTURE_PLANS": 10
+    },
+    "excluded": ".git/.kotlinc/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ; এবার আলাদা করে কোনো ছবি/ফোল্ডার বাদ দেওয়া হয়নি",
+    "note": "V1479-V1488: Extra Income কমিশন-ভাগ পুরনো-নতুন সব পেশেন্টেই এক নিয়মে (V1482, নকল ডেটাবেসে যাচাই করে, TK-নিজে অ্যাপে দেখে নিশ্চিত) · Follow-up-এর Expected Date-এ এখন আজকের তারিখ বাছা যায় (V1488, ফোন+ওয়েব) · আকার আগের চেয়ে ছোট (২৭.৪৭→২৬.২১ MB) কারণ এবার নতুন কোনো বড় ছবি/অ্যাসেট যোগ হয়নি, শুধু কোড ও খাতার লেখা বেড়েছে।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1478_FINAL.zip",
     "versionCode": 1478,
     "when": "14.09.2026 রাত ৯.০০ (IST)",

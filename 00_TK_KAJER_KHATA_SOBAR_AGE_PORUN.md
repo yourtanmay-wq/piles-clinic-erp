@@ -27093,3 +27093,13 @@ TK জালপাইগুড়ির একজন পেশেন্টের
 **ওয়েব:** `wlv1SaveRemarkNow()`-এর `nextFollowDate(id,true)` → `nextFollowDate(id,false)`; `app.js` ক্যাশ-নম্বর v1477→v1488।
 
 পাহারা: verify_android_resources PASS · tk_guard PASS · node --check PASS · web_browser_test সব পাশ · verify_kotlin_compile PASS (নতুন ভুল ০)। ভার্সন নম্বর (build.gradle.kts/version.json) বাড়ানো হয়নি — TK ফাইল না চাওয়া পর্যন্ত অপরিবর্তিত (নিয়ম ৩খ)।
+
+## ১৫.০৯.২০২৬ সকাল ৮.৫৭ — V1478-এর পর সব কাজ গভীরে যাচাই করে V1488 ফাইল পাঠানো হলো
+
+TK নির্দেশ দিলেন V1478-এর পর যা যা কাজ হয়েছে (Extra Income নিয়ম + Follow-up-এর আজ-বাছা ঠিক করা) সব গভীরে যাচাই করে, Android Studio-তে বিল্ড যেন না ভাঙে সেটা নিশ্চিত করে ফাইল পাঠাতে।
+
+**যাচাই যা করা হলো:** V1478-এর পর app-কোডে হাত পড়েছে শুধু দুটো জায়গায় — `FollowUpActivity.kt` (৩টা `blockToday` লাইন) আর `app.js`+`index.html` (`nextFollowDate` কল + ক্যাশ-নম্বর) — `git diff` দিয়ে পুরো বদলটা লাইনে-লাইনে আবার চোখে দেখা হলো, অপ্রয়োজনীয় কিছু বদলায়নি। বাকি সব বদল (V1480-V1487) শুধু Supabase-এর SQL ফাইল ও খাতা — সেগুলো অ্যাপের বিল্ডেই ঢোকে না, তাই Android Studio-র বিল্ডে কোনো প্রভাব নেই। সব পাহারা (resources/tk_guard/node/web_browser_test/**kotlin_compile — নতুন ভুল ০**) আবার চালিয়ে PASS পাওয়া গেছে।
+
+**সততার সাথে যা জানানো দরকার:** Extra Income-এর অংশটা TK নিজে অ্যাপে বোতাম চেপে (Salary Statement) দেখে নিশ্চিত করেছেন। কিন্তু Follow-up-এর "আজ" বাছা যাওয়ার ফিক্সটা এখনো কেউ সত্যিকারের অ্যাপে চেপে দেখেনি — কোড/কম্পাইল-পাহারা সব ঠিক আছে, বাস্তব বিল্ড ও পর্দায় TK-কেই একবার চেপে দেখে নিতে হবে (Android Studio-তেই আসল বিল্ড হয়)।
+
+ভার্সন 1478→1488 (build.gradle.kts + version.json দুটোতেই একসাথে) — শুধু এই ফাইল-পাঠানোর মুহূর্তেই বাড়ানো হলো। PILES_CLINIC_APP_V1488_FINAL.zip (২৬.২১ MB, ১৯১৩ ফাইল) পাঠানো হলো, ledger-এ (pathano_filer_talika.json) হিসাব লেখা হয়েছে।
