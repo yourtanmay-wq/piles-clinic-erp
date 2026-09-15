@@ -1347,8 +1347,11 @@
                          খোলা থাকত। এখন TODAY'S TREATMENT DONE-এর হুবহু একই ভাঁজ —
                          বন্ধ অবস্থায় শুরু হয়, মাথায় চাপ দিলে খোলে।
                          ⛔ `etDoctorRemark`-এর id · সেভ · হিন্ট কিছুই বদলায়নি। -->
+                    <!-- 🔢🔒 V1494 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — এই সেকশনের
+                         নম্বর ছিল না, এখন ৪ (উপরের ধাপ-বার ও sectionIds-এর সাথে মিলিয়ে)। -->
                     <LinearLayout android:id="@+id/dremFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:layout_marginBottom="6dp">
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="4" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp"
                             android:text="DOCTOR&apos;S REMARK" android:textStyle="bold"
                             android:textSize="14sp" android:textColor="#0B4F2A" />
                         <TextView android:id="@+id/dremFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
@@ -1367,8 +1370,10 @@
             <androidx.cardview.widget.CardView android:id="@+id/secTodayTreat" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
                 <LinearLayout style="@style/RegCardInner" android:padding="10dp">
 
+                    <!-- 🔢🔒 V1494 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — নম্বর ৫। -->
                     <LinearLayout android:id="@+id/ttdFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TODAY&apos;S TREATMENT DONE" android:textStyle="bold" android:textSize="14sp" android:textColor="#0B4F2A" />
+                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="5" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="TODAY&apos;S TREATMENT DONE" android:textStyle="bold" android:textSize="14sp" android:textColor="#0B4F2A" />
                         <TextView android:id="@+id/ttdFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
                         <TextView android:id="@+id/ttdFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
                         <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
@@ -1407,8 +1412,10 @@
                          ⛔ ভিতরের একটাও ঘর/টিক/সেভ বদলায়নি — শুধু একটা মোড়ক
                             (`nvpFoldBody`) ও মাথায় চ্যাভরন যোগ হয়েছে।
                          ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই। -->
+                    <!-- 🔢🔒 V1494 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — নম্বর ৬। -->
                     <LinearLayout android:id="@+id/nvpFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="NEXT VISIT PLAN" android:textStyle="bold" android:textSize="14sp" android:textColor="#0B4F2A" />
+                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="6" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="NEXT VISIT PLAN" android:textStyle="bold" android:textSize="14sp" android:textColor="#0B4F2A" />
                         <TextView android:id="@+id/nvpFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
                         <TextView android:id="@+id/nvpFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
                         <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
@@ -1463,8 +1470,10 @@
                          হুবহু যমজ, `attachFold()`) হেডার + তিনটে ছবির সারিতে
                          বসানো হলো — শুরুতে বন্ধ, হেডারে চাপ দিলে খোলে।
                          ⛔ Quick Actions/Investigations (নিচের অংশ) ছোঁয়া হয়নি। -->
+                    <!-- 🔢🔒 V1494 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — নম্বর ৪ থেকে ৭
+                         (Remark/Treatment/Next Visit-ও এখন নম্বর পেয়েছে বলে)। -->
                     <LinearLayout android:id="@+id/photoFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
-                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="4" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
+                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="7" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Photo &amp; Video" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
                         <TextView android:id="@+id/photoFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
                         <!-- 🟢🔒 V653 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "আরো উজ্জ্বল

@@ -12084,17 +12084,20 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <!-- 🔵🔒 V947 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের মন্তব্য।
       ⛔ এটা **শুধু** স্টাফের কল-পর্দার Last Remark-এ যায় — চেম্বার বোর্ড বা
          Report Card-এ **নয়** (TK-এর স্পষ্ট নির্দেশ)। ফোনের হুবহু যমজ। -->
- <details class="card"><summary><b>DOCTOR'S REMARK · ডাক্তারের মন্তব্য</b></summary>
+ <!-- 🔢🔒 V1494 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ, ফোনের হুবহু একই বদল) —
+      এই তিনটে সেকশনে নম্বর ছিল না, ১,২,৩-এর পর নম্বরহীন-তারপর-৪ এলোমেলো
+      লাগছিল। এখন ৪/৫/৬, আর Photo ৪ থেকে ৭। -->
+ <details class="card"><summary><b>4. DOCTOR'S REMARK · ডাক্তারের মন্তব্য</b></summary>
   <div style="font-size:12px;color:#8A93A0;margin-bottom:6px">রোগী আজ কী বললেন — পরে স্টাফ কল করার সময় এটাই দেখতে পাবেন</div>
   <textarea id="ckDocRemark" class="input" rows="2" placeholder="What the patient said today"></textarea>
  </details>
- <details class="card"><summary><b>TODAY'S TREATMENT DONE · আজকে কি TREATMENT করা হল</b></summary>
+ <details class="card"><summary><b>5. TODAY'S TREATMENT DONE · আজকে কি TREATMENT করা হল</b></summary>
   ${wlv1TtdBoxHtml()}
  </details>
- <details class="card"><summary><b>NEXT VISIT PLAN · পরের বার কী হবে</b></summary>
+ <details class="card"><summary><b>6. NEXT VISIT PLAN · পরের বার কী হবে</b></summary>
   ${wlv1NvpBoxHtml(p)}
  </details>
- <details class="card"><summary><b>4. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
+ <details class="card"><summary><b>7. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
   <div class="grid"><div><label>Before Treatment Photo · আগের ছবি</label><input id="dnBeforePhoto" class="input" type="file" accept="image/*"><small>${note.beforePhoto?'Before photo saved':''}</small></div><div><label>During Treatment Photo · চলাকালীন ছবি</label><input id="dnDuringPhoto" class="input" type="file" accept="image/*"><small>${note.duringPhoto?'During photo saved':''}</small></div><div><label>After Treatment Photo · পরের ছবি</label><input id="dnAfterPhoto" class="input" type="file" accept="image/*"><small>${note.afterPhoto?'After photo saved':''}</small></div></div>
   ${wlv1AnatBoxHtml(note,id)}
  </details>

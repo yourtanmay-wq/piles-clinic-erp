@@ -610,7 +610,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
           শুধু লুকানো** — রোগ এখন COST ESTIMATE-এর লাইন থেকে, সময় এস্টিমেট
           পর্দা থেকে আসে (নিচে `onActivityResult`), তাই সেভ · কাগজ · রোগীর
           `disease` ঘর — সবই আগের ঘর দিয়েই চলে; পুরনো রেকর্ড অটুট। */
-    private val stepShort = listOf("History", "Clinical", "Estimate", "Photo")
+    /* 🔢🔒 V1494 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — উপরের ৪টা ধাপ-চিপ
+       ৭টা হলো (sectionIds-এর সাথে হুবহু মিলিয়ে) — Remark/Treatment/Next Visit
+       এখন নিজের নম্বর পায়, তাই ১,২,৩-এর পর নম্বরহীন-তারপর-৪ আর দেখা যাবে না। */
+    private val stepShort = listOf("History", "Clinical", "Estimate", "Remark", "Treatment", "Next Visit", "Photo")
     private var currentStep = 0
 
     // 🆕 (07.08.2026, TK-অনুমোদিত) — সেভ-করা রেকর্ড ও A4 রিপোর্টের পেশেন্ট-তথ্য
@@ -792,8 +795,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
     // flipper এখন LinearLayout; চিপ চাপলে সেই সেকশনে স্ক্রল হয় (আগের
     // displayedChild নেই)। রোগীর পূর্ণ কার্ড সবসময় উপরে থাকে (সংকুচিত-কার্ড
     // টগল বাদ)। ⛔ সব ফিল্ড/ডেটা-সেভ অপরিবর্তিত।
+    /* 🔢🔒 V1494 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — TK ধরলেন উপরের
+       ধাপ-নম্বর ১,২,৩-এর পর হঠাৎ DOCTOR'S REMARK/TODAY'S TREATMENT DONE/
+       NEXT VISIT PLAN নম্বরহীন, তারপর আবার ৪ — এলোমেলো লাগছিল। TK চাইলেন
+       এই তিনটেও নম্বর পাক, উপরের বৃত্তও ৭ পর্যন্ত হোক। secDocRemark/
+       secTodayTreat/secNextVisitPlan যোগ হলো — এগুলো secCounsel-এর ঠিক
+       নিচে, secPhoto-র ঠিক আগে, XML-এ যে ক্রমে বসানো ঠিক সেই ক্রমেই। */
     private val sectionIds = intArrayOf(
-        R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secPhoto   // 🧮 V1280 — secEstimate বাদ
+        R.id.secHistory, R.id.secClinical, R.id.secCounsel,
+        R.id.secDocRemark, R.id.secTodayTreat, R.id.secNextVisitPlan, R.id.secPhoto
     )
     /**
      * 🎓🔒 V783 — **রোগীকে বোঝানোর পর্দা।** পাইলস · ফিশার · ফিস্টুলা —
