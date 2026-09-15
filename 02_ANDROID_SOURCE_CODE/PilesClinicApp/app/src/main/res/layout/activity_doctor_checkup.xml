@@ -999,7 +999,10 @@
                             মোড়ক (`counsFoldBody`) ও মাথায় চ্যাভরন যোগ হয়েছে। -->
                     <LinearLayout android:id="@+id/counsFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:layout_marginBottom="6dp">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="3" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Estimated Cost · চিকিৎসা পরিকল্পনা" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <!-- 🎨🔒 V1493 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — চিকিৎসা
+                             পরিকল্পনা আসলে Estimated Cost-এর অনুবাদ ছিল না, TK বললেন পাশে
+                             ঠিক অনুবাদ আনুমানিক খরচ লিখতে। -->
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Estimated Cost · আনুমানিক খরচ" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
                         <TextView android:id="@+id/counsFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
                         <TextView android:id="@+id/counsFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
                         <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
@@ -1111,7 +1114,13 @@
                          `etEstimatedCost` view, শুধু জায়গা বদল (Step 4 থেকে
                          Step 3-এ)। -->
                     </LinearLayout><!-- txPlanLegacyWrap (V1280) -->
-                    <LinearLayout style="@style/DocNoteFieldBox">
+                    <!-- 🎨🔒 V1493 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — এই বাক্সের
+                         লেখাটা ("Estimated Cost · আনুমানিক খরচ কত বলা হল") হেডারের সাথে
+                         মিলে বারবার একই কথা বলছিল, TK ধরলেন। তাই পুরো বাক্সটা এখন
+                         visibility="gone" — শুধু দেখা বন্ধ, ভিতরের `etEstimatedCost`
+                         (Net Payable সেভ হয় এখানেই) ও `btnBuildEstimateInline` আগের
+                         মতোই findViewById-এ পাওয়া যায়, সেভ-লজিক এক অক্ষরও বদলায়নি। -->
+                    <LinearLayout style="@style/DocNoteFieldBox" android:visibility="gone">
                         <View style="@style/DocNoteAccentBarPurple" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
                             <LinearLayout style="@style/DocNoteFieldBoxTopRow">
@@ -1181,7 +1190,11 @@
                     <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginTop="10dp">
                         <View style="@style/DocNoteAccentBarPurple" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="FROM COST ESTIMATE" android:textColor="#8B98A9" android:letterSpacing="0.06" />
+                            <!-- 🎨🔒 V1493 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — "FROM COST
+                                 ESTIMATE" উপরের বোতাম+হেডারের সাথে মিলে তৃতীয়বার একই কথা
+                                 বলছিল, এখন "SUMMARY"। ⛔ নিচের tvEstimateSummary-র id/লজিক
+                                 অপরিবর্তিত। -->
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="SUMMARY" android:textColor="#8B98A9" android:letterSpacing="0.06" />
                             <TextView android:id="@+id/tvEstimateSummary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14.5sp" android:textColor="#123A26" android:lineSpacingExtra="4dp" android:paddingTop="4dp" android:text="Nothing added yet — tap COST ESTIMATE above" />
                         </LinearLayout>
                     </LinearLayout>

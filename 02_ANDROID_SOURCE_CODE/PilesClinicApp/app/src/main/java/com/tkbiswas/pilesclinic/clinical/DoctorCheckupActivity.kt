@@ -4279,8 +4279,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             "Investigations" to r.investigation
         ).filter { it.second.isNotBlank() }) { unlockSection(R.id.secClinical) })
 
-        /* 🧮 V1280 — সারাংশে এখন এস্টিমেট থেকে আসা তিনটে জিনিস + চুক্তি-নোট। */
-        lockSection(R.id.secCounsel, buildSectionSummary("Estimated Cost · চিকিৎসা পরিকল্পনা", listOf(
+        /* 🧮 V1280 — সারাংশে এখন এস্টিমেট থেকে আসা তিনটে জিনিস + চুক্তি-নোট।
+           🎨🔒 V1493 (১৫.০৯.২০২৬, TK-নির্দেশ) — শিরোনাম XML হেডারের সাথে মিলিয়ে
+           "চিকিৎসা পরিকল্পনা" থেকে "আনুমানিক খরচ" করা হলো (সঠিক অনুবাদ)। */
+        lockSection(R.id.secCounsel, buildSectionSummary("Estimated Cost · আনুমানিক খরচ", listOf(
             "রোগ" to (if (r.probableDisease == CounselModel.PICK_NONE) "" else r.probableDisease),
             "চিকিৎসা" to r.treatmentPlan,
             "Net Payable" to r.estimatedCost,

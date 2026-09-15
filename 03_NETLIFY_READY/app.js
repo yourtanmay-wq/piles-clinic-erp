@@ -12006,7 +12006,9 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <div class="card"><b>D. On Probing · প্রোব পরীক্ষা</b><label>Direction and depth of tract after probing · প্রোব ঢোকানোর পরে নালি কোন দিকে কতটা গেল</label><textarea id="dnProbing">${val('onProbing')}</textarea></div></div>
   <div class="grid"><!-- 🔴 V542 (TK-নির্দেশ: "investigation তুলে দেন, থাকবে না") — কার্ডটা সরানো। ⛔ পুরোনো রেকর্ডের মান থেকে যায়, ছাপায় আগের মতোই দেখা যায়। --></div>
  </details>
- <details class="card"><summary><b>3. Estimated Cost · চিকিৎসা পরিকল্পনা</b></summary>
+ <!-- 🎨🔒 V1493 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ) — "চিকিৎসা পরিকল্পনা"
+      Estimated Cost-এর অনুবাদ ছিল না, তাই ঠিক অনুবাদ "আনুমানিক খরচ" (ফোনের একই বদল)। -->
+ <details class="card"><summary><b>3. Estimated Cost · আনুমানিক খরচ</b></summary>
   <!-- 🧮🔒 V1280 — TK: *"অ্যামাউন্ট বসানোর জন্য সিস্টেম আলাদা করাই আছে … দুই বার হয়ে যাচ্ছে … এটা তুলে দিন"*
        ⇒ টিক-তালিকা ও ₹ ঘর পর্দা থেকে সরল (hidden)। ঘরগুলো রয়ে গেছে — COST ESTIMATE সেভ করলে
        অ্যাপ নিজেই টিক বসায় (wlv1EstSave), তাই সেভ · A4-এর TREATMENT PLAN · পুরনো রেকর্ড অটুট। -->
@@ -12035,7 +12037,9 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        লুকানো (id ও সেভ অটুট — Net Payable এখানেই বসে), পুরো চওড়ার বড় বোতাম, নিচে "FROM COST ESTIMATE" সারাংশ। -->
   <input id="dnEstimatedCost" class="input" type="hidden" value="${val('estimatedCost')}">
   <button type="button" class="wlv1EstBigBtn" onclick="wlv1EstOpen()">🧮&nbsp; COST ESTIMATE</button>
-  <div class="wlv1EstSum"><div class="tiny mut" style="letter-spacing:.5px">FROM COST ESTIMATE</div><div id="dnEstSummary">Nothing added yet — tap COST ESTIMATE above</div></div>
+  <!-- 🎨🔒 V1493 (১৫.০৯.২০২৬, TK-নির্দেশ) — "FROM COST ESTIMATE" হেডার+বোতামের
+       সাথে মিলে বারবার একই কথা বলছিল, এখন "SUMMARY" (ফোনের একই বদল)। -->
+  <div class="wlv1EstSum"><div class="tiny mut" style="letter-spacing:.5px">SUMMARY</div><div id="dnEstSummary">Nothing added yet — tap COST ESTIMATE above</div></div>
   <!-- 📝🔒 V1280 — TK: *"রোগীর সাথে কোন চুক্তিতে ট্রিটমেন্ট করব … পরে অন্য ডাক্তার বুঝবে … এস্টিমেট প্রিন্টে যাবে না · চেকআপ কাগজেও না, তবে অপশন থাকবে আলাদা"*
        ⇒ আগের dnCounselling ঘরটাই, শুধু নাম ও ইঙ্গিত; কাগজে যাবে কিনা A4 পাতার সুইচে (ডিফল্ট বন্ধ)। -->
   <label>Treatment Plan &amp; Agreement · চিকিৎসার চুক্তি ও পরিকল্পনা</label><textarea id="dnCounselling" placeholder="রোগীর সাথে কী চুক্তি হল — কীভাবে চিকিৎসা, কতদিন, কিস্তি — বিস্তারিত এখানে লিখুন">${val('counselling')}</textarea>
