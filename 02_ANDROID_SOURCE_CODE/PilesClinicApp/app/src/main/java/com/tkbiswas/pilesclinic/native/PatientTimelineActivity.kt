@@ -1979,10 +1979,52 @@ class PatientTimelineActivity : AppCompatActivity() {
         if (rmpChoices.isNotEmpty()) {
             val labelToChoice = LinkedHashMap<String, RmpPicker.RmpChoice>()
             for (c in rmpChoices) labelToChoice[c.flatLabel()] = c
+            /* 🟢🔒 V1504 (১৫.০৯.২০২৬, TK ডেমো-প্রুফ পাশ) — আগে এই তালিকা
+               Android-এর সাধারণ সাদা এক-লাইনের ডিফল্ট চেহারায় দেখাত, TK
+               "unprofessional" বলেছিলেন। এখন নাম বড়/বোল্ড আর মোবাইল·এলাকা
+               ছোট ধূসর সাব-টেক্সটে, প্রতিটা সারির নিচে হালকা দাগ। ⛔ খোঁজা/
+               বাছার নিয়ম (flatLabel-ভিত্তিক ফিল্টার, ফোনের জমানো ঘর থেকেই
+               আসা) এক অক্ষরও বদলায়নি — শুধু সারির চেহারা। */
             refNameInput.setAdapter(
-                android.widget.ArrayAdapter(
-                    this, android.R.layout.simple_dropdown_item_1line, labelToChoice.keys.toList()
-                )
+                object : android.widget.ArrayAdapter<String>(this, 0, labelToChoice.keys.toList()) {
+                    override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                        val label = getItem(position) ?: ""
+                        val choice = labelToChoice[label]
+                        val row = android.widget.LinearLayout(this@PatientTimelineActivity).apply {
+                            orientation = android.widget.LinearLayout.VERTICAL
+                            setBackgroundColor(android.graphics.Color.WHITE)
+                        }
+                        val content = android.widget.LinearLayout(this@PatientTimelineActivity).apply {
+                            orientation = android.widget.LinearLayout.VERTICAL
+                            setPadding(dp(12), dp(10), dp(12), dp(10))
+                        }
+                        content.addView(android.widget.TextView(this@PatientTimelineActivity).apply {
+                            text = (choice?.name ?: label).trim().uppercase()
+                            textSize = 13.5f
+                            setTypeface(typeface, android.graphics.Typeface.BOLD)
+                            setTextColor(android.graphics.Color.parseColor("#182230"))
+                        })
+                        val sub = listOfNotNull(
+                            choice?.mobile?.trim()?.takeIf { it.isNotBlank() },
+                            choice?.area?.trim()?.uppercase()?.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+                        if (sub.isNotBlank()) {
+                            content.addView(android.widget.TextView(this@PatientTimelineActivity).apply {
+                                text = sub; textSize = 11f
+                                setTextColor(android.graphics.Color.parseColor("#7A8699"))
+                            })
+                        }
+                        row.addView(content)
+                        row.addView(View(this@PatientTimelineActivity).apply {
+                            layoutParams = android.widget.LinearLayout.LayoutParams(
+                                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1)
+                            setBackgroundColor(android.graphics.Color.parseColor("#F0F2F5"))
+                        })
+                        return row
+                    }
+                    override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                        getView(position, convertView, parent)
+                }
             )
             refNameInput.setOnItemClickListener { parent, _, position, _ ->
                 val picked = labelToChoice[parent.getItemAtPosition(position) as? String ?: ""]
