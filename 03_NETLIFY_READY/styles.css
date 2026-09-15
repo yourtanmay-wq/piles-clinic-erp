@@ -8451,8 +8451,11 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .wlv1RcDocLine .dr{text-align:right}
   .wlv1RcDocLine .vc{border-top:0;text-align:center;padding-top:0}
   .wlv1RcDocLine .vc b{display:block;font-size:9px;color:#0B5D2A;margin-top:1mm}
-  /* 📏🔒 V1330 (TK-নির্দেশ, ফোনের যমজ) — margin-top ২mm। */
-  .wlv1RcDocLine .vbar{height:9mm;width:32mm;margin:2mm auto 0;
+  /* 📏🔒 V1491 (১৫.০৯.২০২৬, ফোনের যমজ — ReportCardPrinter.kt-এর একই ফিক্স) —
+     বারকোডের লাইন TK BISWAS/Dr. MANDAL-এর স্বাক্ষর-লাইনের সমান উচ্চতায় ছিল
+     না (নকল ব্রাউজারে print-media মেপে ধরা হয়েছে, ~10px ফারাক)। margin-top
+     ২mm→০, height ৯mm→৬mm — এখন পিক্সেল-মেপে প্রায় হুবহু সমান (<1px ফারাক)। */
+  .wlv1RcDocLine .vbar{height:6mm;width:32mm;margin:0 auto 0;
     background:repeating-linear-gradient(90deg,#000 0,#000 .55mm,#fff .55mm,#fff 1.1mm)}
   .wlv1RcThanks{display:block;margin-top:4mm;background:#0B5D2A;color:#fff;text-align:center;
     font-weight:800;font-size:9px;padding:2mm 0;border-radius:4px}

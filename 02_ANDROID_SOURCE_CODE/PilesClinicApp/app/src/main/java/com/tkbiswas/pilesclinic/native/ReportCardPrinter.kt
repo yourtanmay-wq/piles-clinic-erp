@@ -236,10 +236,18 @@ object ReportCardPrinter {
               **"VISIT · TREATMENT PROGRESS & PAYMENT RECORD"**।
            ⛔ টাকার একটাও হিসাব · একটাও সারি বদলায়নি — শুধু কাগজের চেহারা।
            ═══════════════════════════════════════════════════════════════════ */
-        /* 🎨🔒 V1330 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — নিচের HTML-এ
-           দুটো ছোট বদল: (১) `.wm` জলছবি আরও হালকা (opacity .035→.02),
-           (২) `.vbar` বারকোড একটু নিচে নামানো (margin-top ৮px)। ⛔ এই মন্তব্যটা
-           ইচ্ছে করেই এখানে, নিচের CSS-এর ভিতরে নয় — HTML-এর ভিতরে বাংলা মন্তব্য
+        /* 🎨🔒 V1491 (১৫.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ) — বারকোডের উপরের
+           "লাইন" TK BISWAS/Dr. MANDAL-এর স্বাক্ষর-লাইনের সমান উচ্চতায় ছিল না।
+           আসল কারণ (কোড ধরে যাচাই করে, আন্দাজ নয়): `.vc{border-top:0;
+           padding-top:0}` লেখা থাকলেও `.docline>div` (border-top+padding-top)
+           বেশি specificity-র জন্য সেটাকে ওভাররাইড করতে পারছিল না — বারকোডের
+           কলামে অদৃশ্য বাড়তি ৮px+১.৫px জায়গা বসে ছিল। এখন `.docline>div.vc`
+           দিয়ে specificity ঠিক করে সেই override সত্যিই কাজ করানো হলো, আর
+           TK-র পরামর্শ মতোই `.vbar`-এর উচ্চতা একটু কমানো হলো (৩৪→২৯px) —
+           দুটো মিলিয়ে বারকোডের লাইন এখন পিক্সেল-মিলিয়ে স্বাক্ষর-লাইনের সমান।
+           নকল ব্রাউজারে মেপে প্রমাণ করা হয়েছে, TK ফটো-প্রুফ দেখে পাশ করেছেন।
+           ⛔ বাকি কাগজের একটা অক্ষরও বদলায়নি। এই মন্তব্যটা ইচ্ছে করেই এখানে,
+           নিচের CSS-এর ভিতরে নয় — HTML-এর ভিতরে বাংলা মন্তব্য
            বসালে সেটাই ছাপার/PDF-এর সোর্সে থেকে যেত। */
         return """
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1240"><style>
@@ -284,9 +292,10 @@ td.pd{color:#0c8a4e;font-weight:700}
 .docline b{font-size:19px;font-weight:800;color:#0B2B59}
 .docline small{display:block;font-size:14px;color:#5B6B81;margin-top:2px}
 .dl{text-align:left}.dr{text-align:right}
-.vc{border-top:0;text-align:center;padding-top:0}
+.docline>div.vc{border-top:0;padding-top:0}
+.vc{text-align:center}
 .vc b{display:block;font-size:14px;color:#0B5D2A;margin-top:4px}
-.vbar{height:34px;width:190px;margin:8px auto 0;background:repeating-linear-gradient(90deg,#000 0,#000 2px,#fff 2px,#fff 4px)}
+.vbar{height:29px;width:190px;margin:8px auto 0;background:repeating-linear-gradient(90deg,#000 0,#000 2px,#fff 2px,#fff 4px)}
 .thanks{margin-top:14px;background:#0B5D2A;color:#fff;text-align:center;font-weight:800;font-size:15px;padding:8px 0;border-radius:6px}
 </style></head><body>
 $watermark

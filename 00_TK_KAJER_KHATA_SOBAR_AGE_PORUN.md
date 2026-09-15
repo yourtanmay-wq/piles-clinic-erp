@@ -27126,3 +27126,14 @@ TK-কে জানিয়ে অনুমতি নিয়ে ঠিক ক
 উভয় জায়গায় Supabase-এর upsert (merge-duplicates) ব্যবহার হয় বলে একই আইডি দ্বিতীয়বার লিখলে এরর হবে না, শুধু আপডেট হবে — নকল ডেটাবেসে/কোড-যাচাইয়ে নিশ্চিত করা হয়েছে।
 
 পাহারা: verify_android_resources PASS · node --check PASS · web_browser_test সব পাশ · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।
+
+## ১৫.০৯.২০২৬ সকাল ৯.৫২ — V1491: Report Card-এর বারকোড-লাইন স্বাক্ষর-লাইনের সমান করা (ডেমো-প্রুফ পাশ)
+
+TK ধরলেন Report Card-এর নিচে বারকোডের উপরের লাইন TK BISWAS/Dr. MANDAL-এর স্বাক্ষর-লাইনের সমান উচ্চতায় নেই। নকল ব্রাউজারে (headless Chromium) পিক্সেল মেপে আসল কারণ ধরা হলো: `.vc{border-top:0;padding-top:0}` CSS-টা লেখা থাকলেও `.docline>div`-এর বেশি specificity-র জন্য কাজই করছিল না — বারকোডের কলামে অদৃশ্য বাড়তি জায়গা বসে ছিল।
+
+**ফোন:** `ReportCardPrinter.kt`-এ specificity ঠিক করা হলো (`.docline>div.vc`), আর `.vbar`-এর উচ্চতা ৩৪→২৯px (TK-র পরামর্শ মতোই) — এখন পিক্সেল-মিলিয়ে লাইন সমান। ডেমো-প্রুফ (আগে/প্রস্তাবিত ক্রপ পাশাপাশি) TK-কে দেখানো হলো, TK "পাশ" বললেন।
+**ওয়েব:** একই জায়গায় (`wlv1RcDocLine .vbar`) যাচাই করে দেখা গেল ওয়েবেও (আলাদা কারণে, specificity বাগ নেই কিন্তু বারকোড সাইজ-অনুপাতে বেশি লম্বা) প্রায় একই রকম ফারাক (~১০px) ছিল — height 9mm→6mm, margin-top 2mm→0, এখন <1px ফারাক। styles.css ক্যাশ-নম্বর v1464→v1491।
+
+পাহারা: verify_android_resources PASS · node --check PASS · web_browser_test সব পাশ · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।
+
+⏳ এখনো বাকি (TK-কে ডেমো দেখানোর অপেক্ষায়): (১) Report Card-এর নিচের Print/Share/Save/Close বোতাম ফোনে কাটা দেখাচ্ছে (এখনো খতিয়ে দেখা হচ্ছে, আন্দাজে ফিক্স করা হয়নি), (২) Checkup-এর "Estimate" ধাপে একই কথা (Estimated Cost/COST ESTIMATE/FROM COST ESTIMATE) বারবার + ধাপ-নম্বরিং এলোমেলো, (৩) Patient Timeline-এর ৪টা বোতাম (Checkup History/Report Card/Payment/Action) আরেকটু কম্প্যাক্ট করা — তিনটেরই ডেমো এখনো TK-কে দেখানো হয়নি।
