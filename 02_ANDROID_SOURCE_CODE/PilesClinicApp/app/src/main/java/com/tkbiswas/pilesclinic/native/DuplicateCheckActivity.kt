@@ -206,10 +206,17 @@ class DuplicateCheckActivity : AppCompatActivity() {
             note("No duplicates found ✓", "#0EA25F"); return
         }
         if (mobGroups.isNotEmpty()) {
+            /* 🔴🔒 V1505 (১৫.০৯.২০২৬, TK-রিপোর্ট, স্টাফ ছবিসহ — RUHMAT/PROMOTH/
+               SARFARAZ একই নম্বরে ৩ জন আলাদা মানুষ, অথচ এই পর্দা সবাইকে
+               "PROMOTH PARVIN — 3 rows" বলে দেখাচ্ছিল) — একই মোবাইলে একাধিক
+               সারি থাকলে তারা সবসময় একই ব্যক্তি নয় (পরিবারের নম্বর ভাগাভাগি
+               হতেই পারে), কিন্তু সাব-লাইনে নাম ছিলই না — শুধু প্রথম জনের নাম
+               উপরের হেডারে বসত, বাকিদের নাম হারিয়ে যেত। এখন প্রতিটা সারিতে
+               নিজের নাম আগে বসে, তাই আলাদা মানুষ স্পষ্ট বোঝা যায়। */
             section("SAME MOBILE — ${mobGroups.size}")
             for (g in mobGroups) card("#D9612F", "#FDEEE9", "#D9612F", g[0].name, "${g.size} rows",
                 "📞 +91${g[0].mobile} · ${g[0].branch.uppercase()}",
-                g.sortedBy { it.created }.map { p -> Pair("${p.code} · ${p.age} ${p.sex} · Bill ${money(p.bill)} · Paid ${money(p.paid)}", ddmm(p.created)) })
+                g.sortedBy { it.created }.map { p -> Pair("${p.name.ifBlank { "-" }} · ${p.code} · ${p.age} ${p.sex} · Bill ${money(p.bill)} · Paid ${money(p.paid)}", ddmm(p.created)) })
         }
         if (nameGroups.isNotEmpty()) {
             section("SAME NAME IN BRANCH — ${nameGroups.size}")

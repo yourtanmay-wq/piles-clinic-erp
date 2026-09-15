@@ -27404,3 +27404,9 @@ TK-র নিয়ম: History/Clinical/Estimate/Photo জীবনে এক�
 ---
 **১৫.০৯.২০২৬ ১৫:১২ — PILES_CLINIC_APP_V1505_FINAL.zip পাঠানো হলো (TK-র "ফাইল পাঠাও" অনুরোধে):**
 ২৬.২ MB · ১৯২২টা ফাইল। ভার্সন ১৫০৪→১৫০৫। এই সেশনের সব কাজ একসাথে: RMP ডুপ্লিকেট-সার্চ ফিক্স, কমিশন-লেখা স্পষ্ট, RMP ড্রপডাউন ডিজাইন, CHECK-UP Queue New/Old ছাঁকা (ফোন+ওয়েব), Checkup ফর্মের SAVED-বাক্স স্মার্ট করা। পাহারা সব PASS (verify_android_resources · tk_guard · verify_kotlin_compile · verify_zip_root_name · verify_zip_contents)। হিসাব `00_GUARD/pathano_filer_talika.json`-এ লেখা হলো (নিয়ম ৩ক)।
+
+---
+**১৫.০৯.২০২৬ ১৬:০২ — Duplicate Check "Same mobile"-এ আসল নাম হারানোর বাগ ঠিক (ফোন+ওয়েব, স্টাফ-রিপোর্ট TK ছবিসহ):**
+TK-র রিপোর্ট: একই নম্বরে RUHMAT PARVIN, PROMOTH PARVIN, SARFARAZ ALAM — ৩ জন আলাদা মানুষ (পরিবারের নম্বর), অথচ Duplicate Check পর্দা সবাইকে "PROMOTH PARVIN — 3 rows" বলে দেখাচ্ছিল। যাচাই করে নিশ্চিত হওয়া গেল — **এটা সত্যিই অ্যাপের দোষ**, স্টাফ ঠিক বলেছিলেন। আসল কারণ: "Same mobile" তালিকায় প্রতিটা সারিতে সেই সারির নিজের নাম দেখানো হতো না, শুধু গ্রুপের প্রথম জনের নাম উপরে বসত। এখন প্রতিটা সারিতে নিজের নাম আগে বসে, তাই আলাদা মানুষ স্পষ্ট বোঝা যায়। নিয়ম ৭ মেনে ফোন (`DuplicateCheckActivity.kt`) ও ওয়েব (`wlv1DupCheck`, app.js) দুটোতেই একই ফিক্স। ভয়েস-প্রশ্নের ডুপ্লিকেট-তালিকা (`reports.duplicate_list` SQL RPC) আলাদা পথ — সেখানে আগে থেকেই সব আলাদা নাম একসাথে (`string_agg`) দেখানো হয়, ওই বাগ নেই বলে যাচাই করা হয়েছে।
+
+পাহারা: verify_android_resources PASS · tk_guard PASS · node --check PASS · web_browser_test PASS · verify_kotlin_compile চলছে। ভার্সন বাড়ানো হয়নি (নিয়ম ৩খ, এইমাত্র ১৫০৫ পাঠানো হয়েছে)।

@@ -17850,7 +17850,11 @@ function wlv1DupCheck(){
     +'<div><b style="font-size:22px;color:#0B5C56">'+dupP.length+'</b><br><small class="mut">Same amount · day</small></div></div>'
     +'<button style="width:100%;margin:10px 0" onclick="wlv1DupCheck()">⟳ Check again</button>';
   if(!mobG.length&&!nameG.length&&!dupP.length){html+='<div class="card mut" style="text-align:center;color:#0EA25F">No duplicates found ✓</div>'}
-  if(mobG.length){html+='<div class="sectionTitle">SAME MOBILE — '+mobG.length+'</div>'+mobG.map(function(g){return card('#D9612F','#FDEEE9','#D9612F',g[0].name,g.length+' rows','📞 +91'+g[0].mobile+' · '+g[0].branch.toUpperCase(),byCreated(g).map(function(p){return [p.code+' · '+p.age+' '+p.sex+' · Bill '+money(p.bill)+' · Paid '+money(p.paid),dm(p.created)]}))}).join('')}
+  /* 🔴🔒 V1505 (১৫.০৯.২০২৬, TK-রিপোর্ট, স্টাফ ছবিসহ — একই নম্বরে ৩ জন আলাদা
+     মানুষ, অথচ সবাইকে একজনের নাম দিয়ে দেখাচ্ছিল) — একই মোবাইলের সারিগুলো
+     সবসময় একই ব্যক্তি নয় (পরিবারের নম্বর ভাগাভাগি হতে পারে), তাই প্রতিটা
+     সারিতে নিজের নাম আগে বসানো হলো — ফোনের হুবহু একই ফিক্স। */
+  if(mobG.length){html+='<div class="sectionTitle">SAME MOBILE — '+mobG.length+'</div>'+mobG.map(function(g){return card('#D9612F','#FDEEE9','#D9612F',g[0].name,g.length+' rows','📞 +91'+g[0].mobile+' · '+g[0].branch.toUpperCase(),byCreated(g).map(function(p){return [(p.name||'-')+' · '+p.code+' · '+p.age+' '+p.sex+' · Bill '+money(p.bill)+' · Paid '+money(p.paid),dm(p.created)]}))}).join('')}
   if(nameG.length){html+='<div class="sectionTitle">SAME NAME IN BRANCH — '+nameG.length+'</div>'+nameG.map(function(g){return card('#C99A19','#FFF8E1','#C99A19',g[0].name,g.length+' rows',g[0].branch.toUpperCase()+' · '+g[0].age+' '+g[0].sex,byCreated(g).map(function(p){return [p.code+' · '+p.mobile+' · Bill '+money(p.bill)+' · Paid '+money(p.paid),dm(p.created)]}))}).join('')}
   if(dupP.length){html+='<div class="sectionTitle">SAME AMOUNT · SAME DAY — '+dupP.length+'</div>'+dupP.map(function(g){var y=g[0],p=byId[y.patientId]||{};var amt=Number(y.amount||0);return card('#D9612F','#FDEEE9','#D9612F',p.name||String(y.patientId||''),g.length+' × '+money(amt),(p.code||'')+' · '+String(p.branch||'').toUpperCase(),[[wlv1Dot(String(y.date||'').slice(0,10))+' · '+String(y.payType||'').replace(/_/g,' ')+' · '+String(y.mode||'')+' · '+codeName(y.receivedBy||''),g.length+' rows']])}).join('')}
   html+='<div class="mut" style="text-align:center;font-size:11.5px;margin:14px 0">View only — nothing is deleted from this screen</div>';
