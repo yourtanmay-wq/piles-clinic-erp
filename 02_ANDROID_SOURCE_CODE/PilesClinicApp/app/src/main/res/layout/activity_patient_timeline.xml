@@ -164,7 +164,11 @@
          LinearLayout auto-size to however many buttons are ACTUALLY
          visible: 3 visible buttons now split 100% of the width evenly,
          same for 4. Outer horizontal padding also reduced (12dp to 6dp)
-         so the row reaches closer to the true screen edges. -->
+         so the row reaches closer to the true screen edges.
+
+         🎨🔒 V1492 (১৫.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — TK: "উপরের
+         প্রায় ৪০% জায়গা খেয়ে নিয়েছি, একটু কম্প্যাক্ট করুন"। চারটে বোতামের
+         উচ্চতা 46dp → 40dp। ⛔ রং/লেখা/ক্রম/কাজ কিছুই বদলায়নি। -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -181,7 +185,7 @@
             android:id="@+id/btnCall"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="46dp"
+            android:layout_height="40dp"
             android:layout_marginEnd="6dp"
             android:background="@drawable/bg_btn_navy"
             app:backgroundTint="#7A3FF2"
@@ -202,7 +206,7 @@
             android:id="@+id/btnWhatsApp"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="46dp"
+            android:layout_height="40dp"
             android:layout_marginEnd="6dp"
             android:background="@drawable/bg_btn_navy"
             app:backgroundTint="#0E7C7B"
@@ -219,7 +223,7 @@
             android:id="@+id/btnPayment"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="46dp"
+            android:layout_height="40dp"
             android:layout_marginEnd="6dp"
             android:background="@drawable/bg_btn_green"
             app:backgroundTint="#C98A1E"
@@ -240,7 +244,7 @@
             android:id="@+id/btnTakeAction"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="46dp"
+            android:layout_height="40dp"
             android:background="@drawable/bg_btn_navy"
             app:backgroundTint="#10223A"
             android:textColor="@color/white"

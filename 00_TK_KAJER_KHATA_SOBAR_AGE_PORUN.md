@@ -27136,4 +27136,10 @@ TK ধরলেন Report Card-এর নিচে বারকোডের উ�
 
 পাহারা: verify_android_resources PASS · node --check PASS · web_browser_test সব পাশ · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।
 
-⏳ এখনো বাকি (TK-কে ডেমো দেখানোর অপেক্ষায়): (১) Report Card-এর নিচের Print/Share/Save/Close বোতাম ফোনে কাটা দেখাচ্ছে (এখনো খতিয়ে দেখা হচ্ছে, আন্দাজে ফিক্স করা হয়নি), (২) Checkup-এর "Estimate" ধাপে একই কথা (Estimated Cost/COST ESTIMATE/FROM COST ESTIMATE) বারবার + ধাপ-নম্বরিং এলোমেলো, (৩) Patient Timeline-এর ৪টা বোতাম (Checkup History/Report Card/Payment/Action) আরেকটু কম্প্যাক্ট করা — তিনটেরই ডেমো এখনো TK-কে দেখানো হয়নি।
+## ১৫.০৯.২০২৬ সকাল ১০.০৬ — V1492: Patient Timeline-এর ৪ বোতাম কম্প্যাক্ট (ডেমো-প্রুফ পাশ)
+
+TK: "উপরের প্রায় ৪০% জায়গা খেয়ে নিয়েছি, সামান্য কম্প্যাক্ট করুন — Checkup History/Report Card/Payment/Action এই চারটা বক্সের উচ্চতা একটু কম করুন"। ডেমো (৪৬dp বনাম ৪০dp) দেখানো হলো, TK "পাশ" বললেন। `activity_patient_timeline.xml`-এ চারটে বোতামের `layout_height` 46dp→40dp। রং/লেখা/ক্রম/কাজ কিছুই বদলায়নি। ওয়েবে এই ৪-বোতাম-সারির হুবহু জোড়া নেই (dp-ভিত্তিক না, HTML বোতাম আপনা থেকেই মাপমতো), তাই ওয়েবে বদলানোর কিছু নেই।
+
+পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। ফোন-শুধু, ভার্সন বাড়ানো হয়নি।
+
+⏳ এখনো বাকি (TK-কে ডেমো দেখানোর অপেক্ষায়, একটা একটা করে): (১) Report Card-এর নিচের Print/Share/Save/Close বোতাম ফোনে কাটা দেখাচ্ছে (এখনো খতিয়ে দেখা হচ্ছে, আন্দাজে ফিক্স করা হয়নি), (২) Checkup-এর "Estimate" ধাপে একই কথা (Estimated Cost/COST ESTIMATE/FROM COST ESTIMATE) বারবার + ধাপ-নম্বরিং এলোমেলো — ডেমো বানানো আছে, এখনো TK-কে একটা একটা করে দেখানো বাকি।
