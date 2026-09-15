@@ -61,6 +61,12 @@ class DoctorQueueActivity : AppCompatActivity() {
     private var lastPendingItems = listOf<QueuePatient>()
     private var lastDoneItems = listOf<QueuePatient>()
 
+    /* 🟢🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — New/Old ছাঁকার
+       বাছাই। null = সবাই (ডিফল্ট), "NEW"/"OLD" = শুধু সেটাই। একই বোতামে
+       আবার চাপলে বা অন্যটায় চাপলে বদলায়; একটাও রোগীর ডেটা মোছে না, শুধু
+       এই পর্দায় দেখানো হয় কিনা। */
+    private var queueBadgeFilter: String? = null
+
     // 🔔 খাতার সারি B151 (TK, 30.07.2026) — নিজে থেকে নতুন হওয়ার ব্যবস্থা।
     // ⛔ নিয়ম ও সময় দুটোই `LiveRefresh`-এ, তাই চার পর্দায় চার নিয়ম হতে পারে না।
     private val autoHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -180,6 +186,21 @@ class DoctorQueueActivity : AppCompatActivity() {
             android.widget.Toast.makeText(
                 this, "Queue refreshed  ·  $waiting waiting", android.widget.Toast.LENGTH_SHORT
             ).show()
+        }
+        /* 🟢🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — New/Old
+           ছাঁকার মেনু। একই বাছাইয়ে আবার চাপলে সবাই ফিরে আসে (টগল)।
+           ⛔ নতুন কোনো ক্লাউড-অনুরোধ নেই — শুধু পর্দায় ছাঁকা হয়। */
+        binding.btnQueueFilter.setOnClickListener { v ->
+            val menu = android.widget.PopupMenu(this, v)
+            menu.menu.add(0, 1, 0, "New")
+            menu.menu.add(0, 2, 1, "Old")
+            menu.setOnMenuItemClickListener { item ->
+                val picked = if (item.itemId == 1) "NEW" else "OLD"
+                queueBadgeFilter = if (queueBadgeFilter == picked) null else picked
+                renderRows()
+                true
+            }
+            menu.show()
         }
         // 🔍 V972 — লেখামাত্র তালিকা ছাঁকে (নতুন কোনো ক্লাউড-অনুরোধ নেই)।
         binding.etQueueSearch.addTextChangedListener(object : android.text.TextWatcher {
@@ -521,12 +542,18 @@ class DoctorQueueActivity : AppCompatActivity() {
         } catch (_: Throwable) { }
     }
 
+    /* 🟢🔒 V1504 — New/Old ছাঁকা। বাছাই না থাকলে (null) সবাই মেলে। */
+    private fun matchesBadgeFilter(p: QueuePatient): Boolean {
+        val f = queueBadgeFilter ?: return true
+        return com.tkbiswas.pilesclinic.clinical.NextVisitPlan.oldOrNew(p.registrationDate) == f
+    }
+
     private fun renderRows() {
         val rows = mutableListOf<QueueRow>()
         // 🔍 V972 — খোঁজার লেখা থাকলে ছেঁকে নেওয়া তালিকাই দেখানো হয়; ফাঁকা
         //    থাকলে সব আগের মতোই। ⛔ জমানো আসল তালিকা ছোঁয়া হয় না।
-        val pendingShown = lastPendingItems.filter { matchesSearch(it) }
-        val doneShown = lastDoneItems.filter { matchesSearch(it) }
+        val pendingShown = lastPendingItems.filter { matchesSearch(it) && matchesBadgeFilter(it) }
+        val doneShown = lastDoneItems.filter { matchesSearch(it) && matchesBadgeFilter(it) }
         if (pendingShown.isNotEmpty()) {
             rows.add(QueueRow.Header("PENDING TODAY (${pendingShown.size})"))
             pendingShown.forEach { rows.add(QueueRow.Item(it)) }

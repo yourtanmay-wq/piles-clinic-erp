@@ -60,6 +60,21 @@
             android:textColor="@color/white"
             android:textSize="20sp"
             android:padding="4dp" />
+
+        <!-- 🟢🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — TK: "এক দিনে
+             যখন অনেক পেসেন্ট আসে তখন বোঝা মুশকিল হয়ে যায় না কোনটা নতুন আর
+             কোনটা পুরানো" — তালিকা New/Old দিয়ে ছাঁকার মেনু। ⛔ ব্রাঞ্চ-বাক্স ·
+             রিফ্রেশ একটুও বদলায়নি, এই বোতামটা শুধু পাশে নতুন। -->
+        <TextView
+            android:id="@+id/btnQueueFilter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="⋮"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:padding="4dp" />
     </LinearLayout>
 
     <!-- 🔍🔒 V972 (০২.০৯.২০২৬, TK-নির্দেশ ও পাশ-করা ফটো-প্রুফ) —
