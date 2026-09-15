@@ -5388,7 +5388,16 @@ class DoctorVisitActivity : AppCompatActivity() {
                 branchValue.setText("${got.value.value}")
                 branchModeInfo.text = "$myBranch — using its OWN % (below)"
             } else {
-                branchModeInfo.text = "$myBranch — currently using the general Default above (${got.value.value})"
+                /* 🟢 V1504 (১৫.০৯.২০২৬, TK-অনুমোদিত ডেমো-প্রুফ) — আগে এই
+                   লাইনের সংখ্যাটা TK নিজে বসানো Default নাকি V488-এর
+                   অটোমেটিক ১০% বেস রেট বোঝা যেত না ("30 vs 10" বিভ্রান্তি)।
+                   এখন উপরের গ্লোবাল Default সত্যিই সেভ করা আছে কিনা আলাদা
+                   করে দেখে স্পষ্ট লেখা দেখানো হয়। */
+                val globalSet = withContext(Dispatchers.IO) { RmpCommissionRepository.getDefault(item.id) }
+                branchModeInfo.text = if (globalSet.ok && globalSet.value != null)
+                    "$myBranch — using the Default above (${got.value.value}%)"
+                else
+                    "$myBranch — no Default set, using automatic 10% base rate"
             }
         }
         parts.actionRow.addView(pillButton("Save for $myBranch only", "#C98A1E").apply {

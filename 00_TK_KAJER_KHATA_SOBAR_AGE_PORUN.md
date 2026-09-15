@@ -27344,3 +27344,11 @@ TK ৯টা ছবি সহ AMIT GOLDAR/BEAUTY ROY-র Referral Income পর�
 ওয়েব যাচাই: ওয়েবে এই নির্দিষ্ট পর্দা (patient timeline থেকে RMP লিংক করা)-ই নেই — ওয়েবে Referral Income শুধু RMP-র নিজের পাতা থেকে (উল্টোদিকে, রোগী খোঁজা হয়) যোগ করা হয়, তাই একই বাগ হতে পারে না। ওয়েবের একমাত্র RMP-সার্চ (Registration/Enquiry ফর্ম) আগে থেকেই ব্রাঞ্চ ধরে ঠিকভাবে কাজ করে (V1132)। তাই ওয়েবে কিছু বদলানো লাগেনি।
 
 পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile চলছে। ভার্সন বাড়ানো হয়নি (নিয়ম ৩খ)।
+
+---
+**১৫.০৯.২০২৬ ১৩:৩১ — কমিশন-% এর বিভ্রান্তিকর লেখা ঠিক (শুধু ফোন, TK ডেমো-প্রুফ পাশ করে অনুমতি দিয়েছেন):**
+`DoctorVisitActivity.kt`-এর "RMP Default Commission" পপ-আপে Branch-specific অংশে আগে লেখা থাকত "currently using the general Default above (10.0)" — এই ১০ TK নিজে বসিয়েছেন নাকি V488-এর অটোমেটিক বেস রেট বোঝা যেত না। এখন উপরের গ্লোবাল Default সত্যিই সেভ করা আছে কিনা আলাদা করে দেখে স্পষ্ট লেখা দেখায় — TK বসিয়ে থাকলে "using the Default above (X%)", না বসালে "no Default set, using automatic 10% base rate"। টাকা/হিসাবের কোনো নিয়ম ছোঁয়া হয়নি, শুধু এই একটা লেখাই বদলেছে।
+
+ওয়েব যাচাই: এই ব্রাঞ্চ-স্পেসিফিক কমিশন-ডিফল্ট ফিচারটাই ওয়েবে নেই, তাই ওখানে বদলানোর কিছু নেই।
+
+পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile চলছে। ভার্সন বাড়ানো হয়নি (নিয়ম ৩খ)।
