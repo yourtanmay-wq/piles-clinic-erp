@@ -1526,6 +1526,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     etComplaint.text.isNullOrBlank() && !restoredOnce) {
                     restoredOnce = true
                     populate(CheckupNoteJson.fromMap(jsonToMap(noteObj)))
+                    /* 🟢🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ — "History/Clinical/
+                       Estimate/Photo জীবনে একবারই করা হয়, বোঝাই যায় না আগে
+                       হয়েছে কিনা") — আগে সেভ করা তথ্য ফিরে এলেই এই ধাপগুলো
+                       সঙ্গে সঙ্গে ধূসর/SAVED বাক্সে নামে, Save না চেপেও।
+                       ⛔ Doctor's Remark/Today's Treatment/Next Visit Plan
+                       এই তালিকায় নেই (savedGroupIds দেখুন) — TK: "এগুলো
+                       পেশেন্ট যতবার আসে ততবারই চেঞ্জ হতে পারে", তাই সবসময়
+                       খোলা/স্বাভাবিক থাকে। */
+                    savedInThisScreen = true
+                    findViewById<android.view.View>(R.id.secSavedGroup)?.post { refreshSavedGroup() }
                 }
             } catch (_: Throwable) { }
             // 🟢🔒 V676 — আজকের নিজের Checkup এডিট করতে খোলা হলে, উপরের
@@ -1537,6 +1547,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 if (record != null) {
                     restoredOnce = true
                     populate(record)
+                    savedInThisScreen = true   // 🟢🔒 V1504 — উপরের একই নিয়ম, এডিট-মোডেও
+                    findViewById<android.view.View>(R.id.secSavedGroup)?.post { refreshSavedGroup() }
                 } else {
                     // ⛔ JSON না মিললে (কখনো ঘটার কথা না, তবু নিরাপদ থাকতে)
                     // edit-mode বন্ধ — Save তখন আগের মতোই নতুন সারি বানাবে,
@@ -2528,9 +2540,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
        ⚠️ কার্ড সরানোর কাজটা `post {}`-এর ভিতরে, কারণ চাপাচাপির (click) হিসাব
           শেষ হওয়ার আগেই কার্ডটাকে গাছ থেকে তুলে নিলে ঝুঁকি থাকে।
        ═══════════════════════════════════════════════════════════════════ */
+    /* 🟢🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ) — "History/Clinical/Estimate/Photo
+       জীবনে একবারই করা হয়, কিন্তু Remark/Today's Treatment/Next Visit
+       রোগী যতবার আসে ততবারই বদলাতে পারে — এটা আমাদের ব্যবসার নিয়ম।"
+       ⇒ এই তিনটে (secDocRemark/secTodayTreat/secNextVisitPlan) এই
+       তালিকা থেকে বাদ — তারা কখনোই ধূসর/SAVED বাক্সে নামে না, প্রতিবারই
+       খোলা/স্বাভাবিক অবস্থায় থাকে যাতে ডাক্তার সহজে নতুন করে লিখতে পারেন। */
     private val savedGroupIds = intArrayOf(
-        R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secEstimate,
-        R.id.secDocRemark, R.id.secTodayTreat, R.id.secNextVisitPlan, R.id.secPhoto
+        R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secEstimate, R.id.secPhoto
     )
     private var savedGroupOpen = false
     private var savedGroupBusy = false
