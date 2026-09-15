@@ -388,26 +388,6 @@
         </LinearLayout><!-- 🔵 V584: ptlHeaderCard শেষ — ID/Ref By এখন ক্রিম হেডারের ভিতরে -->
     </LinearLayout>
 
-    <!-- 🟢🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — "সব লেখা একই রকম
-         থাকে, বোঝাই যায় না আগে চেক হয়েছে কিনা") — পেশেন্ট কার্ডের ঠিক নিচে,
-         আজ এই রোগীর চেকআপ আগেই সেভ হয়ে থাকলে এই সবুজ বার। ⛔ ডিফল্টে GONE —
-         `bindPatientHeader()`-এ `doctorComplete` সত্যি হলেই শুধু দেখা যায়;
-         বাকি ফর্ম/সেভ-নিয়ম এক অক্ষরও বদলায়নি। -->
-    <TextView
-        android:id="@+id/tvAlreadyCheckedToday"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/bg_input_field"
-        android:backgroundTint="#0EA968"
-        android:padding="10dp"
-        android:text="✓ Already checked up today"
-        android:textColor="@color/white"
-        android:textStyle="bold"
-        android:textSize="12.5sp"
-        android:gravity="center"
-        android:visibility="gone" />
-
     <!-- 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ — "Doctor Note & Reminder থাকুক
          ... রোগীর আসার আগের দিন যেন ডাক্তারবাবুকে মনে করিয়ে দেওয়া হয়") —
          নতুন বাক্স, পেশেন্ট তথ্যের কার্ডের ঠিক নিচে (TK-এর বাছাই)। ডাক্তার
