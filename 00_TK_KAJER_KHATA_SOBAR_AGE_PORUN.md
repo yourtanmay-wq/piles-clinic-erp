@@ -27113,3 +27113,16 @@ TK ধরলেন ফাইল পাঠানোর পরপরই: Patient C
 **ঠিক করা হলো:** `PatientTimelineActivity.kt`-এ নিচের actionRow তালিকা থেকে এই ৪টা (Edit Patient, Change Branch (Master), Return Fees, Payment) তুলে নেওয়া হলো — এখন শুধু হেডারের ⋮ কুইক-মেনুতেই আছে। বাকি সব আইটেম (Give Discount, Next Follow-up তারিখ, Mark Arrived, Doctor Checkup/Prescription/..., Referring Doctor, Add Referral Income, Complete/Incomplete Patient, আসার তারিখ মনে করিয়ে দিন) আগের মতোই অক্ষত। প্রজেক্টে খুঁজে দেখা হলো — এই "⋮ কুইক-মেনু" প্যাটার্ন শুধু এই একটা পর্দাতেই আছে (grep-এ নিশ্চিত), তাই আর কোথাও একই দোষ নেই। ওয়েবে এই "Take Action" পর্দার জোড়া নেই (আগেই যাচাই করা), তাই ওয়েবে কিছু বদলায়নি।
 
 পাহারা: verify_android_resources PASS · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। ফোন-শুধু, ভার্সন নম্বর বাড়ানো হয়নি (এইমাত্র V1488 পাঠানো হয়েছে, এই ছোট ফিক্সটা পরের ফাইল-পাঠানোর সময় ভার্সনে যাবে)।
+
+## ১৫.০৯.২০২৬ সকাল ৯.৩৩ — V1490: "Marked Arrived" একদিনে দুবার লিখলে ডুপ্লিকেট সারি বসতো, ঠিক করা হলো
+
+TK PRENESWER ROY-র Checkup History-তে দেখালেন একই তারিখ-সময়ে (14.09.2026 2:19 PM, COB-UTTAMA) "Attendance confirmed (no payment)" হুবহু দুবার। খুঁজে দেখা গেল — সত্যিই দোষ (TK-র নিয়ম না): "Mark Arrived" চাপলে যে সারিটা বসে, তার আইডি প্রতিবার নতুন random (UUID) হতো, তাই একই পেশেন্টকে একদিনে দ্বিতীয়বার (যেকোনো পর্দা থেকেই — Chamber board/Patient Card/Follow-up/Search) "এসেছেন" চাপলে দুটো আলাদা সারি বসে যেত। "MEDICINE দেওয়া হল" দুবার লেখাটা আলাদা বিষয় — সেটা দুই ভিন্ন স্টাফের (COB-4 আর COB-UTTAMA) দুই সত্যিকারের কাজ (একটা টাকা-জমা, একটা ফোন-কল), সিস্টেমের দোষ না।
+
+TK-কে জানিয়ে অনুমতি নিয়ে ঠিক করা হলো: এখন প্রতিটা "এসেছেন" সারির আইডি মোবাইল+তারিখ ধরে **নির্দিষ্ট** (ফোনে ইতিমধ্যে থাকা "আসার কথা" (chamber_expected)-এর একই প্রমাণিত পদ্ধতি) — একই দিনে আবার মার্ক করলে upsert শুধু পুরনো সারিটাই আপডেট করে, নতুন সারি বসে না। পরদিন তারিখ বদলে যায়, তাই আসল পরের দিনের "এসেছেন" ঠিকই আলাদা সারি হয়।
+
+**ফোন:** `PaymentModel.buildAttendanceMarkRow()`-এর random UUID → `pay_arr_<মোবাইল>_<তারিখ>`।
+**ওয়েব:** একই দোষ পাওয়া গেল `wlv1ChamberMarkRow()`-এ (কোডে আগে থেকেই মন্তব্য ছিল "random id here too") — একই পদ্ধতিতে ঠিক করা হলো, `app.js` ক্যাশ-নম্বর v1488→v1490।
+
+উভয় জায়গায় Supabase-এর upsert (merge-duplicates) ব্যবহার হয় বলে একই আইডি দ্বিতীয়বার লিখলে এরর হবে না, শুধু আপডেট হবে — নকল ডেটাবেসে/কোড-যাচাইয়ে নিশ্চিত করা হয়েছে।
+
+পাহারা: verify_android_resources PASS · node --check PASS · web_browser_test সব পাশ · tk_guard PASS · verify_kotlin_compile PASS (নতুন ভুল ০)। ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।

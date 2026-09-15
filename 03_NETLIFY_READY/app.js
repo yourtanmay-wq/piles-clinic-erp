@@ -23664,11 +23664,16 @@ function wlv1ChamberMarkRow(payType, mobile, name){
          exact id. The web used a random id, so a mark made on the computer
          could sit as a SECOND, ghost "Expected" row that the phone's Cancel
          could never remove.
-       . "Arrived" (attendance_mark) uses a random id on the phone too, so it
-         stays random here.
+       . 🟢 V1490 (১৫.০৯.২০২৬, TK-রিপোর্ট) — "Arrived" (attendance_mark)-ও
+         আগে এখানে random id নিত (ফোনেও তখন তাই ছিল), তাই একই পেশেন্টকে
+         একদিনে দ্বিতীয়বার "এসেছেন" মার্ক করলে (ফোন/ওয়েব যে পর্দা থেকেই)
+         দুটো আলাদা "Marked Arrived" সারি বসে যেত (Checkup History-তে
+         ডুপ্লিকেট দেখাত)। এখন ফোনের মতোই id মোবাইল+যেদিনের জন্য মার্ক
+         করা হচ্ছে (wlv1ChamberDate) দিয়ে নির্দিষ্ট — একই দিনে আবার মার্ক
+         করলে upsert শুধু পুরনো সারিটাই আপডেট করে, নতুন সারি বসে না।
      Labels/remarks also matched to the phone so payment lists read the same. */
   const isExpected = (payType === 'chamber_expected');
-  const row = {id:(isExpected ? ('exp_'+m) : uid('pay')), payType, patientId:(p&&p.patientId)||'', mobile:normMob(m),
+  const row = {id:(isExpected ? ('exp_'+m) : ('pay_arr_'+m+'_'+String(wlv1ChamberDate).replace(/-/g,''))), payType, patientId:(p&&p.patientId)||'', mobile:normMob(m),
     branch:br, name:String(name||(p&&p.name)||'').toUpperCase(), date:wlv1ChamberDate, amount:0,
     mode:'CASH',
     payLabel:(isExpected?'Marked Expected':'Marked Arrived'),

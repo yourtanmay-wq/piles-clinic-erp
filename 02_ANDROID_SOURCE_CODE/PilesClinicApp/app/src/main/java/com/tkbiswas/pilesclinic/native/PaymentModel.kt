@@ -827,8 +827,18 @@ object PaymentModel {
      *  shows as a "₹0 payment" anywhere else in the app. */
     fun buildAttendanceMarkRow(mobile: String, name: String, branch: String, staffMobile: String): JSONObject {
         val now = isoNow()
+        /* 🔴🔒 V1490 (১৫.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি) — আগে এখানে প্রতিবার
+           নতুন random id (UUID) বসত, তাই একই পেশেন্টকে একদিনে দ্বিতীয়বার
+           "এসেছেন" চাপলে (যেকোনো পর্দা থেকেই — Chamber board/Patient Card/
+           Follow-up/Search, সবাই এই একই ফাংশনই ডাকে) দুটো আলাদা "Marked
+           Arrived" সারি বসে যেত (Checkup History-তে হুবহু ডুপ্লিকেট দেখাত,
+           TK ধরেছেন — PRENESWER ROY-র উদাহরণ)। এখন id মোবাইল+আজকের-তারিখ
+           দিয়ে নির্দিষ্ট (`markExpected()`-এর একই প্রমাণিত পদ্ধতি, নিচেই
+           দেখুন) — একই দিনে আবার চাপলে upsert শুধু পুরনো সারিটাই আপডেট করে,
+           নতুন সারি বসে না। পরদিন তারিখ বদলে যায় বলে পরের দিনের আসল "এসেছেন"
+           ঠিকই আলাদা সারি হিসেবে বসবে। */
         return JSONObject()
-            .put("id", "pay_" + UUID.randomUUID().toString().replace("-", ""))
+            .put("id", "pay_arr_" + mobile.filter { it.isDigit() }.takeLast(10) + "_" + today().replace("-", ""))
             .put("payType", "attendance_mark")
             .put("payLabel", "Marked Arrived")
             .put("paymentLabel", "Marked Arrived")
