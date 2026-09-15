@@ -1964,9 +1964,17 @@ class PatientTimelineActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) { refreshCalc() }
             override fun afterTextChanged(e: android.text.Editable?) {}
         })
+        /* 🔴🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ, ছবিসহ — AMIT GOLDAR দুবার) —
+           আগে এখানে রোগীর ব্রাঞ্চ পাঠানো হতো না, তাই `RmpPicker.cachedRmpChoices`
+           নিজে থেকেই লগ-ইন করা স্টাফের ব্রাঞ্চ ধরে নিত — Master-এর branch="All"
+           হওয়ায় Master-এর সার্চে **সব ব্রাঞ্চের** RMP একসাথে দেখাত (যেমন
+           জলপাইগুড়ির রোগীর জন্য কিশানগঞ্জের "AMIT GOLDAR"ও)। TK-এর স্থায়ী নিয়ম:
+           "সেই রোগীর ব্রাঞ্চে RMP না থাকলে নতুন সেভের সাজেশন দেবে, কিন্তু অন্য
+           ব্রাঞ্চের RMP দেখানো হবে না।" এখন রোগীর নিজের ব্রাঞ্চ (`currentBranch`)
+           পাঠানো হয়, তাই সার্চ ফলাফল সবসময় ওই একটা ব্রাঞ্চেই সীমাবদ্ধ থাকে। */
         val rmpChoices = try {
             val u = NativeSession.current(this)
-            if (u == null) emptyList() else RmpPicker.cachedRmpChoices(this, u)
+            if (u == null) emptyList() else RmpPicker.cachedRmpChoices(this, u, branchScope = currentBranch)
         } catch (_: Throwable) { emptyList() }
         if (rmpChoices.isNotEmpty()) {
             val labelToChoice = LinkedHashMap<String, RmpPicker.RmpChoice>()
