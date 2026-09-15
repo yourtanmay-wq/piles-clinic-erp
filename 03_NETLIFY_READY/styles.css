@@ -3344,6 +3344,10 @@ body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid
    ⛔ উপরের দুটো বারের রং/মাপ এক অক্ষরও বদলায়নি। */
 .dqSectionHead.dqSearchAll{background:#1D6FD1;cursor:pointer;text-align:center}
 .dqSectionHead.dqNotFound{background:#7B8794;text-align:center}
+/* 🟢🔒 V1504 (১৫.০৯.২০২৬, TK ডেমো-প্রুফ পাশ) — CHECK-UP Queue-তে New/Old
+   ছাঁকার পিল-বোতাম। বাছা থাকলে সবুজ ভরাট, না থাকলে সাদা রূপরেখা। */
+.dqBadgePill{border:1.5px solid #C9D0DA;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;color:#3B4A5E;background:#fff;cursor:pointer}
+.dqBadgePill.on{border-color:#0EA968;background:#0EA968;color:#fff}
 /* 🌑🔒 V1112 (০৫.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — আজ চেকআপ হয়ে যাওয়া কার্ড
    ফিকে, যাতে বাকি-রোগীর সঙ্গে গুলিয়ে না যায়। ⛔ কিছুই সরানো/লুকানো হয়নি —
    সব বোতাম আগের মতোই কাজ করে। ⛔ ফোনের `alpha 0.55` + সাদা-কালো ছবির হুবহু জোড়া। */

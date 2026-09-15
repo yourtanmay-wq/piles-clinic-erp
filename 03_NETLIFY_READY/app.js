@@ -11727,7 +11727,7 @@ function wlv1DqCard(p){
    যায়; ভিতরের নিজের আবার-আঁকা (খোঁজা · Overdue খোলা/গোটানো · ক্লাউড-পড়া)
    `true` পাঠায়, তাই তখন লেখা অটুট থাকে। ফোনে পর্দা ছাড়লেই ঘরটা এমনিতেই
    খালি হয়ে যায় — এখন দুই দিকেই এক আচরণ। */
-function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(e){}}try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQueueRows();
+function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch='';window.__dqBadgeFilter=''}catch(e){}}try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQueueRows();
  /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ (এক জায়গা থেকে)। বাছা না-থাকলে তালিকা নয়, বার্তা। */
  wlv1DqBranch=wlv1BranchGet();
  // V461 — K.H MANDAL-এর জন্য এখানেই (শুধু এই ফাংশনে) মাস্টারের মতো ব্রাঞ্চ-
@@ -11758,7 +11758,22 @@ function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(
    };
    todayRows=todayRows.filter(__m); overdueRows=overdueRows.filter(__m);
  }
- var searchBox='<input id="dqSearch" class="input" style="margin:10px 0" placeholder="Search patient by name / mobile / ID" value="'+esc(window.__dqSearch||'')+'" oninput="wlv1DqSearch(this.value)">';
+ /* 🟢🔒 V1504 (১৫.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — "এক দিনে যখন অনেক
+    পেসেন্ট আসে তখন বোঝা মুশকিল হয়ে যায় না কোনটা নতুন আর কোনটা পুরানো"।
+    New/Old পিল — একটায় চাপলে শুধু সেটাই, আবার চাপলে সবাই ফিরে আসে (টগল)।
+    ফোনের `DoctorQueueActivity`-র `queueBadgeFilter`-এর হুবহু জোড়া — একই
+    NEW/OLD নিয়ম (`wlv1NvpOldNew`), নতুন কোনো নিয়ম বসানো হয়নি। ⛔ শুধু
+    পর্দায় ছাঁকে — ক্লাউডে একটাও নতুন অনুরোধ যায় না। */
+ var __bf=String(window.__dqBadgeFilter||'');
+ if(__bf){
+   var __bm=function(x){ return wlv1NvpOldNew(x)===__bf; };
+   todayRows=todayRows.filter(__bm); overdueRows=overdueRows.filter(__bm);
+ }
+ var badgePills='<div style="display:flex;gap:8px;margin:0 0 10px">'
+   +'<button type="button" class="dqBadgePill'+(__bf==='NEW'?' on':'')+'" onclick="wlv1DqBadgeFilter(\'NEW\')">New</button>'
+   +'<button type="button" class="dqBadgePill'+(__bf==='OLD'?' on':'')+'" onclick="wlv1DqBadgeFilter(\'OLD\')">Old</button>'
+   +'</div>';
+ var searchBox='<input id="dqSearch" class="input" style="margin:10px 0" placeholder="Search patient by name / mobile / ID" value="'+esc(window.__dqSearch||'')+'" oninput="wlv1DqSearch(this.value)">'+badgePills;
  let body=searchBox;
  if(todayRows.length){
    body+=`<div class="dqSectionHead dqToday">PENDING TODAY (${todayRows.length})</div><div id="dqRows">${todayRows.map(wlv1DqCard).join('')}</div>`;
@@ -11812,6 +11827,12 @@ function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(
  },30);
 }
 window["doctorQueue"]=doctorQueue;
+/* 🟢🔒 V1504 — New/Old পিলে চাপ: একই বাছাইয়ে আবার চাপলে সবাই ফিরে আসে (টগল)। */
+function wlv1DqBadgeFilter(v){
+  window.__dqBadgeFilter = (String(window.__dqBadgeFilter||'')===v) ? '' : v;
+  doctorQueue(true);
+}
+window["wlv1DqBadgeFilter"]=wlv1DqBadgeFilter;
 /* 🔍 V972 — লেখামাত্র ছাঁকে; কার্সর যাতে না হারায়, শুধু সারিগুলোই আবার আঁকা হয়। */
 let __dqWideTimer=null;
 function wlv1DqSearch(v){

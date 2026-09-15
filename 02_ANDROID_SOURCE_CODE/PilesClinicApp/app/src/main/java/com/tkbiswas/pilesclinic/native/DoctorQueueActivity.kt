@@ -191,7 +191,7 @@ class DoctorQueueActivity : AppCompatActivity() {
            ছাঁকার মেনু। একই বাছাইয়ে আবার চাপলে সবাই ফিরে আসে (টগল)।
            ⛔ নতুন কোনো ক্লাউড-অনুরোধ নেই — শুধু পর্দায় ছাঁকা হয়। */
         binding.btnQueueFilter.setOnClickListener { v ->
-            val menu = android.widget.PopupMenu(this, v)
+            val menu = android.widget.PopupMenu(this@DoctorQueueActivity, v)
             menu.menu.add(0, 1, 0, "New")
             menu.menu.add(0, 2, 1, "Old")
             menu.setOnMenuItemClickListener { item ->
