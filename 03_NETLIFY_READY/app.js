@@ -10360,15 +10360,18 @@ function wlv1SaveRemarkNow(id,r){wlv1PendingRemark={id:'',text:''};let x=load('f
     ⛔ nextFollowDate()/saveNextFollow() ফাংশন দুটোর ভিতরে এক অক্ষরও বদলানো
     হয়নি, শুধু এখান থেকে ডাকা হচ্ছে। ⛔ updateFollowAction()-এর কাজ/হিসাব/
     ইতিহাস কিছুই বদলায়নি। */
- try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called',src:'call'},x?.stage)/* 🏷 V1192 — এটা ফোন-কলের রিমার্ক, চিকিৎসা নয় */;nextFollowDate(id,true)/* 📵🔒 V1332 — বাধ্যতামূলক পথ, আজ বন্ধ (ফোনের যমজ) */}
+ try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called',src:'call'},x?.stage)/* 🏷 V1192 — এটা ফোন-কলের রিমার্ক, চিকিৎসা নয় */;nextFollowDate(id,false)/* 🟢 V1488 (১৫.০৯.২০২৬, TK-নির্দেশ) — রোগী আজই আসতে পারেন, তাই আজ বন্ধ নয় (V1332 তুলে নেওয়া হলো) */}
 window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;
-/* 📵🔒 V1332 (১১.০৯.২০২৬, TK-নির্দেশ ও গভীর যাচাই — তালিকা সারি ৪৩৩) —
-   TK-রিপোর্ট: রিমার্ক লিখেই স্টাফ এই ক্যালেন্ডারে **আজকের** তারিখই বেছে
-   নিতে পারতেন, ফলে "পরের কল" আসলে আজই বকেয়া থেকে যেত। `blockToday=true`
-   শুধু রিমার্ক-সেভের ঠিক পরের বাধ্যতামূলক ডাক থেকেই আসে (উপরে
-   `wlv1SaveRemarkNow`); বাকি সব ডাক (কার্ডের ➜/Next Follow-up/Next Date
-   বোতাম — ম্যানুয়াল এডিট) আগের মতোই আজ বাছা যায়। ⛔ ফোনের
-   `ChamberCalendarDialog`-এর `blockToday`-র হুবহু যমজ নিয়ম। */
+/* 📵🔒 V1332 (১১.০৯.২০২৬) → 🟢 V1488 (১৫.০৯.২০২৬, TK-নির্দেশ) — V1332-এ
+   রিমার্ক-সেভের ঠিক পরের বাধ্যতামূলক ক্যালেন্ডারে "আজ" বন্ধ করা হয়েছিল
+   (নইলে "পরের কল" আজই আবার বকেয়া হয়ে যেত)। কিন্তু ফোনে TK ধরলেন — এই
+   একই ক্যালেন্ডার রোগী "আজ আসছেন" (Expected Date) বোঝাতেও ব্যবহার হয়,
+   আর ওয়েবে আসা/শুধু-ফোন আলাদা করার কোনো চেহারা নেই (একটাই ক্যালেন্ডার)।
+   তাই এখন `blockToday` আর কখনো `true` পাঠানো হয় না — আজ সবসময় বাছা
+   যায় (TK-র স্পষ্ট অনুমতি: "হ্যাঁ, ওয়েবেও আজ খুলে দিন", ফোনের-শুধু-ফোন
+   ক্ষেত্রেও আজ বাছা যাবে জেনেই)। `__wlv1NfBlockToday`/`blockToday`
+   প্যারামিটার ও নিচের সার্ভার-সাইড পাহারা (V1332) কোডে থেকে গেল অক্ষত —
+   ভবিষ্যতে দরকার হলে আবার `true` পাঠানো যাবে। */
 let __wlv1NfBlockToday=false;
 function nextFollowDate(id,blockToday){
       __wlv1NfBlockToday=!!blockToday;

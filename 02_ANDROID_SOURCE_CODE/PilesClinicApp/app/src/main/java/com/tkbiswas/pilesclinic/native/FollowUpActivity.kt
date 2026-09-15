@@ -2674,12 +2674,14 @@ class FollowUpActivity : AppCompatActivity() {
             showComeOrCallChooser(
                 mandatory = mandatory,
                 onCome = {
-                    /* 📵🔒 V1332 — বাধ্যতামূলক (রিমার্কের পরের) পথেই আজ বন্ধ; TK-র
-                       নিজের হাতে পরে তারিখ বদলাতে গেলে (mandatory=false) আগের মতোই। */
+                    /* 📵🔒 V1332 (১১.০৯.২০২৬) → 🟢 V1488 (১৫.০৯.২০২৬, TK-নির্দেশ) —
+                       পেশেন্ট সত্যিই আজ আসতে পারেন, তাই Expected Date (আসার তারিখ)
+                       কখনো "আজ" বন্ধ করে না। শুধু "পরের ফোন কবে?"-তেই (নিচে) আজ
+                       বন্ধ থাকে, যাতে পরের কল আজই আবার বকেয়া না হয়ে যায়। */
                     ChamberCalendarDialog.show(
                         this, item.branch, "Expected Date?",
                         chamberOnly = true, initialIso = defaultIso, mandatory = mandatory,
-                        blockToday = mandatory
+                        blockToday = false
                     ) { iso -> saveNextFollowDate(item, iso, markExpected = true) }
                 },
                 onCallOnly = {
@@ -2721,7 +2723,9 @@ class FollowUpActivity : AppCompatActivity() {
             ChamberCalendarDialog.show(
                 this, item.branch, NoBengali.s("পরের আসার দিন"),
                 chamberOnly = false, initialIso = defaultIso, mandatory = mandatory,
-                blockToday = mandatory,
+                /* 🟢 V1488 (১৫.০৯.২০২৬) — এটাও Expected Date (markExpected=true,
+                   নিচে দেখুন) — পেশেন্ট আজ আসতে পারেন, তাই আজ বন্ধ নয়। */
+                blockToday = false,
                 /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"এই পেসেন্ট এর নো মোর কল
                    অপশন কেনো নেই"* — কার্ডটা ছিল **VISITED**)। V711-এ বোতামটা
                    শুধু Treatment ধাপে বসত; TK-র নিজের কথায় নিয়মটা ছিল *"কোন
