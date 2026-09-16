@@ -1,5 +1,24 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1507_FINAL.zip",
+    "versionCode": 1507,
+    "when": "16.09.2026 05.58 am",
+    "size_mb": 26.28,
+    "total_files": 2048,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 837,
+      "(root)": 604,
+      "00_SQL": 213,
+      "04_SUPABASE_DATABASE_SETUP": 139,
+      "00_GUARD": 67,
+      "03_NETLIFY_READY": 59,
+      "08_ASSETS_BACKUP": 39,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 32
+    },
+    "excluded": ".git/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ; আলাদা করে কোনো ছবি/ফোল্ডার বাদ দেওয়া হয়নি",
+    "note": "V1507 — কিশানগঞ্জ (২০১৭-২৫, ৩৭৬ জন) + জলপাইগুড়ি (১৮৬ জন) + কোচবিহার (১০৯ জন) ব্রাঞ্চের হিস্টরিক্যাল ডেটা-ইমপোর্ট সম্পূর্ণ (money-verified SQL, TK চালিয়ে নিশ্চিত করেছেন) + Enquiry-stage 'Ref by (RMP name)' কার্ডে না-দেখানোর বাগ ফিক্স (enquiries-row থেকে fallback) + Registration ফর্মের RMP-সার্চ এখন ফর্মের নিজের বাছা ব্রাঞ্চ দিয়ে ছাঁকে, আগে স্টাফের নিজের ব্রাঞ্চ দিয়ে ছাঁকত (Master-এর ক্ষেত্রে সব ব্রাঞ্চ মিশে যেত, V1132-ক্লাসের বাগ); ভার্সন ১৫০৬→১৫০৭"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1506_FINAL.zip",
     "versionCode": 1506,
     "when": "15.09.2026 04.59 pm",
