@@ -38,7 +38,9 @@ class PasswordCenterAdapter(
         val acc = item.account
 
         // 🔴🔴 TK-REPORTED (31.07.2026): নাম না থাকলে মোবাইল দুইবার দেখাত।
-        b.tvName.text = acc.name.ifBlank { "UNKNOWN" }
+        // 🔴🔒 V1510 (TK-রিপোর্ট ১৬.০৯.২০২৬) — আসল নাম থাকলে "নাম (কোড)",
+        // না থাকলে (যেমন শেয়ার-করা ব্রাঞ্চ লগইন) আগের মতোই শুধু কোড।
+        b.tvName.text = if (item.fullName.isNotBlank()) "${item.fullName} (${acc.name})" else acc.name.ifBlank { "UNKNOWN" }
         b.tvMeta.text = "${acc.role} · ${acc.branch.ifBlank { "-" }} · ${PasswordCenterModel.mob(acc.mobile)}"
         b.tvPassword.text = "Password: ${item.password}"
         /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ করুন, তবে সাবধানে"*)

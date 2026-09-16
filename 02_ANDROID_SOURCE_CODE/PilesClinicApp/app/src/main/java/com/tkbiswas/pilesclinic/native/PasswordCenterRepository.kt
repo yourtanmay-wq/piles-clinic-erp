@@ -19,7 +19,11 @@ import java.util.Locale
  * cloud row (usercredentials); the local fallback is a WebView-only convenience
  * and is intentionally not duplicated.
  */
-data class UserCredential(val account: StaffAccount, val password: String)
+// 🔴🔒 V1510 (TK-রিপোর্ট ১৬.০৯.২০২৬ — "শুধু স্টাফের কোড, নাম নেই কেন") —
+// আসল মানুষের নাম (hr.staff_profiles.full_name) মোবাইল মিলিয়ে যোগ করা হলো।
+// ⛔ ফাঁকা থাকলে (যেমন ব্রাঞ্চ-শেয়ার লগইন, যার কোনো নির্দিষ্ট মানুষ নেই)
+// আগের মতোই শুধু কোড দেখাবে — কিছু ভাঙবে না।
+data class UserCredential(val account: StaffAccount, val password: String, val fullName: String = "")
 
 object PasswordCenterModel {
 
@@ -63,10 +67,24 @@ class PasswordCenterRepository {
             val pw = row.s("password")
             if (m.isNotBlank() && pw.isNotBlank()) byMobile[m] = pw
         }
+        // 🔴🔒 V1510 — hr.staff_profiles থেকে আসল নাম (link_mobile ধরে) --
+        // ব্যর্থ হলে ম্যাপ ফাঁকা থাকে, নাম না দেখালেও তালিকা আগের মতোই চলে।
+        val nameByMobile = HashMap<String, String>()
+        try {
+            val profiles = com.tkbiswas.pilesclinic.modules.ModuleAuth.getRows(
+                "hr", "staff_profiles", "select=full_name,link_mobile"
+            )
+            for (i in 0 until profiles.length()) {
+                val row = profiles.optJSONObject(i) ?: continue
+                val m = PasswordCenterModel.mob(row.optString("link_mobile"))
+                val nm = row.optString("full_name").trim()
+                if (m.isNotBlank() && nm.isNotBlank()) nameByMobile[m] = nm
+            }
+        } catch (_: Throwable) { }
         return StaffDirectory.allAccounts().map { acc ->
             val m = PasswordCenterModel.mob(acc.mobile)
             val pw = byMobile[m] ?: StaffDirectory.defaultPasswordFor(acc.role)
-            UserCredential(acc, pw)
+            UserCredential(acc, pw, nameByMobile[m] ?: "")
         }
     }
 
