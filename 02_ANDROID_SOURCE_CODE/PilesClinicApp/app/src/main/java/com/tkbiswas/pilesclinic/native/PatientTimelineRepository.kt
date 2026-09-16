@@ -1688,33 +1688,56 @@ object PatientTimelineRepository {
             // (same reasoning as the 2026-07-18 fix above: never a stale
             // snapshot). refDoctorDisplay is blank whenever there's no
             // referring doctor at all, so the header line hides cleanly.
+            // TK-REPORTED (2026-09-16): an Enquiry-only person (not yet
+            // Registered) has no `patients` row, so `patient` above is an
+            // empty JSONObject() -- the RMP name entered on the Enquiry form
+            // itself (saved on the `enquiries` row, per EnquiryModel) was
+            // never read here, so "Ref by" never showed on the Enquiry
+            // header even though the data was saved all along. Now falls
+            // back to enquiries[0]'s own refDoctor/refDoctorMobile whenever
+            // the patient row's own fields are blank -- same fallback idiom
+            // already used for address/timeType/name above in this file.
             refDoctor = run {
-                val savedMobile = patient.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
+                val refSourceDoctor = patient.s("refDoctor").ifBlank {
+                    if (enquiries.length() > 0) enquiries.getJSONObject(0).s("refDoctor") else ""
+                }
+                val refSourceMobile = patient.s("refDoctorMobile").ifBlank {
+                    if (enquiries.length() > 0) enquiries.getJSONObject(0).s("refDoctorMobile") else ""
+                }
+                val savedMobile = refSourceMobile.filter { it.isDigit() }.takeLast(10)
                 if (savedMobile.length == 10) {
                     val liveDoc = SupabaseClient.findByMobile("doctor_visits", savedMobile, "name", 1)
-                    if (liveDoc.length() > 0) liveDoc.getJSONObject(0).s("name").ifBlank { patient.s("refDoctor") }
-                    else patient.s("refDoctor")
-                } else patient.s("refDoctor")
+                    if (liveDoc.length() > 0) liveDoc.getJSONObject(0).s("name").ifBlank { refSourceDoctor }
+                    else refSourceDoctor
+                } else refSourceDoctor
             },
             refDoctorDisplay = run {
+                val refSourceDoctor = patient.s("refDoctor").ifBlank {
+                    if (enquiries.length() > 0) enquiries.getJSONObject(0).s("refDoctor") else ""
+                }
+                val refSourceMobile = patient.s("refDoctorMobile").ifBlank {
+                    if (enquiries.length() > 0) enquiries.getJSONObject(0).s("refDoctorMobile") else ""
+                }
                 val name = run {
-                    val savedMobile = patient.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
+                    val savedMobile = refSourceMobile.filter { it.isDigit() }.takeLast(10)
                     if (savedMobile.length == 10) {
                         val liveDoc = SupabaseClient.findByMobile("doctor_visits", savedMobile, "name,area", 1)
                         if (liveDoc.length() > 0) liveDoc.getJSONObject(0) else null
                     } else null
                 }
                 if (name == null) {
-                    val plain = patient.s("refDoctor")
+                    val plain = refSourceDoctor
                     if (plain.isBlank()) "" else if (plain.startsWith("Dr.", ignoreCase = true)) plain else "Dr. $plain"
                 } else {
-                    val docName = name.s("name").ifBlank { patient.s("refDoctor") }
+                    val docName = name.s("name").ifBlank { refSourceDoctor }
                     val area = name.s("area")
                     val withTitle = if (docName.startsWith("Dr.", ignoreCase = true)) docName else "Dr. $docName"
                     if (area.isNotBlank()) "$withTitle ($area)" else withTitle
                 }
             },
-            refDoctorMobile = patient.s("refDoctorMobile"),
+            refDoctorMobile = patient.s("refDoctorMobile").ifBlank {
+                if (enquiries.length() > 0) enquiries.getJSONObject(0).s("refDoctorMobile") else ""
+            },
             followupId = bestFollowup?.s("id") ?: "",
             followupStage = effectiveFollowupStage,
             // 🔒 খাতার সারি B97: ওই সারিটার চলতি অবস্থা (Active / Cancelled /

@@ -27686,3 +27686,24 @@ Cooch Behar (২০২৫) — মূল কাজ শেষ, শত শত র�
 · Cooch Behar: ৩ জন করাপশন + ২ জন মোবাইল + GULBAHADUR ALI/BABU RAHAMAN
   (ব্র্যাঞ্চ-নিশ্চিতকরণের অপেক্ষায়)
 — সব ক-টাই TK-র হাতে-খোঁজা তথ্যের অপেক্ষায়।
+
+## ১৬.০৯.২০২৬ ০৫:১৬ — এনকোয়ারি কার্ডে "Ref by" না দেখানোর আসল কারণ ধরে ঠিক করা হলো
+
+TK-র স্ক্রিনশট থেকে শুরু, প্রথমে ভুল করে Registration ভেবেছিলাম, TK নিজে
+ধরিয়ে দিলেন এটা Enquiry ফর্ম। যাচাই করে দেখা গেল আসল কারণ সম্পূর্ণ আলাদা:
+`PatientTimelineActivity`-র হেডারে "By- Dr. NAME" লাইন আগে থেকেই বসানো
+আছে (V1070/V1071/২৪.০৭.২০২৬-এর কাজ), কিন্তু সেটা শুধু **patients** টেবিলের
+সারি থেকে RMP-র নাম পড়ত -- যে রোগী এখনো Register হননি (শুধু Enquiry),
+তার patients-সারিই নেই, তাই RMP-র নাম এনকোয়ারিতেই সেভ থাকা সত্ত্বেও কখনো
+দেখাতই না।
+
+**ঠিক করা হলো:** `PatientTimelineRepository.kt`-র `refDoctor`/
+`refDoctorDisplay`/`refDoctorMobile` — patients-সারি ফাঁকা থাকলে এখন
+enquiries[0]-এর নিজের refDoctor/refDoctorMobile থেকে পড়ে (ঠিক একই কায়দায়
+যেভাবে address/timeType/name আগে থেকেই এনকোয়ারি থেকে পড়া হয়)। Registration/
+Visit/Treatment-এ কিছুই বদলায়নি (patients-সারি থাকলে আগের মতোই)।
+
+TK-কে "আগে/পরে" ডেমো (কার্ড-মকআপ) দেখানো হয়েছিল, TK পাশ করেছেন।
+পাহারা: verify_kotlin_compile.py PASS (নতুন ভুল ০) · verify_android_resources.py
+PASS · tk_guard.py সব ✅। ⚠️ আসল Android Studio বিল্ড ও ফোনে টেস্ট এখনো বাকি
+(TK করবেন)।
