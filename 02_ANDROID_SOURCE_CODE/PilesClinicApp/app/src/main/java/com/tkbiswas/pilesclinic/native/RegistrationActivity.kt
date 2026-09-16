@@ -148,15 +148,24 @@ class RegistrationActivity : AppCompatActivity() {
         }
     }
 
-    private fun cachedRmpChoices(user: NativeUser): List<RmpChoice> {
+    /** TK-REPORTED (16.09.2026): এই ফাংশন `user.branch` (লগ-ইন করা স্টাফের
+     *  নিজের ব্রাঞ্চ) দিয়ে ছাঁকত, ফর্মে তখন **আসলে কোন ব্রাঞ্চ বাছা আছে** তা
+     *  দেখতই না। Staff/Doctor-এর ব্রাঞ্চ ফর্মেও লক (V1110) বলে ওদের ক্ষেত্রে
+     *  দুটো এক থাকায় ভুল ধরা পড়েনি, কিন্তু Master/Field Officer প্রতিবার নিজে
+     *  ব্রাঞ্চ বাছেন (কখনো প্রি-ফিল হয় না) — তাঁদের জন্য "All"-এর ক্যাশে
+     *  সবকটা ব্রাঞ্চ একসাথে মিশে যেত, ফর্মে যে ব্রাঞ্চই বাছা হোক না কেন।
+     *  এখন Enquiry-র `RmpPicker.cachedRmpChoices`-এর (V1132) একই নিয়মে ফর্মের
+     *  নিজের বাছা ব্রাঞ্চ (`branchScope`) দিয়ে ছাঁকা হয়। */
+    private fun cachedRmpChoices(user: NativeUser, branchScope: String): List<RmpChoice> {
+        val scope = branchScope.trim().ifBlank { user.branch }
         return try {
             val prefs = getSharedPreferences("doctor_visit_cache", android.content.Context.MODE_PRIVATE)
             // Staff/Doctor only ever need their own branch cache. Master may
             // have opened either All or an individual branch, so all existing
             // cache buckets are safely combined without any network request.
-            val keys = if (user.branch.equals("All", ignoreCase = true)) {
+            val keys = if (scope.equals("All", ignoreCase = true)) {
                 listOf("All") + branches
-            } else listOf(user.branch)
+            } else listOf(scope)
             val combined = org.json.JSONArray()
             for (branch in keys.distinct()) {
                 val raw = prefs.getString("cache_${branch.ifBlank { "All" }}", null) ?: continue
@@ -166,7 +175,7 @@ class RegistrationActivity : AppCompatActivity() {
             // 🟢🔒 V802 — Doctor Visit পর্দার জমানো ঘরের সঙ্গে RMP-বাছার নিজস্ব
             // হালকা ঘরটাও যোগ (নিচের `seen` ইতিমধ্যেই ডুপ্লিকেট বাদ দেয়)।
             run {
-                val extra = RmpDirectory.cachedRows(this, user.branch)
+                val extra = RmpDirectory.cachedRows(this, scope)
                 for (i in 0 until extra.length()) extra.optJSONObject(i)?.let { combined.put(it) }
             }
             // Include a doctor/RMP just added on this phone even if its cloud
@@ -183,8 +192,8 @@ class RegistrationActivity : AppCompatActivity() {
                 val status = row.optString("status").trim()
                 if (name.isBlank()) continue
                 if (status.isNotBlank() && !status.equals("Active", ignoreCase = true)) continue
-                if (!user.branch.equals("All", ignoreCase = true) &&
-                    branch.isNotBlank() && !branch.equals(user.branch, ignoreCase = true)) continue
+                if (!scope.equals("All", ignoreCase = true) &&
+                    branch.isNotBlank() && !branch.equals(scope, ignoreCase = true)) continue
                 if (id.isNotBlank() && try { DeletedGuard.isDeleted("doctor_visits", id, this) } catch (_: Throwable) { false }) continue
                 val unique = id.ifBlank { "$mobile|${name.lowercase(Locale.US)}" }
                 if (!seen.add(unique)) continue
@@ -201,10 +210,19 @@ class RegistrationActivity : AppCompatActivity() {
         } catch (_: Throwable) { emptyList() }
     }
 
+    /** ফর্মে এই মুহূর্তে আসলে কোন ব্রাঞ্চ বাছা আছে (SELECT BRANCH হলে ফাঁকা) —
+     *  Enquiry-র `enqSelectedBranch()`-এর হুবহু একই ধরনের সাহায্যকারী। */
+    private fun regSelectedBranch(): String =
+        binding.spBranch.selectedItem?.toString()?.takeIf { it != SELECT_BRANCH }.orEmpty()
+
     // ---------- 🟢🔒 V895: টাইপ করতে করতে RMP সাজেশন ----------
 
     /** ফোনে জমা থাকা তালিকা — একবারই পড়া হয়, তারপর মনে থাকে। */
     private var rmpSuggestCache: List<RmpChoice>? = null
+    /** TK-REPORTED (16.09.2026) ফিক্সের অংশ — এই ক্যাশ কোন ব্রাঞ্চের জন্য
+     *  বানানো হয়েছিল সেটা মনে রাখা, যাতে Master/Field Officer ফর্মে ব্রাঞ্চ
+     *  বদলালে পুরনো ব্রাঞ্চের তালিকা ভুল করে থেকে না যায়। */
+    private var rmpSuggestCacheScope: String? = null
     /** ঘরে নিজেরা লেখা বসানোর সময় যেন সাজেশন আবার না খোলে। */
     private var rmpSuggestMuted = false
     /** ফাঁকা তালিকা হলে একবারই হালকা করে নামানো (V802-এর হুবহু নিয়ম)। */
@@ -249,23 +267,30 @@ class RegistrationActivity : AppCompatActivity() {
 
     private fun showRmpSuggest(user: NativeUser, typed: String) {
         val boxView = binding.llRmpSuggest
+        val scope = regSelectedBranch()
         var all = rmpSuggestCache
-        if (all == null) { all = cachedRmpChoices(user); rmpSuggestCache = all }
+        if (all == null || rmpSuggestCacheScope != scope) {
+            all = cachedRmpChoices(user, scope)
+            rmpSuggestCache = all
+            rmpSuggestCacheScope = scope
+            rmpSuggestFetchTried = false
+        }
         /* ফোনে তালিকা না থাকলে (এই ফোনে Doctor Visit পর্দা কখনো খোলা হয়নি)
            একবারই হালকা করে নামানো — আগের বোতামেও ঠিক এই ব্যবস্থাই ছিল (V802)। */
         if (all.isEmpty() && !rmpSuggestFetchTried &&
-            !RmpDirectory.hasDoctorVisitCache(this, user.branch) &&
-            RmpDirectory.cachedRows(this, user.branch).length() == 0) {
+            !RmpDirectory.hasDoctorVisitCache(this, scope) &&
+            RmpDirectory.cachedRows(this, scope).length() == 0) {
             rmpSuggestFetchTried = true
             Thread {
                 /* ⚠️ Activity-context-ই যথেষ্ট (SharedPreferences একই ফাইল) —
                    উপরের পুরোনো পথটাও ঠিক এটাই ব্যবহার করে। */
-                val got = try { RmpDirectory.refreshFromCloud(this@RegistrationActivity, user.branch) } catch (_: Throwable) { false }
+                val got = try { RmpDirectory.refreshFromCloud(this@RegistrationActivity, scope) } catch (_: Throwable) { false }
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                     // পর্দা বন্ধ হয়ে গেলে যেন কিছু না ভাঙে — try/catch-ই পাহারা।
                     try {
                         if (got) {
-                            rmpSuggestCache = cachedRmpChoices(user)
+                            rmpSuggestCache = cachedRmpChoices(user, scope)
+                            rmpSuggestCacheScope = scope
                             showRmpSuggest(user, binding.etRefDoctorName.text.toString().ifBlank {
                                 binding.etRefDoctorMobile.text.toString() })
                         }
@@ -321,7 +346,7 @@ class RegistrationActivity : AppCompatActivity() {
         val mobileDigits = MobileInput.digits(binding.etRefDoctorMobile)
         val askKey = "$name|$mobileDigits"
         if (askKey == rmpNewSuggestAskedFor) return
-        val all = rmpSuggestCache ?: cachedRmpChoices(user)
+        val all = rmpSuggestCache ?: cachedRmpChoices(user, regSelectedBranch())
         val q = name.lowercase(Locale.US)
         val matched = all.any { rmpChoiceMatches(it, q, mobileDigits) }
         if (matched) return
@@ -424,7 +449,8 @@ class RegistrationActivity : AppCompatActivity() {
     private fun dpRmp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun showSavedRmpPicker(user: NativeUser) {
-        val all = cachedRmpChoices(user)
+        val scope = regSelectedBranch()
+        val all = cachedRmpChoices(user, scope)
         /* 🟢🔒 V802 (২৮.০৮.২০২৬) — TK: "RMP পাঠিয়েছে, তাহলে এখন কেন দেখাচ্ছে না
            আরএমপি লিস্ট?" ─ কারণ ছিল: তালিকাটা শুধু `doctor_visit_cache` থেকে পড়ত,
            আর ওই ঘরটা ভরে **একমাত্র Doctor Visit পর্দা খুললে**। যে ফোনে কেউ ওই
@@ -433,11 +459,11 @@ class RegistrationActivity : AppCompatActivity() {
            এখন ফাঁকা হলে **একবার** হালকা পড়া হয় (৮টা ঘর, ভারী `callHistory` ও
            `referralPayments` ছাড়া ⇒ কয়েক KB), তারপর ফোনে জমা থাকে — পরের বার
            এক বাইটও খরচ নেই। নেট না থাকলে আগের মতোই হাতে লেখা যায়। */
-        if (all.isEmpty() && !RmpDirectory.hasDoctorVisitCache(this@RegistrationActivity, user.branch) &&
-            RmpDirectory.cachedRows(this@RegistrationActivity, user.branch).length() == 0) {   // ⛔ একবারই — নামানো হয়ে গেলে আর নয়
+        if (all.isEmpty() && !RmpDirectory.hasDoctorVisitCache(this@RegistrationActivity, scope) &&
+            RmpDirectory.cachedRows(this@RegistrationActivity, scope).length() == 0) {   // ⛔ একবারই — নামানো হয়ে গেলে আর নয়
             android.widget.Toast.makeText(this@RegistrationActivity, "Loading saved RMP list…", android.widget.Toast.LENGTH_SHORT).show()
             Thread {
-                val got = RmpDirectory.refreshFromCloud(this@RegistrationActivity, user.branch)   // SharedPreferences একই ফাইল, তাই Activity-context যথেষ্ট
+                val got = RmpDirectory.refreshFromCloud(this@RegistrationActivity, scope)   // SharedPreferences একই ফাইল, তাই Activity-context যথেষ্ট
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                     // ⛔ পর্দা ইতিমধ্যে বন্ধ হয়ে গেলে ডায়ালগ দেখাতে গিয়ে যেন অ্যাপ না থামে
                     try {
@@ -1105,6 +1131,20 @@ class RegistrationActivity : AppCompatActivity() {
         SpinnerPicker.attach(binding.spOccupation, "CHOOSE OCCUPATION", hidePlaceholder = true)
         SpinnerPicker.attach(binding.spDurationUnit, "CHOOSE DURATION UNIT")
         SpinnerPicker.attach(binding.spRefBy, "REFERRED BY")
+
+        // TK-REPORTED (16.09.2026) ফিক্সের অংশ — Master/Field Officer ব্রাঞ্চ
+        // বদলালে আগের ব্রাঞ্চের RMP-ক্যাশ যেন সাথে সাথেই সরে যায়, পরের অক্ষর
+        // টাইপ করার আগেই পুরনো ব্রাঞ্চের নাম দেখা না যায়।
+        binding.spBranch.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                rmpSuggestCache = null
+                rmpSuggestCacheScope = null
+                rmpSuggestFetchTried = false
+                binding.llRmpSuggest.removeAllViews()
+                binding.llRmpSuggest.visibility = View.GONE
+            }
+            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+        }
 
         // Referring-Doctor fields open only for Dr. Visit / RMP.
         binding.spRefBy.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
