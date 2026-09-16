@@ -31,12 +31,32 @@ class YearlyRegistrationActivity : AppCompatActivity() {
     private var year: String = ""
     private var rows: MutableList<DraftEntry> = mutableListOf()
 
+    /* 🆕🔒 V-YEARSW (১৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ, "হ্যাঁ পাশ, বসিয়ে
+       দিন") — বছর-বদল। `DraftRepository.load()` প্রতিটা বছরের হিসাব একসাথে
+       বানিয়ে এই ফোনের মেমোরিতে (`YearlyRegistration.cacheAllYears`) রেখে
+       দেয়; এখানে বছর বদলালে **নতুন কোনো ক্লাউড-কল ছাড়াই**, ওই মেমোরি
+       থেকেই সাথে সাথে দেখানো হয় — নতুন কোনো Activity খোলে না, এই পর্দাতেই
+       রিফ্রেশ হয়। ⛔ App প্রসেস মেরে দেওয়া থাকলে (মেমোরি খালি) শুধু চলতি
+       বছরটাই বিকল্প থাকে — ভুল সংখ্যা দেখায় না, শুধু বিকল্প কম। */
+    private var availableYears: List<String> = listOf()
+
     /* 🆕🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — ছাঁকনি · টিক-মার্ক ·
        "কতজন বাদ পড়ল"। ⛔ সবই এই পর্দার ভিতরে, কোনো নতুন ক্লাউড-পড়া নেই। */
     private var outDemo: Int = 0
     private var outNoDate: Int = 0
     private var filter: String = "all"   // all | counted | skipped | return | refund
     private val picked = HashSet<String>()
+
+    /** ক্লাউড থেকে সদ্য-মিলানো (পূর্ণাঙ্গ) "বাদ" তালিকা — বছর বদলালেও এটাই
+     *  আবার বসানো হয়, যাতে প্রতিটা বছরের skip-দাগ সমান নির্ভরযোগ্য থাকে। */
+    private var fullExcludedIds: Set<String>? = null
+
+    /** এই স্ক্রিনেই কেউ Skip/Undo করলে `fullExcludedIds`-ও সাথে সাথে হাল-নাগাদ —
+     *  নইলে অন্য বছরে গিয়ে ফিরে এলে এই বদলটা পুরনো ক্যাশ দিয়ে হারিয়ে যেত। */
+    private fun markExcludedLocally(id: String, skipped: Boolean) {
+        val cur = fullExcludedIds ?: return
+        fullExcludedIds = if (skipped) cur + id else cur - id
+    }
 
     private lateinit var bodyCol: LinearLayout
     private lateinit var totalView: TextView
@@ -95,6 +115,10 @@ class YearlyRegistrationActivity : AppCompatActivity() {
         rows = ((intent.getSerializableExtra("entries") as? ArrayList<DraftEntry>) ?: ArrayList()).toMutableList()
         outDemo = intent.getIntExtra("outDemo", 0)        // 🆕 V852
         outNoDate = intent.getIntExtra("outNoDate", 0)
+        // 🆕🔒 V-YEARSW — বছর-বদলের তালিকা; খালি এলে অন্তত চলতি বছরটা থাকবে।
+        // ⛔ `entries`-এর মতোই Serializable পথে (এই Activity-র প্রমাণিত ধরন)।
+        availableYears = ((intent.getSerializableExtra("availableYears") as? ArrayList<String>)?.toList()
+            ?: listOf()).ifEmpty { listOf(year) }
         sortForScreen()   // 🔢 V1001
 
         val root = LinearLayout(this).apply {
@@ -220,12 +244,68 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
 
+    /* 🆕🔒 V-YEARSW — "branch · year" লাইনটা এখন চাপ দেওয়া যায় (TK-পাশ-করা
+       ফটো-প্রুফ অনুযায়ী)। একটার বেশি বছর না থাকলে (নতুন ব্রাঞ্চ/মাত্র চলতি
+       বছরের তথ্য) "▾" দেখানো হয় না — চাপার কিছু নেই বলে বিভ্রান্তি এড়ানো। */
+    private fun yearSwitcherLabel(): View {
+        val txt = (branch.ifBlank { "All" }) + " · " + year + (if (availableYears.size > 1) " ▾" else "")
+        return label(txt, 13f, "#5B6B81", bold = availableYears.size > 1).apply {
+            if (availableYears.size > 1) {
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { showYearMenu(this) }
+            }
+        }
+    }
+
+    private fun showYearMenu(anchor: View) {
+        if (availableYears.size <= 1) return
+        try {
+            val pm = android.widget.PopupMenu(this, anchor)
+            availableYears.forEachIndexed { i, yr -> pm.menu.add(0, i, i, yr) }
+            pm.setOnMenuItemClickListener { mi ->
+                availableYears.getOrNull(mi.itemId)?.let { switchYear(it) }
+                true
+            }
+            pm.show()
+        } catch (_: Throwable) { }
+    }
+
+    /** নতুন বছরে বদলে **এই স্ক্রিনেই** রিফ্রেশ — নতুন কোনো ক্লাউড-কল/Activity
+     *  খোলে না; `YearlyRegistration.cacheAllYears`-এ Draft পর্দা খোলার সময়ই
+     *  জমা হওয়া হিসাব থেকে সরাসরি দেখানো হয় (নিয়ম ৭খ — দেরি নয়)। */
+    private fun switchYear(newYear: String) {
+        if (newYear == year) return
+        val branchKey = branch.ifBlank { "All" }
+        val snap = YearlyRegistration.cachedYears(branchKey)?.get(newYear)
+        if (snap == null) {
+            Toast.makeText(this,
+                "Could not load $newYear from memory — please reopen this screen from Draft",
+                Toast.LENGTH_LONG).show()
+            return
+        }
+        year = newYear
+        // পূর্ণাঙ্গ ক্লাউড-মিলানো "বাদ" তালিকা ইতিমধ্যে থাকলে (refreshExclusionsFromCloud
+        // আগে সফল হয়ে থাকলে) নতুন বছরের সারিতেও সেটাই বসানো হয় — যাতে skip-দাগ
+        // সব বছরে সমান নির্ভরযোগ্য থাকে (লোড-সময়ের ক্যাশে যা ছিল তার চেয়ে বেশি)।
+        val excl = fullExcludedIds
+        rows = if (excl == null) snap.rows.toMutableList() else snap.rows.map { e ->
+            val want = if (excl.contains(e.id)) YearlyRegistration.SKIP_MARK else ""
+            if (e.extra == want) e else e.copy(extra = want)
+        }.toMutableList()
+        outDemo = snap.outDemo
+        outNoDate = snap.outNoDate
+        picked.clear()
+        filter = "all"
+        sortForScreen()
+        render()
+    }
+
     private fun render() {
         bodyCol.removeAllViews()
         rebuildSerials()   // 🔢 V1001 — প্রতিবার নতুন করে গোনা হয়
 
-        bodyCol.addView(label(
-            (branch.ifBlank { "All" }) + " · " + year, 13f, "#5B6B81"))
+        bodyCol.addView(yearSwitcherLabel())
 
         totalView = label(YearlyRegistration.countedOf(rows).toString(), 30f, "#0B5E2A", true)
         totalView.setPadding(0, px(2), 0, px(8))
@@ -620,6 +700,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
                 val idx = rows.indexOfFirst { it.id == e.id }
                 if (idx >= 0) rows[idx] = rows[idx].copy(
                     extra = if (wantSkip) YearlyRegistration.SKIP_MARK else "")
+                markExcludedLocally(e.id, wantSkip)
             }
             val bad = failed
             runOnUiThread {
@@ -653,6 +734,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
                 val idx = rows.indexOfFirst { it.id == e.id }
                 if (idx >= 0) rows[idx] = rows[idx].copy(
                     extra = if (wantSkip) YearlyRegistration.SKIP_MARK else "")
+                markExcludedLocally(e.id, wantSkip)
                 // ⛔ Draft-এর সংখ্যাটা আলাদা করে ঠিক করতে হয় না — ফিরে গেলে
                 //    Draft নিজেই আবার হিসাব করে, আর সেই হিসাব এই ফোনে সদ্য
                 //    জমা হওয়া "বাদ" তালিকাটাই পড়ে (নতুন কোনো ক্লাউড-কল নয়)।
@@ -677,6 +759,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                fullExcludedIds = ids   // 🆕 V-YEARSW — বছর বদলালেও এই পূর্ণাঙ্গ তালিকাই পুনরায় বসবে
                 var changed = false
                 for (i in rows.indices) {
                     val want = if (ids.contains(rows[i].id)) YearlyRegistration.SKIP_MARK else ""

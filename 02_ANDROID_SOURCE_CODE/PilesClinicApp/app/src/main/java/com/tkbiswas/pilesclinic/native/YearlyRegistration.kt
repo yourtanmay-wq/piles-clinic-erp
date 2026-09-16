@@ -44,6 +44,41 @@ object YearlyRegistration {
     fun currentYear(): String =
         java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString()
 
+    /* 🆕🔒 V-YEARSW (১৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ — "Yearly Registration"
+       পর্দায় বছর বদলানোর অপশন) — TK: *"হ্যাঁ পাশ, বসিয়ে দিন"*।
+
+       **কী এই ক্যাশ:** `DraftRepository.load()` একবারই (Draft পর্দা খোলার
+       সময়) প্রতিটা বছরের হিসাব-করা তালিকা বানায় (dedup/demo/no-date/
+       return-refund-tag/excluded-mark — Yearly Registration-এর প্রমাণিত সব
+       নিয়ম মেনেই, বছর-ভিত্তিক কিছু আলাদা নয়) আর এখানে **শুধু এই ফোনের
+       মেমোরিতে** (RAM, ডিস্কে নয়) জমা রাখে। বিস্তারিত পর্দায় (Yearly
+       Registration Activity) বছর বদলালে এখান থেকেই সাথে সাথে দেখানো হয় —
+       ⛔ **একটাও নতুন ক্লাউড-কল নয়**, আর Intent-এ সব বছরের ডেটা একসাথে
+       পাঠাতে হয় না (তাতে বড় ব্রাঞ্চে Android-এর Intent-সীমা ভাঙতে পারত)।
+       ⛔ RAM-এ থাকে বলে অ্যাপ বন্ধ/মেরে দিলে হারায় — তখন বিস্তারিত পর্দা
+          শুধু চলতি বছরটাই দেখাবে (Intent-এ যা এমনিতেই আগের মতো পাঠানো হয়),
+          অন্য বছরে যেতে চাইলে Draft পর্দা থেকে আবার খুলতে হবে — কোনো ভুল
+          সংখ্যা দেখায় না, শুধু বিকল্পটা কম থাকে। */
+    data class YearSnapshot(
+        val rows: List<DraftEntry>,
+        val outDemo: Int,
+        val outNoDate: Int
+    )
+
+    // ConcurrentHashMap — লেখা হয় IO-থ্রেডে (`DraftRepository.load()`), পড়া হয়
+    // UI-থ্রেডে (Activity-তে বছর বদলানোর সময়); দুটো একসাথে ঘটলেও নিরাপদ।
+    private val allYearsCache = java.util.concurrent.ConcurrentHashMap<String, Map<String, YearSnapshot>>()
+
+    /** ব্রাঞ্চ-চাবি (`shownBranch()`-এর হুবহু যা রিটার্ন করে, যেমন "All" বা
+     *  নির্দিষ্ট ব্রাঞ্চের নাম) দিয়ে প্রতিটা বছরের হিসাব জমা রাখা হয়। */
+    fun cacheAllYears(branchKey: String, byYear: Map<String, YearSnapshot>) {
+        allYearsCache[branchKey.ifBlank { "All" }] = byYear
+    }
+
+    /** ওই ব্রাঞ্চের জন্য জমা থাকা সব বছরের হিসাব — মেমোরিতে না থাকলে `null`। */
+    fun cachedYears(branchKey: String): Map<String, YearSnapshot>? =
+        allYearsCache[branchKey.ifBlank { "All" }]
+
     /** TK-নির্দেশ: নামে DEMO বা TEST থাকলে গোনায় ধরা হবে না। */
     fun isDemoName(name: String): Boolean {
         val n = name.trim().uppercase(java.util.Locale.US)

@@ -279,6 +279,12 @@ class DraftActivity : AppCompatActivity() {
                 // 🆕 V852 — "কতজন বাদ পড়ল ও কেন" (তালিকাতেও নেই, গোনাতেও নেই)।
                 .putExtra("outDemo", buckets?.yearlyOutDemo ?: 0)
                 .putExtra("outNoDate", buckets?.yearlyOutNoDate ?: 0)
+                // 🆕🔒 V-YEARSW (১৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — বছর-বদলের
+                // বোতামে কোন কোন বছর দেখাবে (ছোট্ট তালিকা, শুধু "2026","2025" ধরনের
+                // স্ট্রিং — ভারী কিছু নয়, Intent-সীমার কোনো ঝুঁকি নেই)।
+                .putExtra("availableYears", ArrayList(
+                    buckets?.yearlyAvailableYears?.ifEmpty { listOf(YearlyRegistration.currentYear()) }
+                        ?: listOf(YearlyRegistration.currentYear())))
         )
     }
 

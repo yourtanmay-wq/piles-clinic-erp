@@ -169,7 +169,12 @@ data class DraftBuckets(
        নামে DEMO/TEST · রেজিস্ট্রেশনের তারিখ নেই। পর্দার উপরে ছোট করে দেখানো
        হয় যাতে TK নিজেই বুঝতে পারেন কেউ চুপচাপ বাদ পড়ছে কিনা। */
     val yearlyOutDemo: Int = 0,
-    val yearlyOutNoDate: Int = 0
+    val yearlyOutNoDate: Int = 0,
+    /* 🆕🔒 V-YEARSW (১৬.০৯.২০২৬, TK-অনুমোদিত) — Yearly Registration পর্দায়
+       বছর-বদলের বোতামে কোন কোন বছর দেখানো যাবে (আসলেই তথ্য আছে এমন বছর,
+       নতুন থেকে পুরনো সাজানো, চলতি বছর সবসময় থাকে)। ⛔ ডিফল্ট খালি —
+       পুরনো কোনো `DraftBuckets(...)` কল ভাঙে না। */
+    val yearlyAvailableYears: List<String> = emptyList()
 )
 
 class DraftRepository(private val context: Context? = null) {
@@ -302,7 +307,11 @@ class DraftRepository(private val context: Context? = null) {
                 // 📊🔒 V824 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
                 yearlyReg = deserializeEntries(obj.optJSONArray("yearlyReg") ?: org.json.JSONArray()),
                 yearlyOutDemo = obj.optInt("yearlyOutDemo", 0),    // 🆕 V852
-                yearlyOutNoDate = obj.optInt("yearlyOutNoDate", 0)
+                yearlyOutNoDate = obj.optInt("yearlyOutNoDate", 0),
+                // 🆕🔒 V-YEARSW — পুরনো cache-এ এই চাবি নেই তো শুধু চলতি বছর থাকবে।
+                yearlyAvailableYears = (obj.optJSONArray("yearlyAvailableYears") ?: org.json.JSONArray())
+                    .let { arr -> (0 until arr.length()).map { arr.optString(it, "") }.filter { it.isNotBlank() } }
+                    .ifEmpty { listOf(YearlyRegistration.currentYear()) }
             ).let { if (myMobile.isBlank()) it else mergeOwnPhoneEnquiries(it, myMobile) }
         } catch (t: Throwable) { null }
     }
@@ -363,6 +372,8 @@ class DraftRepository(private val context: Context? = null) {
                 .put("yearlyReg", serializeEntries(buckets.yearlyReg))
                 .put("yearlyOutDemo", buckets.yearlyOutDemo)       // 🆕 V852
                 .put("yearlyOutNoDate", buckets.yearlyOutNoDate)
+                // 🆕🔒 V-YEARSW — ছোট্ট তালিকা (বছরের সংখ্যা মাত্র), সাইজ নগণ্য।
+                .put("yearlyAvailableYears", org.json.JSONArray(buckets.yearlyAvailableYears))
             ctx.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit().putString(cacheKey(branchFilter, from, to), obj.toString()).apply()
         } catch (_: Throwable) { }
     }
@@ -1282,8 +1293,14 @@ class DraftRepository(private val context: Context? = null) {
         // 🆕 V852 — "কতজন বাদ পড়ল ও কেন" (নিচের run-ব্লক ভরে দেয়)।
         var yearlyOutDemo = 0
         var yearlyOutNoDate = 0
-        val yearlyReg: List<DraftEntry> = run {
-            val year = YearlyRegistration.currentYear()
+        // 🆕🔒 V-YEARSW (১৬.০৯.২০২৬) — নিচের গোটা হিসাবটা **বছর-নিরপেক্ষ**
+        // (declaredSeparate/pickPatientRow/demo/no-date/tag/skip-mark কোনোটাই
+        // `year`-এর উপর নির্ভর করে না, শুধু শেষে `regDate`-এর বছর অনুযায়ী
+        // সাজানো হয়) — তাই সব বছরের হিসাব **একবারেই** বানিয়ে ফেলা যায়, পরে
+        // Yearly Registration পর্দায় বছর বদলালে নতুন করে গোনার দরকার নেই।
+        val yearlyRegByYear = LinkedHashMap<String, MutableList<DraftEntry>>()
+        val yearlyOutDemoByYear = HashMap<String, Int>()
+        run {
             /* 🔄🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত) — TK: *"এটা কী করে সম্ভব
                তালিকায় দেখাবে আবার গুনবে না? তালিকায় যা দেখাবে গোনা যেন একই হয়।
                প্রয়োজনে আমি তালিকা থেকে স্কিপ করে দেব, তখন গোনা ঠিক হয়ে যাবে।"*
@@ -1336,16 +1353,19 @@ class DraftRepository(private val context: Context? = null) {
             }
 
             /* 🆕 V852 — TK: *"কতজন বাদ পড়ল ও কেন, সেটা দেখতে চাই"*।
-               তালিকাতেও নেই, গোনাতেও নেই — শুধু এই দুটো কারণে। */
-            var outDemo = 0
-            var outNoDate = 0
-            val out = mutableListOf<DraftEntry>()
+               তালিকাতেও নেই, গোনাতেও নেই — শুধু এই দুটো কারণে।
+               🆕🔒 V-YEARSW — "তারিখ নেই" রোগীর কোনো বছরই নেই (তাই বছর-
+               নিরপেক্ষ, একটাই মোট); "ডেমো/টেস্ট" যে বছরের তারিখেই থাকুক
+               সেই বছরের নিচে গোনা হয় (`yearlyOutDemoByYear`)। */
             for (row in counted) {
                 val mobKey = row.s("mobile").filter { it.isDigit() }.takeLast(10)
                 val regDate = YearlyRegistration.regDateOf(row)
-                if (regDate.length < 4) { outNoDate++; continue }
-                if (regDate.take(4) != year) continue
-                if (YearlyRegistration.isDemoName(row.s("name"))) { outDemo++; continue }
+                if (regDate.length < 4) { yearlyOutNoDate++; continue }
+                val rowYear = regDate.take(4)
+                if (YearlyRegistration.isDemoName(row.s("name"))) {
+                    yearlyOutDemoByYear[rowYear] = (yearlyOutDemoByYear[rowYear] ?: 0) + 1
+                    continue
+                }
                 // মাস্টার নিজে বাদ দিয়ে থাকলে সারিটা **তালিকা থেকে সরে যায় না** —
                 // দাগ দেওয়া থাকে (`extra = SKIPPED`), যাতে কাটা দাগে দেখা যায় ও
                 // "Undo" চেপে ফেরানো যায়। গোনায় ধরা হয় শুধু দাগ-ছাড়া সারিগুলো।
@@ -1372,16 +1392,32 @@ class DraftRepository(private val context: Context? = null) {
                     }
                 val refTxt = listOf(row.s("refBy"), row.s("refDoctor"))
                     .map { it.trim() }.filter { it.isNotBlank() }.distinct().joinToString(" — ")
-                out.add(entry(row, "yearlyreg", marked,
+                yearlyRegByYear.getOrPut(rowYear) { mutableListOf() }.add(
+                    entry(row, "yearlyreg", marked,
                         bill = row.optDouble("bill", 0.0),
                         paid = paidByMobile[mobKey] ?: 0.0)
                     .copy(recordDate = regDate, lastRemark = "", regTag = tag,
                         payHistory = hist, refByText = refTxt))
             }
-            yearlyOutDemo = outDemo
-            yearlyOutNoDate = outNoDate
-            out.sortedWith(compareByDescending<DraftEntry> { it.recordDate }.thenBy { it.name })
+            for (k in yearlyRegByYear.keys.toList()) {
+                yearlyRegByYear[k] = yearlyRegByYear[k]!!
+                    .sortedWith(compareByDescending<DraftEntry> { it.recordDate }.thenBy { it.name })
+                    .toMutableList()
+            }
         }
+        val yearlyCurrentYear = YearlyRegistration.currentYear()
+        val yearlyReg: List<DraftEntry> = yearlyRegByYear[yearlyCurrentYear] ?: emptyList()
+        yearlyOutDemo = yearlyOutDemoByYear[yearlyCurrentYear] ?: 0
+        // 🆕🔒 V-YEARSW — সব বছরের হিসাব এই ফোনের মেমোরিতে জমা (YearlyRegistration.kt-এর
+        // মন্তব্য দ্রষ্টব্য) যাতে বিস্তারিত পর্দায় বছর বদলালে নতুন করে গোনার/পড়ার দরকার না হয়।
+        val yearlySnapshotByYear = yearlyRegByYear.mapValues { (yr, yrRows) ->
+            YearlyRegistration.YearSnapshot(yrRows, yearlyOutDemoByYear[yr] ?: 0, yearlyOutNoDate)
+        }.toMutableMap()
+        if (!yearlySnapshotByYear.containsKey(yearlyCurrentYear)) {
+            yearlySnapshotByYear[yearlyCurrentYear] = YearlyRegistration.YearSnapshot(emptyList(), 0, yearlyOutNoDate)
+        }
+        YearlyRegistration.cacheAllYears(branchFilter.orEmpty().ifBlank { "All" }, yearlySnapshotByYear)
+        val yearlyAvailableYears = yearlySnapshotByYear.keys.sortedDescending()
 
         // 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — My Enquiry এখন সব বাকেট
         // তৈরি হওয়ার পরে বানানো হয়, দুইটা কারণে:
@@ -1423,7 +1459,7 @@ class DraftRepository(private val context: Context? = null) {
         }
         // ⛔ `yearlyReg` ইচ্ছাকৃতভাবে `filt()`-এর বাইরে — উপরের তারিখ-ছাঁকনি
         //    এই ঘরে লাগে না (TK: সবসময় ০১ জানু → ৩১ ডিসে, পুরো বছর)।
-        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded), filt(returnVisit), filt(runningTreatment), yearlyReg, yearlyOutDemo, yearlyOutNoDate)   // 🆕 V852
+        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded), filt(returnVisit), filt(runningTreatment), yearlyReg, yearlyOutDemo, yearlyOutNoDate, yearlyAvailableYears)   // 🆕 V852 / V-YEARSW
         saveCachedBuckets(branchFilter, from, to, result)
         return result
     }

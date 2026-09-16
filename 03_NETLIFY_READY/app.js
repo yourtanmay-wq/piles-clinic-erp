@@ -8955,7 +8955,24 @@ window["wlv1DraftInRange"]=wlv1DraftInRange;
    ⛔ Android-এ হুবহু একই নিয়ম (YearlyRegistration.kt / DraftRepository.kt)।
    ════════════════════════════════════════════════════════════════════════ */
 var WLV1_YR_KEY='wlv1_v824_skip_ids';
-function wlv1YrYear(){ return String(new Date().getFullYear()); }
+/* 🆕🔒 V-YEARSW (১৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ — "হ্যাঁ পাশ, বসিয়ে দিন")
+   — "Yearly Registration" পর্দায় বছর বদলানো (ফোনের হুবহু যমজ)। এই স্ক্রিন
+   প্রতিবার `draffHome('yearlyreg')`-এ **নতুন করে** পুরো হিসাব বানায় (নিচের
+   ব্লক), সবটাই ব্রাউজারে ইতিমধ্যে জমা `p`/`f`/`pay` থেকে (`load()` — পুরো
+   টেবিল প্রথম থেকেই পাতা-ধরে (`wlv1FetchPaged`) সিঙ্ক হয়ে থাকে, কোনো
+   বছর-ভিত্তিক সীমা/cap নেই) — তাই বছর বদলে আবার আঁকতেও **নতুন কোনো
+   ক্লাউড-কল লাগে না**, এই একই প্রমাণিত হিসাবটাই `__yrSelectedYear`
+   অনুযায়ী চলে। */
+var __yrSelectedYear=null;   // null = চলতি বছর (ডিফল্ট)
+function wlv1YrYear(){ return __yrSelectedYear || String(new Date().getFullYear()); }
+function wlv1YrSetYear(y){
+  y=String(y||'').trim();
+  if(!y || y===wlv1YrYear()) return;
+  __yrSelectedYear=y;
+  __yrFilter='all'; __yrPick.clear();   // নতুন বছরে পুরনো ছাঁকনি/টিক-মার্ক বহন করা হয় না
+  draffHome('yearlyreg');
+}
+window["wlv1YrSetYear"]=wlv1YrSetYear;
 function wlv1YrIsDemo(n){ var s=String(n||'').toUpperCase(); return s.indexOf('DEMO')>=0||s.indexOf('TEST')>=0; }
 function wlv1YrRegDate(p){ return String((p&&(p.registrationDate||p.date))||'').slice(0,10); }
 /* ⛔ কখনো নেটে যায় না — Draft-এর পথে এই জমানো তালিকাটাই ব্যবহার হয়। */
@@ -9206,9 +9223,19 @@ function wlv1YrScreen(rows, branchLabel){
      (`actions`) দখল করে বসত, তাই উপরে বড় ফাঁকা জায়গা পড়ে থাকত।
      ⇒ এখন বোতামটা শিরোনামের সারিতেই (ডান দিকে), আলাদা সারিটা বাদ।
      ⛔ বোতামের কাজ (`wlv1YrSheet`) এক অক্ষরও বদলায়নি। */
+  /* 🆕🔒 V-YEARSW (১৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ, "হ্যাঁ পাশ, বসিয়ে
+     দিন") — "branch · year" লাইনে বছর বদলানোর ড্রপডাউন (ফোনের ▾ মেনুর যমজ)।
+     একটার বেশি বছর না থাকলে (নতুন ব্রাঞ্চ) আগের মতোই শুধু লেখা, ড্রপডাউন
+     নেই — চাপার/বাছার কিছু না থাকলে বিভ্রান্তি এড়ানো। */
+  var __yrAvail = (window.__yrAvailYears&&window.__yrAvailYears.length) ? window.__yrAvailYears : [year];
+  var yearPick = __yrAvail.length>1
+    ? esc((branchLabel||'All')+' · ')+'<select class="wlv1YrYearSel" onchange="wlv1YrSetYear(this.value)">'+
+        __yrAvail.map(function(y){return '<option value="'+esc(y)+'"'+(String(y)===String(year)?' selected':'')+'>'+esc(y)+'</option>';}).join('')+
+      '</select>'
+    : esc((branchLabel||'All')+' · '+year);
   page('Yearly Registration',
     '<div class="tiny mut" style="display:flex;align-items:center;gap:10px;justify-content:space-between">'+
-      '<span>'+esc((branchLabel||'All')+' · '+year)+'</span>'+
+      '<span>'+yearPick+'</span>'+
       '<button class="ghost" style="padding:5px 12px" onclick="wlv1YrSheet()">\u2193 Sheet</button></div>'+
     '<div class="wlv1YrBig">'+total+'</div>'+
     excLine+
@@ -9258,6 +9285,12 @@ function wlv1YrSheet(){
 window["wlv1YrSheet"]=wlv1YrSheet;
 
 function draffHome(tab='home'){
+ /* 🆕🔒 V-YEARSW (১৬.০৯.২০২৬) — "Yearly Registration" স্ক্রিন ছাড়া অন্য কোনো
+    ট্যাবে গেলে বছর-বাছাই চলতি বছরে ফিরে আসে — নইলে সেখানে বছর বদলে অন্য কোনো
+    ট্যাবে (যেমন Draft-হোমের ছোট্ট কার্ড) ফিরলেও সেই পুরনো বছরটাই আটকে
+    থাকত। ফোনে এই সমস্যাই নেই (আলাদা Activity, নিজস্ব `year` চলক), তাই
+    ওয়েবেও এখানে একই বিচ্ছিন্নতা রাখা হলো। */
+ if(tab!=='yearlyreg') __yrSelectedYear=null;
  /* 🔴🔒 V912 (৩১.০৮.২০২৬, TK-নির্দেশ — বাকি ধাপগুলো চালিয়ে যাওয়া)।
     **ধরা পড়ল:** ফোনের Draft পর্দা খুললেই `enquiries` ও `followups` **ক্লাউড
     থেকে নতুন করে** টানে (`DraftRepository.kt`), কিন্তু কম্পিউটার শুধু ব্রাউজারে
@@ -9513,6 +9546,22 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
        if(one) __yrPeople.push(one);
      }
    });
+   /* 🆕🔒 V-YEARSW — বছর-বদলের বোতামে কোন কোন বছর দেখানো যাবে: শুধু এই
+      হিসাবের জন্যই আলাদা করে ব্রাঞ্চ-ছাঁকা (`wlv1BranchGate`) — নইলে মাস্টার
+      একাধিক ব্রাঞ্চ দেখতে পেলে অন্য ব্রাঞ্চের বছরও এই ব্রাঞ্চের বছর-তালিকায়
+      ঢুকে যেত। ⛔ নিচের আসল `__yrPool`/outDemo/outNoDate হিসাব **অপরিবর্তিত**
+      (আগে যেভাবে ব্রাঞ্চ-ছাঁকার আগে গোনা হত, এখনো ঠিক তেমনই) — এখানে শুধু
+      বছরের তালিকাটাই বাড়তি হিসেবে বার করা হচ্ছে, আসল গোনার ক্রম ছোঁয়া হয়নি। */
+   window.__yrAvailYears=(function(){
+     const s=new Set([__yrY]);
+     (wlv1BranchGate(__yrPeople)||[]).forEach(x=>{
+       const d=wlv1YrRegDate(x);
+       if(d.length<4) return;
+       if(wlv1YrIsDemo(x.name)) return;
+       s.add(d.slice(0,4));
+     });
+     return Array.from(s).sort().reverse();
+   })();
    /* 🆕 V852 — যারা তালিকাতেও নেই, গোনাতেও নেই — শুধু এই দুটো কারণে। */
    window.__yrOutDemo=0; window.__yrOutNoDate=0;
    const __yrPool=wlv1BranchGate(__yrPeople.filter(x=>{
