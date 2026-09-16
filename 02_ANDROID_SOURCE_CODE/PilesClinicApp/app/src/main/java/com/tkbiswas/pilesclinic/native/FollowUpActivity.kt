@@ -344,15 +344,12 @@ class FollowUpActivity : AppCompatActivity() {
             // 🆕⋮🔒 (16.09.2026, TK photo-proof approved) — this button now
             // opens ONLY the Patient-tab Year picker directly (TK: "ওখানে শুধু
             // 2026/2025/2024 এরকমই থাকবে") — branch pill and calendar badge
-            // both stayed in the header row, unchanged. Style matches
-            // StaffProfileActivity's ⋮ button (20sp bold, #0B7A3E, white
-            // circle) — same precedent, copied here.
-            binding.btnFollowMenu.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 17f * resources.displayMetrics.density
-                setColor(android.graphics.Color.WHITE)
-                setStroke((1 * resources.displayMetrics.density).toInt(), android.graphics.Color.parseColor("#CFE3D8"))
-            }
-            binding.btnFollowMenu.setTextColor(android.graphics.Color.parseColor("#0B7A3E"))
+            // both stayed in the header row, unchanged.
+            // ⛔ V1510 (TK-রিপোর্ট, ১৬.০৯.২০২৬ — "সাদা গোলাকার কেন রেখেছেন,
+            // ওটা বাদ দিন") — আগের সাদা বৃত্ত-ব্যাকগ্রাউন্ড (StaffProfileActivity-র
+            // ধাঁচ) বাদ দেওয়া হলো, এখন হেডারের গ্রেডিয়েন্টের উপর শুধু সাদা "⋮"।
+            binding.btnFollowMenu.background = null
+            binding.btnFollowMenu.setTextColor(android.graphics.Color.WHITE)
             binding.btnFollowMenu.setOnClickListener { showPatientYearPickerMenu() }
             // খাতার সারি B31: খোলার সময় শুধু জমানো সংখ্যা বসে। নতুন সংখ্যা আনার
             // কাজটা শুরু হয় চোখে-দেখা তালিকাটা আসার পরে (loadTab-এর শেষে),

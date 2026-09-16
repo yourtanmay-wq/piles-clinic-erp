@@ -1503,6 +1503,24 @@ class BriefingActivity : AppCompatActivity() {
                         if (needRaw.contains("5th")) add("5th day this month")
                     }.joinToString(" + ").ifBlank { needRaw }
                     val dotted = try { val p = date.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (_: Throwable) { date }
+                    /* 🕒🔒 V1510 (TK-রিপোর্ট, ১৬.০৯.২০২৬) — কখন আবেদন করা হয়েছে
+                       (created_at) সেটাও দেখানো হচ্ছে, শুধু ছুটির দিনটা (leave_date)
+                       নয় — TK-র চেম্বার-টাইমের ভিতরে না বাইরে এসেছে সেটা যাচাই করে
+                       তবেই Approve/Reject করার জন্য এটা জরুরি। RmpCommissionSheetActivity/
+                       DoctorVisitActivity-র প্রমাণিত timeIst() নিয়ম — UTC অফসেট ধরে
+                       পার্স করে Asia/Kolkata-তে দেখানো হয়। */
+                    val appliedTxt = try {
+                        val raw = req.s("created_at").trim()
+                        val m = Regex("^(\\d{4}-\\d{2}-\\d{2})[T ](\\d{2}:\\d{2}:\\d{2})(?:\\.\\d+)?(Z|[+-]\\d{2}:?\\d{2})?$").find(raw)
+                        if (m == null) "" else {
+                            val f = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ", java.util.Locale.US)
+                            val off = m.groupValues[3].let { if (it.isBlank() || it == "Z") "+0000" else it.replace(":", "") }
+                            val d = f.parse(m.groupValues[1] + " " + m.groupValues[2] + off)
+                            val outDate = java.text.SimpleDateFormat("d/M", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata") }
+                            val outTime = java.text.SimpleDateFormat("h.mm a", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata") }
+                            if (d == null) "" else "Applied: ${outDate.format(d)}, ${outTime.format(d)}"
+                        }
+                    } catch (_: Throwable) { "" }
                     val row = LinearLayout(this@BriefingActivity).apply {
                         orientation = LinearLayout.VERTICAL
                         setBackgroundColor(android.graphics.Color.WHITE)
@@ -1517,6 +1535,11 @@ class BriefingActivity : AppCompatActivity() {
                         text = "Date: $dotted · Reason: $reason · ($need)"; textSize = 11.5f
                         setTextColor(android.graphics.Color.parseColor("#5b6b81"))
                         setPadding(0, dp(4), 0, 0)
+                    })
+                    if (appliedTxt.isNotBlank()) row.addView(TextView(this@BriefingActivity).apply {
+                        text = appliedTxt; textSize = 11f
+                        setTextColor(android.graphics.Color.parseColor("#8A93A6"))
+                        setPadding(0, dp(2), 0, 0)
                     })
                     val btnRow = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
                     val approveBtn = TextView(this@BriefingActivity).apply {
