@@ -306,7 +306,10 @@ class StaffProfileActivity : AppCompatActivity() {
                 // 🔴 V404 (16.08.2026): `active` ঘরটা যোগ করা হলো — বাদ-দেওয়া কর্মী
                 //    আলাদা করতে। ⛔ পুরনো cache-এ ঘরটা নেই; optBoolean("active", true)
                 //    ⇒ সচল ধরা হয়, তাই পুরনো cache-এ কেউ হঠাৎ উধাও হবে না।
-                "select=person_code,designation,role_kind,branch,full_name,link_mobile,active&order=person_code"
+                // 🔴 V1510 (TK-রিপোর্ট ১৬.০৯.২০২৬ — "সাসপেন্ড করলেও কাজ হচ্ছে না
+                //    বোঝার উপায় নেই") — `suspended_until` যোগ করা হলো, শুধু কার্ডে
+                //    বর্তমান অবস্থা দেখানোর জন্য (একটা বাড়তি টেক্সট ঘর, egress নগণ্য)।
+                "select=person_code,designation,role_kind,branch,full_name,link_mobile,active,suspended_until&order=person_code"
             )
             val cfgR = ModuleAuth.getRowsChecked("hr", "salary_config", "select=*")
             /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"এখানে extra income নেই"*।
@@ -504,7 +507,7 @@ class StaffProfileActivity : AppCompatActivity() {
             val extraTxt = if (exDue > 0.0) "Extra: " + money(exDue) + " due" else ""
             listBox.addView(staffCard(pc, desig, roleKind, branch, fullName, ns(p, "link_mobile"), salTxt,
                 onView = { editProfile(pc) }, onSalary = { salary(pc) }, isRemoved = removed,
-                extraText = extraTxt))
+                extraText = extraTxt, suspendedUntil = ns(p, "suspended_until")))
         }
 
         var shown = 0
@@ -596,7 +599,7 @@ class StaffProfileActivity : AppCompatActivity() {
        আগের সেই একই ফাংশনগুলোই ডাকা হয়; নতুন কিছু বানানো হয়নি।
        ⛔ বাদ-দেওয়া স্টাফের কার্ডে শুধু Restore — আগের নিয়মই।
        ⛔ Master ছাড়া Fix Attendance আসে না (আগেও আসত না)। */
-    private fun staffDotsMenu(pc: String, fullName: String, mobile: String, isRemoved: Boolean, onView: () -> Unit) {
+    private fun staffDotsMenu(pc: String, fullName: String, mobile: String, isRemoved: Boolean, onView: () -> Unit, suspendedUntil: String = "") {
         val labels = ArrayList<String>()
         val acts = ArrayList<() -> Unit>()
         labels.add("View profile"); acts.add { onView() }
@@ -609,7 +612,7 @@ class StaffProfileActivity : AppCompatActivity() {
             if (ModuleAuth.isMaster) {
                 labels.add("Fix Attendance"); acts.add { fixAttendanceDialog(pc, fullName, mobile) }
             }
-            labels.add("Suspend"); acts.add { suspendStaffDialog(pc, fullName) }
+            labels.add("Suspend"); acts.add { suspendStaffDialog(pc, fullName, suspendedUntil) }
             labels.add("Remove");  acts.add { removeStaffDialog(pc, fullName) }
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -625,7 +628,8 @@ class StaffProfileActivity : AppCompatActivity() {
         // 🔴 V404 (16.08.2026): বাদ-দেওয়া কর্মীর কার্ডে Suspend/Remove-এর বদলে
         //    শুধু Restore থাকবে। ডিফল্ট false ⇒ পুরনো সব ডাক অবিকল আগের মতোই চলে।
         isRemoved: Boolean = false,
-        extraText: String = ""      // 🟣 V961 — ফাঁকা হলে লাইনটা বসে না
+        extraText: String = "",     // 🟣 V961 — ফাঁকা হলে লাইনটা বসে না
+        suspendedUntil: String = "" // 🔴 V1510 — ফাঁকা হলে লাইনটা বসে না
     ): LinearLayout {
         val card = ModuleUi.card(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -756,6 +760,21 @@ class StaffProfileActivity : AppCompatActivity() {
             info.addView(TextView(this).apply {
                 text = extraText; textSize = 10.5f
                 setTextColor(android.graphics.Color.parseColor("#B45309"))
+                setPadding(0, 0, 0, dp(8))
+            })
+        }
+        /* 🔴🔒 V1510 (TK-রিপোর্ট ১৬.০৯.২০২৬ — "সাসপেন্ড করলেও কাজ হচ্ছে না,
+           বোঝার উপায় নেই · বার্তা মিস হয়") — এতদিন Suspend-এর ফলাফল শুধু
+           এক ঝলক টোস্টে দেখাত, কার্ডে কোথাও স্থায়ীভাবে বসত না। এখন
+           suspended_until থাকলে কার্ডেই স্পষ্ট লেখা থাকবে — কোনো মেনু
+           খোলা বা টোস্ট ধরার দরকার নেই। ⛔ ফাঁকা হলে লাইনটা বসে না, বাকি
+           কার্ড আগের মতোই। */
+        if (suspendedUntil.isNotBlank()) {
+            info.addView(TextView(this).apply {
+                text = "🔴 Suspended till " + dmy(suspendedUntil)
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#B3261E"))
                 setPadding(0, 0, 0, dp(8))
             })
         }
@@ -979,7 +998,7 @@ class StaffProfileActivity : AppCompatActivity() {
             setImageResource(R.drawable.ic_sp_more)
             layoutParams = LinearLayout.LayoutParams(dp(22), dp(22)).apply { marginStart = dp(6) }
             isClickable = true; isFocusable = true
-            setOnClickListener { staffDotsMenu(pc, fullName, mobile, isRemoved, onView) }   // ⋮ V1058
+            setOnClickListener { staffDotsMenu(pc, fullName, mobile, isRemoved, onView, suspendedUntil) }   // ⋮ V1058
         })
         card.addView(headRow)
         return card
@@ -1078,10 +1097,16 @@ class StaffProfileActivity : AppCompatActivity() {
     }
 
     // 🔵🔒 B618: Suspend ডায়ালগ — কত দিন (3/7/নিজে) অথবা Remove।
-    private fun suspendStaffDialog(pc: String, fullName: String) {
+    // 🔴🔒 V1510 (TK-রিপোর্ট ১৬.০৯.২০২৬ — "যাকে সাসপেন্ড করিনি তার ক্ষেত্রেও
+    //    Remove suspend দেখায় কেন") — এখন শিরোনামেই বর্তমান অবস্থা স্পষ্ট
+    //    লেখা থাকে, তাই TK নিজে বুঝে নিতে পারবেন Remove suspend চাপার
+    //    দরকার আছে কিনা। ⛔ অপশন চারটেই আগের মতো থাকছে (Remove suspend
+    //    চাপলে এমনিতেও ক্ষতি নেই, ইতিমধ্যে ফাঁকা থাকা ঘর ফাঁকাই থাকে)।
+    private fun suspendStaffDialog(pc: String, fullName: String, suspendedUntil: String = "") {
         val opts = arrayOf("3 days", "7 days", "Custom days", "Remove suspend")
+        val status = if (suspendedUntil.isBlank()) "Currently Active (not suspended)" else "Currently Suspended till ${dmy(suspendedUntil)}"
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Suspend — $fullName"))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Suspend — $fullName\n($status)"))
             .setItems(opts) { _, which ->
                 when (which) {
                     0 -> doSuspend(pc, 3)
@@ -1117,6 +1142,16 @@ class StaffProfileActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 ModuleUi.toast(this, if (ok) (if (days < 0) "Suspend removed" else "Suspended till $until") else "Failed — check net")
+                /* 🔴🔒 V1510 (TK-রিপোর্ট ১৬.০৯.২০২৬ — "কোনো বার্তা আসে না বুঝতে
+                   পারছি না কাজ হয়েছে কিনা") — টোস্ট এক ঝলকের জন্য আসে, মিস
+                   হতেই পারে। Restore/Remove-এর মতোই এখন তালিকা নিজে থেকে
+                   আবার আঁকা হয় (cache মুছে, টাটকা ক্লাউড-তথ্য দিয়ে) — কার্ডে
+                   স্থায়ীভাবে "🔴 Suspended till …" দেখা যাবে, বার্তা ধরার
+                   দরকার নেই। */
+                if (ok) {
+                    try { staffListCachePrefs().edit().clear().apply() } catch (_: Throwable) { }
+                    renderList()
+                }
             }
         }.start()
     }
