@@ -67,21 +67,32 @@ class PasswordCenterRepository {
             val pw = row.s("password")
             if (m.isNotBlank() && pw.isNotBlank()) byMobile[m] = pw
         }
-        // 🔴🔒 V1510 — hr.staff_profiles থেকে আসল নাম (link_mobile ধরে) --
-        // ব্যর্থ হলে ম্যাপ ফাঁকা থাকে, নাম না দেখালেও তালিকা আগের মতোই চলে।
+        // 🔴🔒 V1510 (TK-রিপোর্ট ১৬.০৯.২০২৬ — "যাকে Remove করেছি সে এখনো
+        // পাসওয়ার্ড-তালিকায় কেন") — hr.staff_profiles থেকে আসল নাম (link_mobile
+        // ধরে) আর active-অবস্থাও একসাথে আনা হলো। যাচাই করে পাওয়া: এই তালিকা
+        // আগে StaffDirectory.allAccounts()-এর হুবহু পুরোটাই দেখাত, Remove করা
+        // (active=false) কাউকে বাদ দিত না -- লগইন আটকে যেত ঠিকই (LoginActivity-
+        // তে আলাদা যাচাই), শুধু এই তালিকাতেই ভুলভাবে থেকে যেত। এখন বাদ পড়বে।
+        // ⛔ ব্যর্থ হলে/সারি না পেলে ধরে নেওয়া হয় active (আগের মতোই তালিকায়
+        // থাকবে) -- কেউ যেন ভুলে হারিয়ে না যায়।
         val nameByMobile = HashMap<String, String>()
+        val inactiveMobiles = HashSet<String>()
         try {
             val profiles = com.tkbiswas.pilesclinic.modules.ModuleAuth.getRows(
-                "hr", "staff_profiles", "select=full_name,link_mobile"
+                "hr", "staff_profiles", "select=full_name,link_mobile,active"
             )
             for (i in 0 until profiles.length()) {
                 val row = profiles.optJSONObject(i) ?: continue
                 val m = PasswordCenterModel.mob(row.optString("link_mobile"))
+                if (m.isBlank()) continue
                 val nm = row.optString("full_name").trim()
-                if (m.isNotBlank() && nm.isNotBlank()) nameByMobile[m] = nm
+                if (nm.isNotBlank()) nameByMobile[m] = nm
+                if (!row.optBoolean("active", true)) inactiveMobiles.add(m)
             }
         } catch (_: Throwable) { }
-        return StaffDirectory.allAccounts().map { acc ->
+        return StaffDirectory.allAccounts()
+            .filter { PasswordCenterModel.mob(it.mobile) !in inactiveMobiles }
+            .map { acc ->
             val m = PasswordCenterModel.mob(acc.mobile)
             val pw = byMobile[m] ?: StaffDirectory.defaultPasswordFor(acc.role)
             UserCredential(acc, pw, nameByMobile[m] ?: "")
