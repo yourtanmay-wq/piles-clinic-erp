@@ -25,6 +25,11 @@ data class FollowUpItem(
     // Patient-tab only (payment progress), blank/zero for Enquiry/Visit.
     val bill: Double,
     val paid: Double,
+    // 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK) — আসল বিল (ছাড়ের
+    // আগে), শুধু কার্ডের "Bill" চিপে দেখানোর জন্য। ডিফল্ট 0.0 ⇒ যে সব caller
+    // (যেমন FollowUpRepository.kt-এর নিজস্ব তালিকা) এটা এখনো পাঠায় না, তাদের
+    // চিপ আগের মতোই `bill` দেখায় — কোনো বদল/ঝুঁকি নেই।
+    val billBeforeDiscount: Double = 0.0,
     val patientId: String = "",
     val address: String = "",
     val age: String = "",

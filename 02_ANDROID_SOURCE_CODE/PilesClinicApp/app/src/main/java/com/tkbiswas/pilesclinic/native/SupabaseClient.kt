@@ -268,7 +268,11 @@ object SupabaseClient {
      *     (২) যাচাই করে দেখা গেছে এই ১২টা জায়গার একটাও ওটা পড়ে না —
      *         একমাত্র PatientTimelineActivity নিজে আলাদা করে `id,editHistory`
      *         টানে, তাই কোনো কাজ নষ্ট হয়নি। */
-    const val PATIENT_NO_PHOTO_COLS = "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+    // 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK) — `billBeforeDiscount`
+    // যোগ হলো। এতদিন এই তালিকায় ছিলই না (V1014-এর সময় বাদ পড়ে গিয়েছিল),
+    // তাই "Estimated" চিপে আসল বিল কখনো দেখানো যায়নি। ⛔ একটামাত্র ছোট
+    // সংখ্যার ঘর — ছবির মতো ভারী কিছু নয়, egress-এ প্রভাব নগণ্য।
+    const val PATIENT_NO_PHOTO_COLS = "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,billBeforeDiscount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
 
     /** 🔴🔒 V794 — Follow-up সারিতে `photo` ও `history` দুটোই ভারী
      *  (`SafeWideColumns`)। যেসব জায়গায় শুধু id/মিল দেখা হয়, সেখানে এই

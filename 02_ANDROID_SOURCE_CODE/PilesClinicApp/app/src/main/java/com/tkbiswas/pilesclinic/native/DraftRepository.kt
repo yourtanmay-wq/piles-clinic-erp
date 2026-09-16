@@ -49,6 +49,10 @@ data class DraftEntry(
     val status: String = "",
     val bill: Double = 0.0,
     val paid: Double = 0.0,
+    // 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK): আসল বিল (ছাড়ের
+    // আগে), শুধু কার্ডের "Bill" চিপে দেখানোর জন্য। 0.0 ⇒ কখনো ছাড় দেওয়া হয়নি,
+    // চিপ তখন আগের মতোই `bill` দেখায়। ⛔ Due/% হিসাব `bill`-ই ব্যবহার করে, অপরিবর্তিত।
+    val billBeforeDiscount: Double = 0.0,
     val callCount: Int = 0,
     val timeType: String = "",
     val address: String = "",
@@ -110,6 +114,7 @@ fun DraftEntry.toFollowUpItem(): FollowUpItem = FollowUpItem(
     callCount = callCount,
     bill = bill,
     paid = paid,
+    billBeforeDiscount = billBeforeDiscount,   // 🏷️ V1508
     patientId = patientId,
     address = address,
     age = age,
@@ -231,6 +236,7 @@ class DraftRepository(private val context: Context? = null) {
                     .put("payHistory", e.payHistory)   // 💰 V1209 (পাহারা §৯.২৩)
                     .put("refByText", e.refByText)     // 🩺 V1210 (পাহারা §৯.২৩)
                     .put("regTag", e.regTag)   // 🆕 V852 (পাহারা §৯.২৩)
+                    .put("billBeforeDiscount", e.billBeforeDiscount)   // 🏷️ V1508 (পাহারা §৯.২৩)
             )
         }
         return arr
@@ -268,7 +274,8 @@ class DraftRepository(private val context: Context? = null) {
                     refByText = r.optString("refByText", ""),     // 🩺 V1210 (পাহারা §৯.২৩)
                     regDate = r.optString("regDate", ""),
                     regBy = r.optString("regBy", ""),
-                    regTag = r.optString("regTag", "")   // 🆕 V852
+                    regTag = r.optString("regTag", ""),   // 🆕 V852
+                    billBeforeDiscount = r.optDouble("billBeforeDiscount", 0.0)   // 🏷️ V1508 (পাহারা §৯.২৩)
                 )
             )
         }
@@ -533,7 +540,8 @@ class DraftRepository(private val context: Context? = null) {
 
     private fun entry(
         row: JSONObject, tab: String, extra: String = "", bill: Double = 0.0, paid: Double = 0.0,
-        pat: JSONObject? = null   // 🆕 V850
+        pat: JSONObject? = null,   // 🆕 V850
+        billBeforeDiscount: Double = 0.0   // 🏷️ V1508
     ): DraftEntry =
         DraftEntry(
             // 🔴🔴🔴 TK-REPORTED (31.07.2026): "Patient Name-এর জায়গায় Mobile
@@ -571,6 +579,7 @@ class DraftRepository(private val context: Context? = null) {
             status = row.s("status"),
             bill = bill,
             paid = paid,
+            billBeforeDiscount = billBeforeDiscount,   // 🏷️ V1508
             callCount = row.optInt("callCount", 0),
             timeType = row.s("timeType"),
             address = row.s("address"),
@@ -1148,7 +1157,8 @@ class DraftRepository(private val context: Context? = null) {
             val m = it.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
             val b = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
             entry(it, "notcomplete", "Incomplete", bill = b, paid = paidByMobile[m] ?: 0.0,
-                  pat = patientByMobile[m])   // 🆕 V850
+                  pat = patientByMobile[m],   // 🆕 V850
+                  billBeforeDiscount = patientByMobile[m]?.optDouble("billBeforeDiscount", 0.0) ?: 0.0)   // 🏷️ V1508
         }.toMutableList()
         // 🟢🔒 V621 — "cancelled" bucket-এর ঠিক পাশে, সম্পূর্ণ আলাদা tab id
         // ("returnvisit") ও লেবেল ("Return Visit")।
@@ -1162,11 +1172,26 @@ class DraftRepository(private val context: Context? = null) {
             it.mobile.filter { c -> c.isDigit() }.takeLast(10).ifBlank { null }
         }.toHashSet()
         // 🟢🔒 V644 — নতুন, স্বাধীন tab id ("runningtreatment")।
-        val runningTreatment = dedupByMobile(runningTreatmentRows).map {
+        /* 🔴🔒 V1508 (১৬.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — MD ANARUL HOWK, KNE-
+           07082026-001, Due ₹0 · history-তে "Treatment Complete" তবু
+           "Running Patient (223)"-এ দেখাচ্ছিল): বিল বসানো থাকলে ও বাকি
+           ইতিমধ্যে ₹0 (পুরো টাকা জমা/ছাড়ে মিটে গেছে) — এই রোগী আর "Running"
+           নন, তিনি নিচের `complete` bucket-এই আছেন (একই ফাইলে, একই
+           bill−paid নিয়মে, ~লাইন ১২১৮)। এখানে দ্বিতীয়বার দেখালে Draft-এ
+           ডবল-লিস্টিং হয় (TK-এর প্রথম অভিযোগ)।
+           ⛔ বিল এখনো বসানো হয়নি এমন (bill<=0) রোগী বাদ পড়েন না — `complete`
+              bucket-এরই `bill > 0.0` পাহারা এখানে হুবহু ব্যবহার হলো, যাতে
+              বিল-না-বসানো মাঝ-চিকিৎসার রোগী ভুল করে Running থেকে বাদ না যান। */
+        val runningTreatment = dedupByMobile(runningTreatmentRows).mapNotNull {
             val m = it.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
-            val b = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
-            entry(it, "runningtreatment", "Running Treatment", bill = b, paid = paidByMobile[m] ?: 0.0,
-                  pat = patientByMobile[m])   // 🆕 V850
+            val pat = patientByMobile[m]
+            val b = pat?.optDouble("bill", 0.0) ?: 0.0
+            val p = paidByMobile[m] ?: 0.0
+            val due = (b - p).coerceAtLeast(0.0)
+            if (b > 0.0 && due <= 0.0) return@mapNotNull null
+            entry(it, "runningtreatment", "Running Treatment", bill = b, paid = p,
+                  pat = pat,   // 🆕 V850
+                  billBeforeDiscount = pat?.optDouble("billBeforeDiscount", 0.0) ?: 0.0)   // 🏷️ V1508
         }.toMutableList()
 
         // 🟢🔒 V646 — Unexpected Time Calls এখন `unexpectedTimeRows`
@@ -1192,7 +1217,8 @@ class DraftRepository(private val context: Context? = null) {
             // *"By: ঘরে সবসময় স্টাফের নাম দেখাবে, কখনো কাঁচা মোবাইল নম্বর নয়।"*
             val byName = FollowUpModel.prettyStaff(by)
             entry(row, "unexpected", "$status${if (byName.isNotBlank()) " · by $byName" else ""}",
-                  bill = bill, paid = paid, pat = pat)   // 🆕 V850
+                  bill = bill, paid = paid, pat = pat,   // 🆕 V850
+                  billBeforeDiscount = pat?.optDouble("billBeforeDiscount", 0.0) ?: 0.0)   // 🏷️ V1508
         }.toMutableList()
 
         val complete = mutableListOf<DraftEntry>()
@@ -1215,10 +1241,11 @@ class DraftRepository(private val context: Context? = null) {
             // in the label so Reports/collections stay accurate; this only
             // affects which Draft bucket the patient is grouped into.
             val approvedDespiteDue = row.s("completeApprovedBy").isNotBlank()
+            val billBefore = row.optDouble("billBeforeDiscount", 0.0)   // 🏷️ V1508
             if (due == 0.0) {
-                complete.add(entry(row, "complete", "Paid ${paid.toLong()}", bill = bill, paid = paid))
+                complete.add(entry(row, "complete", "Paid ${paid.toLong()}", bill = bill, paid = paid, billBeforeDiscount = billBefore))
             } else if (approvedDespiteDue) {
-                complete.add(entry(row, "complete", "Paid ${paid.toLong()} · Due ${due.toLong()} (Master-approved)", bill = bill, paid = paid))
+                complete.add(entry(row, "complete", "Paid ${paid.toLong()} · Due ${due.toLong()} (Master-approved)", bill = bill, paid = paid, billBeforeDiscount = billBefore))
             }
         }
 

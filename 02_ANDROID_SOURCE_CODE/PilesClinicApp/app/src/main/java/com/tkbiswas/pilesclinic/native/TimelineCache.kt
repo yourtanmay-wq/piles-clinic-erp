@@ -112,6 +112,7 @@ object TimelineCache {
                 .put("sex", data.sex)
                 .put("address", data.address)
                 .put("billTotal", data.billTotal)
+                .put("billBeforeDiscount", data.billBeforeDiscount)   // 🏷️ V1508
                 .put("discount", data.discount)
                 .put("followupStage", data.followupStage)
                 .put("refDoctorDisplay", data.refDoctorDisplay)
@@ -182,6 +183,7 @@ object TimelineCache {
                 photo = "",
                 entries = list,
                 billTotal = root.optDouble("billTotal", 0.0),
+                billBeforeDiscount = root.optDouble("billBeforeDiscount", 0.0),   // 🏷️ V1508
                 discount = root.optDouble("discount", 0.0),
                 age = root.optString("age", ""),
                 sex = root.optString("sex", ""),

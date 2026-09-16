@@ -8775,6 +8775,7 @@ window.filterFollowRows=filterFollowRows;function mergeFollow(rows){
         let bill=Number(p.bill||0),paid=v266TreatmentPaidForPatient(p),visitDate=x.visitDate||p.visitDate||p.registrationDate||p.date||x.date||e.date||'';
         let regDate=p.registrationDate||p.date||x.registrationDate||e.date||x.date||'';
         return {...x,patientDbId:p.id||x.patientDbId||'',refId:x.refId||p.id||e.id||'',photo:p.photo||x.photo||'',name:x.name||p.name||e.name||normMob(mm),mobile:normMob(mm||p.mobile||e.mobile||''),branch:x.branch||p.branch||e.branch||'',disease:x.disease||p.disease||e.disease||'',recordDate:regDate,registrationDate:regDate,visitDate,bill,paid,due:Math.max(0,bill-paid),payPct:bill?Math.min(100,Math.round(paid/bill*100)):0,hasPayment:paid>0,createdBy:x.createdBy||e.createdBy||p.createdBy||'',receivedBy:x.receivedBy||e.receivedBy||'',lastRemark:x.lastRemark||e.remarks||'',history:x.history||[],
+          billBeforeDiscount:Number(p.billBeforeDiscount||0),   // 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK) — শুধু কার্ডের "Bill" চিপে দেখানোর জন্য; উপরের bill/due/payPct অপরিবর্তিত।
           /* 🆕🔒 V851 (৩০.০৮.২০২৬, TK-অনুমোদিত · ফোনের হুবহু যমজ, নিয়ম ৬.৬) —
              TK: "যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে লিখতে হবে কত তারিখে
              রেজিস্ট্রেশন হয়েছে এবং কে রেজিস্ট্রেশন করেছিল"।
@@ -9341,7 +9342,18 @@ function draffHome(tab='home'){
  /* 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ, "যেমন Android-এ করেছেন") — "Running
     Patient": stage==='Treatment' ও স্বাভাবিক active অবস্থা — Android
     DraftRepository.kt-এর runningTreatmentRows-এর হুবহু একই নিয়ম। */
- let runningTreatment=f.filter(x=>x.stage==='Treatment'&&['cancelled','incomplete','rejected','closed'].indexOf(String(x.status||'').toLowerCase())<0);
+ /* 🔴🔒 V1508 (১৬.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — MD ANARUL HOWK, Due ₹0 তবু
+    "Running Patient (223)"-এ দেখাচ্ছিল, Android DraftRepository.kt-এর হুবহু
+    একই ফিক্স/যমজ): যে রোগী ইতিমধ্যে **নিচের `complete` তালিকাতেই আছেন**
+    (উপরে লাইন 9324 — সেই তালিকারই নিজের সম্পূর্ণ শর্ত, এখানে দ্বিতীয়বার
+    লেখা হয়নি, শুধু মোবাইল-সেট মিলিয়ে বাদ) — তাঁকে এখানে দ্বিতীয়বার দেখানো
+    হয় না, ডবল-লিস্টিং হয় না।
+    ⛔ `complete`-এর নিজস্ব শর্ত (bill>0 ও due==0 ও stage/doctorComplete)
+       ইচ্ছাকৃতভাবে এখানে পুনরাবৃত্তি করা হয়নি — বদলে ঠিক সেই তালিকার
+       ফলাফলই ব্যবহার হচ্ছে, যাতে দুই জায়গার হিসাব কখনো আলাদা না হয় ও কোনো
+       রোগী দুই তালিকা থেকেই বাদ পড়ে "হারিয়ে" না যান। */
+ var __completeMobiles=new Set(complete.map(x=>mob(x.mobile)).filter(Boolean));
+ let runningTreatment=f.filter(x=>x.stage==='Treatment'&&['cancelled','incomplete','rejected','closed'].indexOf(String(x.status||'').toLowerCase())<0&&!__completeMobiles.has(mob(x.mobile)));
  // V448: a legacy Reject can have current status=Active after an old generic
  // heal/view overwrite. Keep that person available in Enquiry Reject by using
  // the same durable history decision as the live Follow-up guard. We map back
@@ -9678,6 +9690,7 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
      recordDate:x.date||x.recordDate||p.date, visitDate:x.visitDate||p.visitDate,
      registrationDate:x.registrationDate||p.registrationDate, lastRemark:x.lastRemark||x.remarks||x.status||'No reason/remark',
      photo:x.photo||p.photo, bill:p.bill||0, paid:paidByPid[p.id]||0,
+     billBeforeDiscount:p.billBeforeDiscount||0,   // 🏷️ V1508 — শুধু কার্ডের Bill চিপে দেখানোর জন্য
      payPct:(p.bill>0)?Math.min(100,Math.round((paidByPid[p.id]||0)/p.bill*100)):0,
      stage:cardStage, patientId:x.patientId||p.patientId||''
    };
@@ -9702,6 +9715,7 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
        const bill = Number(x.bill || 0), paid = Number(paidByPid[x.id] || 0);
        fuRow = { ...x, stage: 'Treatment', bill, paid,
          payPct: bill > 0 ? Math.min(100, Math.round(paid / bill * 100)) : 0,
+         billBeforeDiscount: Number(x.billBeforeDiscount || 0),   // 🏷️ V1508
          nextFollow: x.nextFollow || '', history: x.history || [] };
      }
      cardHtml = fuCard(fuRow);
@@ -9984,7 +9998,11 @@ function fuCard(x){
      ওয়েবে বিল ০ হলে "⚠️" ও "Not Set" দেখাত — ফোনে ওরকম কিছু নেই। */
   let centerTxt=Number(x.bill||0)>0?pct+'%':'0%';
   let dueAmt=Math.max(0,Number(x.bill||0)-Number(x.paid||0));
-  let billTxt=inr(x.bill||0);
+  /* 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK): কার্ডের "Bill"
+     চিপ ছাড় দেওয়া থাকলে আসল (ছাড়ের আগের) বিল দেখায়। ⛔ pct/dueAmt উপরের
+     লাইনেই `x.bill` (কমানো) দিয়ে হিসাব হয়েছে, অপরিবর্তিত। */
+  let __billBeforeDisc=Number(x.billBeforeDiscount||0), __billRaw=Number(x.bill||0);
+  let billTxt=inr((__billBeforeDisc>0&&__billBeforeDisc!==__billRaw)?__billBeforeDisc:__billRaw);
   let dueTxt=Number(x.bill||0)>0?inr(dueAmt):inr(0);
   right=`<div class="anFuPay">`
    +`<small class="anFuRx" onclick="openPrintMenu('${followPaymentPatientId(x)||''}');event.stopPropagation();">PRESCRIPTION</small>`
@@ -15966,7 +15984,11 @@ function wlv1MoneyChips(t){
        ওঠে, যাতে "বিল বসানোই হয়নি" ব্যাপারটা পরিষ্কার হয়।
        ⛔ বিল বসানো থাকলে আগের মতোই টাকার অঙ্ক · Due আগের মতোই লুকানো (বিল
           ছাড়া বাকি কত অ্যাপ জানে না) · এনকোয়ারি-মাত্র রোগীর কার্ড অপরিবর্তিত। */
-    if(t.bill>0) parts.push(`<div class="wlv1TlChip"><small>Estimated</small><b>${money(t.bill)}</b></div>`);
+    /* 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK): "Estimated" চিপ
+       ছাড় দেওয়া থাকলে আসল (ছাড়ের আগের) বিল দেখায়। ⛔ Due-এর হিসাব নিচেই
+       `t.due` (কমানো বিল দিয়েই), অপরিবর্তিত। */
+    const __wlv1EstBill = (t.billBeforeDiscount>0 && t.billBeforeDiscount!==t.bill) ? t.billBeforeDiscount : t.bill;
+    if(t.bill>0) parts.push(`<div class="wlv1TlChip"><small>Estimated</small><b>${money(__wlv1EstBill)}</b></div>`);
     else if(t.paid>0) parts.push(`<div class="wlv1TlChip"><small>Estimated</small><b>Not set</b></div>`);
     if(t.paid>0) parts.push(`<div class="wlv1TlChip"><small>Paid</small><b>${money(t.paid)}</b></div>`);
     if(t.due>0)  parts.push(`<div class="wlv1TlChip"><small>Due</small><b>${money(t.due)}</b></div>`);
@@ -15984,7 +16006,7 @@ function summary(id){
  let latest=(type)=>meds.filter(x=>String(x.type||'').toLowerCase().includes(type.toLowerCase())).slice(-1)[0];
  let checked=latest('Doctor')||latest('Check');
  let hasRx=!!latest('Prescription'),hasMed=!!latest('Medicine'),hasBlood=!!latest('Blood'),hasDiet=!!latest('Diet');
- let payBlock=financeAllowed?`<div class="summaryPayGrid"><div><small>Total Cost</small><b>${money(t.bill)}</b></div><div><small>Deposit</small><b>${money(t.paid)}</b></div><div><small>Due</small><b>${t.bill>0?money(t.due):'-'}</b></div><div><small>Paid</small><b>${t.bill>0?t.pct+'%':'-'}</b></div>${Number(p.discount||0)>0?`<div><small>Discount</small><b style="color:#0B7A34">${money(Number(p.discount||0))}</b></div>`:''}</div><div class="summaryProgress"><span style="width:${t.bill>0?t.pct:0}%"></span></div>`:`<div class="summaryNotice">Payment / bill details hidden for other branch.</div>`;
+ let payBlock=financeAllowed?`<div class="summaryPayGrid"><div><small>Total Cost</small><b>${money((t.billBeforeDiscount>0&&t.billBeforeDiscount!==t.bill)?t.billBeforeDiscount:t.bill)}</b></div><div><small>Deposit</small><b>${money(t.paid)}</b></div><div><small>Due</small><b>${t.bill>0?money(t.due):'-'}</b></div><div><small>Paid</small><b>${t.bill>0?t.pct+'%':'-'}</b></div>${Number(p.discount||0)>0?`<div><small>Discount</small><b style="color:#0B7A34">${money(Number(p.discount||0))}</b></div>`:''}</div><div class="summaryProgress"><span style="width:${t.bill>0?t.pct:0}%"></span></div>`:`<div class="summaryNotice">Payment / bill details hidden for other branch.</div>`;
  let topActions=`<div class="summaryContactRow">${writeAllowed?`<button class="small ghost" onclick="editPatientPhoto('${p.id}')">Edit Photo</button>`:''}${writeAllowed?`<button class="small ghost" onclick="wlv1ShowEditPatient('${p.id}')">✏️ Edit Patient</button>`:''}<button class="small ghost" onclick="contact('${p.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${p.mobile}','wa')">WhatsApp</button><button class="small ghost" onclick="wlv1ShowCheckupA4('${p.id}')">📜 Checkup History</button>${isMaster()?`<button class="small ghost" style="color:#b42318" onclick="wlv1ShowChangeBranchDialog('${p.id}')">🔀 Change Branch</button>`:''}${financeAllowed&&writeAllowed&&t.bill>0&&t.due>0?`<button class="small ghost" style="color:#0b7a34" onclick="wlv1ShowDiscountDialog('${p.id}')">🏷️ Give Discount</button>`:''}${writeAllowed&&wlv1VisitFeePaidNow(p)>0?`<button class="small ghost" style="color:#b45309" onclick="wlv1ShowReturnFeesDialog('${p.id}')">💸 Return Fees</button>`:''}</div>`;
  let clinicalActions=writeAllowed?`<div class="summaryActionGrid">
    <button onclick="doctorCheck('${p.id}')"><span>🩺</span><b>Doctor Check-up</b><small>${checked?'Completed / Update':'Start Check-up'}</small></button>
@@ -16300,10 +16322,14 @@ function treatmentTotals(p){
  let paid=pays.reduce((s,x)=>s+wlv1PayEffect(x),0);
  let due=Math.max(0,bill-paid);
  let pct=bill?Math.min(100,Math.round(paid/bill*100)):0;
- return {bill,paid,due,pct,pays,treatmentCount:treats.length};
+ // 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK) — আসল বিল (ছাড়ের
+ // আগে), শুধু দেখানোর জন্য যোগ হলো। ⛔ উপরের bill/due/pct কেউই এটা পড়ে না,
+ // Due-এর হিসাব এক অক্ষরও বদলায়নি।
+ let billBeforeDiscount=Number(p.billBeforeDiscount||0);
+ return {bill,paid,due,pct,pays,treatmentCount:treats.length,billBeforeDiscount};
 }
 window["treatmentTotals"]=treatmentTotals;
-function treatmentPayCard(p){let t=treatmentTotals(p);return `<div class="card payCard"><div class="row"><div><b class="wlv1NameLink" onclick="patientHistoryDesktop('${p.id}')" title="Tap for History">${esc(p.name)}</b><br><span class="mut">ID: ${esc(p.patientId)} · <span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile||''))}</span></span></div><div class="payCircle" style="--pct:${t.pct}"><b>${t.pct}%</b><small>Paid</small></div></div><div class="payColorStats"><div class="statTotal"><small>Total Bill</small><b>${t.bill?money(t.bill):''}</b></div><div class="statPaid"><small>Paid</small><b>${money(t.paid)}</b></div><div class="statDue"><small>Due</small><b>${money(t.due)}</b></div><div class="statNext"><small>Payments</small><b>${t.treatmentCount}</b></div></div><div class="progress"><div class="bar" style="width:${t.pct}%"></div></div><div class="actions"><button onclick="addTreatmentPayment('${p.id}')">Add Payment</button><button class="ghost" onclick="paymentHistory('${p.id}','treatment')">Payment History</button><button class="small ghost" onclick="summary('${p.id}')">Profile</button><button class="small ghost" onclick="openPrintMenu('${p.id}')">🖨️ Print</button></div></div>`}
+function treatmentPayCard(p){let t=treatmentTotals(p);return `<div class="card payCard"><div class="row"><div><b class="wlv1NameLink" onclick="patientHistoryDesktop('${p.id}')" title="Tap for History">${esc(p.name)}</b><br><span class="mut">ID: ${esc(p.patientId)} · <span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile||''))}</span></span></div><div class="payCircle" style="--pct:${t.pct}"><b>${t.pct}%</b><small>Paid</small></div></div><div class="payColorStats"><div class="statTotal"><small>Total Bill</small><b>${t.bill?money((t.billBeforeDiscount>0&&t.billBeforeDiscount!==t.bill)?t.billBeforeDiscount:t.bill):''}</b></div><div class="statPaid"><small>Paid</small><b>${money(t.paid)}</b></div><div class="statDue"><small>Due</small><b>${money(t.due)}</b></div><div class="statNext"><small>Payments</small><b>${t.treatmentCount}</b></div></div><div class="progress"><div class="bar" style="width:${t.pct}%"></div></div><div class="actions"><button onclick="addTreatmentPayment('${p.id}')">Add Payment</button><button class="ghost" onclick="paymentHistory('${p.id}','treatment')">Payment History</button><button class="small ghost" onclick="summary('${p.id}')">Profile</button><button class="small ghost" onclick="openPrintMenu('${p.id}')">🖨️ Print</button></div></div>`}
 window["treatmentPayCard"]=treatmentPayCard;
 
 function patientPayRows(rows){
@@ -17467,6 +17493,10 @@ function paymentHistory(id,type='all'){
  let rows=load('payments').filter(x=>payOwnedBy(x,p)&&(type==='all'?true:(type==='treatment'?isTreatmentPaymentRow(x):(x.payType||'treatment')===type)));
  rows=wlv1MergeDailyTreatmentRows(rows).slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
  let bill=Number(p.bill||0);
+ // 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK) — "Estimated Amount"
+ // কার্ডে দেখানোর আসল (ছাড়ের আগের) বিল। ⛔ উপরের `bill`/Due হিসাব অপরিবর্তিত —
+ // এই ঘরটা কোথাও এডিট হয় না (শুধু Paid/Remarks ৩-ট্যাপে এডিট হয়)।
+ let billBeforeDiscountDisp=Number(p.billBeforeDiscount||0);
  // 🔒 V217 (§B216): totalPaid/runningPaid এখন wlv1PayEffect দিয়ে — approved
  // refund সত্যিই বিয়োগ হয়, pending/rejected কোনো প্রভাব ফেলে না (ফোনের
  // অ্যাপের একই paidEffect নিয়ম)।
@@ -17527,7 +17557,7 @@ function paymentHistory(id,type='all'){
    <tbody>${tableRows}</tbody>
   </table></div>
   <div class="phSummaryGrid">
-   <div class="phSumCard phSumBill"><span>💼</span><small>Estimated Amount</small><b>₹ ${numFmt(bill)}</b></div>
+   <div class="phSumCard phSumBill"><span>💼</span><small>Estimated Amount</small><b>₹ ${numFmt((billBeforeDiscountDisp>0&&billBeforeDiscountDisp!==bill)?billBeforeDiscountDisp:bill)}</b></div>
    <div class="phSumCard phSumPaid"><span>🤝</span><small>Total Paid</small><b>₹ ${numFmt(totalPaid)}</b></div>
    <div class="phSumCard phSumDue"><span>📄</span><small>Total Due</small><b>₹ ${numFmt(Math.max(0,bill-totalPaid))}</b></div>
   </div>

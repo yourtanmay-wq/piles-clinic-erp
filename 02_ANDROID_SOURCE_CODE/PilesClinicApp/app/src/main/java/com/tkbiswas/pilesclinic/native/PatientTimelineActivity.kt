@@ -4667,7 +4667,10 @@ class PatientTimelineActivity : AppCompatActivity() {
             fun money(v: Double) = "\u20B9" + "%,.0f".format(v)
             val latestPaid = data.entries.maxByOrNull { it.visitNo }?.runningPaid ?: 0.0
             val latestDue = data.entries.maxByOrNull { it.visitNo }?.runningDue ?: -1.0
-            binding.tvChipEstimated.text = if (data.billTotal > 0.0) money(data.billTotal) else "\u2014"
+            /* \ud83c\udff7\ufe0f\ud83d\udd12 V1508 \u2014 same pre-discount fallback as the live path below. */
+            val cachedDisplayBillEst = if (data.billBeforeDiscount > 0.0 && data.billBeforeDiscount != data.billTotal)
+                data.billBeforeDiscount else data.billTotal
+            binding.tvChipEstimated.text = if (data.billTotal > 0.0) money(cachedDisplayBillEst) else "\u2014"
             binding.tvChipPaid.text = money(latestPaid)
             binding.tvChipDue.text = if (latestDue < 0) "\u2014" else money(latestDue)
             val showEstimated = data.billTotal > 0.0
@@ -4963,8 +4966,15 @@ class PatientTimelineActivity : AppCompatActivity() {
                    ⛔ Due ঘরটা আগের মতোই লুকানো থাকে — বিল ছাড়া "বাকি" কত সেটা
                       অ্যাপ জানে না, আন্দাজে সংখ্যা দেখানো হবে না। */
                 val noBillYet = data.billTotal <= 0.0 && latestPaid > 0.0
+                /* \ud83c\udff7\ufe0f\ud83d\udd12 V1508 (\u09e7\u09ec.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6 \u2014 MD ANARUL HOWK): *"\u0986\u09ae\u09be\u09b0
+                   \u09b9\u09bf\u09b8\u09be\u09ac\u09c7 25000 \u09a6\u09c7\u0996\u09be\u09a4\u09c7 \u09b9\u09ac\u09c7, Paid \u09e8\u09ea\u09e6\u09e6\u09e6, \u098f\u09ac\u0982 \u09a1\u09bf\u09b8\u0995\u09be\u0989\u09a8\u09cd\u099f \u09e7\u09e6\u09e6\u09e6"*\u0964
+                   \u21d2 "Estimated" \u099a\u09bf\u09aa \u099b\u09be\u09a1\u09bc \u09a6\u09c7\u0993\u09af\u09bc\u09be \u09a5\u09be\u0995\u09b2\u09c7 \u0986\u09b8\u09b2 (\u099b\u09be\u09a1\u09bc\u09c7\u09b0 \u0986\u0997\u09c7\u09b0) \u09ac\u09bf\u09b2
+                   \u09a6\u09c7\u0996\u09be\u09af\u09bc, \u0995\u09ae\u09be\u09a8\u09cb \u09ac\u09bf\u09b2 \u09a8\u09af\u09bc\u0964 \u26d4 Due-\u098f\u09b0 \u09b9\u09bf\u09b8\u09be\u09ac/currentBillTotal/
+                   Discount \u09a1\u09be\u09af\u09bc\u09be\u09b2\u0997 \u2014 \u0995\u09cb\u09a8\u09cb\u099f\u09be\u0987 \u099b\u09cb\u0981\u09af\u09bc\u09be \u09b9\u09af\u09bc\u09a8\u09bf, \u098f\u0987 \u099a\u09bf\u09aa\u09c7\u09b0 \u099f\u09c7\u0995\u09cd\u09b8\u099f\u099f\u09be\u0987 \u09b6\u09c1\u09a7\u09c1\u0964 */
+                val displayBillEst = if (data.billBeforeDiscount > 0.0 && data.billBeforeDiscount != data.billTotal)
+                    data.billBeforeDiscount else data.billTotal
                 binding.tvChipEstimated.text = when {
-                    data.billTotal > 0.0 -> money(data.billTotal)
+                    data.billTotal > 0.0 -> money(displayBillEst)
                     noBillYet -> "Not set"
                     else -> "\u2014"
                 }

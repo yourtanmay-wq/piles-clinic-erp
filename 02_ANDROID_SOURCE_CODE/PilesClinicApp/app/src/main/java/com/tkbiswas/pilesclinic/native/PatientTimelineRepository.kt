@@ -138,6 +138,12 @@ data class TimelineData(
     // patient's bill. 0.0 means none was ever given -- the Discount box then
     // stays hidden and the three older boxes look exactly as before.
     val discount: Double = 0.0,
+    // 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK) — সত্যিকারের আসল
+    // বিল (ছাড়ের আগে), শুধু "Estimated" চিপ-এ দেখানোর জন্য। 0.0 মানে কখনো
+    // ছাড় দেওয়াই হয়নি -- তখন চিপ আগের মতোই `billTotal` দেখায় (কোনো বদল নেই)।
+    // ⛔ Due-এর হিসাব এখনো `billTotal` (কমানো বিল) দিয়েই হয় -- এই ঘরটা শুধু
+    //    দেখানোর জন্য, কোনো হিসাবে যোগ হয় না।
+    val billBeforeDiscount: Double = 0.0,
     // TK-REQUESTED ADDITION (2026-07-18): the "patients" table row id (uuid),
     // needed so the Patient Card header's 3-tap Edit can save name/mobile
     // corrections. Blank when no Registration/patients row exists yet for
@@ -1226,6 +1232,9 @@ object PatientTimelineRepository {
         // APPROVED UPDATE #9: Treatment Complete entry when the bill is fully paid
         // (Due = 0). Synthesized from the last payment — no other module changed.
         val billTotal = patient.optDouble("bill", 0.0)
+        // 🏷️🔒 V1508 — আসল বিল (ছাড়ের আগে), সরিয়ে আনা হলো যাতে TimelineData-তেও
+        // ব্যবহার করা যায় (নিচে discGiven ব্লকও এখন এটাই পড়ে, দ্বিতীয়বার নয়)।
+        val billBeforeDiscount = patient.optDouble("billBeforeDiscount", 0.0)
         // 🏷️ TK-APPROVED (03.09.2026): a discount given on this bill shows as
         // its own permanent history row -- how much, what the bill was before
         // and after, who gave it and why. Synthesized from the patients row
@@ -1235,12 +1244,11 @@ object PatientTimelineRepository {
         if (lastPayDate.isBlank()) { lastPayDate = anyPayDate; lastPayBy = anyPayBy; lastPayAt = anyPayAt }
         val discGiven = patient.optDouble("discount", 0.0)
         if (discGiven > 0.0) {
-            val billBefore = patient.optDouble("billBeforeDiscount", 0.0)
             val why = patient.s("discountReason")
             val note = buildString {
                 // শিরোনামেই "Discount" লেখা থাকে, তাই নোটে আর দ্বিতীয়বার নয়।
                 append(money(discGiven))
-                if (billBefore > 0.0) append(" · Bill ").append(money(billBefore)).append(" → ").append(money(billTotal))
+                if (billBeforeDiscount > 0.0) append(" · Bill ").append(money(billBeforeDiscount)).append(" → ").append(money(billTotal))
                 if (why.isNotBlank()) append(" · ").append(why)
             }
             entries.add(entry(
@@ -1674,6 +1682,7 @@ object PatientTimelineRepository {
             },
             entries = filtered,
             billTotal = billTotal,
+            billBeforeDiscount = billBeforeDiscount,
             discount = patient.optDouble("discount", 0.0),
             rowId = uuid,
             // TK-REQUESTED (2026-07-18): refDoctor was a name SNAPSHOT saved

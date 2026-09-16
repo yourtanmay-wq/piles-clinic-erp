@@ -200,7 +200,12 @@ class FollowUpAdapter(
                 // buildFollowCard()-এর হুবহু একই মান/রং)।
                 b.paymentRing.percent = pct
                 val due = Math.max(0.0, item.bill - item.paid)
-                b.tvBillPill.text = "Bill\n₹${"%,.0f".format(item.bill)}"
+                /* 🏷️🔒 V1508 (১৬.০৯.২০২৬, TK-নির্দেশ — MD ANARUL HOWK): "Bill"
+                   চিপ ছাড় দেওয়া থাকলে আসল (ছাড়ের আগের) বিল দেখায়। ⛔ Due/%
+                   হিসাব উপরের/নিচের লাইনে `item.bill`-ই ব্যবহার করে, অপরিবর্তিত। */
+                val displayBillChip = if (item.billBeforeDiscount > 0.0 && item.billBeforeDiscount != item.bill)
+                    item.billBeforeDiscount else item.bill
+                b.tvBillPill.text = "Bill\n₹${"%,.0f".format(displayBillChip)}"
                 b.tvDuePill.text = "Due\n₹${"%,.0f".format(due)}"
                 b.paymentRing.setOnClickListener { onPayment(item) }
                 b.tvPrescription.setOnClickListener { onPrescription(item) }
