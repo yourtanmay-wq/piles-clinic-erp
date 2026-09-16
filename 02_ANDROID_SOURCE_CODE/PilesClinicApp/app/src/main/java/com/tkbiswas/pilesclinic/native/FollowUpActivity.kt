@@ -332,12 +332,27 @@ class FollowUpActivity : AppCompatActivity() {
                 //   তাই প্রতিবার পর্দা খুললেই পাঁচ ব্রাঞ্চের সব সারি নামত। এখন
                 //   শেষবার বাছা ব্রাঞ্চটাই বসে (`BranchFilterStore` — পুরো অ্যাপে এক)।
                 countBranch = BranchFilterStore.get(this)
-                binding.branchPicker.visibility = View.VISIBLE
+                // 🔽🔒 (16.09.2026, TK photo-proof approved) — pill itself no
+                // longer shown in the header row (moved into the ⋮ overflow
+                // menu below), so it stays gone here; .text is still kept up
+                // to date because showBranchPickerMenu() below still writes
+                // to it, and the ⋮ menu label reads BranchFilterStore.label()
+                // fresh each time it opens.
                 binding.branchPicker.text = BranchFilterStore.pillText(this)
-                binding.branchPicker.setOnClickListener { showBranchPickerMenu() }
             } else {
                 countBranch = user.branch
             }
+            // 🆕⋮🔒 (16.09.2026, TK photo-proof approved, "হ্যাঁ পাশ, বসিয়ে দিন")
+            // — single overflow button replacing the branch pill + date badge
+            // in the header row. Style matches StaffProfileActivity's ⋮ button
+            // (20sp bold, #0B7A3E, white circle) — same precedent, copied here.
+            binding.btnFollowMenu.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 17f * resources.displayMetrics.density
+                setColor(android.graphics.Color.WHITE)
+                setStroke((1 * resources.displayMetrics.density).toInt(), android.graphics.Color.parseColor("#CFE3D8"))
+            }
+            binding.btnFollowMenu.setTextColor(android.graphics.Color.parseColor("#0B7A3E"))
+            binding.btnFollowMenu.setOnClickListener { showFollowUpOverflowMenu() }
             // খাতার সারি B31: খোলার সময় শুধু জমানো সংখ্যা বসে। নতুন সংখ্যা আনার
             // কাজটা শুরু হয় চোখে-দেখা তালিকাটা আসার পরে (loadTab-এর শেষে),
             // যাতে ওই তালিকাটা সবচেয়ে আগে আসে।
@@ -669,9 +684,13 @@ class FollowUpActivity : AppCompatActivity() {
     private var lastPatAll: List<FollowUpItem>? = null
 
     private fun paintTabCounts() {
-        lastEnqAll?.let { binding.tabEnquiry.text = "👥 ${applyDateFilter(it).size} Enquiry" }
-        lastVisitAll?.let { binding.tabVisit.text = "👣 ${applyDateFilter(it).size} Visit" }
-        lastPatAll?.let { binding.tabPatient.text = "👤 ${applyDateFilter(it).size} Patient" }
+        // 🗓️🔒 (16.09.2026) — explicit `stage=` on each call so the Patient
+        // badge's count reflects the active Year filter (patientYearFilter)
+        // even when a different tab is currently open, while Enquiry/Visit
+        // counts stay completely untouched by the year filter.
+        lastEnqAll?.let { binding.tabEnquiry.text = "👥 ${applyDateFilter(it, "Inquiry").size} Enquiry" }
+        lastVisitAll?.let { binding.tabVisit.text = "👣 ${applyDateFilter(it, "Patient").size} Visit" }
+        lastPatAll?.let { binding.tabPatient.text = "👤 ${applyDateFilter(it, "Treatment").size} Patient" }
     }
 
     private fun refreshTabCounts(withNetwork: Boolean = true) {
@@ -756,6 +775,57 @@ class FollowUpActivity : AppCompatActivity() {
                    (থাকলে) দেখায়, নইলে "Loading...", পুরনো ব্রাঞ্চের সারি
                    একমুহূর্তের জন্যও দেখায় না। */
                 loadTab(currentStage, silent = false)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /* ⋮🔒 (16.09.2026, TK photo-proof approved: "হ্যাঁ পাশ, বসিয়ে দিন") —
+       replaces the header's branch pill + date badge. Three plain-text rows
+       (NO emoji — TK: "17 July Emoji থাকতে হবে না"), style copied from
+       StaffProfileActivity.staffDotsMenu() (PremiumAlert-header AlertDialog
+       + setItems). ⛔ Each row does EXACTLY what its old header control did
+       — showBranchPickerMenu() and the FollowCalendarActivity intent are the
+       SAME calls as before, only reached from a different tap target. Branch
+       row stays Master-only (same `user.role == "master"` gate as before,
+       see onCreate above); calendar row unchanged for every role. */
+    private fun showFollowUpOverflowMenu() {
+        val labels = ArrayList<String>()
+        val acts = ArrayList<() -> Unit>()
+        if (user.role == "master") {
+            labels.add(BranchFilterStore.label(this) + " ▾")   // "Kishanganj ▾" -- no emoji
+            acts.add { showBranchPickerMenu() }
+        }
+        // Same today's-real-date text the old two-line badge showed
+        // (tvCalMonth/tvCalDay, filled by the unchanged Calendar-formatting
+        // code in onCreate) -- e.g. "Sep 16". Tapping it opens the exact
+        // same FollowCalendarActivity as binding.btnCalendar did before.
+        labels.add("${binding.tvCalMonth.text} ${binding.tvCalDay.text}")
+        acts.add { startActivity(android.content.Intent(this, FollowCalendarActivity::class.java)) }
+        labels.add("Year: $patientYearFilter ▾")
+        acts.add { showPatientYearPickerMenu() }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Follow-up"))
+            .setItems(labels.toTypedArray()) { _, which -> acts.getOrNull(which)?.invoke() }
+            .setNegativeButton("Close", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /* 🗓️🔒 (16.09.2026, TK photo-proof approved) — lets the Patient tab
+       switch to a different registration year. Purely a client-side filter
+       (no network call, rule ৭খ "no delay" honoured) — switching years never
+       loses data, it's always reversible from this same menu. */
+    private fun showPatientYearPickerMenu() {
+        val years = availablePatientYears()
+        val labels = years.map { it.toString() }.toTypedArray()
+        val selectedIdx = years.indexOf(patientYearFilter).let { if (it < 0) 0 else it }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Year"))
+            .setSingleChoiceItems(labels, selectedIdx) { dialog, which ->
+                patientYearFilter = years[which]
+                paintTabCounts()
+                if (currentStage == "Treatment") applySearch()
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -1021,10 +1091,46 @@ class FollowUpActivity : AppCompatActivity() {
     private var customFrom: String = ""
     private var customTo: String = ""
 
-    private fun applyDateFilter(items: List<FollowUpItem>): List<FollowUpItem> {
-        if (dateFilter == "All") return items
+    /* 🗓️🔒 (16.09.2026, TK photo-proof approved: "হ্যাঁ পাশ, বসিয়ে দিন") — the
+       "👤 ... Patient" tab (screen label; internally stage="Treatment" — see
+       the big top-of-file note and switchTab() below, TK's own words:
+       "এভাবে এক জায়গায় এতগুলো পেশেন্টের ডিটেলস থাকলে বিভ্রান্ত হয়ে যাচ্ছে,
+       বছর ভিত্তিক আলাদাভাবে করে রাখলে ভালো হবে"). Default = CURRENT year
+       (TK: "default কিন্তু Recent Year ই থাকতে হবে"), switchable via the new
+       "Year: 20XX ▾" row in the ⋮ overflow menu (showPatientYearPickerMenu()).
+       ⛔ ADDITIONAL filter only, layered on top of the My Call/Today/Overdue/
+          This Week chips below — never replaces them (applyDateFilter applies
+          both, chips first then year). ⛔ Enquiry/Visit tabs (stage="Inquiry"/
+          "Patient") are never touched — see the `stage == "Treatment"` guard
+          at the end of applyDateFilter(). */
+    private var patientYearFilter: Int = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+
+    /** Registration year of a Treatment-stage (Patient tab) card, or null if
+     *  unknown. Prefers `regDate` (V851 — the real registration date, backed
+     *  by patients.registrationDate/date, populated only for Treatment/Patient
+     *  stage rows), falls back to `recordDate` for any older/edge-case row
+     *  where regDate wasn't filled. */
+    private fun patientItemYear(item: FollowUpItem): Int? {
+        val y = item.regDate.take(4).ifBlank { item.recordDate.take(4) }
+        return y.toIntOrNull()
+    }
+
+    /** Real years present in the Patient (Treatment) tab's already-fetched/
+     *  cached data — no network call, enumerated from `lastPatAll` (the same
+     *  list the tab's own count badge uses). Current year is always included
+     *  so switching back to it is always possible, even with zero patients
+     *  registered so far this year. */
+    private fun availablePatientYears(): List<Int> {
+        val src = lastPatAll ?: (if (currentStage == "Treatment") loadedItems else null) ?: emptyList()
+        val years = src.mapNotNull { patientItemYear(it) }.toMutableSet()
+        years.add(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR))
+        return years.sortedDescending()
+    }
+
+    private fun applyDateFilter(items: List<FollowUpItem>, stage: String = currentStage): List<FollowUpItem> {
+        val chipFiltered = if (dateFilter == "All") items else {
         val today = FollowUpModel.today()
-        return when (dateFilter) {
+        when (dateFilter) {
             // 🔒 TK-ORDER (31.07.2026, খাতার সারি B213 — TK: "সেই স্টাফ শেষ যার
             // সাথে কথা বলেছিলেন (last caller) তারাই, তারিখ যাই হোক")। ⛔ নতুন
             // কোনো ক্লাউড-কল/কলাম লাগেনি — `item.lastCallBy` আগে থেকেই প্রতিটা
@@ -1118,6 +1224,15 @@ class FollowUpActivity : AppCompatActivity() {
             }
             else -> items
         }
+        }
+        // 🗓️🔒 (16.09.2026) — ADDITIONAL year filter, Patient tab only
+        // (stage="Treatment"). Unknown-year cards (blank regDate AND blank
+        // recordDate — very old/edge-case rows) are never hidden by this
+        // filter, so a pending follow-up call can never silently disappear
+        // just because its year couldn't be determined.
+        return if (stage == "Treatment") {
+            chipFiltered.filter { val y = patientItemYear(it); y == null || y == patientYearFilter }
+        } else chipFiltered
     }
 
     /**
