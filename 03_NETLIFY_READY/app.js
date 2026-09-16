@@ -8654,23 +8654,19 @@ function _followupCore(tab='Inquiry'){
  let tabs2=['Inquiry','Patient','Treatment'].map(t=>`<button class="followTab ${(!__wlv1FuAllSections&&t===tab)?'active':''}" onclick="wlv1FuTab('${t}')"><span>${t==='Inquiry'?'👥':t==='Patient'?'👣':'👤'}</span>${counts[t]} ${stageLabel(t)}</button>`).join('');
  /* 🟢🔒 V398: বাক্সটা এক জায়গা থেকে বানানো হয় আর বাছা মানটা মনে রাখা হয়। */
  wlv1FuBranch=wlv1BranchGet();
- /* 🆕⋮🔒 (16.09.2026, TK photo-proof approved: "হ্যাঁ পাশ, বসিয়ে দিন") —
-    branch pill + "⏰ Calendar" button moved out of this row into a single
-    ⋮ overflow menu (Android FollowUpActivity.showFollowUpOverflowMenu()-এর
-    ওয়েব-যমজ, নিয়ম ৮), style/mechanism copied from the existing Doctor
-    Visit/RMP header ⋮ (wlv1RmpMenu(), around line 19099). ⛔ Each row inside
-    still does EXACTLY what its old header control did — only WHERE the tap
-    happens changed. Master-only branch row uses the SAME wlv1BranchSelectHtml()
-    select; Calendar row calls the SAME openRealFollowCalendar(). id kept
-    (`fuFilterLineWrap`) so the existing desktop (>=900px) relocation to
-    #wlv1FuTopSlot below still works unchanged. */
+ /* 🔽🔒 (16.09.2026, TK photo-proof reviewed and reverted: TK said "আমি তো
+    সেরকম বলি নাই") — branch dropdown and "⏰ Calendar" button both stay in
+    this row exactly as before. Only the Patient-tab Year picker moved into
+    the ⋮ button (TK: "ওখানে শুধু 2026/2025/2024 এরকমই থাকবে") — tapping it
+    opens the Year list directly (wlv1PatientYearMenu), no extra menu layer. */
+ let branchPick=isMaster()?`<div id="fuBranchWrap">${wlv1BranchSelectHtml(`followup('${tab}')`,{cls:'wlv1FuBranch'})}</div>`:'';
  let shown=all, __fuAsk=false;
  let __g=wlv1BranchGate(shown);
  if(__g===null){ __fuAsk=true; shown=[]; } else { shown=__g; }
  if(wlv1FuSearch){const q=wlv1FuSearch.toLowerCase(),qd=wlv1FuSearch.replace(/\D/g,'');
    shown=shown.filter(x=>String(x.name||'').toLowerCase().includes(q)||(qd.length>=3&&mob(x.mobile).includes(qd)));}
  let body=`<div class="followPage followPage-${tab}">
-   <div class="followFilterLine wlv1HdrPick" id="fuFilterLineWrap"><button class="small ghost wlv1FuMenuBtn" title="Follow-up menu" style="font-size:20px;font-weight:800;line-height:1;padding:2px 10px" onclick="wlv1FuHeaderMenu('${tab}')">&#8942;</button></div>
+   <div class="followFilterLine wlv1HdrPick" id="fuFilterLineWrap">${branchPick}<button class="small ghost" onclick="openRealFollowCalendar('${tab}')">⏰ Calendar</button><button class="small ghost wlv1FuMenuBtn" title="Patient year" style="font-size:20px;font-weight:800;line-height:1;padding:2px 10px" onclick="wlv1PatientYearMenu('${tab}')">&#8942;</button></div>
    <input class="input wlv1FuSearch" placeholder="🔍 Search name or mobile" data-nocaps="1" value="${esc(wlv1FuSearch)}" oninput="wlv1FuSearch=this.value;wlv1FuRedraw('${tab}')">
    ${/* 🖥️🟣🔒🔁 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): TK —
         *"staff রা বিভ্রান্ত হয়ে যাচ্ছে, Enquiry এর মধ্যে patient কেন দেখাচ্ছে"*
@@ -8720,25 +8716,6 @@ window["wlv1FuTab"]=wlv1FuTab;function openRealFollowCalendar(stage='Inquiry'){
       modal(`<h2>Calendar</h2><div class="realCalendarGrid"><b>Sun</b><b>Mon</b><b>Tue</b><b>Wed</b><b>Thu</b><b>Fri</b><b>Sat</b>${cells}</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`);
     }
 window.openRealFollowCalendar=openRealFollowCalendar;
-/* 🆕⋮🔒 (16.09.2026, TK photo-proof approved: "হ্যাঁ পাশ, বসিয়ে দিন") —
-   Follow-up header's ⋮ overflow menu: branch (Master only) · today's date
-   (opens the SAME openRealFollowCalendar) · Year (Patient/Treatment tab
-   filter). Plain text rows, NO emoji (TK: "17 July Emoji থাকতে হবে না").
-   Style/mechanism copied from wlv1RmpMenu() (Doctor Visit/RMP header ⋮). */
-function wlv1FuTodayLabel(){
-  var d=new Date(), months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return months[d.getMonth()]+' '+d.getDate();
-}
-window["wlv1FuTodayLabel"]=wlv1FuTodayLabel;
-function wlv1FuHeaderMenu(tab){
-  var branchRow = isMaster()
-    ? '<div style="margin:6px 0">'+wlv1BranchSelectHtml("closeModal();followup('"+tab+"')",{cls:'wlv1FuBranch'})+'</div>'
-    : '';
-  var dateRow = '<button class="ghost" style="display:block;width:100%;margin:6px 0" onclick="closeModal();openRealFollowCalendar(\''+tab+'\')">'+esc(wlv1FuTodayLabel())+'</button>';
-  var yearRow = '<button class="ghost" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1PatientYearMenu(\''+tab+'\')">Year: '+__wlv1PatientYearFilter+' &#9662;</button>';
-  modal('<h2>Follow-up</h2><div class="card">'+branchRow+dateRow+yearRow+'</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
-}
-window["wlv1FuHeaderMenu"]=wlv1FuHeaderMenu;
 /* 🗓️🔒 (16.09.2026, TK photo-proof approved) — lets the Patient tab switch
    to a different registration year. Purely a client-side re-filter (no
    network call, rule ৭খ "no delay" honoured); switching years never loses

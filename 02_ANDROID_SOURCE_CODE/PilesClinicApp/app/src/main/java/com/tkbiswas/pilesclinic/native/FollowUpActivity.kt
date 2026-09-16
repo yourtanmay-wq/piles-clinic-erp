@@ -332,27 +332,28 @@ class FollowUpActivity : AppCompatActivity() {
                 //   তাই প্রতিবার পর্দা খুললেই পাঁচ ব্রাঞ্চের সব সারি নামত। এখন
                 //   শেষবার বাছা ব্রাঞ্চটাই বসে (`BranchFilterStore` — পুরো অ্যাপে এক)।
                 countBranch = BranchFilterStore.get(this)
-                // 🔽🔒 (16.09.2026, TK photo-proof approved) — pill itself no
-                // longer shown in the header row (moved into the ⋮ overflow
-                // menu below), so it stays gone here; .text is still kept up
-                // to date because showBranchPickerMenu() below still writes
-                // to it, and the ⋮ menu label reads BranchFilterStore.label()
-                // fresh each time it opens.
+                // 🔽🔒 (16.09.2026, TK photo-proof reviewed and reverted: TK
+                // said "আমি তো সেরকম বলি নাই") — pill stays visible in the
+                // header row exactly as before, own tap target restored.
+                binding.branchPicker.visibility = View.VISIBLE
                 binding.branchPicker.text = BranchFilterStore.pillText(this)
+                binding.branchPicker.setOnClickListener { showBranchPickerMenu() }
             } else {
                 countBranch = user.branch
             }
-            // 🆕⋮🔒 (16.09.2026, TK photo-proof approved, "হ্যাঁ পাশ, বসিয়ে দিন")
-            // — single overflow button replacing the branch pill + date badge
-            // in the header row. Style matches StaffProfileActivity's ⋮ button
-            // (20sp bold, #0B7A3E, white circle) — same precedent, copied here.
+            // 🆕⋮🔒 (16.09.2026, TK photo-proof approved) — this button now
+            // opens ONLY the Patient-tab Year picker directly (TK: "ওখানে শুধু
+            // 2026/2025/2024 এরকমই থাকবে") — branch pill and calendar badge
+            // both stayed in the header row, unchanged. Style matches
+            // StaffProfileActivity's ⋮ button (20sp bold, #0B7A3E, white
+            // circle) — same precedent, copied here.
             binding.btnFollowMenu.background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = 17f * resources.displayMetrics.density
                 setColor(android.graphics.Color.WHITE)
                 setStroke((1 * resources.displayMetrics.density).toInt(), android.graphics.Color.parseColor("#CFE3D8"))
             }
             binding.btnFollowMenu.setTextColor(android.graphics.Color.parseColor("#0B7A3E"))
-            binding.btnFollowMenu.setOnClickListener { showFollowUpOverflowMenu() }
+            binding.btnFollowMenu.setOnClickListener { showPatientYearPickerMenu() }
             // খাতার সারি B31: খোলার সময় শুধু জমানো সংখ্যা বসে। নতুন সংখ্যা আনার
             // কাজটা শুরু হয় চোখে-দেখা তালিকাটা আসার পরে (loadTab-এর শেষে),
             // যাতে ওই তালিকাটা সবচেয়ে আগে আসে।
@@ -778,37 +779,6 @@ class FollowUpActivity : AppCompatActivity() {
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
-            .show().also { PremiumAlert.paint(it) }
-    }
-
-    /* ⋮🔒 (16.09.2026, TK photo-proof approved: "হ্যাঁ পাশ, বসিয়ে দিন") —
-       replaces the header's branch pill + date badge. Three plain-text rows
-       (NO emoji — TK: "17 July Emoji থাকতে হবে না"), style copied from
-       StaffProfileActivity.staffDotsMenu() (PremiumAlert-header AlertDialog
-       + setItems). ⛔ Each row does EXACTLY what its old header control did
-       — showBranchPickerMenu() and the FollowCalendarActivity intent are the
-       SAME calls as before, only reached from a different tap target. Branch
-       row stays Master-only (same `user.role == "master"` gate as before,
-       see onCreate above); calendar row unchanged for every role. */
-    private fun showFollowUpOverflowMenu() {
-        val labels = ArrayList<String>()
-        val acts = ArrayList<() -> Unit>()
-        if (user.role == "master") {
-            labels.add(BranchFilterStore.label(this) + " ▾")   // "Kishanganj ▾" -- no emoji
-            acts.add { showBranchPickerMenu() }
-        }
-        // Same today's-real-date text the old two-line badge showed
-        // (tvCalMonth/tvCalDay, filled by the unchanged Calendar-formatting
-        // code in onCreate) -- e.g. "Sep 16". Tapping it opens the exact
-        // same FollowCalendarActivity as binding.btnCalendar did before.
-        labels.add("${binding.tvCalMonth.text} ${binding.tvCalDay.text}")
-        acts.add { startActivity(android.content.Intent(this, FollowCalendarActivity::class.java)) }
-        labels.add("Year: $patientYearFilter ▾")
-        acts.add { showPatientYearPickerMenu() }
-        AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "Follow-up"))
-            .setItems(labels.toTypedArray()) { _, which -> acts.getOrNull(which)?.invoke() }
-            .setNegativeButton("Close", null)
             .show().also { PremiumAlert.paint(it) }
     }
 

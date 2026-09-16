@@ -33,12 +33,10 @@
             android:textStyle="bold" />
 
         <!-- TK-REQUESTED ADDITION (2026-07-23): branch picker, Master only.
-             🔽🔒 (16.09.2026, TK photo-proof approved: "হ্যাঁ পাশ, বসিয়ে দিন")
-             — moved out of this visible row into the new ⋮ overflow menu
-             below, so the header stays clean (back arrow + title only).
-             ⛔ View kept (always gone now) only so its .text is still updated
-             by the existing code — the same showBranchPickerMenu() is now
-             reached from the ⋮ menu instead of a tap on this pill. -->
+             🔽🔒 (16.09.2026, TK photo-proof reviewed and reverted: TK said
+             "আমি তো সেরকম বলি নাই" — the branch pill must stay visible here
+             in the header row, same tap target (showBranchPickerMenu()) as
+             always. Only the Year picker moved into the new ⋮ menu. -->
         <TextView
             android:id="@+id/branchPicker"
             android:layout_width="wrap_content"
@@ -53,21 +51,16 @@
             android:textStyle="bold"
             android:visibility="gone" />
 
-        <!-- 🔽🔒 (16.09.2026) — same move as branchPicker above: the two-line
-             month/day badge no longer shows in the header row (represented
-             instead by a plain "Sep 16"-style row inside the ⋮ menu), but the
-             LinearLayout/TextViews stay (always gone) so the existing
-             java.util.Calendar formatting code that fills tvCalMonth/tvCalDay
-             with today's REAL date keeps running unchanged — the ⋮ menu label
-             reads its text from these same views instead of hardcoding a date. -->
+        <!-- 🔽🔒 (16.09.2026, TK photo-proof reviewed and reverted) — the
+             calendar badge stays visible in the header row exactly as
+             before; only the new Year picker lives inside ⋮, not this. -->
         <LinearLayout
             android:id="@+id/btnCalendar"
             android:layout_width="30dp"
             android:layout_height="33dp"
             android:orientation="vertical"
             android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
+            android:focusable="true">
 
             <TextView
                 android:id="@+id/tvCalMonth"
