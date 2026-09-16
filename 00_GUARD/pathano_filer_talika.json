@@ -1,5 +1,24 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1508_FINAL.zip",
+    "versionCode": 1508,
+    "when": "16.09.2026 09:29 am",
+    "size_mb": 26.3,
+    "total_files": 2049,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 837,
+      "(root)": 604,
+      "00_SQL": 214,
+      "04_SUPABASE_DATABASE_SETUP": 139,
+      "00_GUARD": 67,
+      "03_NETLIFY_READY": 59,
+      "08_ASSETS_BACKUP": 39,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 32
+    },
+    "excluded": ".git/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ; আলাদা করে কোনো ছবি/ফোল্ডার বাদ দেওয়া হয়নি",
+    "note": "V1508 — Follow-up ও Yearly Registration স্ক্রিনে বছর-বাছাই মেনু যোগ (⋮) + ডিসকাউন্ট দেওয়া পেশেন্টের আসল বিল (পুরনো, ছাড়ের আগে) এখন Estimated/Bill-এ দেখাবে, আর Due=০ হলে Running Patient থেকে সরে Complete Patient-এ যাবে (MD ANARUL HOWK-এর রিপোর্টে ধরা পড়া বাগ, আসল কারণ ছিল billBeforeDiscount ঘরটা ফোনের পড়ার তালিকা থেকেই বাদ পড়েছিল) + Registration-এর RMP-সার্চ ফর্মের নিজের বাছা ব্রাঞ্চ দিয়ে ছাঁকা (আগে স্টাফের ব্রাঞ্চ দিয়ে ছাঁকত) + Enquiry-stage Ref-by ডিসপ্লে ফিক্স + কিশানগঞ্জ/জলপাইগুড়ি/কোচবিহার হিস্টরিক্যাল ইমপোর্ট (মোট ৫৯৮ জন); ভার্সন ১৫০৭→১৫০৮"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1507_FINAL.zip",
     "versionCode": 1507,
     "when": "16.09.2026 05.58 am",
