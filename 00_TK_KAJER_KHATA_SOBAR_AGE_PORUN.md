@@ -27837,3 +27837,15 @@ TK প্রথমে ব্রাঞ্চ+ক্যালেন্ডার �
 ঠিক করা হলো -- অব্যবহৃত showFollowUpOverflowMenu()/wlv1FuHeaderMenu()/
 wlv1FuTodayLabel() ফাংশন মুছে দেওয়া হয়েছে। verify_kotlin_compile.py PASS
 (নতুন ভুল ০), verify_android_resources.py PASS, node --check app.js PASS।
+
+## 16.09.2026 10:58 -- কিশানগঞ্জ ২০২৫: বিল-না-হওয়া ৩২৫ জন ভিজিটর যোগ
+TK-এর "৪৭০ জন ছিল" প্রশ্নের মূলে গিয়ে দেখা গেল: মূল শিটে ৪৬৭ সারি, কিন্তু
+মাত্র ১১৬ জনের বিল ছিল (তারাই "Yearly Registration"-এ গোনা হয়, আগেই ঢোকানো)।
+বাকি ৩৫১ জন শুধু ভিজিট/এনকোয়ারি করেছিলেন, বিল হয়নি। TK-নির্দেশ: এদেরও
+রাখতে হবে (ভবিষ্যতে চেনার জন্য), কিন্তু Follow-up-এর কল-তালিকায় নয় --
+শুধু Yearly Registration-এ। patients টেবিলে bill=0, stage='Enquiry' দিয়ে
+ঢোকানো হচ্ছে (কোনো payments সারি নেই, followups সারিও নেই -- তাই Follow-up-এ
+দেখাবে না)। ৯ জনের মোবাইল আগে থেকেই লাইভে (অন্য বছর/আগের ব্যাচ), ৭ জনের
+তারিখ/মোবাইল ভুল, ৩ জনের মোবাইলই নেই -- এই ৩৪ জন বাদ, বাকি ৩২৫ জন।
+patientId-সংঘর্ষ-চেক (V1526 duplicate + V1527 দুই ব্যাচ) TK চালিয়ে দেখেছেন।
+V1528_KISHANGANJ_2025_NONBILLED_VISITORS_2026-09-16.sql তৈরি, sql_local_check.py PASS।
