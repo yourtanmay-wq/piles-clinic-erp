@@ -319,13 +319,6 @@ insert into public.patients (
   'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-03T10:00:00.000Z', '2024-07-03T10:00:00.000Z'
 ),
 (
-  'hist_e30b154f0406fc05', 'KNE-03072027-001', '2027-07-03', '2027-07-03', '2027-07-03',
-  'ARJUN PASWAN', '9472576686', 'Kishanganj', '45', 'Male',
-  'PASWAN CHOWK, KISHANGANJ, KISHANGANJ, KISHANGANJ', 'Piles', '21000',
-  'Treatment Running', 'false', 'true',
-  'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2027-07-03T10:00:00.000Z', '2027-07-03T10:00:00.000Z'
-),
-(
   'hist_d1546ef676fce2d6', 'KNE-05072024-001', '2024-07-05', '2024-07-05', '2024-07-05',
   'SABANA PARVIN', '9735917197', 'Kishanganj', '41', 'Female',
   'ISLAMPUR', 'Piles', '12000',
@@ -385,6 +378,13 @@ insert into public.patients (
   'hist_d7cc31f2e3d67749', 'KNE-21072024-001', '2024-07-21', '2024-07-21', '2024-07-21',
   'DILFIROJ', '8882947464', 'Kishanganj', '32', 'Male',
   'BASTA, BOALMARA, THAKURGANJ, KISHANGANJ', 'Piles', '24000',
+  'Treatment Running', 'false', 'true',
+  'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-21T10:00:00.000Z', '2024-07-21T10:00:00.000Z'
+),
+(
+  'hist_603b6f6924746ed6', 'KNE-21072024-002', '2024-07-21', '2024-07-21', '2024-07-21',
+  'MILI KHATOON', '6202646730', 'Kishanganj', '48', 'Female',
+  'KHAGRA, KISHANGANJ, KISHANGANJ', 'Piles', '21000',
   'Treatment Running', 'false', 'true',
   'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-21T10:00:00.000Z', '2024-07-21T10:00:00.000Z'
 );
@@ -615,11 +615,6 @@ insert into public.payments (
   'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-03T10:15:00.000Z', '2024-07-03T10:15:00.000Z'
 ),
 (
-  'hist_pay_2e9d3b75514b3dae', 'treatment', 'Advance', 'Advance', 'hist_e30b154f0406fc05', '9472576686', 'Kishanganj', 'ARJUN PASWAN',
-  '2027-07-03', '18500', 'CASH', 'Historical import (Google Sheet, pre-app) -- combined, no per-installment date in sheet',
-  'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2027-07-03T10:15:00.000Z', '2027-07-03T10:15:00.000Z'
-),
-(
   'hist_pay_ca1dabab633f6220', 'treatment', 'Advance', 'Advance', 'hist_d1546ef676fce2d6', '9735917197', 'Kishanganj', 'SABANA PARVIN',
   '2024-07-05', '3000', 'CASH', 'Historical import (Google Sheet, pre-app) -- combined, no per-installment date in sheet',
   'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-05T10:15:00.000Z', '2024-07-05T10:15:00.000Z'
@@ -662,5 +657,10 @@ insert into public.payments (
 (
   'hist_pay_cba50247acaf8ec1', 'treatment', 'Advance', 'Advance', 'hist_d7cc31f2e3d67749', '8882947464', 'Kishanganj', 'DILFIROJ',
   '2024-07-21', '22000', 'CASH', 'Historical import (Google Sheet, pre-app) -- combined, no per-installment date in sheet',
+  'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-21T10:15:00.000Z', '2024-07-21T10:15:00.000Z'
+),
+(
+  'hist_pay_6266f7b7973d5808', 'treatment', 'Advance', 'Advance', 'hist_603b6f6924746ed6', '6202646730', 'Kishanganj', 'MILI KHATOON',
+  '2024-07-21', '11000', 'CASH', 'Historical import (Google Sheet, pre-app) -- combined, no per-installment date in sheet',
   'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-21T10:15:00.000Z', '2024-07-21T10:15:00.000Z'
 );

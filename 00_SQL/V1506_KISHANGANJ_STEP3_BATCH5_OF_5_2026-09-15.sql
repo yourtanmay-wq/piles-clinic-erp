@@ -1,4 +1,4 @@
--- কিশানগঞ্জ ধাপ ৩ -- ব্যাচ 5/5 (রোগী 217-270, মোট 54)
+-- কিশানগঞ্জ ধাপ ৩ -- ব্যাচ 5/5 (রোগী 217-269, মোট 53)
 -- ধাপ ২-এর ১০ জনের নিয়মই এখানে। MD ANWAR (8051606386) বাদ (শিটের BILL
 -- ঘরেই ভাঙা লেখা)। sex নাম দেখে আন্দাজ। SABIR ALAM নতুন সারি হিসেবেই
 -- (লাইভ MD TAHSIR থেকে আলাদা মানুষ বলে TK আগেই নিশ্চিত করেছেন)।
@@ -10,13 +10,6 @@ insert into public.patients (
   stage, queue, "doctorComplete",
   "createdBy", "registeredBy", "createdAt", "updatedAt"
 ) values
-(
-  'hist_603b6f6924746ed6', 'KNE-21072024-002', '2024-07-21', '2024-07-21', '2024-07-21',
-  'MILI KHATOON', '6202646730', 'Kishanganj', '48', 'Female',
-  'KHAGRA, KISHANGANJ, KISHANGANJ', 'Piles', '21000',
-  'Treatment Running', 'false', 'true',
-  'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-21T10:00:00.000Z', '2024-07-21T10:00:00.000Z'
-),
 (
   'hist_93eee3dc1eefbb54', 'KNE-03082024-001', '2024-08-03', '2024-08-03', '2024-08-03',
   'ARSHAD ALAM', '9878832913', 'Kishanganj', '25', 'Male',
@@ -394,11 +387,6 @@ insert into public.payments (
   date, amount, mode, remarks,
   "createdBy", "receivedBy", "createdAt", "updatedAt"
 ) values
-(
-  'hist_pay_6266f7b7973d5808', 'treatment', 'Advance', 'Advance', 'hist_603b6f6924746ed6', '6202646730', 'Kishanganj', 'MILI KHATOON',
-  '2024-07-21', '11000', 'CASH', 'Historical import (Google Sheet, pre-app) -- combined, no per-installment date in sheet',
-  'HISTORICAL IMPORT', 'HISTORICAL IMPORT', '2024-07-21T10:15:00.000Z', '2024-07-21T10:15:00.000Z'
-),
 (
   'hist_pay_eff5bc2588c885c8', 'treatment', 'Advance', 'Advance', 'hist_93eee3dc1eefbb54', '9878832913', 'Kishanganj', 'ARSHAD ALAM',
   '2024-08-03', '4500', 'CASH', 'Historical import (Google Sheet, pre-app) -- combined, no per-installment date in sheet',
