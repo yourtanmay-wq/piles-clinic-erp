@@ -1464,6 +1464,52 @@ class FollowUpRepository(private val context: Context? = null) {
         return fetchTab(stage, branchFilter, creatorName, creatorMobile, preCloudOverride = delta)
     }
 
+    /* 🔴🔒 V1587 (১৭.০৯.২০২৬, TK-রিপোর্ট — COB-UTTAMA: "আমার এনকোয়ারিতে ওভারডিউ
+       ছিল না, আজ কেন দেখাচ্ছে") ও TK-র স্পষ্ট নির্দেশ ("খুব সাবধানে, কোনো
+       ঝুঁকি ছাড়া, সময় লাগলে লাগুক") —
+       **আসল কারণ (গভীরে খুঁজে ধরা, আন্দাজ নয়):** কোনো সারি একবার এই ফোনে
+       "PENDING" (এখনো ক্লাউডে যায়নি) হিসেবে জমা হলে, নিচের `fetchTab()`-এর
+       নিয়ম অনুযায়ী সেটা **সবসময় দেখানো হয়** — এটা TK-রই লক করা, টাকা/
+       রোগীর তথ্য হারানো ঠেকানোর স্থায়ী নিয়ম (মন্তব্য নিচেই আছে), **এখানে
+       এক অক্ষরও ছোঁয়া হয়নি**।
+       ফাঁকটা `markSyncedWhereCloudCaughtUp()`-এ — সেটা শুধু **এই ট্যাবের
+       নিজের ধাপের** তাজা ক্লাউড-ফলের সাথেই মেলায়, "PENDING" পতাকা মুছে
+       ফেলার জন্য। কোনো সারির ধাপ ক্লাউডে বদলে গেলে (যেমন Inquiry → পরে
+       Registered, পেশেন্ট হয়ে যাওয়ায়) সেটা আর কোনোদিন এই ট্যাবের তাজা
+       ফলেই দেখা যায় না — তাই তুলনাটা কখনো মেলে না, পতাকা চিরকাল "PENDING"
+       থেকে যায়, আর পুরনো রিমার্ক/তারিখ নিয়ে কার্ডটা বারবার ফিরে আসে।
+       **সমাধান (শুধু-পড়ার, লক্ষ্যভেদী, TK-অনুমোদিত):** সর্বোচ্চ ৩টা সত্যিই-
+       পুরনো (২৪ ঘণ্টার বেশি) PENDING সারি, একটা-একটা করে সরাসরি `id` দিয়ে
+       ক্লাউডে যাচাই — cloud-এর updatedAt সমান/নতুন পেলে তবেই পতাকাটা
+       SYNCED হয়, যার ফলে নিচের প্রমাণিত পুরনো নিয়মই (স্বাভাবিকভাবে) সারিটা
+       বাদ দেয়। ব্যর্থ/না-মেলা/২৪ ঘণ্টার কম হলে কিচ্ছু বদলায় না — সারি
+       আগের মতোই দেখাতে থাকে (নিরাপদ দিক, "PENDING হারাবে না" নিয়ম অটুট)।
+       ⛔ সত্যিই তাজা (২৪ ঘণ্টার কম) কোনো এডিট এই ফাংশন কখনো ছোঁয় না। */
+    private fun healStagelessPendingRows(ctx: Context, stage: String) {
+        val nowMs = System.currentTimeMillis()
+        val oneDayMs = 24L * 60 * 60 * 1000L
+        val local = try { LocalWorkflowStore(ctx).rowsForStage(stage) } catch (_: Throwable) { return }
+        var checked = 0
+        for (i in 0 until local.length()) {
+            if (checked >= 3) break
+            val row = local.optJSONObject(i) ?: continue
+            if (row.optString("_syncStatus") != "PENDING") continue
+            val id = row.optString("id"); if (id.isBlank()) continue
+            val stamp = try { SupabaseClient.rowStampMs(row) } catch (_: Throwable) { 0L }
+            if (stamp <= 0L || nowMs - stamp < oneDayMs) continue
+            checked++
+            try {
+                val found = SupabaseClient.fetchList("followups", "id=eq.$id", 1, select = "id,updatedAt")
+                if (found.length() > 0) {
+                    val cloudUpdatedAt = found.getJSONObject(0).optString("updatedAt", "")
+                    if (cloudUpdatedAt.isNotBlank()) {
+                        LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, cloudUpdatedAt)
+                    }
+                }
+            } catch (_: Throwable) { }
+        }
+    }
+
     fun fetchTab(stage: String, branchFilter: String?, creatorName: String? = null, creatorMobile: String? = null, preCloudOverride: JSONArray? = null, prePatientsOverride: JSONArray? = null, prePaymentsOverride: JSONArray? = null): List<FollowUpItem> {
         // Fetch by stage only, then apply visibility CLIENT-SIDE: a record is
         // visible if the viewer is Master / All-branch, it is the same branch,
@@ -1721,6 +1767,7 @@ class FollowUpRepository(private val context: Context? = null) {
         val cloudAnswered = cloud.length() > 0
         context?.let { ctx ->
             try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("followups", rows) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
+            try { healStagelessPendingRows(ctx, stage) } catch (_: Throwable) { }   // 🔴🔒 V1587
             val pending = LocalWorkflowStore(ctx).rowsForStage(stage)
             val idPosition = HashMap<String, Int>()
             for (i in 0 until merged.length()) {

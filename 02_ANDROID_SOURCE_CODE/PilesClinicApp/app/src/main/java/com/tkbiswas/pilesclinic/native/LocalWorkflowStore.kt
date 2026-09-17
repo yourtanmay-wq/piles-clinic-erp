@@ -506,6 +506,46 @@ class LocalWorkflowStore(context: Context) {
         } catch (_: Throwable) { }
     }
 
+    /* 🔴🔒 V1587 (১৭.০৯.২০২৬, TK-রিপোর্ট — COB-UTTAMA: "আমার এনকোয়ারিতে
+       ওভারডিউ ছিল না, আজ কেন দেখাচ্ছে") — একবার-নিশ্চিত-সেভ-হওয়া সারি কখনো
+       হারায় না, এই নিয়মটাই (উপরের `markSyncedWhereCloudCaughtUp()`-এর
+       "PENDING হলে সবসময় দেখাও" নিয়ম) কোনো ভাবেই বদলানো হয়নি — সেটা টাকা/
+       রোগীর তথ্য হারানো ঠেকানোর জন্যই বসানো, ছোঁয়া ঝুঁকিপূর্ণ।
+
+       **আসল ফাঁকটা:** `markSyncedWhereCloudCaughtUp()` একটা ট্যাবের
+       নিজের-ধাপের তাজা ক্লাউড-ফলের সাথেই মেলায়। কোনো সারির ধাপ বদলে গেলে
+       (যেমন Inquiry → Registered, পরে পেশেন্ট হয়ে যাওয়ায়) সেটা আর কোনো
+       ট্যাবের ওই ধাপের ফলেই দেখা যায় না — তাই এই তুলনা কখনো মেলে না,
+       সারিটা "PENDING" থেকে যায়, আর পুরনো রিমার্ক/তারিখ নিয়ে চিরকাল
+       ফিরে আসতে থাকে (Enquiry ট্যাবে "ওভারডিউ" হয়ে), যদিও আসল রোগী/টাকার
+       তথ্যে কোনো ক্ষতি নেই।
+
+       **এই ফাংশন যা করে:** একটামাত্র সারির জন্য, `id` ধরে সরাসরি — cloud-এর
+       `updatedAt` local-এর সমান/নতুন হলে তবেই SYNCED করা হয় (উপরের ফাংশনের
+       হুবহু একই তুলনা, শুধু উৎস আলাদা — একগুচ্ছ তাজা সারির বদলে একটা
+       নির্দিষ্ট id-র সরাসরি উত্তর)। ⛔ কখনো সারি মোছে না, কখনো ঘর বদলায়
+       না — শুধু `_syncStatus` পতাকাটা। ব্যর্থ/না-মেলা হলে কিচ্ছু বদলায় না,
+       সারিটা আগের মতোই "PENDING" থেকে যায় (নিরাপদ দিক)। */
+    fun markRowSyncedIfCloudCaughtUp(table: String, id: String, cloudUpdatedAt: String) {
+        if (table !in listOf("patients", "payments", "followups", "enquiries", "medical")) return
+        if (id.isBlank() || cloudUpdatedAt.isBlank()) return
+        try {
+            synchronized(LOCK) {
+                val rows = load(table)
+                var changed = false
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i) ?: continue
+                    if (row.optString("id") != id) continue
+                    if (row.optString("_syncStatus") != "PENDING") continue
+                    val l = row.optString("updatedAt")
+                    if (l.isNotBlank() && cloudUpdatedAt >= l) { row.put("_syncStatus", "SYNCED"); rows.put(i, row); changed = true }
+                    break
+                }
+                if (changed) save(table, rows)
+            }
+        } catch (_: Throwable) { }
+    }
+
     fun forgetRecord(table: String, id: String) {
         if (table.isBlank() || id.isBlank()) return
         synchronized(LOCK) {
