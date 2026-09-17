@@ -524,6 +524,19 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.staffCode, "$branchTag${FollowUpModel.displayDate(p.workDate)}", "${p.visits} visits · ${"%.1f".format(p.km)} km", "#0C8F3A", null))
                     }
                 }
+                // 🎤🔒 V1578 (আইটেম ৩৩) — অসময়ের এনকোয়ারির ইনসেন্টিভ।
+                "INCENTIVE" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.incentiveSummary(branch, from, to) to VoiceReportRepository.incentiveList(branch, from, to) }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total: ₹${"%,.0f".format(s.total)} · ${s.entryCount} entries · ${s.staffCount} staff" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No incentive entries in this period.")
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        binding.rowsHost.addView(row(p.personCode, "$branchTag${p.reason}", "₹${"%,.0f".format(p.amount)}", "#0C8F3A", null))
+                    }
+                }
                 "STAFF_HOURS" -> {
                     val (sum, list) = withContext(Dispatchers.IO) { VoiceReportRepository.staffHoursSummary(branch, from, to) to VoiceReportRepository.staffHoursList(branch, from, to) }
                     if (!sum.ok) { fail(sum.message); return@launch }

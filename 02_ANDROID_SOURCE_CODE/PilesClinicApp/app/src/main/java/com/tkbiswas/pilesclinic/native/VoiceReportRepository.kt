@@ -137,6 +137,9 @@ object VoiceReportRepository {
     data class BranchRank(val branch: String, val value: Double, val patients: Int)
     data class StaffPresentSummary(val total: Int, val staffCount: Int)
     data class StaffPresentRow(val staffCode: String, val workDate: String, val checkIn: String, val checkOut: String, val branch: String = "")
+    // 🎤🔒 V1578 (১৭.০৯.২০২৬, আইটেম ৩৩ — অসময়ের এনকোয়ারির ইনসেন্টিভ)
+    data class IncentiveSummary(val total: Double, val entryCount: Int, val staffCount: Int)
+    data class IncentiveRow(val personCode: String, val patientRowId: String, val patientCode: String, val amount: Double, val reason: String, val branch: String = "")
 
     private fun args(branch: String, from: String, to: String): JSONObject = JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to)
     private fun args(branch: String): JSONObject = JSONObject().put("p_branch", branch)
@@ -310,6 +313,14 @@ object VoiceReportRepository {
         InMissingSummary(it.optInt("total", 0), it.optInt("staff_count", 0)) }
     fun inMissingList(b: String, f: String, t: String): RepoResult<List<InMissingRow>> = rowList("in_missing_list", args(b, f, t)).mapRows {
         InMissingRow(it.optString("staff_code"), it.optString("staff_name"), it.optString("work_date"), it.optString("check_out"), it.optString("branch")) }
+
+    // 🎤🔒 V1578 (আইটেম ৩৩) — TK-র দুই সিদ্ধান্ত: মাস = রেজিস্ট্রেশনের দিন
+    // (reports.incentive_* এতেই বাঁধা, নতুন কিছু বসাতে হয়নি), ব্রাঞ্চ = রোগীর
+    // ব্রাঞ্চ (reports.can_access_branch-এর একই গার্ড, বাকি সব প্রশ্নের মতো)।
+    fun incentiveSummary(b: String, f: String, t: String): RepoResult<IncentiveSummary> = firstRow("incentive_summary", args(b, f, t)).mapRow {
+        IncentiveSummary(it.optDouble("total", 0.0), it.optInt("entry_count", 0), it.optInt("staff_count", 0)) }
+    fun incentiveList(b: String, f: String, t: String): RepoResult<List<IncentiveRow>> = rowList("incentive_list", args(b, f, t)).mapRows {
+        IncentiveRow(it.optString("person_code"), it.optString("patient_row_id"), it.optString("patient_code"), it.optDouble("amount", 0.0), it.optString("reason"), it.optString("branch")) }
 
     /* 🎤 V1428 (আইটেম ২০) — "কোন ব্রাঞ্চে সবচেয়ে বেশি/কম": পাঁচ ব্রাঞ্চের **একই** ফাংশন পাঁচবার
        (নতুন SQL নেই), ফল সাজিয়ে ফেরত — বেশি→কম, "min" হলে কম→বেশি। একটা ব্রাঞ্চে ভুল হলে পুরোটা ভুল। */

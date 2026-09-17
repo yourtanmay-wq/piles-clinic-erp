@@ -587,6 +587,7 @@ object NoBengali {
         "দেননি" to "not given",
         "বাড়ি থেকে" to "from home",
         "ডুপ্লিকেট" to "duplicate",
+        "ইনসেন্টিভ" to "incentive",   // 🎤🔒 V1578
         "জমা পড়েনি" to "not received",
         "জমা হয়নি" to "not received",
         "বার্তা" to "message",

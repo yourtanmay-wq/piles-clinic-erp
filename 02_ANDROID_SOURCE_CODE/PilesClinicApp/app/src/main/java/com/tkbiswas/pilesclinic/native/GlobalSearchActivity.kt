@@ -674,6 +674,11 @@ class GlobalSearchActivity : AppCompatActivity() {
             VoiceReportModel.Metric.FIELD_VISIT -> { openDetail("FIELD_VISIT"); lifecycleScope.launch {
                 val got = withContext(Dispatchers.IO) { VoiceReportRepository.fieldVisitSummary(parsed.branch, parsed.from, parsed.to) }
                 if (got.ok && got.value != null) show(got.value.visits.toString(), "visits marked · ${"%.1f".format(got.value.km)} km · ${got.value.staffCount} field staff") else showFail(got.message) } }
+            // 🎤🔒 V1578 (আইটেম ৩৩) — অসময়ের এনকোয়ারির ইনসেন্টিভ। মাস = রেজিস্ট্রেশনের
+            // দিন, ব্রাঞ্চ = রোগীর ব্রাঞ্চ — সার্ভারের reports.incentive_* এতেই বাঁধা।
+            VoiceReportModel.Metric.INCENTIVE -> { openDetail("INCENTIVE"); lifecycleScope.launch {
+                val got = withContext(Dispatchers.IO) { VoiceReportRepository.incentiveSummary(parsed.branch, parsed.from, parsed.to) }
+                if (got.ok && got.value != null) show(rs(got.value.total), "${got.value.entryCount} entries · ${got.value.staffCount} staff") else showFail(got.message) } }
             // 🎤 V1428 (তালিকা ৫৩৮) — কোন ব্রাঞ্চে সবচেয়ে বেশি/কম · RMP-কে দেওয়া কমিশন · IN-বাদ · নাম ধরে হাজিরা/ঘণ্টা
             VoiceReportModel.Metric.BRANCH_TOP_COLLECTION, VoiceReportModel.Metric.BRANCH_TOP_PATIENTS -> {
                 val money = parsed.metric == VoiceReportModel.Metric.BRANCH_TOP_COLLECTION

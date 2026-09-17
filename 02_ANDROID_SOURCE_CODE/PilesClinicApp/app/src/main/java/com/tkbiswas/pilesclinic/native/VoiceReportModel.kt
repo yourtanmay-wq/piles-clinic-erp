@@ -38,7 +38,10 @@ object VoiceReportModel {
         // সময়ে) TK নিজে যেকোনো সময় জিজ্ঞেস করে ধরতে পারবেন। পুরনো
         // DUPLICATE_PATIENTS (ডুপ্লিকেট রোগী) থেকে সম্পূর্ণ আলাদা —
         // "পেমেন্ট"/"টাকা" শব্দ থাকলে তবেই এটা, নইলে আগের মতোই রোগী।
-        DUPLICATE_PAYMENTS
+        DUPLICATE_PAYMENTS,
+        // 🎤🔒 V1578 (১৭.০৯.২০২৬, আইটেম ৩৩) — অসময়ের এনকোয়ারির ইনসেন্টিভ।
+        // TK: মাস = রেজিস্ট্রেশনের দিন, ব্রাঞ্চ = রোগীর ব্রাঞ্চ (প্রশ্ন করে নেওয়া)।
+        INCENTIVE
     }
 
     // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
@@ -209,8 +212,12 @@ object VoiceReportModel {
             (q.contains("দেওয়া") || q.contains("দেয়া") || q.contains("দিয়েছি") || q.contains("পেয়েছে") || q.contains("পেল") || lower.contains("paid"))
         val hasInMissing = !hasOutMissing && (q.contains("ইন টাইম") || q.contains("ইন-টাইম") || lower.contains("in time") || Regex("(^|[^a-z])in([^a-z]|$)").containsMatchIn(lower)) &&
             (q.contains("হয়নি") || q.contains("দেয়নি") || q.contains("দেননি") || lower.contains("missing") || lower.contains("not given"))
+        // 🎤🔒 V1578 (আইটেম ৩৩) — "ইনসেন্টিভ"/"incentive" শব্দ — "কমিশন" থেকে
+        // আলাদা শব্দ, তাই RMP_DUE/RMP_PAID-এর সাথে কখনো মেলে না।
+        val hasIncentive = q.contains("ইনসেন্টিভ") || lower.contains("incentive")
         // ⛔ ক্রমটা ওয়েবের wlv1VoiceParse-এর সাথে হুবহু এক রাখতে হবে (নিয়ম ৮)
         return when {
+            hasIncentive -> Metric.INCENTIVE
             // 🔴 V1429 (যাচাইকারীর ধরা) — শুধু কালেকশন বা রোগী-সংখ্যার তুলনা; অন্য বিষয়ে
             // "কোন ব্রাঞ্চে সবচেয়ে…" বললে ভুল সংখ্যা না দিয়ে "Not understood"।
             hasBranchTop && hasMoney -> Metric.BRANCH_TOP_COLLECTION
@@ -268,7 +275,8 @@ object VoiceReportModel {
         q.contains("কত") || q.contains("কয়টা") || q.contains("কয়জন") ||   // V1447 (TK-রিপোর্ট: "কয়টা" ধরা পড়ছিল না)
             q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির") ||
             q.contains("সবচেয়ে") || q.contains("কোন ব্রাঞ্চ") || q.contains("কোন শাখা") || q.contains("কমিশন") ||   // V1428
-            q.contains("ডুপ্লিকেট") || q.lowercase().contains("duplicate")   // 🎤🔒 V1504 — "আছে কিনা"-জাতীয় প্রশ্নেও যেন ধরা পড়ে
+            q.contains("ডুপ্লিকেট") || q.lowercase().contains("duplicate") ||   // 🎤🔒 V1504 — "আছে কিনা"-জাতীয় প্রশ্নেও যেন ধরা পড়ে
+            q.contains("ইনসেন্টিভ") || q.lowercase().contains("incentive")   // 🎤🔒 V1578
 
     fun parse(q: String): Parsed? {
         // 🌐 V1423 (TK: "সব ব্রাঞ্চ মিলিয়ে মোট দেখান") — ব্রাঞ্চের নাম না বললে সব ব্রাঞ্চ মিলিয়ে
