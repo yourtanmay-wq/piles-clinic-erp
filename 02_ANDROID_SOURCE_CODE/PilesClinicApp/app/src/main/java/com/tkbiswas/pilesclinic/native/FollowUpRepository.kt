@@ -3546,7 +3546,21 @@ class FollowUpRepository(private val context: Context? = null) {
                 back.length() > 0 && back.getJSONObject(0).s("lastRemark") == remark   // 🔴🔒 V696
             }
         } catch (_: Exception) { false }
+        /* 🔴🔒 V1597 (১৭.০৯.২০২৬, TK-রিপোর্ট — একই ক্লাসের দোষ পুরো ফাইলে খুঁজে
+           বের করে সারানো, নিয়ম ৭)। **আসল গভীর কারণ:** এই ফাংশন (আর এই ফাইলের
+           আরও পাঁচটা — updateNextFollow/updateStatus/closeSiblingFollowUps/
+           logEnquiryCall/resetCallCount) `rememberEditOnThisPhone()`-এ ফোনের
+           কপি "PENDING" করে দেয়, কিন্তু ক্লাউড-লেখা **সত্যিই সফল** (verified)
+           হলেও সেই পতাকা তক্ষুনি সরানো হতো না — শুধু পরের একই-ধাপের তালিকায়
+           কাকতালীয়ভাবে মিলে গেলে, নয়তো ২৪ ঘণ্টা পরের ধীর heal-এর ভরসায়
+           থাকত। যেই সেভে ধাপ/status/nextFollow-এর "বালতি" বদলায় (যেমন এই
+           ফাংশনের নিজের ভিতরের nextFollow-অটো-বসানো), পরের তালিকা আর মেলে
+           না ⇒ কার্ড চিরকাল পুরনো/Overdue দেখাত। এটাই V998/V1065/V1206/
+           V1222/V1587-এর পরেও বারবার ফিরে আসার আসল কারণ — প্রতিটা আলাদা
+           উপসর্গ সারানো হয়েছিল, এই মূল ফাঁকটা নয়।
+           ⇒ এখন verified সফল হলে **সঙ্গে সঙ্গে** SYNCED করা হয়। */
         if (!reallySaved) queueFieldUpdate(id, fields)
+        else context?.let { ctx -> try { LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, fields.optString("updatedAt")) } catch (_: Throwable) { } }
         return reallySaved
     }
 
@@ -3658,6 +3672,7 @@ class FollowUpRepository(private val context: Context? = null) {
             back.length() > 0 && back.getJSONObject(0).optString("nextFollow") == nextFollow
         } catch (_: Exception) { false }
         if (!reallySaved) queueFieldUpdate(id, fields)
+        else context?.let { ctx -> try { LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, fields.optString("updatedAt")) } catch (_: Throwable) { } }   // 🔴🔒 V1597
         return reallySaved || context != null
     }
 
@@ -3856,6 +3871,9 @@ class FollowUpRepository(private val context: Context? = null) {
         rememberEditOnThisPhone(id, fields, knownRow)
         val mainCloudOk = if (id.isNotBlank()) SupabaseClient.updateById("followups", id, fields) else false
         if (!mainCloudOk && id.isNotBlank()) queueFieldUpdate(id, fields)
+        // 🔴🔒 V1597 — status/terminal বদল মানেই পরের একই-ধাপের তালিকা থেকে
+        // সারিটা সরে যায়, তাই সঙ্গে সঙ্গে SYNCED না করলে চিরকাল আটকে থাকত।
+        else if (id.isNotBlank()) context?.let { ctx -> try { LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, fields.optString("updatedAt")) } catch (_: Throwable) { } }
 
         var durableCloudOk = mainCloudOk
         if (terminal) {
@@ -3948,6 +3966,9 @@ class FollowUpRepository(private val context: Context? = null) {
             if (!SupabaseClient.updateById("followups", sid, fields)) {
                 allOk = false
                 queueFieldUpdate(sid, fields)
+            } else {
+                // 🔴🔒 V1597
+                context?.let { ctx -> try { LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", sid, fields.optString("updatedAt")) } catch (_: Throwable) { } }
             }
         }
         // One tiny, reject-only verification prevents a stale/duplicate Active row from
@@ -4000,6 +4021,9 @@ class FollowUpRepository(private val context: Context? = null) {
         rememberEditOnThisPhone(id, fields, row)
         val ok = SupabaseClient.updateById("followups", id, fields)
         if (!ok) queueFieldUpdate(id, fields)
+        // 🔴🔒 V1597 — এই ফাংশনই nextFollow-কে "আজকের"-এ সরায় (V998), তাই
+        // বালতি বদলের সঙ্গে সঙ্গেই SYNCED না করলে ঠিক এই বাগটাই আবার তৈরি হয়।
+        else context?.let { ctx -> try { LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, fields.optString("updatedAt")) } catch (_: Throwable) { } }
         return if (ok || context != null) newCount else -2
     }
 
@@ -4023,6 +4047,7 @@ class FollowUpRepository(private val context: Context? = null) {
         rememberEditOnThisPhone(id, fields, null)
         val cloudOk = SupabaseClient.updateById("followups", id, fields)
         if (!cloudOk) queueFieldUpdate(id, fields)
+        else context?.let { ctx -> try { LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, fields.optString("updatedAt")) } catch (_: Throwable) { } }   // 🔴🔒 V1597
         return cloudOk || context != null
     }
 
