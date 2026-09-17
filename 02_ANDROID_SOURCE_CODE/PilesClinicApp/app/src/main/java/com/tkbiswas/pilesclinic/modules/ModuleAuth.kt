@@ -87,6 +87,14 @@ object ModuleAuth {
     @Volatile var accessToken: String? = null; private set
     @Volatile var personCode: String? = null; private set
     @Volatile var isMaster: Boolean = false; private set
+    // 🔴🔒 V1512 (RLS-প্রস্তুতি, ১৭.০৯.২০২৬, যাচাই করে ধরা পড়া দোষ) —
+    // `isSignedIn` শুধু accessToken ফাঁকা কিনা দেখে, মেয়াদ শেষ হয়েছে কিনা
+    // নয়। এতদিন এটা ক্ষতি করেনি কারণ Staff Profile/বেতনের পর্দা মাঝেমধ্যে
+    // খোলা হয়, ১ ঘণ্টার বেশি একটানা চললেই তবে সমস্যা হত (কম দেখা যেত)।
+    // patients/payments-এর মতো সবসময় ব্যবহৃত পথে এই একই টোকেন বসালে,
+    // মেয়াদ ফুরোনোর পর (~১ ঘণ্টা) থেকে **পুরো শিফট জুড়ে** সব কল ব্যর্থ
+    // হত। তাই এখন মেয়াদও আলাদাভাবে RAM-এ রাখা হচ্ছে (নিচের tokenFresh())।
+    @Volatile private var accessTokenExpiresAt: Long = 0L
     // 🔵 সর্বশেষ সফল সাইন-ইনের applicationContext — টোকেন মেয়াদ শেষ হলে গোপনে আবার
     // লগইন করতে লাগে (নিচের reAuth দেখুন)। শুধু ব্যর্থ-পথে ব্যবহার হয়।
     @Volatile private var appCtx: Context? = null
@@ -123,6 +131,7 @@ object ModuleAuth {
             accessToken = tok
             personCode = p.getString("personCode", savedCode)
             isMaster = p.getBoolean("isMaster", false)
+            accessTokenExpiresAt = expiresAt   // 🔴🔒 V1512
         } catch (_: Throwable) { }
     }
 
@@ -132,6 +141,7 @@ object ModuleAuth {
             // ৬০ সেকেন্ড আগেই "মেয়াদ শেষ" ধরা হয় — ঘড়ির সামান্য গরমিল ঢাকতে,
             // যাতে কখনো মেয়াদ-উত্তীর্ণ টোকেন দিয়ে read না যায়।
             val expiresAt = System.currentTimeMillis() + (safeSeconds - 60L).coerceAtLeast(60L) * 1000L
+            accessTokenExpiresAt = expiresAt   // 🔴🔒 V1512 — RAM-এও রাখা, tokenFresh() এটাই দেখে
             prefs(context).edit()
                 .putString("code", code)
                 .putString("token", accessToken)
@@ -146,7 +156,12 @@ object ModuleAuth {
         try { context?.let { prefs(it).edit().clear().apply() } } catch (_: Throwable) { }
     }
 
-    val isSignedIn: Boolean get() = !accessToken.isNullOrBlank()
+    // 🔴🔒 V1512 — শুধু টোকেন "আছে" কিনা নয়, মেয়াদও তাজা কিনা দেখে। এই একটা
+    // জায়গা ঠিক হওয়ায় গোটা কোডবেসে `.isSignedIn` ব্যবহার-করা প্রতিটা জায়গাই
+    // (WorkNotebook, Worker-গুলো, DoctorVisit ইত্যাদি) এখন থেকে মেয়াদ-উত্তীর্ণ
+    // টোকেনকে "সাইন-ইন করা আছে" ভুল করে ধরবে না।
+    val isSignedIn: Boolean
+        get() = !accessToken.isNullOrBlank() && System.currentTimeMillis() < accessTokenExpiresAt
 
     /** 🔴🔒 V429 (TK-নির্দেশ ১৭.০৮.২০২৬ — *"আমি সাধারণ ব্যবহারকারী, আমার সামনে
      *  যেন কোনো সমস্যা না আসে; এই সিদ্ধান্ত আপনাকে নিতে হবে"*)।
@@ -259,6 +274,9 @@ object ModuleAuth {
         // মেয়াদ-অক্ষত টোকেন SharedPreferences-এ থাকতে পারে — থাকলে সেটাই
         // ব্যবহার হয়, নতুন কোনো লগইন-কল লাগে না।
         if (!isSignedIn) loadPersisted(context, code)
+        // 🔴🔒 V1512 — `isSignedIn` এখন মেয়াদও দেখে (উপরে দেখুন), তাই এখানে
+        // আলাদা কোনো "tokenFresh" চেক লাগে না — মেয়াদ ফুরিয়ে থাকলে
+        // `isSignedIn` নিজেই false হবে আর নিচের কোড আবার সত্যিকারের সাইন-ইন করবে।
         if (isSignedIn && personCode == code) return null
 
         // Reuse only the project's long-standing role passwords. No new
