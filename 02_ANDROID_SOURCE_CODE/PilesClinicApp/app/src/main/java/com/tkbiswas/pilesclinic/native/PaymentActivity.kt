@@ -2872,9 +2872,13 @@ $dueRow
                                 remarkInput.text.toString().trim(), pickedActualDate, user.mobile, user.name.ifBlank { user.mobile }
                             )
                         }
+                        // 🔴🔒 V1584 (১৭.০৯.২০২৬, TK-রিপোর্ট — AMIT GOLDAR প্রতিবারই এই
+                        // একই ব্যর্থতা পাচ্ছিলেন, আসল কারণ বার্তায় ছিল না) — ব্যর্থ হলে
+                        // এখন আসল কারণটা (থাকলে) দেখানো হয়, নইলে আগের মতোই "check your connection"।
                         Toast.makeText(
                             this@PaymentActivity,
-                            if (ok) "Request sent to Master — it will be added as a payment after approval" else "Failed — check your connection",
+                            if (ok) "Request sent to Master — it will be added as a payment after approval"
+                            else "Failed — " + com.tkbiswas.pilesclinic.native.SupabaseClient.lastWriteFailReason.ifBlank { "check your connection" },
                             Toast.LENGTH_LONG
                         ).show()
                         if (ok) dialog.dismiss()

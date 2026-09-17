@@ -16,6 +16,18 @@ object SupabaseClient {
     const val URL = "https://bcyeogjqtupbdyciqfmz.supabase.co"
     const val KEY = "sb_publishable_k_170-JGrdxmZ7rBrjCyTA_-ElK2XdZ"
 
+    /* 🔴🔒 V1584 (১৭.০৯.২০২৬, TK-রিপোর্ট — AMIT GOLDAR-এর ব্যাকডেট-পেমেন্ট-
+       অনুরোধ প্রতিবারই "Failed — check your connection" দেখাচ্ছিল, অথচ Home
+       পর্দায় কখনো "to sync" আসেনি — মানে লেখাটা নেট পর্যন্ত পৌঁছানোরই আগে
+       কোথাও আটকে যাচ্ছিল, কিন্তু কেন সেটা বলার কোনো উপায় ছিল না, কারণ
+       `upsert()` ব্যর্থ হলে শুধু `false` ফেরত দেয় — আসল কারণটা (blocked/
+       HTTP কোড/exception) ভিতরেই থেকে যেত।
+       ⛔ এই একটা ভাগের ভেরিয়েবল যোগ করা হলো — শেষ ব্যর্থতার আসল কারণ এখানে
+       লেখা থাকবে, `upsert()`-এর ফেরত-মান/আচরণ এক অক্ষরও বদলায়নি। একাধিক
+       লেখা একসাথে চললে এটা অন্য কারো কারণে চাপা পড়তে পারে (সততার সাথে
+       জানানো) — তাই এটা শুধু নির্ণয়ের সহায়ক, নিশ্চিত প্রমাণ নয়। */
+    @Volatile var lastWriteFailReason: String = ""
+
     // 🔴🔒 V1563 (RLS-প্রস্তুতি ধাপ ৪, ১৭.০৯.২০২৬, TK-অনুমোদিত) — এই ফাইলের
     // প্রতিটা কল (patients/payments-সহ এই ফাইল যে ২১টা টেবিলে ব্যবহার হয় সবগুলোই
     // — কোড খুঁজে বার করা তালিকা, আন্দাজ নয়) এখন থেকে, সাইন-ইন করা থাকলে,
@@ -586,7 +598,9 @@ object SupabaseClient {
         return try {
             val ctx = com.tkbiswas.pilesclinic.PilesClinicApplication.appContext ?: return false
             val check = com.tkbiswas.pilesclinic.native.SessionGuard.ensureFreshForWrite(ctx)
-            check.verdict == com.tkbiswas.pilesclinic.native.SessionGuard.Verdict.BLOCKED
+            val isBlocked = check.verdict == com.tkbiswas.pilesclinic.native.SessionGuard.Verdict.BLOCKED
+            if (isBlocked) lastWriteFailReason = "Blocked: " + check.message.ifBlank { "account suspended/removed" }   // 🔴🔒 V1584
+            isBlocked
         } catch (_: Throwable) {
             false      // যাচাই করা না গেলে কাজ আটকানো হয় না
         }
@@ -657,6 +671,7 @@ object SupabaseClient {
             when (outcome) {
                 0 -> {
                     // FAILED — কিছু বসেনি; পরে retry-র জন্য মনে রাখা (আগের মতোই)।
+                    lastWriteFailReason = httpReason.ifBlank { "Unknown server error" }   // 🔴🔒 V1584
                     try { CloudWriteQueue.remember("UPSERT", table, row.optString("id", ""), row, httpReason) } catch (_: Throwable) { }
                 }
                 2 -> {
@@ -698,6 +713,7 @@ object SupabaseClient {
             // 🔒 খাতার সারি B194: এই এক্সেপশনটাই আসল কারণ (যেমন টাইমআউট,
             // ঠিকানা খুঁজে না পাওয়া) — শুধু দেখানোর জন্য ধরে রাখা হলো।
             val reason = (e.javaClass.simpleName + ": " + (e.message ?: "")).trim()
+            lastWriteFailReason = reason   // 🔴🔒 V1584
             try { CloudWriteQueue.remember("UPSERT", table, row.optString("id", ""), row, reason) } catch (_: Throwable) { }
             false
         }
