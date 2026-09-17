@@ -340,9 +340,10 @@
        আর **Back একদম নিচে** (TK-নির্দেশ: *"Back একদম ডিসপ্লের নিচে থাকবে"*)। */
     document.getElementById('app').innerHTML='<div class="wrap">'+
       /* 📏 V1202 (TK-নির্দেশ): *"doctor note and reminders এই লেখাটা আরও ছোট হবে ·
-         + New উচ্চতা আরো কম হবে · +New ও ৩-ডটের মধ্যে গ্যাপ থাকবে আরো"* */
+         + New উচ্চতা আরো কম হবে · +New ও ৩-ডটের মধ্যে গ্যাপ থাকবে আরো"*
+         📏 V1571 (১৭.০৯.২০২৬, TK-নির্দেশ, Artifact ডেমো "A" পাশ) — ৫ → ৩px। */
       '<div class="topbar"><b style="font-size:15.5px">Doctor Note &amp; Reminder</b>'+
-      '<button class="small" style="padding:5px 12px;font-size:12.5px" onclick="drRemNew()">+ New</button>'+
+      '<button class="small" style="padding:3px 12px;font-size:12.5px" onclick="drRemNew()">+ New</button>'+
       '<span style="width:18px;display:inline-block"></span>'+
       /* V1194 (TK-নির্দেশ): "রিমাইন্ডার হিস্টরি উপরে ডান সাইডে ৩ ডট থাকবে
          তার মধ্যে থাকতে হবে" — ফোনের PopupMenu-র যমজ। */

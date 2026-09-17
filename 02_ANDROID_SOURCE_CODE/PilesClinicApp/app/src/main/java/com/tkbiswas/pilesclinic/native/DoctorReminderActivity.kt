@@ -202,8 +202,9 @@ class DoctorReminderActivity : AppCompatActivity() {
             android.widget.Button(this).apply {
                 text = "+ New"; isAllCaps = false; textSize = 12.5f
                 minWidth = 0; minimumWidth = 0
-                /* 📏 V1202 (TK: *"+ New উচ্চতা আরো কম হবে"*) — ৯ → ৫dp। */
-                setPadding(dp(15), dp(5), dp(15), dp(5))
+                /* 📏 V1202 (TK: *"+ New উচ্চতা আরো কম হবে"*) — ৯ → ৫dp।
+                   📏 V1571 (১৭.০৯.২০২৬, TK-নির্দেশ, Artifact ডেমো "A" পাশ) — ৫ → ৩dp। */
+                setPadding(dp(15), dp(3), dp(15), dp(3))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
                 background = android.graphics.drawable.GradientDrawable().apply {
