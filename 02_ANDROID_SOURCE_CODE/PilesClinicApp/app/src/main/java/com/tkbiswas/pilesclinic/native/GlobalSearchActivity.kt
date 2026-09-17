@@ -195,15 +195,52 @@ class GlobalSearchActivity : AppCompatActivity() {
                 // 🔴🔒 V1347 — ২০০০→৫০০০ (বাকি cross-branch fetch-এর (DuplicateCheck,
                 // DoctorVisit, PaymentRepository) সাথে মিলিয়ে) — নাম/রোগ/ঠিকানা
                 // দিয়ে খোঁজার সময়ও পুরনো রোগী যেন বাদ না পড়ে যায়।
-                val enqCloud = SupabaseClient.fetchListSlim(
-                    "enquiries", null, 5000,
-                    "id,name,mobile,branch,disease,address,date,updatedAt"
-                )
-                val patCloud = SupabaseClient.fetchListSlim(
-                    "patients", null, 5000,
-                    // 🔒 V235: altMobile যোগ — Alternate নম্বর দিয়েও Search মেলে।
-                    "id,name,mobile,altMobile,branch,bill,patientId,disease,diagnosis,address,registrationDate,date,updatedAt"
-                )
+                val enqSelectCols = "id,name,mobile,branch,disease,address,date,updatedAt"
+                val patSelectCols = "id,name,mobile,altMobile,branch,bill,patientId,disease,diagnosis,address,registrationDate,date,updatedAt"
+                /* 🔴🔴🔒 V1573 (১৭.০৯.২০২৬, TK-নির্দেশ: "সততার সাথে, সাবধানে,
+                   গভীরে যাচাই করে") — TK রিপোর্ট করলেন Search দেরিতে আসছে।
+                   **মেপে পাওয়া আসল কারণ:** উপরের দুটো fetchListSlim() আগে
+                   সবসময় `filter=null` দিয়ে ডাকা হতো — অর্থাৎ **প্রতিটা
+                   টাইপের বিরতিতেই** পুরো enquiries+patients টেবিল (আজ,
+                   ১৭.০৯.২০২৬ মেপে: patients 2193 + enquiries 579 = ২৭৭২
+                   সারি, সীমা ৫০০০ পর্যন্ত বাড়ে) ফোনে নেমে আসত, তারপর নিচের
+                   match()-এ ফোনেই বেছে বার করা হতো।
+
+                   **সমাধান — নতুন কিছু আবিষ্কার নয়, ইতিমধ্যে প্রমাণিত কৌশলের
+                   পুনর্ব্যবহার:** `ChamberAttendanceRepository.searchPatients()`
+                   -এ TK নিজেই ঠিক এই একই কাজ আগে অনুমোদন করে সার্ভার-সাইড
+                   `or=(...ilike...)` ফিল্টারে করিয়েছিলেন (১৬.০৭.২০২৬,
+                   লাইভ, মাসের পর মাস প্রমাণিত) — এখানে হুবহু একই
+                   URLEncoder-প্যাটার্ন, একই ধরনের ilike-ঘরগুলো ব্যবহার হলো,
+                   যাতে match()-এর প্রতিটা শর্ত (নাম/রোগ/ঠিকানা/ঘর/তারিখ/
+                   patientId/altMobile) সার্ভারেই মেলানো যায় — নিচের match()
+                   ফাংশন **এক অক্ষরও বদলায়নি**, তাই যা মিলত তাই মিলবে, শুধু
+                   কম ডেটা নেমে আসবে।
+
+                   ⛔ **নিরাপত্তা (কোনো ভালো কাজ যেন নষ্ট না হয়):** নতুন
+                   ফিল্টার-করা পড়া ব্যর্থ হলে (নেট/সার্ভার যে কারণেই হোক,
+                   `fetchListOrNull` null ফেরালে) সঙ্গে সঙ্গে **আজকের
+                   প্রমাণিত পুরনো পথেই** (পুরো টেবিল, `filter=null`) ফিরে
+                   যাওয়া হয় — তাই ফলাফল কখনো আগের চেয়ে খারাপ/কম হতে পারে
+                   না, শুধু বেশিরভাগ সময় দ্রুত হবে। মোবাইল-মিল রাজি
+                   ঘর-অনুসন্ধান (raw ilike, ডিজিট-বাদ-দেওয়া নয়) — ঠিক V1347-এর
+                   নিচের বাড়তি-fetch ও ChamberAttendanceRepository-র মতোই,
+                   তাই এই একই সীমা এই প্রকল্পেই আগে থেকে গ্রহণযোগ্য ধরা।
+                   ⛔ ওয়েবে এই সমস্যাটাই নেই (তাই ওখানে কিছু বদলানো হয়নি) —
+                   ওয়েবের Search সবসময় ফোনে/ব্রাউজারে আগে থেকে জমানো তথ্য
+                   (IndexedDB) থেকেই চলে, প্রতি অক্ষরে নতুন করে নেট-কল করে না। */
+                val pattern = java.net.URLEncoder.encode("*$q*", "UTF-8")
+                var enqOr = "name.ilike.$pattern,disease.ilike.$pattern,address.ilike.$pattern,date.ilike.$pattern"
+                var patOr = "name.ilike.$pattern,disease.ilike.$pattern,diagnosis.ilike.$pattern,address.ilike.$pattern,patientId.ilike.$pattern,registrationDate.ilike.$pattern,date.ilike.$pattern"
+                if (qDigits.length >= 3) {
+                    val mobPattern = java.net.URLEncoder.encode("*$qDigits*", "UTF-8")
+                    enqOr += ",mobile.ilike.$mobPattern"
+                    patOr += ",mobile.ilike.$mobPattern,altMobile.ilike.$mobPattern"
+                }
+                val enqCloud = SupabaseClient.fetchListOrNull("enquiries", "or=($enqOr)", 5000, select = enqSelectCols)
+                    ?: SupabaseClient.fetchListSlim("enquiries", null, 5000, enqSelectCols)
+                val patCloud = SupabaseClient.fetchListOrNull("patients", "or=($patOr)", 5000, select = patSelectCols)
+                    ?: SupabaseClient.fetchListSlim("patients", null, 5000, patSelectCols)
                 // TK-REQUESTED BUG FIX (2026-07-16): same fix as Follow-up/
                 // Doctor Queue/Today's Collection -- a just-created enquiry
                 // or just-registered patient could be briefly missing from
