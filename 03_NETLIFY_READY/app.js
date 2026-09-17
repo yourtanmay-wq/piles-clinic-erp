@@ -7845,39 +7845,43 @@ window["stageLabel"]=stageLabel;
 // It resets automatically when user leaves the Follow-up module.
 let __followDateFilter={mode:'',from:'',to:''};
 /* 🗓️🔒 (16.09.2026, TK photo-proof approved: "হ্যাঁ পাশ, বসিয়ে দিন") — Android
-   FollowUpActivity.patientYearFilter-এর হুবহু ওয়েব-যমজ (নিয়ম ৮)। Screen-label
-   "Patient" ট্যাবের (internally stage="Treatment" -- stageLabel() ও
-   followStats() দেখুন) ADDITIONAL বছর-ছাঁকনি, ডিফল্ট চলতি বছর (TK: "default
-   কিন্তু Recent Year ই থাকতে হবে")। ⛔ Enquiry/Visit (stage="Inquiry"/
-   "Patient") কখনো ছোঁয়া হয় না — applySharedFollowDateFilter()-এর নিচের
-   `stage==='Treatment'` শর্ত দ্রষ্টব্য। */
+   FollowUpActivity.patientYearFilter-এর হুবহু ওয়েব-যমজ (নিয়ম ৮)। ADDITIONAL
+   বছর-ছাঁকনি, ডিফল্ট চলতি বছর (TK: "default কিন্তু Recent Year ই থাকতে হবে")।
+   🔽 (17.09.2026, TK-নির্দেশ — "হ্যাঁ লাগবে তো, তবে কোন প্রকার ঝুঁকি নিতে চাই
+   না") — এখন Enquiry/Visit (stage="Inquiry"/"Patient") ট্যাবেও এই একই বছর-
+   ছাঁকনি কাজ করে — applySharedFollowDateFilter()-এর নিচের শর্ত দ্রষ্টব্য।
+   ⛔ ব্যতিক্রম, ইচ্ছে করে অটুট: __wlv1SkipPatientYearFilter (Dashboard-এর
+   মিশ্র "today's calls" তালিকা) আগের মতোই বছর-ছাঁকনি বাদ দেয়। */
 let __wlv1PatientYearFilter=new Date().getFullYear();
 window["__wlv1PatientYearFilter"]=__wlv1PatientYearFilter;
 /* 🚨🔒 (16.09.2026) — set true ONLY inside wlv1TodayCallRows() (the "N calls
    pending today" dashboard-banner combined list). That list must show every
-   overdue/today call regardless of which year the patient registered in —
-   Android reaches the same safety by construction (currentStage stays
-   "Inquiry" through that whole path, see loadTodayAllSections()); the web
-   path calls followStats('Treatment') directly, so it needs this explicit
-   bypass instead. Never set true anywhere else. */
+   overdue/today call regardless of which year the patient registered in.
+   🔽 (17.09.2026) — now load-bearing for Inquiry/Patient stages too (not just
+   Treatment), since the year filter now applies to all three; this flag is
+   the ONLY thing keeping the combined banner list year-filter-free. Never
+   set true anywhere else. */
 let __wlv1SkipPatientYearFilter=false;
-/** Registration year of a Treatment-stage (Patient tab) row, or null if
- *  unknown (never hides a row — see applySharedFollowDateFilter below).
- *  Prefers wlv1RegDate (mergeFollow()'s V851 real registration date),
- *  falls back to recordDate for any older/edge-case row. */
+/** Registration/record year of a followup row, whichever stage (Enquiry/
+ *  Visit/Patient tab) it belongs to, or null if unknown (never hides a row
+ *  — see applySharedFollowDateFilter below). Prefers wlv1RegDate
+ *  (mergeFollow()'s V851 real registration date, Treatment-stage only),
+ *  falls back to recordDate (populated for every stage) for Enquiry/Visit
+ *  rows and any older/edge-case Treatment row. */
 function wlv1PatientItemYear(x){
   const y=String((x&&x.wlv1RegDate)||(x&&x.recordDate)||'').slice(0,4);
   const n=parseInt(y,10);
   return isNaN(n)?null:n;
 }
 window["wlv1PatientItemYear"]=wlv1PatientItemYear;
-/** Real years present in the Patient (Treatment) tab's already-loaded local
- *  data -- no network call, read from the same raw rows followStats('Treatment')
- *  already computes each render (stashed just before the date-filter step,
- *  see followStats()). Current year always included so switching back is
- *  always possible even with zero patients registered so far this year. */
+/** Real years present across all three tabs' already-loaded local data --
+ *  no network call, read from the same raw rows followStats() already
+ *  computes each render (stashed just before the date-filter step, see
+ *  followStats()). Current year always included so switching back is
+ *  always possible even with zero records so far this year. */
 function wlv1AvailablePatientYears(){
-  const src=(window.__wlv1FollowRawRows&&window.__wlv1FollowRawRows['Treatment'])||[];
+  const raw=window.__wlv1FollowRawRows||{};
+  const src=[].concat(raw['Inquiry']||[],raw['Patient']||[],raw['Treatment']||[]);
   const years=new Set(src.map(wlv1PatientItemYear).filter(y=>y!=null));
   years.add(new Date().getFullYear());
   return Array.from(years).sort((a,b)=>b-a);
@@ -7955,14 +7959,17 @@ function wlv1FollowFilter(stage, mode){
 }
 window["wlv1FollowFilter"]=wlv1FollowFilter;
 window["followFilterRange"]=followFilterRange;
-/* 🗓️🔒 (16.09.2026, TK photo-proof approved) — thin wrapper: runs the exact
-   same chip-filter logic as before (renamed below, body unchanged one bit),
-   then layers the ADDITIONAL Patient-tab-only Year filter on top -- both a
-   patient must match, matching Android's applyDateFilter(items, stage)
-   restructuring exactly (rule ৮ web/Android twin). */
+/* 🗓️🔒 (16.09.2026, TK photo-proof approved; extended 17.09.2026, TK-নির্দেশ)
+   — thin wrapper: runs the exact same chip-filter logic as before (renamed
+   below, body unchanged one bit), then layers the ADDITIONAL Year filter on
+   top for all three tabs -- both a row must match, matching Android's
+   applyDateFilter(items, stage) restructuring exactly (rule ৮ web/Android
+   twin). __wlv1SkipPatientYearFilter (Dashboard's mixed "today's calls"
+   list) stays exempt either way -- see its own note above. */
 function applySharedFollowDateFilter(rows,stage){
  const chipFiltered=wlv1ApplyFollowChipFilter(rows,stage);
- if(stage!=='Treatment'||__wlv1SkipPatientYearFilter)return chipFiltered;
+ const yearApplies=stage==='Treatment'||stage==='Inquiry'||stage==='Patient';
+ if(!yearApplies||__wlv1SkipPatientYearFilter)return chipFiltered;
  const yr=__wlv1PatientYearFilter;
  return chipFiltered.filter(x=>{const y=wlv1PatientItemYear(x);return y==null||y===yr;});
 }
@@ -8536,11 +8543,13 @@ function wlv1TodayCallRows(){
   var keepYearSkip=__wlv1SkipPatientYearFilter;
   try{
     __followDateFilter={mode:'',from:'',to:''};      /* "All" — কোনো ছাঁকনি নয় */
-    // 🗓️🔒 (16.09.2026) — this combined "today's calls" list must never hide
-    // a genuinely overdue Treatment-stage (Patient tab) patient just because
-    // they registered in an earlier year than the Year filter currently
-    // shows. Android reaches the same result by construction; here it needs
-    // this explicit bypass (see __wlv1SkipPatientYearFilter's own note above).
+    // 🗓️🔒 (16.09.2026, all three stages since 17.09.2026) — this combined
+    // "today's calls" list must never hide a genuinely overdue row (any of
+    // Enquiry/Visit/Patient) just because it registered in an earlier year
+    // than the Year filter currently shows. Android's todayAllSections
+    // guard (in applyDateFilter) protects the exact same case; here it
+    // needs this explicit bypass (see __wlv1SkipPatientYearFilter's own
+    // note above).
     __wlv1SkipPatientYearFilter=true;
     ['Inquiry','Patient','Treatment'].forEach(function(stage){
       /* ⛔⛔ পাহারাটা **প্রতিটা ভাগের ভিতরে** (নিজের যাচাইয়ে সংশোধিত)।
@@ -8673,7 +8682,7 @@ function _followupCore(tab='Inquiry'){
  if(wlv1FuSearch){const q=wlv1FuSearch.toLowerCase(),qd=wlv1FuSearch.replace(/\D/g,'');
    shown=shown.filter(x=>String(x.name||'').toLowerCase().includes(q)||(qd.length>=3&&mob(x.mobile).includes(qd)));}
  let body=`<div class="followPage followPage-${tab}">
-   <div class="followFilterLine wlv1HdrPick" id="fuFilterLineWrap">${branchPick}<button class="small ghost" onclick="openRealFollowCalendar('${tab}')">⏰ Calendar</button><button class="small ghost wlv1FuMenuBtn" title="Patient year" style="font-size:20px;font-weight:800;line-height:1;padding:2px 10px" onclick="wlv1PatientYearMenu('${tab}')">&#8942;</button></div>
+   <div class="followFilterLine wlv1HdrPick" id="fuFilterLineWrap">${branchPick}<button class="small ghost" onclick="openRealFollowCalendar('${tab}')">⏰ Calendar</button><button class="small ghost wlv1FuMenuBtn" title="Year" style="font-size:20px;font-weight:800;line-height:1;padding:2px 10px" onclick="wlv1PatientYearMenu('${tab}')">&#8942;</button></div>
    <input class="input wlv1FuSearch" placeholder="🔍 Search name or mobile" data-nocaps="1" value="${esc(wlv1FuSearch)}" oninput="wlv1FuSearch=this.value;wlv1FuRedraw('${tab}')">
    ${/* 🖥️🟣🔒🔁 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): TK —
         *"staff রা বিভ্রান্ত হয়ে যাচ্ছে, Enquiry এর মধ্যে patient কেন দেখাচ্ছে"*
@@ -8723,10 +8732,11 @@ window["wlv1FuTab"]=wlv1FuTab;function openRealFollowCalendar(stage='Inquiry'){
       modal(`<h2>Calendar</h2><div class="realCalendarGrid"><b>Sun</b><b>Mon</b><b>Tue</b><b>Wed</b><b>Thu</b><b>Fri</b><b>Sat</b>${cells}</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`);
     }
 window.openRealFollowCalendar=openRealFollowCalendar;
-/* 🗓️🔒 (16.09.2026, TK photo-proof approved) — lets the Patient tab switch
-   to a different registration year. Purely a client-side re-filter (no
-   network call, rule ৭খ "no delay" honoured); switching years never loses
-   data, it's always reversible from this same menu. */
+/* 🗓️🔒 (16.09.2026, TK photo-proof approved; extended 17.09.2026 to all
+   three tabs) — lets the current tab switch to a different registration/
+   record year. Purely a client-side re-filter (no network call, rule ৭খ
+   "no delay" honoured); switching years never loses data, it's always
+   reversible from this same menu. */
 function wlv1PatientYearMenu(tab){
   var years=wlv1AvailablePatientYears();
   var rows=years.map(function(y){

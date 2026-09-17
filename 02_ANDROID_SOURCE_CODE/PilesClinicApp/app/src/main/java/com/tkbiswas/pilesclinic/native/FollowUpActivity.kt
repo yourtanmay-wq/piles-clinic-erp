@@ -790,9 +790,15 @@ class FollowUpActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Year"))
             .setSingleChoiceItems(labels, selectedIdx) { dialog, which ->
+                // 🗓️🔒 (17.09.2026) — আগে এখানে শুধু Patient/Treatment ট্যাব
+                // খোলা থাকলেই তালিকা আবার আঁকা হতো (তখন বছর-ছাঁকনি শুধু ওই
+                // ট্যাবেই কাজ করত)। এখন Enquiry/Visit ট্যাবও বছর মানে, তাই
+                // যে ট্যাবই খোলা থাকুক, সবসময় আবার আঁকতে হবে — নইলে Enquiry/
+                // Visit ট্যাবে বছর বাছলেও পর্দা পুরনোই থেকে যেত (ঠিক এই
+                // বাগটাই TK ধরেছিলেন, ১৭.০৯.২০২৬)।
                 patientYearFilter = years[which]
                 paintTabCounts()
-                if (currentStage == "Treatment") applySearch()
+                applySearch()
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -1067,28 +1073,38 @@ class FollowUpActivity : AppCompatActivity() {
        "Year: 20XX ▾" row in the ⋮ overflow menu (showPatientYearPickerMenu()).
        ⛔ ADDITIONAL filter only, layered on top of the My Call/Today/Overdue/
           This Week chips below — never replaces them (applyDateFilter applies
-          both, chips first then year). ⛔ Enquiry/Visit tabs (stage="Inquiry"/
-          "Patient") are never touched — see the `stage == "Treatment"` guard
-          at the end of applyDateFilter(). */
+          both, chips first then year).
+       🗓️🔒 (17.09.2026, TK-নির্দেশ — "হ্যাঁ লাগবে তো, তবে কোন প্রকার ঝুঁকি নিতে
+       চাই না") — এখন Enquiry ও Visit ট্যাবেও (stage="Inquiry"/"Patient") এই
+       একই বছর-ছাঁকনি কাজ করে (আগে শুধু Patient/Treatment ট্যাবে হতো) —
+       applyDateFilter()-এর শেষের শর্ত দ্রষ্টব্য। ⛔ একটাই ব্যতিক্রম, ইচ্ছে
+       করে অটুট রাখা: Dashboard/Briefing-এর "আজকের কল" মিশ্র তালিকা
+       (todayAllSections=true) কখনো বছর-ছাঁকনি মানে না — নইলে গত বছরের
+       বকেয়া কল চুপচাপ হারিয়ে যেতে পারত। ⛔ যে বছরে কোনো তথ্য নেই, সেই
+       বছর বাছলে honest "No records found" দেখাবে (ordered.isEmpty() পথ,
+       নিচে) — পুরনো/ভুল তথ্য দেখাবে না। */
     private var patientYearFilter: Int = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
 
-    /** Registration year of a Treatment-stage (Patient tab) card, or null if
-     *  unknown. Prefers `regDate` (V851 — the real registration date, backed
-     *  by patients.registrationDate/date, populated only for Treatment/Patient
-     *  stage rows), falls back to `recordDate` for any older/edge-case row
-     *  where regDate wasn't filled. */
+    /** Registration/record year of a followup-card, whichever stage
+     *  (Enquiry/Visit/Patient tab) it belongs to, or null if unknown.
+     *  Prefers `regDate` (V851 — the real registration date, populated only
+     *  for Treatment-stage rows), falls back to `recordDate` (the row's own
+     *  `date` — populated for every stage, see FollowUpModel/FollowUpRepository)
+     *  for Enquiry/Visit rows and any older/edge-case Treatment row. */
     private fun patientItemYear(item: FollowUpItem): Int? {
         val y = item.regDate.take(4).ifBlank { item.recordDate.take(4) }
         return y.toIntOrNull()
     }
 
-    /** Real years present in the Patient (Treatment) tab's already-fetched/
-     *  cached data — no network call, enumerated from `lastPatAll` (the same
-     *  list the tab's own count badge uses). Current year is always included
-     *  so switching back to it is always possible, even with zero patients
-     *  registered so far this year. */
+    /** Real years present across all three tabs' already-fetched/cached data
+     *  — no network call, enumerated from lastEnqAll/lastVisitAll/lastPatAll
+     *  (the same lists the tabs' own count badges use). Current year is
+     *  always included so switching back to it is always possible, even with
+     *  zero records so far this year. */
     private fun availablePatientYears(): List<Int> {
-        val src = lastPatAll ?: (if (currentStage == "Treatment") loadedItems else null) ?: emptyList()
+        val fallback = when (currentStage) { "Inquiry" -> lastEnqAll; "Patient" -> lastVisitAll; else -> lastPatAll }
+            ?: loadedItems
+        val src = (lastEnqAll.orEmpty() + lastVisitAll.orEmpty() + lastPatAll.orEmpty()).ifEmpty { fallback }
         val years = src.mapNotNull { patientItemYear(it) }.toMutableSet()
         years.add(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR))
         return years.sortedDescending()
@@ -1192,12 +1208,19 @@ class FollowUpActivity : AppCompatActivity() {
             else -> items
         }
         }
-        // 🗓️🔒 (16.09.2026) — ADDITIONAL year filter, Patient tab only
-        // (stage="Treatment"). Unknown-year cards (blank regDate AND blank
+        // 🗓️🔒 (16.09.2026, extended 17.09.2026 — TK-নির্দেশ) — ADDITIONAL year
+        // filter, now all three tabs (Enquiry/Visit/Patient — stage="Inquiry"/
+        // "Patient"/"Treatment"). Unknown-year cards (blank regDate AND blank
         // recordDate — very old/edge-case rows) are never hidden by this
         // filter, so a pending follow-up call can never silently disappear
         // just because its year couldn't be determined.
-        return if (stage == "Treatment") {
+        // ⛔ todayAllSections (Dashboard/Briefing's mixed "today's calls"
+        // banner list) is deliberately EXEMPT — that list mixes all three
+        // stages together to show every due/overdue call regardless of
+        // registration year; year-filtering it could hide a genuinely
+        // pending call from a previous year (web's __wlv1SkipPatientYearFilter
+        // guards the exact same case, rule ৮).
+        return if (!todayAllSections && (stage == "Treatment" || stage == "Inquiry" || stage == "Patient")) {
             chipFiltered.filter { val y = patientItemYear(it); y == null || y == patientYearFilter }
         } else chipFiltered
     }
