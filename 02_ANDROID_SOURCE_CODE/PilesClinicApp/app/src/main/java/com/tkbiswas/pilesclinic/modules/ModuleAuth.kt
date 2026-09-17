@@ -301,6 +301,11 @@ object ModuleAuth {
     // (savePersisted()-এর নিজস্ব safe default)।
     @Volatile private var lastExpiresIn: Int = 0
 
+    // 🔴🔒 V1570 — শেষ সফল সাইন-ইনের নিজের auth.uid() (Supabase লগইন-উত্তরের
+    // `user.id`)। নিচের identity-খোঁজায় `uid=eq.` ফিল্টার দিতে ব্যবহার হয় —
+    // দেখুন signIn()-এর বড় মন্তব্য।
+    @Volatile private var myUid: String = ""
+
     /** Sign in with Staff Code + module password. Returns null on success, else error text.
      *  Blocking network call — run it on a background thread. */
     /* 🔴🔒 V808 — এখন ভুলের বার্তায় **ঠিক কী হয়েছে** লেখা থাকে: কোন ধাপে
@@ -354,8 +359,32 @@ object ModuleAuth {
                 accessToken = json.optString("access_token", "")
                 lastExpiresIn = json.optInt("expires_in", 3600)
                 if (accessToken.isNullOrBlank()) return "Step 1 (login) — no token came back. ${secs()}s"
+                myUid = json.optJSONObject("user")?.optString("id", "").orEmpty()
             }
-            val id = getRows("hr", "app_identity", "select=person_code,role_kind,is_master&limit=1")
+            // 🔴🔴🔴🔒 V1570 (১৭.০৯.২০২৬, TK-ভিডিওতে ধরা পড়া — মাস্টারের ফোনে
+            // "Staff Profiles" বারবার একজন নির্দিষ্ট স্টাফের (COB-4) নিজের
+            // পাতা দেখাচ্ছিল, মাস্টারের তালিকা নয়) — **আসল কারণ, কোডে যাচাই
+            // করে ধরা:** এই লাইনটা "আমার নিজের পরিচয়" আনতে `uid=eq.<নিজের>`
+            // ফিল্টার **ছাড়াই** `select=...&limit=1` চালাত, শুধু RLS-এর
+            // "নিজেরটাই দেখা যায়" নিয়মের উপর ভরসা করে। কিন্তু মাস্টারের RLS
+            // **সবার** সারি দেখতে দেয় — তাই `limit=1` (কোনো ORDER BY নেই)
+            // মাস্টারের বেলায় হর্তা-কর্তা RLS-এর জন্য **এলোমেলো যেকোনো একটা
+            // সারি** ফিরিয়ে দিত (এখানে সবসময় COB-4-এর, কারণ ২৩ জনের সবার
+            // `created_at` হুবহু এক সেকেন্ডে বসেছিল — V246, তাই সাজানোর কোনো
+            // স্বাভাবিক ক্রম নেই)। ফল: মাস্টারের `personCode`/`isMaster`
+            // চুপচাপ COB-4-এর মানে বদলে যেত, তাই "Staff Profiles" তাঁকে
+            // মাস্টার না ভেবে COB-4 ভেবে তাঁরই পাতা দেখাত।
+            // ⛔ এই বাগ **আজকের কাজে তৈরি হয়নি, আগে থেকেই ছিল** — কিন্তু
+            //   আগে `isSignedIn` মেয়াদ দেখত না বলে একবার (ভাগ্যক্রমে ঠিক
+            //   বা ভুল) কোনো একটা পরিচয় ক্যাশ হয়ে গেলে সেটাই চিরকাল
+            //   ব্যবহার হতো, তাই এই ভুল ডাকটা কমই আবার চলত। আজ `isSignedIn`
+            //   ঠিক করার পর টোকেন সত্যিই ফুরোলে/প্রতি লগইনে ডাকটা আবার
+            //   চলছে, তাই ভুলটা এখন বারবার চোখে পড়ছে।
+            // ✅ সমাধান: Supabase-এর লগইন-উত্তরেই থাকা নিজের `uid` (auth.uid())
+            //   দিয়ে সরাসরি ফিল্টার করা হলো — RLS যতই চওড়া হোক, `uid=eq.`
+            //   দিয়ে সবসময় **শুধু নিজের** সারিটাই আসবে, মাস্টার হোক বা স্টাফ।
+            val uidFilter = if (myUid.isNotBlank()) "&uid=eq.$myUid" else ""
+            val id = getRows("hr", "app_identity", "select=person_code,role_kind,is_master$uidFilter&limit=1")
             if (id.length() > 0) {
                 personCode = id.getJSONObject(0).optString("person_code", code)
                 isMaster = id.getJSONObject(0).optBoolean("is_master", false)

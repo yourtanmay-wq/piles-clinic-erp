@@ -2052,10 +2052,23 @@
     var code = (m.session() || {}).code;
     var host = document.getElementById('app');
     var p = null, sc = null, pays = [];
+    /* 🔴🔴🔴🔒 V1570 (১৭.০৯.২০২৬, ফোনের ভিডিওতে ধরা পড়া বাগ, রুল ৮ — এখানে
+       হুবহু একই ভুল, আরও বড় আকারে) — আগে এই তিনটে পড়াই কোনো `.eq(...)`
+       ফিল্টার ছাড়া চলত, শুধু RLS-এর "নিজেরটাই দেখা যায়" নিয়মের ভরসায়।
+       মাস্টারের RLS সবার সারি দেখতে দেয় বলে (ভুল করে এই পথে এলে) `staff_profiles`/
+       `salary_config`-এ এলোমেলো যেকোনো একজন স্টাফের তথ্য, আর `salary_payments`-এ
+       (কোনো filter/limit-ই ছিল না) **সবার সব বেতনের সারি** নেমে আসতে পারত।
+       এখন তিনটেই নিজের `person_code` দিয়ে সরাসরি ছেঁকে নেওয়া হলো। */
     try {
-      p = (await client.schema('hr').from('staff_profiles').select('*').maybeSingle()).data;
-      sc = (await client.schema('hr').from('salary_config').select('*').maybeSingle()).data;
-      pays = (await client.schema('hr').from('salary_payments').select('*').order('paid_on', { ascending: false })).data || [];
+      var __selfQ = client.schema('hr').from('staff_profiles').select('*');
+      if (code) __selfQ = __selfQ.eq('person_code', code);
+      p = (await __selfQ.maybeSingle()).data;
+      var __scQ = client.schema('hr').from('salary_config').select('*');
+      if (code) __scQ = __scQ.eq('person_code', code);
+      sc = (await __scQ.maybeSingle()).data;
+      var __payQ = client.schema('hr').from('salary_payments').select('*');
+      if (code) __payQ = __payQ.eq('person_code', code);
+      pays = (await __payQ.order('paid_on', { ascending: false })).data || [];
     } catch (e) {}
     p = p || { person_code: code };
     // 🎨 (03.08.2026, TK-অনুমোদিত ফটো-প্রুফ পাশ করার পরে) — B370-এর "View"

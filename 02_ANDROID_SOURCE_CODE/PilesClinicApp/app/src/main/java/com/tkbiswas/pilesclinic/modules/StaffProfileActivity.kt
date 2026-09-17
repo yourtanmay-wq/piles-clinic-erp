@@ -6012,7 +6012,18 @@ class StaffProfileActivity : AppCompatActivity() {
         val box = ModuleUi.card(this); col.addView(box); box.addView(ModuleUi.body(this, "Loading..."))
         col.addView(ModuleUi.button(this, "Back") { finish() })
         Thread {
-            val r = ModuleAuth.getRows("hr", "staff_profiles", "select=*&limit=1")
+            // 🔴🔴🔴🔒 V1570 (১৭.০৯.২০২৬, TK-ভিডিওতে ধরা পড়া আসল বাগ) — এই পড়াটা
+            // আগে `select=*&limit=1` ছিল, নিজের `person_code` দিয়ে ছাঁকা ছাড়াই —
+            // শুধু RLS-এর "নিজেরটাই দেখা যায়" নিয়মের ভরসায়। মাস্টারের RLS
+            // **সবার** সারি দেখতে দেয় বলে (ভুল করে "My Profile" খুললে) এই
+            // `limit=1` এলোমেলো যেকোনো একজন স্টাফের সারি দিয়ে দিত (ORDER BY
+            // নেই, আর ২৩ জনের `created_at`-ও হুবহু এক)। ModuleAuth.signIn()-এর
+            // নিজের `uid`-ফিল্টার ফিক্সের পর এখন এটা ঘটার কথা না, কিন্তু এই
+            // ঘরটাও নিজের person_code দিয়ে সরাসরি ছেঁকে দেওয়া হলো — RLS যতই
+            // চওড়া হোক, এখন থেকে ভুল করে অন্য কারো সারি কখনো আসবে না।
+            val myCodeFilter = ModuleAuth.personCode?.takeIf { it.isNotBlank() }
+                ?.let { "&person_code=eq." + java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") } ?: ""
+            val r = ModuleAuth.getRows("hr", "staff_profiles", "select=*$myCodeFilter&limit=1")
             /* 🔴🔒 V496 (২১.০৮.২০২৬, TK §৩) — **বেতন শুধু আসল staff-এর।**
                সার্ভারের `role_kind` দেখেই ঠিক হয় (ফোনের কথা নয়)। ডাক্তার ও
                ফিল্ড অফিসারের পর্দায় "My Salary" ভাগটাই আর আসবে না, এবং
@@ -6020,7 +6031,7 @@ class StaffProfileActivity : AppCompatActivity() {
                ⛔ ডেটাবেসের পুরোনো কোনো সারি মোছা হয়নি — শুধু দেখানো বন্ধ। */
             val myRoleKind = if (r.length() > 0) ns(r.getJSONObject(0), "role_kind") else ""
             val salaryAllowed = com.tkbiswas.pilesclinic.native.RoleRules.salaryAppliesToRoleKind(myRoleKind)
-            val sc = if (salaryAllowed) ModuleAuth.getRows("hr", "salary_config", "select=*&limit=1") else JSONArray()
+            val sc = if (salaryAllowed) ModuleAuth.getRows("hr", "salary_config", "select=*$myCodeFilter&limit=1") else JSONArray()
             /* 🔵🔒 V818 (২৯.০৮.২০২৬, TK-নির্দেশে Egress-এর পূর্ণ যাচাই) —
                এটা **"My Profile"** পর্দা, অর্থাৎ শুধু নিজের বেতনের হিসাব।
                কিন্তু পড়াটা ছিল `select=*&order=paid_on.desc` — **কোনো ছাঁকনি

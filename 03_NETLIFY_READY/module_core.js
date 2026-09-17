@@ -67,9 +67,16 @@
     var email = MOD.codeToEmail(code);
     var r = await sb.auth.signInWithPassword({ email: email, password: password });
     if (r.error) return { ok: false, error: r.error.message };
-    // Read who we are from hr.app_identity (RLS lets us read our own row).
-    var id = await sb.schema('hr').from('app_identity')
-      .select('person_code,role_kind,is_master').limit(1).maybeSingle();
+    /* 🔴🔴🔴🔒 V1570 (১৭.০৯.২০২৬, ফোনের ভিডিওতে ধরা পড়া বাগ, রুল ৮ — এখানেও
+       হুবহু একই ভুল ছিল) — আগে এখানে `uid`-ফিল্টার ছাড়াই `limit(1)` চালানো
+       হতো, শুধু RLS-এর "নিজেরটাই দেখা যায়" নিয়মের ভরসায়। মাস্টারের RLS
+       সবার সারি দেখতে দেয় বলে এটা মাস্টারের বেলায় এলোমেলো যেকোনো একজন
+       স্টাফের পরিচয় ফিরিয়ে দিতে পারত (ORDER BY নেই, ২৩ জনেরই created_at
+       হুবহু এক সেকেন্ডে)। এখন নিজের auth uid দিয়ে সরাসরি ছেঁকে নেওয়া হলো। */
+    var myUid = (r.data && r.data.user && r.data.user.id) || '';
+    var q = sb.schema('hr').from('app_identity').select('person_code,role_kind,is_master');
+    if (myUid) q = q.eq('uid', myUid);
+    var id = await q.limit(1).maybeSingle();
     MOD._session = id.data
       ? { code: id.data.person_code, role: id.data.role_kind, is_master: !!id.data.is_master }
       : { code: code, role: 'staff', is_master: false };
@@ -138,8 +145,11 @@
     if (!sb) return false;
     var s = await sb.auth.getSession();
     if (!s.data || !s.data.session) return false;
-    var id = await sb.schema('hr').from('app_identity')
-      .select('person_code,role_kind,is_master').limit(1).maybeSingle();
+    // 🔴🔒 V1570 — MOD.signIn()-এর হুবহু একই ফিক্স (উপরের বড় মন্তব্য দ্রষ্টব্য)।
+    var myUid2 = (s.data.session.user && s.data.session.user.id) || '';
+    var q2 = sb.schema('hr').from('app_identity').select('person_code,role_kind,is_master');
+    if (myUid2) q2 = q2.eq('uid', myUid2);
+    var id = await q2.limit(1).maybeSingle();
     if (id.data) MOD._session = { code: id.data.person_code, role: id.data.role_kind, is_master: !!id.data.is_master };
     return !!MOD._session;
   };
