@@ -252,6 +252,20 @@ class LoginActivity : AppCompatActivity() {
                 }
                 val user = NativeUser(account.mobile, account.name, account.branch, NativeUser.permissionRole(account.role), account.role)
                 NativeSession.save(this@LoginActivity, user)
+                /* 🔴🔒 V1512 (RLS-প্রস্তুতি, ১৭.০৯.২০২৬, TK-অনুমোদিত) — এতদিন
+                   আসল Supabase পরিচয়-প্রমাণ (ModuleAuth.signInCurrentSession)
+                   শুধু Staff Profile/বেতনের পর্দা খুললে বসত। এখন প্রতিটা
+                   লগইনেই সাথে সাথে (ব্যাকগ্রাউন্ডে, নিঃশব্দে) বসানো হচ্ছে —
+                   ভবিষ্যতে patients/payments-এও এই পরিচয় ব্যবহারের প্রস্তুতি।
+                   ⛔ raw Thread — lifecycleScope নয়, কারণ এই মুহূর্তেই
+                   openDashboard()-এ finish() ডাকা হবে, যা lifecycleScope
+                   বাতিল করে দিত (DoctorLocation.captureIfPossible-এর একই
+                   প্রমাণিত ধাঁচ)। ⛔ ব্যর্থ/ধীর হলেও ড্যাশবোর্ড খুলতে এক
+                   মুহূর্তও দেরি হয় না, আর আজকের patients/payments-এর কাজে
+                   এখনো এক অক্ষরও হাত পড়েনি — শুধু প্রস্তুতি। */
+                Thread {
+                    try { com.tkbiswas.pilesclinic.modules.ModuleAuth.signInCurrentSession(this@LoginActivity) } catch (_: Throwable) { }
+                }.start()
                 // 🔒 V527: পরের বার আঙুল দিয়ে ঢোকার জন্য কোন নম্বরটা মনে রাখতে হবে।
                 //    ⛔ শুধু নম্বর — কোনো পাসওয়ার্ড কখনো ফোনে জমা হয় না।
                 rememberLastMobile(mobile)

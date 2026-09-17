@@ -3547,6 +3547,13 @@ async function login(){
    }
    user={...u,mobile:m,role};
    try{localStorage.setItem('rk_session',JSON.stringify(user))}catch(e){}
+   /* 🔴🔒 V1512 (RLS-প্রস্তুতি, ১৭.০৯.২০২৬, TK-অনুমোদিত) -- আগে আসল
+      Supabase পরিচয়-প্রমাণ (MOD.autoSignIn) শুধু hr/wn/fin পর্দা খুললে
+      বসত। এখন প্রতিটা লগইনেই সাথে সাথে (ব্যাকগ্রাউন্ডে, নিঃশব্দে) --
+      ভবিষ্যতে patients/payments-এও এই পরিচয় ব্যবহারের প্রস্তুতি।
+      ⛔ await করা হয়নি -- ড্যাশবোর্ড খুলতে দেরি হয় না, ব্যর্থ হলেও চুপচাপ
+      উপেক্ষা, আজকের patients/payments-এর কাজে এখনো হাত পড়েনি। */
+   try{ if(window.MOD && typeof MOD.autoSignIn==='function') MOD.autoSignIn().catch(function(){}) }catch(_e){}
    closeModal();
    try{window.__wlv1CloudLoginTried=null}catch(_e){}   /* 🔒 V746 — পাহারা ছেড়ে দিই */
    setTimeout(()=>{try{dashboard();startFastCloudSync('login-fast',300)}catch(e){console.error('Dashboard boot failed',e);toast('Dashboard loading error. Reload once.')}},0);
