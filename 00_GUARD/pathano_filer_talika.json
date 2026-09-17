@@ -1,5 +1,10 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1515_FINAL.zip",
+    "versionCode": 1515,
+    "when": "17.09.2026 12.07 pm"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1514_FINAL.zip",
     "versionCode": 1514,
     "when": "17.09.2026 10.25 am"
@@ -6119,5 +6124,23 @@
     },
     "excluded": ".git/00_GUARD/.kotlinc(guard-tool)/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ; এবার আলাদা করে কোনো ছবি/ফোল্ডার বাদ দেওয়া হয়নি",
     "note": "V1514 — AMIT GOLDAR-এর ব্যাকডেট-পেমেন্ট ব্যর্থতার আসল-কারণ-দেখানো ডায়াগনস্টিক (V1584) + COB-UTTAMA-র স্ট্যাল-ওভারডিউ স্ব-সারাই ফিক্স (V1587) + ModuleAuth সাইন-ইন একসাথে-দুবার-না-চলার লক (V1581) + আজ সকালের মাস্টার-পরিচয় বাগ ফিক্স (V1570) + ড্যাশবোর্ড সার্চ-গতি ফিক্স + Follow-up বছর-ছাঁকনি Enquiry/Visit ট্যাবেও + FIELD-OFFICER সাসপেন্ড-সংশোধন SQL; ভার্সন ১৫১৩→১৫১৪। AMIT GOLDAR ও COB-UTTAMA-র ফিক্স এখনো আসল ফোনে পরীক্ষা করা বাকি।"
+  },
+  {
+    "file": "PILES_CLINIC_APP_V1515_FINAL.zip",
+    "when": "১৭.০৯.২০২৬ সন্ধ্যা ৬.১০",
+    "size_mb": 26.63,
+    "total_files": 2010,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 787,
+      "(root)": 604,
+      "00_SQL": 270,
+      "04_SUPABASE_DATABASE_SETUP": 138,
+      "00_GUARD": 58,
+      "03_NETLIFY_READY": 53,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31
+    },
+    "excluded": "root-level demo .png (0 টা এই মুহূর্তে) · 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL/ (0 টা, ইতিমধ্যে gitignored)",
+    "note": "V1514-এর পর নতুন: RMP autolink-এর দুটো গভীর দোষ সারানো (ব্রাঞ্চ-তালগোল + লুকানো SQL ambiguity বাগ) — TK নিজে SQL চালিয়ে PASS পেয়েছেন। Follow-up/Enquiry কার্ড চিরকাল Overdue থেকে যাওয়ার আসল মূল কারণ ৬টা সেভ-ফাংশনেই সারানো (V1597) — ভেরিফাইড-সফল লেখার সাথে সাথেই ফোনের 'জমা আছে' পতাকা সরে যাবে, আর আগের আটকে-থাকা ব্যাচও একবারে ২৫টা করে ৮ গুণ দ্রুত সাফ হবে। ⚠️ সততার সাথে: এই দুটো ফিক্সই এখনো আসল ফোনে/Android Studio-তে পরীক্ষা করা হয়নি।"
   }
 ]
