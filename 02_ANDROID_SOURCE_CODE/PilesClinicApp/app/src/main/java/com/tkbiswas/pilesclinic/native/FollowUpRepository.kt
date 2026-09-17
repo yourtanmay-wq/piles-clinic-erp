@@ -1485,29 +1485,40 @@ class FollowUpRepository(private val context: Context? = null) {
        বাদ দেয়। ব্যর্থ/না-মেলা/২৪ ঘণ্টার কম হলে কিচ্ছু বদলায় না — সারি
        আগের মতোই দেখাতে থাকে (নিরাপদ দিক, "PENDING হারাবে না" নিয়ম অটুট)।
        ⛔ সত্যিই তাজা (২৪ ঘণ্টার কম) কোনো এডিট এই ফাংশন কখনো ছোঁয় না। */
+    /* 🔴🔒 V1596 (১৭.০৯.২০২৬) — আগে এখানে একবারে মাত্র ৩টে সারি, ৩টে আলাদা
+       ক্লাউড-ডাক দিয়ে যাচাই হত। V450-এর নিজের-থেকে-মেরামত (উপরে, "Recovered
+       rejected duplicate") একসাথে অনেক সারিকে "PENDING" করে দিতে পারে —
+       ৩টে/বার এত বড় জমাট কখনোই ধরতে পারত না, তাই ৮ দিন পরেও কার্ড Overdue-ই
+       থেকে যাচ্ছিল (TK-রিপোর্ট)। এখন একবারে ২৫টা পর্যন্ত সারির id **একটাই**
+       ক্লাউড-ডাকে (`id=in.(...)`) মেলানো হয় — বাড়তি কল কম, তবু ৮ গুণ দ্রুত
+       সারে। ⛔ ২৪ ঘণ্টার নিরাপদ সীমা অটুট, যাচাইয়ের নিয়মও (`cloudUpdatedAt
+       >= local.updatedAt`) এক অক্ষরও বদলায়নি। */
     private fun healStagelessPendingRows(ctx: Context, stage: String) {
         val nowMs = System.currentTimeMillis()
         val oneDayMs = 24L * 60 * 60 * 1000L
         val local = try { LocalWorkflowStore(ctx).rowsForStage(stage) } catch (_: Throwable) { return }
-        var checked = 0
+        val staleIds = ArrayList<String>()
         for (i in 0 until local.length()) {
-            if (checked >= 3) break
+            if (staleIds.size >= 25) break
             val row = local.optJSONObject(i) ?: continue
             if (row.optString("_syncStatus") != "PENDING") continue
             val id = row.optString("id"); if (id.isBlank()) continue
             val stamp = try { SupabaseClient.rowStampMs(row) } catch (_: Throwable) { 0L }
             if (stamp <= 0L || nowMs - stamp < oneDayMs) continue
-            checked++
-            try {
-                val found = SupabaseClient.fetchList("followups", "id=eq.$id", 1, select = "id,updatedAt")
-                if (found.length() > 0) {
-                    val cloudUpdatedAt = found.getJSONObject(0).optString("updatedAt", "")
-                    if (cloudUpdatedAt.isNotBlank()) {
-                        LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, cloudUpdatedAt)
-                    }
-                }
-            } catch (_: Throwable) { }
+            staleIds.add(id)
         }
+        if (staleIds.isEmpty()) return
+        try {
+            val idList = staleIds.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
+            val found = SupabaseClient.fetchList("followups", "id=in.($idList)", staleIds.size, select = "id,updatedAt")
+            for (i in 0 until found.length()) {
+                val r = found.optJSONObject(i) ?: continue
+                val cid = r.optString("id"); val cUpdated = r.optString("updatedAt", "")
+                if (cid.isNotBlank() && cUpdated.isNotBlank()) {
+                    LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", cid, cUpdated)
+                }
+            }
+        } catch (_: Throwable) { }
     }
 
     fun fetchTab(stage: String, branchFilter: String?, creatorName: String? = null, creatorMobile: String? = null, preCloudOverride: JSONArray? = null, prePatientsOverride: JSONArray? = null, prePaymentsOverride: JSONArray? = null): List<FollowUpItem> {
@@ -1963,9 +1974,20 @@ class FollowUpRepository(private val context: Context? = null) {
                     val fields = JSONObject().put("status", "Cancelled").put("nextFollow", "")
                         .put("history", history).put("updatedAt", now)
                     rememberEditOnThisPhone(id, fields, r)
+                    /* 🔴🔒 V1596 (১৭.০৯.২০২৬, TK-রিপোর্ট — কল করেও/এনকোয়ারি বন্ধ
+                       হয়ে যাওয়ার পরেও কার্ড চিরকাল Overdue) — গভীরে যাচাই করে
+                       পাওয়া আসল কারণ: এই V450-এর নিজের-থেকে-মেরামতের লেখাটা
+                       (`rememberEditOnThisPhone`) ফোনের কপিকে "PENDING" করে
+                       দেয়, আর নিচের ক্লাউড-লেখা সত্যিই সফল হলেও (`ok=true`)
+                       কেউ সেই "PENDING" পতাকাটা সঙ্গে সঙ্গে সরাত না — শুধু
+                       V1587-এর সাধারণ (একবারে ৩টে, ২৪ ঘণ্টা পুরনো) heal-এর
+                       ভরসায় থাকত, যেটা এত বড় ব্যাচের জন্য যথেষ্ট দ্রুত না।
+                       ⇒ এখন ক্লাউড-লেখা সফল হলে **এই সারিটাই সঙ্গে সঙ্গে**
+                       SYNCED করে দেওয়া হয় — অপেক্ষা করতে হয় না। */
                     healExecutor.submit {
                         val ok = try { SupabaseClient.updateById("followups", id, fields) } catch (_: Throwable) { false }
                         if (!ok) queueFieldUpdate(id, fields)
+                        else context?.let { ctx -> try { LocalWorkflowStore(ctx).markRowSyncedIfCloudCaughtUp("followups", id, now) } catch (_: Throwable) { } }
                     }
                 }
                 // If a legacy enquiry row itself remained Active while a terminal
