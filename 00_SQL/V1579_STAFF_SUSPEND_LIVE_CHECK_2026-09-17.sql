@@ -26,5 +26,5 @@ where "link_mobile" in ('8167096595','8436002200','8514002200','9002003540','900
 select person_code, full_name, "link_mobile" as mobile, branch, active, suspended_until
 from hr.staff_profiles
 where active is false
-   or (suspended_until is not null and suspended_until >= to_char(current_date, 'YYYY-MM-DD'))
+   or (suspended_until is not null and suspended_until >= current_date)
 order by full_name;
