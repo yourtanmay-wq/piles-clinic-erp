@@ -264,6 +264,23 @@ object ModuleAuth {
         }
     }
 
+    /* 🔴🔒 V1581 (১৭.০৯.২০২৬, TK-রিপোর্ট — Staff Profile খুলতে মাঝে মাঝে
+       ৪০+ সেকেন্ড আটকে "Could not open" আসছিল, অথচ নেট ভালো) — **সন্দেহভাজন
+       কারণ:** এই ফাংশনটা প্রজেক্টের অনেক জায়গা থেকে ডাকা হয় (মূল অ্যাপে
+       লগইনের সময়ও, আজকের V1512-এর নতুন ব্যাকগ্রাউন্ড সাইন-ইন সহ) — আর
+       আজকের `isSignedIn`-মেয়াদ-ফিক্সের পরে এই ডাকটা **আগের চেয়ে বেশিবার**
+       সত্যিকারের নেট-কল (`signIn()`) পর্যন্ত পৌঁছায় (উপরের মন্তব্যেই লেখা)।
+       কোনো লক না থাকায়, দুটো জায়গা থেকে (যেমন লগইনের ব্যাকগ্রাউন্ড কল +
+       তার কিছুক্ষণ পরেই স্টাফ Staff Profile খুললে) **একই মুহূর্তে দুটো
+       আলাদা সাইন-ইন নেট-কল** একসাথে Supabase Auth-এ যেতে পারত — সেটা যদি
+       ধীরতা/সংঘাতের একটা কারণ হয়ে থাকে।
+       ⛔ ১০০% নিশ্চিত প্রমাণ করা যায়নি (ফোনে সরাসরি দেখার উপায় নেই), কিন্তু
+       এই বদলটা **সম্পূর্ণ ঝুঁকিহীন**: এখন একই মুহূর্তে সর্বোচ্চ **একটাই**
+       আসল সাইন-ইন নেট-কল চলে — অন্য যে কেউ একই সময়ে ডাকলে সে শুধু সেই
+       একই ফলের অপেক্ষা করবে (আবার আলাদা কল করবে না), তারপর একই উত্তর পাবে।
+       সফল/ব্যর্থ হওয়ার নিয়ম, পাসওয়ার্ড, ক্যাশ — কিছুই বদলায়নি। */
+    private val signInLock = Any()
+
     fun signInCurrentSession(context: Context): String? {
         appCtx = context.applicationContext
         val user = NativeSession.current(context) ?: return "Main app login required"
@@ -279,18 +296,26 @@ object ModuleAuth {
         // `isSignedIn` নিজেই false হবে আর নিচের কোড আবার সত্যিকারের সাইন-ইন করবে।
         if (isSignedIn && personCode == code) return null
 
-        // Reuse only the project's long-standing role passwords. No new
-        // password is created and no second password is shown anywhere.
-        val originalRole = StaffDirectory.findAccount(mobile)?.role ?: user.displayRole
-        val password = when (originalRole) {
-            "master" -> "admin123"
-            "doctor" -> "doctor123"
-            "field" -> "field123"
-            else -> "staff123"
+        // 🔒 V1581: আসল নেট-কলটা এখন লকের ভিতরে — একসাথে দুটো চলবে না।
+        synchronized(signInLock) {
+            // লক পাওয়ার মধ্যেই অন্য কোনো থ্রেড ইতিমধ্যে সাইন-ইন করে ফেলে
+            // থাকতে পারে (ঠিক এই কোডটাই চালিয়ে) — সেটা হলে আর নতুন কল না
+            // করে সেই ফলটাই ব্যবহার করা হয়।
+            if (isSignedIn && personCode == code) return null
+
+            // Reuse only the project's long-standing role passwords. No new
+            // password is created and no second password is shown anywhere.
+            val originalRole = StaffDirectory.findAccount(mobile)?.role ?: user.displayRole
+            val password = when (originalRole) {
+                "master" -> "admin123"
+                "doctor" -> "doctor123"
+                "field" -> "field123"
+                else -> "staff123"
+            }
+            val err = signIn(code, password)
+            if (err == null) savePersisted(context, code, lastExpiresIn)
+            return err
         }
-        val err = signIn(code, password)
-        if (err == null) savePersisted(context, code, lastExpiresIn)
-        return err
     }
 
     private fun baseUrl(): String = SupabaseConfig.url.trimEnd('/')
