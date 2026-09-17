@@ -16,6 +16,19 @@ object SupabaseClient {
     const val URL = "https://bcyeogjqtupbdyciqfmz.supabase.co"
     const val KEY = "sb_publishable_k_170-JGrdxmZ7rBrjCyTA_-ElK2XdZ"
 
+    // 🔴🔒 V1563 (RLS-প্রস্তুতি ধাপ ৪, ১৭.০৯.২০২৬, TK-অনুমোদিত) — patients/payments-এর
+    // প্রতিটা কল এখন থেকে, সাইন-ইন করা থাকলে, ব্যক্তির নিজের আসল Supabase টোকেন
+    // পাঠাবে (আগে সবসময় শুধু ভাগের anon KEY যেত)। SQL-এ যাচাই করা হয়েছে (V1562) —
+    // `anon` আর `authenticated` role-এর অনুমতি patients/payments-এ হুবহু এক, আর
+    // এই দুই টেবিলে RLS এখনো বন্ধই আছে — তাই এই বদলে **আজ কার কী দেখা/লেখা যায়
+    // তার এক অক্ষরও বদলায় না**, শুধু ভবিষ্যতের RLS-এর জন্য প্রস্তুতি। সাইন-ইন করা
+    // না থাকলে (বা টোকেনের মেয়াদ ফুরিয়ে থাকলে) আগের মতোই anon KEY যায়, তাই
+    // ব্যর্থ হলে/সাইন-ইন না থাকলে কারো কাজ কখনো আটকায় না।
+    private fun authToken(): String {
+        val m = com.tkbiswas.pilesclinic.modules.ModuleAuth
+        return if (m.isSignedIn) (m.accessToken ?: KEY) else KEY
+    }
+
     val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
@@ -386,7 +399,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/rpc/tk_register_patient")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Content-Type", "application/json")
                 .post(body.toString().toRequestBody(jsonMedia))
                 .build()
@@ -405,7 +418,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/rpc/tk_refunded_mobiles")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Content-Type", "application/json")
                 .post(body.toString().toRequestBody(jsonMedia))
                 .build()
@@ -437,7 +450,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/rpc/tk_append_followup_history")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Content-Type", "application/json")
                 .post(body.toString().toRequestBody(jsonMedia))
                 .build()
@@ -455,7 +468,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/rpc/tk_record_treatment_payment")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Content-Type", "application/json")
                 .post(body.toString().toRequestBody(jsonMedia))
                 .build()
@@ -589,7 +602,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url(if (verify) "$URL/rest/v1/$table?select=id,updatedAt" else "$URL/rest/v1/$table")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Prefer", if (verify) "resolution=merge-duplicates,return=representation" else "resolution=merge-duplicates,return=minimal")
                 .post(JSONArray().put(row).toString().toRequestBody(jsonMedia))
@@ -844,7 +857,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/$table?$column=like.$encodedPrefix&select=$selectCols")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .get()
                 .build()
             http.newCall(request).execute().use { response ->
@@ -1066,7 +1079,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url(url)
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .get()
                 .build()
             http.newCall(request).execute().use { response ->
@@ -1120,7 +1133,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url(url)
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Prefer", "count=exact")
                 .get()
                 .build()
@@ -1146,7 +1159,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/$table?select=id$filterPart")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Prefer", "count=exact")
                 .head()
                 .build()
@@ -1190,7 +1203,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/$table?id=eq.$id&select=" + if (verify) "id,updatedAt" else "id")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Prefer", "return=representation")
                 .patch(fields.toString().toRequestBody(jsonMedia))
@@ -1281,7 +1294,7 @@ object SupabaseClient {
             val request = Request.Builder()
                 .url("$URL/rest/v1/$table?id=eq.$id")
                 .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Authorization", "Bearer ${authToken()}")
                 .addHeader("Prefer", "return=minimal")
                 .delete()
                 .build()
