@@ -798,13 +798,25 @@
         <!-- 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ): *"Doctor reminder icon টা উপরে ডান
              সাইডে যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
              ⇒ Dashboard-এর ঘরটা লুকানো হলো, আর এই মেনুতে যোগ হলো।
-             wiring: MoreMenuActivity.btnDocDoctorReminder -->
+             wiring: MoreMenuActivity.btnDocDoctorReminder
+             📌🔒 V1572 (১৭.০৯.২০২৬, TK-নির্দেশ: *"doctor reminder, staff profile
+             পাশাপাশি রাখুন"*) — এই সারিটা আগে শুধু Doctor Reminder একাই ধরে
+             রাখত (পুরো-প্রস্থ card হিসেবে বসানো Staff Profiles ছিল আলাদা, নিজের
+             নিজস্ব সারিতে)। এখন rowManagement1/2 · rowSecurity1/2-এর হুবহু একই
+             প্রমাণিত ২-কলাম ধাঁচে Staff Profiles-ও এই সারিতেই দ্বিতীয় সদস্য হলো —
+             GridLayout নয়, তাই B374/B345-এর পুরনো ভাঙন-ঝুঁকি ফেরেনি। কার
+             জন্য কোনটা দেখা যাবে সেই নিয়ম (Doctor Reminder: master/staff/
+             doctor · Staff Profiles: শুধু master) এক অক্ষরও বদলায়নি — শুধু
+             MoreMenuActivity.kt-তে hideItem()-দিয়ে আলাদা আলাদা করে ছাঁকা হয়,
+             একজনই থাকলে (weight=1) বাকিটা নিজে থেকে ভরে নেয়, দুজনেই বাদ পড়লে
+             পুরো সারিটাই GONE (rowManagement1-এর মতোই)। ⛔ `visibility="gone"`
+             ডিফল্ট তাই সরানো হলো — এখন rowManagement1-এর মতোই ডিফল্ট ভিজিবল,
+             hideItem()-ই যা লুকানোর লুকাবে। -->
         <LinearLayout
             android:id="@+id/rowDocModules5"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:visibility="gone"
             android:paddingHorizontal="12dp">
 
             <LinearLayout
@@ -838,9 +850,41 @@
                 </LinearLayout>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
             </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnStaffProfiles"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#EAF0FB">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_staff_profiles" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Staff Profiles" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="All staff across branches" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
         </LinearLayout>   <!-- 🐞 V1240 — rowDocModules5-এর বাদ পড়া বন্ধ-ট্যাগ -->
 
-        <!-- Wide cards: My Profile (non-master) / Staff Profiles + Income & Expense (master) -->
+        <!-- Wide card: My Profile (non-master) — Income & Expense (master) -->
         <LinearLayout
             android:id="@+id/btnMyProfile"
             android:layout_width="match_parent"
@@ -873,43 +917,6 @@
                 android:orientation="vertical">
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="My Profile" android:fontFamily="serif" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/brand_navy" />
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="View my account" android:textSize="10sp" android:textColor="@color/clinic_text_secondary" />
-            </LinearLayout>
-
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/btnStaffProfiles"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="5dp"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="6dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_more_card"
-            android:elevation="2dp"
-            android:padding="14dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-
-            <FrameLayout
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:background="@drawable/bg_more_icon_badge"
-                android:backgroundTint="#EAF0FB">
-                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_staff_profiles" />
-            </FrameLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="12dp"
-                android:orientation="vertical">
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Staff Profiles" android:fontFamily="serif" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/brand_navy" />
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="All staff across branches" android:textSize="10sp" android:textColor="@color/clinic_text_secondary" />
             </LinearLayout>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />

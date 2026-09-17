@@ -67,12 +67,30 @@ class MoreMenuActivity : AppCompatActivity() {
 
         val isMaster = user.role == "master"
 
+        // 🔒 নতুন হেল্পার (04.08.2026) — B374-এর সমাধানের সেই একই চিন্তা,
+        // এখন ২-কলাম "সারি" LinearLayout-এর জন্য: item লুকিয়ে row থেকে
+        // সরিয়ে দেয় (বাকি item weight=1 থাকায় নিজে থেকে পুরো সারি নিয়ে
+        // নেয়), আর row-টা সম্পূর্ণ ফাঁকা হয়ে গেলে (দুটো item-ই লুকানো)
+        // পুরো row-টাও GONE করে দেয়, যাতে ফাঁকা জায়গা/মার্জিন না থাকে।
+        // 📌🔒 V1572 (১৭.০৯.২০২৬) — এই ফাংশনটা এখন Doctor Reminder/Staff
+        // Profiles-এর সারিতেও লাগে, তাই সেই ব্যবহারের আগেই এখানে আনা হলো।
+        fun hideItem(row: LinearLayout, item: View) {
+            item.visibility = View.GONE
+            row.removeView(item)
+            if (row.childCount == 0) row.visibility = View.GONE
+        }
+
         /* 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Doctor reminder icon টা উপরে
            ডান সাইডে যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
            ⇒ Dashboard-এর ঘরটা লুকানো হলো (DashboardActivity), আর এখানে এলো।
            ⛔ কারা দেখবেন সেই নিয়ম **হুবহু আগের মতোই** — master · staff · doctor
               (Dashboard-এর ঘরটায় ঠিক এই তিনজনই ছিল)। Field-এর পর্দায় বসে না।
-           ⛔ Doctor Reminder পর্দাটা এক অক্ষরও বদলায়নি — শুধু পৌঁছানোর পথ বদলাল। */
+           ⛔ Doctor Reminder পর্দাটা এক অক্ষরও বদলায়নি — শুধু পৌঁছানোর পথ বদলাল।
+           📌🔒 V1572 (১৭.০৯.২০২৬, TK-নির্দেশ: *"doctor reminder, staff profile
+           পাশাপাশি রাখুন"*) — rowDocModules5 এখন Staff Profiles-এরও ঘর, তাই
+           পুরো সারি VISIBLE/GONE না করে rowManagement1-এর মতোই শুধু নিজের
+           আইটেমটা hideItem() দিয়ে সরানো হয় — বাকিটা (isMaster ব্লকে) ঠিক
+           করবে Staff Profiles আসলে দেখা যাবে কিনা। */
         run {
             val who = user.displayRole
             // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE: Doctor Reminder-ও
@@ -81,24 +99,12 @@ class MoreMenuActivity : AppCompatActivity() {
             val allowed = (isMaster || who == "staff" || who == "doctor") &&
                 !RoleRules.isDoctorVisitOnly(this)
             if (allowed) {
-                binding.rowDocModules5.visibility = View.VISIBLE
                 binding.btnDocDoctorReminder.setOnClickListener {
                     startActivity(Intent(this, DoctorReminderActivity::class.java))
                 }
             } else {
-                binding.rowDocModules5.visibility = View.GONE
+                hideItem(binding.rowDocModules5, binding.btnDocDoctorReminder)
             }
-        }
-
-        // 🔒 নতুন হেল্পার (04.08.2026) — B374-এর সমাধানের সেই একই চিন্তা,
-        // এখন ২-কলাম "সারি" LinearLayout-এর জন্য: item লুকিয়ে row থেকে
-        // সরিয়ে দেয় (বাকি item weight=1 থাকায় নিজে থেকে পুরো সারি নিয়ে
-        // নেয়), আর row-টা সম্পূর্ণ ফাঁকা হয়ে গেলে (দুটো item-ই লুকানো)
-        // পুরো row-টাও GONE করে দেয়, যাতে ফাঁকা জায়গা/মার্জিন না থাকে।
-        fun hideItem(row: LinearLayout, item: View) {
-            item.visibility = View.GONE
-            row.removeView(item)
-            if (row.childCount == 0) row.visibility = View.GONE
         }
 
         // Reports / Backup&Settings / Trash / Password / Export / Staff
@@ -133,9 +139,15 @@ class MoreMenuActivity : AppCompatActivity() {
             // non-master-এর পর্দায় এই সেকশনের দুটো সারিই খালি হয়ে লুকিয়ে যায়,
             // অথচ "🛡️ Security & Data" শিরোনামটা একা দাঁড়িয়ে থাকত। এখন সেটাও লুকায়।
             binding.securityHeader.visibility = View.GONE
-            // Staff Profiles/Income & Expense (btnStaffProfiles/btnIncomeExpense)
-            // থেকেই যায় visibility=gone (XML-এর ডিফল্ট) — এখানে কিছু করার
-            // দরকার নেই, master-এর branch-এই শুধু VISIBLE করা হয়েছে।
+            // 📌🔒 V1572 (১৭.০৯.২০২৬) — Staff Profiles এখন rowDocModules5-এর
+            // ভিতরে (Doctor Reminder-এর পাশে), তাই XML-এর ডিফল্ট ভিজিবল —
+            // non-master-দের জন্য hideItem()-দিয়ে সরিয়ে নিতে হয় (আগে XML
+            // ডিফল্ট gone-ই যথেষ্ট ছিল, যখন এটা নিজের আলাদা পূর্ণ-প্রস্থ card
+            // ছিল)। ⛔ কারা দেখবেন সেই নিয়ম (শুধু master) বদলায়নি।
+            hideItem(binding.rowDocModules5, binding.btnStaffProfiles)
+            // Income & Expense (btnIncomeExpense) থেকেই যায় visibility=gone
+            // (XML-এর ডিফল্ট, নিজের আলাদা full-width card) — master-এর
+            // branch-এই শুধু VISIBLE করা হয়েছে।
 
             // 🔒🔒 B605 (10.08.2026, TK-নির্দেশ): "My Profile" এখন শুধু Master-এর জন্য
             // (Master-এর "Staff Profiles" থেকেই সব)। staff/doctor/field-এর পর্দা থেকে
