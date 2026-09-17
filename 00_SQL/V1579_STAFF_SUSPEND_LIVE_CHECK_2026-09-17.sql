@@ -11,20 +11,20 @@
 -- গেছেন কিনা এখানে দেখা হচ্ছে -- আন্দাজ নয়।
 
 -- ১) AMIT GOLDAR নির্দিষ্ট করে
-select person_code, name, "link_mobile" as mobile, branch, active, suspended_until
+select person_code, full_name, "link_mobile" as mobile, branch, active, suspended_until
 from hr.staff_profiles
-where name ilike '%AMIT%GOLDAR%' or name ilike '%GOLDAR%AMIT%';
+where full_name ilike '%AMIT%GOLDAR%' or full_name ilike '%GOLDAR%AMIT%';
 
 -- ২) আগের ১৬.০৯.২০২৬-এর সেই ৫ জন (V1558) -- তখনকার সাসপেন্ড-উঠানো কাজ
 --    সত্যিই সবার ক্ষেত্রে ঠিকভাবে হয়েছিল কিনা, তখন ফলাফল যাচাই করাই হয়নি
-select person_code, name, "link_mobile" as mobile, branch, active, suspended_until
+select person_code, full_name, "link_mobile" as mobile, branch, active, suspended_until
 from hr.staff_profiles
 where "link_mobile" in ('8167096595','8436002200','8514002200','9002003540','9002610352');
 
 -- ৩) গোটা staff_profiles-এ আজও যাঁরা "বন্ধ" (active=false বা suspended_until আজ/ভবিষ্যতে) --
 --    যাতে শুধু AMIT GOLDAR বা ওই ৫ জন নয়, একই সমস্যায় আটকে থাকা বাকি যে কেউও ধরা পড়ে
-select person_code, name, "link_mobile" as mobile, branch, active, suspended_until
+select person_code, full_name, "link_mobile" as mobile, branch, active, suspended_until
 from hr.staff_profiles
 where active is false
    or (suspended_until is not null and suspended_until >= to_char(current_date, 'YYYY-MM-DD'))
-order by name;
+order by full_name;
