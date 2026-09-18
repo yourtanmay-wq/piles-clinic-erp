@@ -49,7 +49,10 @@ object VoiceReportModel {
         // COLLECTION-উত্তরে এখনো সাবটাইটেলে দেখা যায়) — এখানে শুধু সেটাই
         // প্রধান সংখ্যা হিসেবে দেখানো হয় যখন প্রশ্নটা টাকার বদলে মানুষ-সংখ্যা
         // নিয়ে করা।
-        PAYING_PATIENTS_COUNT
+        PAYING_PATIENTS_COUNT,
+        // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — "গত সপ্তাহে/গত মাসে কতজন পেশেন্ট
+        // RMP পাঠিয়েছে" — নতুন SQL: reports.rmp_referred_count/_list।
+        RMP_REFERRED_COUNT
     }
 
     // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
@@ -192,7 +195,9 @@ object VoiceReportModel {
             q.contains("আজ") -> Range(iso(t), iso(t), "Today")
             q.contains("সাত দিন") || q.contains("7 din") || q.contains("last 7") || q.contains("সপ্তাহ") || q.contains("week") ->
                 Range(iso(t.minusDays(6)), iso(t), "Last 7 days")
-            q.contains("এক মাস") || q.contains("1 mash") ->
+            // 🎤🔒 V1533 (TK-রিপোর্ট, ছবিসহ) — "গত মাসে" ("এক মাস" না বলেও) একই
+            // অর্থে ব্যবহার হয় — আগে এটা চেনা যেত না, "Not understood" দেখাত।
+            q.contains("এক মাস") || q.contains("গত মাস") || q.contains("1 mash") ->
                 Range(iso(t.minusMonths(1).plusDays(1)), iso(t), "Last 1 month")
             // V1419 — "এই মাসে" = চলতি মাসের ১ তারিখ থেকে আজ পর্যন্ত
             q.contains("এই মাস") || q.contains("this month") ->
@@ -257,6 +262,9 @@ object VoiceReportModel {
         val hasRmpWord = lower.contains("rmp") || q.contains("আরএমপি") || q.contains("ডাক্তার")
         val hasRmpCallDue = hasRmpWord && q.contains("কল") && (q.contains("কথা") || q.contains("করতে হবে") || hasDueWord)
         val hasRmpCalled = hasRmpWord && q.contains("কল") && !hasRmpCallDue && !hasReminder
+        // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — "কতজন পেশেন্ট RMP পাঠিয়েছে/পাঠানো"
+        // — কমিশন/কল নয়, শুধু রেফারেল-সংখ্যা (patients.refBy='Dr. Visit')।
+        val hasRmpReferred = hasRmpWord && (q.contains("পাঠিয়েছে") || q.contains("পাঠানো") || q.contains("রেফার") || lower.contains("refer"))
         val hasFieldVisit = q.contains("ফিল্ড") || lower.contains("field") || q.contains("কিমি") || lower.contains(" km") || q.contains("ঘুরে")
         val hasStaffHours = q.contains("ঘণ্টা") || q.contains("ঘন্টা") || lower.contains("hour")
         val hasStaffPresent = q.contains("হাজির") || q.contains("উপস্থিত") || lower.contains("present")
@@ -316,6 +324,7 @@ object VoiceReportModel {
             hasStaffHours -> Metric.STAFF_HOURS
             hasStaffPresent -> Metric.STAFF_PRESENT
             hasRmpCallDue -> Metric.RMP_CALL_DUE
+            hasRmpReferred -> Metric.RMP_REFERRED_COUNT
             hasRmpCalled -> Metric.RMP_CALLED
             hasNewPatients -> Metric.NEW_PATIENTS
             hasDisease -> Metric.DISEASE_COUNT

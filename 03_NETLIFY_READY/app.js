@@ -24432,7 +24432,8 @@ function wlv1VoiceDateRange(q){
   if(q.includes('গতকাল')) return {from:day(-1),to:day(-1),label:'Yesterday'};
   if(q.includes('আজ')) return {from:day(0),to:day(0),label:'Today'};
   if(q.includes('সাত দিন')||q.includes('7 din')||q.includes('last 7')||q.includes('সপ্তাহ')||q.includes('week')) return {from:day(-6),to:day(0),label:'Last 7 days'};
-  if(q.includes('এক মাস')||q.includes('1 mash')) return {from:day(-30),to:day(0),label:'Last 1 month'};
+  // 🎤🔒 V1533 (TK-রিপোর্ট, ছবিসহ) — "গত মাসে" ("এক মাস" না বলেও) একই অর্থে ব্যবহার হয়
+  if(q.includes('এক মাস')||q.includes('গত মাস')||q.includes('1 mash')) return {from:day(-30),to:day(0),label:'Last 1 month'};
   // V1419 — "এই মাসে" = চলতি মাসের ১ তারিখ থেকে আজ পর্যন্ত (ফোনের VoiceReportModel.kt-এর হুবহু নিয়ম)
   if(q.includes('এই মাস')||q.includes('this month')){ const f=new Date(kolkataNow); f.setDate(1); return {from:wlv1VoiceIsoDate(f),to:day(0),label:'This month'}; }
   // 🎤🔒 V1530 — নির্দিষ্ট মাসের নাম (ফোনের VoiceReportModel.findNamedMonth-এর হুবহু নিয়ম)
@@ -24535,6 +24536,8 @@ function wlv1VoiceParse(q){
   const hasRmpWord = lower.includes('rmp')||q.includes('আরএমপি')||q.includes('ডাক্তার');
   const hasRmpCallDue = hasRmpWord && q.includes('কল') && (q.includes('কথা')||q.includes('করতে হবে')||hasDueWord);
   const hasRmpCalled = hasRmpWord && q.includes('কল') && !hasRmpCallDue && !hasReminder;
+  // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — "কতজন পেশেন্ট RMP পাঠিয়েছে/পাঠানো"
+  const hasRmpReferred = hasRmpWord && (q.includes('পাঠিয়েছে')||q.includes('পাঠানো')||q.includes('রেফার')||lower.includes('refer'));
   const hasFieldVisit = q.includes('ফিল্ড')||lower.includes('field')||q.includes('কিমি')||lower.includes(' km')||q.includes('ঘুরে');
   const hasStaffHours = q.includes('ঘণ্টা')||q.includes('ঘন্টা')||lower.includes('hour');
   const hasStaffPresent = q.includes('হাজির')||q.includes('উপস্থিত')||lower.includes('present');
@@ -24562,7 +24565,7 @@ function wlv1VoiceParse(q){
     [hasReferralReq,'REFERRAL_REQUESTS'],[hasPayReq,'PAYMENT_REQUESTS'],[hasProductDue,'MEDICINE_DUE'],
     [hasHandoverPending,'HANDOVER_PENDING'],[hasHandover,'CASH_HANDOVER'],[hasAppointment,'APPOINTMENT_COUNT'],
     [hasExpected,'EXPECTED_COUNT'],[hasLeave,'LEAVE_COUNT'],[hasDoctorReminder,'DOCTOR_REMINDER'],[hasReminder,'STAFF_REMINDER_OPEN'],
-    [hasFieldVisit,'FIELD_VISIT'],[hasStaffHours,'STAFF_HOURS'],[hasStaffPresent,'STAFF_PRESENT'],[hasRmpCallDue,'RMP_CALL_DUE'],[hasRmpCalled,'RMP_CALLED'],
+    [hasFieldVisit,'FIELD_VISIT'],[hasStaffHours,'STAFF_HOURS'],[hasStaffPresent,'STAFF_PRESENT'],[hasRmpCallDue,'RMP_CALL_DUE'],[hasRmpReferred,'RMP_REFERRED_COUNT'],[hasRmpCalled,'RMP_CALLED'],
     [hasNewPatients,'NEW_PATIENTS'],[hasDisease,'DISEASE_COUNT'],[hasRmpPaid,'RMP_PAID'],
     [hasAdvance,'RMP_ADVANCE'],[hasRmpDue,'RMP_DUE'],[hasTrash,'TRASH_COUNT'],[hasCall,'CALL_COUNT'],[hasRefund,'REFUND'],
     [hasEnquiry,'ENQUIRY_COUNT'],[hasPayingPatientCount,'PAYING_PATIENTS_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'PATIENTS_VISITED']];
@@ -24717,6 +24720,13 @@ async function wlv1ShowVoiceAnswer(q){
     $('#wlv1VoiceAnswerNum').textContent = String(r.data);
     $('#wlv1VoiceAnswerSub').textContent = 'enquiries • tap to see list ›';
     $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('ENQUIRY_COUNT',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='RMP_REFERRED_COUNT'){
+    // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — নতুন SQL (00_SQL/V1533...) লাগবে
+    const r = await c.rpc('rmp_referred_count',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    $('#wlv1VoiceAnswerNum').textContent = String(r.data[0].total);
+    $('#wlv1VoiceAnswerSub').textContent = 'patients referred by RMP • tap to see list ›';
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('RMP_REFERRED_COUNT',parsed.branch,parsed.from,parsed.to,title);
   } else if(parsed.metric==='REFUND'){
     const r = await c.rpc('refund_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
     if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
@@ -24880,6 +24890,18 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
         + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
         + `<span class="tiny">${esc(branchTag)}${esc(p.disease||'')} · ${esc(fmtDate(p.enquiry_date||''))}</span></div>`;
     }).join('') || '<div class="card mut">No enquiries found for this period.</div>';
+  } else if(metric==='RMP_REFERRED_COUNT'){
+    // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ)
+    const r = await c.rpc('rmp_referred_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} patients`;
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(branchTag)}${esc(p.ref_doctor||'')} · ${esc(fmtDate(p.reg_date||''))}</span></div>`;
+    }).join('') || '<div class="card mut">No RMP-referred patients found for this period.</div>';
   } else if(metric==='REFUND'){
     const r = await c.rpc('refund_list',{p_branch:branch,p_from:from,p_to:to});
     if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }

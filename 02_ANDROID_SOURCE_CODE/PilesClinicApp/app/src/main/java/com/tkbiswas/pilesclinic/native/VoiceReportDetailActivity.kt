@@ -98,6 +98,19 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "${p.mobile} · ${FollowUpModel.displayDate(p.visitDate)}", "›", "#94A3B8", onTap))
                     }
                 }
+                // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — RMP-রেফার করা রোগীর তালিকা
+                "RMP_REFERRED_COUNT" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.rmpReferredList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Total: ${rows.size} patients"
+                    if (rows.isEmpty()) empty("No RMP-referred patients found for this period.")
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.refDoctor} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                    }
+                }
                 "COLLECTION" -> {
                     val (sum, list) = withContext(Dispatchers.IO) {
                         VoiceReportRepository.collectionSummary(branch, from, to) to VoiceReportRepository.collectionList(branch, from, to)

@@ -140,6 +140,8 @@ object VoiceReportRepository {
     // 🎤🔒 V1578 (১৭.০৯.২০২৬, আইটেম ৩৩ — অসময়ের এনকোয়ারির ইনসেন্টিভ)
     data class IncentiveSummary(val total: Double, val entryCount: Int, val staffCount: Int)
     data class IncentiveRow(val personCode: String, val patientRowId: String, val patientCode: String, val amount: Double, val reason: String, val branch: String = "")
+    // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — "গত সপ্তাহে কতজন পেশেন্ট RMP পাঠিয়েছে"
+    data class RmpReferredRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val refDoctor: String, val registrationDate: String, val branch: String = "")
 
     private fun args(branch: String, from: String, to: String): JSONObject = JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to)
     private fun args(branch: String): JSONObject = JSONObject().put("p_branch", branch)
@@ -321,6 +323,11 @@ object VoiceReportRepository {
         IncentiveSummary(it.optDouble("total", 0.0), it.optInt("entry_count", 0), it.optInt("staff_count", 0)) }
     fun incentiveList(b: String, f: String, t: String): RepoResult<List<IncentiveRow>> = rowList("incentive_list", args(b, f, t)).mapRows {
         IncentiveRow(it.optString("person_code"), it.optString("patient_row_id"), it.optString("patient_code"), it.optDouble("amount", 0.0), it.optString("reason"), it.optString("branch")) }
+
+    // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — "গত সপ্তাহে/গত মাসে কতজন পেশেন্ট RMP পাঠিয়েছে"
+    fun rmpReferredCount(b: String, f: String, t: String): RepoResult<Int> = firstRow("rmp_referred_count", args(b, f, t)).mapRow { it.optInt("total", 0) }
+    fun rmpReferredList(b: String, f: String, t: String): RepoResult<List<RmpReferredRow>> = rowList("rmp_referred_list", args(b, f, t)).mapRows {
+        RmpReferredRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("ref_doctor"), it.optString("reg_date"), it.optString("branch")) }
 
     /* 🎤 V1428 (আইটেম ২০) — "কোন ব্রাঞ্চে সবচেয়ে বেশি/কম": পাঁচ ব্রাঞ্চের **একই** ফাংশন পাঁচবার
        (নতুন SQL নেই), ফল সাজিয়ে ফেরত — বেশি→কম, "min" হলে কম→বেশি। একটা ব্রাঞ্চে ভুল হলে পুরোটা ভুল। */
