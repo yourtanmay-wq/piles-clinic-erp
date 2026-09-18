@@ -76,7 +76,22 @@
     function inRange(x) { return range.mode === 'day' ? onDate(x, range.key) : inMonth(x, range.key); }
     var enq = rawLoad('enquiries').filter(function (x) { return mine(x) && inRange(x); }).length;
     var reg = rawLoad('patients').filter(function (x) { return mine(x) && inRange(x); }).length;
-    return { enquiries: enq, registrations: reg };
+    /* 🔴 TK-নির্দেশ (১৮.০৯.২০২৬) — "Today Patient" মানে যে স্টাফ পেমেন্ট
+       নেবে অথবা যে স্টাফ রেজিস্ট্রেশন করবে, শুধু তার নিজের একাউন্টেই
+       পেশেন্টটা যোগ হবে — চেম্বারে সেদিন মোট কতজন এসেছে (branch-wide) তা
+       নয়। আগে `todayArrivedCount()` (payments-এর attendance_mark, পুরো
+       ব্রাঞ্চ) সাজেস্ট হত, তাই ফিল্ড স্টাফের রিপোর্টেও চেম্বারের মোট
+       সংখ্যা চলে যেত। এখন: এই স্টাফ যাদের registeredBy/createdBy তিনি
+       (patients টেবিল), অথবা যাদের payment-এ receivedBy/createdBy তিনি
+       (payments টেবিল) — সেই রোগীদের (patientId ধরে) ডুপ্লিকেট বাদ দিয়ে
+       গোনা। */
+    var myPatientIds = {};
+    rawLoad('patients').filter(function (x) { return inRange(x) && (mobEq(x.registeredBy, mob) || mobEq(x.createdBy, mob)); })
+      .forEach(function (x) { if (x.id) myPatientIds[x.id] = true; });
+    rawLoad('payments').filter(function (x) { return inRange(x) && (mobEq(x.receivedBy, mob) || mobEq(x.createdBy, mob)); })
+      .forEach(function (x) { if (x.patientId) myPatientIds[x.patientId] = true; });
+    var pat = Object.keys(myPatientIds).length;
+    return { enquiries: enq, registrations: reg, patients: pat };
   }
 
   // 🔴🔴🔴 V509 (২১.০৮.২০২৬, TK-রিপোর্ট — "Monthly রিপোর্টে অ্যাপসের কল শূন্য
@@ -150,15 +165,6 @@
       return r.count || 0;
     } catch (e) { return 0; }
   }
-  // আজ Chamber Attendance-এ কতজন Arrived মার্ক হয়েছে — এই কম্পিউটারের
-  // স্থানীয় জমানো তালিকা থেকে (নতুন কোনো cloud-কল না) — শুধু "auto-suggest",
-  // persist হয় না, Today Patient ঘরে প্রি-ফিল হয়ে বসে, staff চাইলে বদলাতে পারেন।
-  function todayArrivedCount() {
-    var date = window.MOD.todayIST();
-    var pays = rawLoad('payments');
-    return pays.filter(function (x) { return String(x.payType || '').toLowerCase() === 'attendance_mark' && String(x.date || '') === date; }).length;
-  }
-
   // ---- entry point ----
   async function workNotebook() { window.MOD.gate('My Work Notebook', renderToday); }
 
@@ -320,7 +326,7 @@ function nbDoctorVisitCount(dateIso, staffCode){
     var apc = await appCallCount({ mode: 'day', key: date });
     var host = document.getElementById('app');
     var isLeave = !!day.is_leave;
-    var suggestedPatients = todayArrivedCount();
+    var suggestedPatients = st.patients;
 
     function panel(title, rowsHtml) {
       /* V386: ক্লাস যোগ — চেহারা CSS থেকে (ModuleUi.kt)। ⛔ ভিতরের কিছুই বদলায়নি। */

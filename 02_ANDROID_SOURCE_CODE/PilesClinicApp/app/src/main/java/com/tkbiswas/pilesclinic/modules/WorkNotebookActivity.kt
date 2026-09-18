@@ -3541,12 +3541,6 @@ class WorkNotebookActivity : AppCompatActivity() {
                     val outsideCallsLabel = "Superfone/Clinic Number Call"
                     form.addView(gridRow(gridCell(outsideCallsLabel, ocCount), gridCell("Total call (auto)", totalVal)))
 
-                    try {
-                        val branch = NativeSession.current(this)?.branch
-                        val board = com.tkbiswas.pilesclinic.native.ChamberAttendanceRepository.loadCachedBoard(this, todayIso(), branch)
-                        if (board != null) patientsField.setText(board.totals.arrivedCount.toString())
-                    } catch (_: Throwable) { }
-
                     // 🔴🔒 B503 (06.08.2026, TK-নির্দেশ) — ফোনের নিজের
                     // স্থানীয় গণনা (আজ এই ফোনে কতবার কল-বোতাম চাপা
                     // হয়েছে) সাথে সাথেই দেখানো হয়, তারপর ক্লাউড থেকে
@@ -3616,6 +3610,12 @@ class WorkNotebookActivity : AppCompatActivity() {
                             // বলে ভুল না বোঝা যায় — শুধু আবার চেষ্টা করা বাকি।
                             if (s.optBoolean("enqOk", true)) enqVal.text = s.optInt("enquiries").toString()
                             if (s.optBoolean("regOk", true)) regVal.text = s.optInt("registrations").toString()
+                            // 🔴 TK-নির্দেশ (১৮.০৯.২০২৬) — নিজের রেজিস্টার/পেমেন্ট
+                            // করা রোগীর সংখ্যা প্রি-ফিল; স্টাফ ইতিমধ্যে হাতে কিছু
+                            // লিখে থাকলে সেটা মোছা হয় না (ফাঁকা থাকলেই বসে)।
+                            if (s.optBoolean("myPatientsOk", true) && patientsField.text.toString().isBlank()) {
+                                patientsField.setText(s.optInt("myPatients").toString())
+                            }
                             /* 🟢🔒 V590 (TK-রিপোর্ট) — আগে এই দুটো লাইন **শর্ত ছাড়াই**
                                বসত, তাই ক্লাউড-পড়া ব্যর্থ হলে ০ এসে ফোনে জমা থাকা
                                আসল গোনাটা মুছে দিত (TK-এর ছবিতে App Calls ০, অথচ
@@ -3870,6 +3870,33 @@ class WorkNotebookActivity : AppCompatActivity() {
             val regR = countBoth("patients", minePatNew, minePat)
             val enq = enqR.count
             val reg = regR.count
+            /* 🔴 TK-নির্দেশ (১৮.০৯.২০২৬) — "Today Patient" মানে যে স্টাফ
+               পেমেন্ট নেবে অথবা যে স্টাফ রেজিস্ট্রেশন করবে, শুধু তার নিজের
+               একাউন্টেই পেশেন্টটা যোগ হবে — চেম্বারে সেদিন মোট কতজন এসেছে
+               (Chamber Attendance-এর ব্রাঞ্চ-মোট) তা নয়। আগে ওই ব্রাঞ্চ-মোট
+               ফিল্ড স্টাফের রিপোর্টেও (যেমন Arman) সাজেস্ট হয়ে যেত। এখন:
+               এই স্টাফ নিজে registeredBy/createdBy (patients) অথবা
+               receivedBy/createdBy (payments) — এই দুই তালিকার রোগী
+               (patientId ধরে) ডুপ্লিকেট বাদ দিয়ে গোনা হয়। পড়া ব্যর্থ হলে
+               "patientsOk=false" — ভুল সংখ্যা না দেখিয়ে "…" দেখানো হবে। */
+            fun idsBoth(table: String, col: String, wide: String, old: String): Pair<Boolean, Set<String>> {
+                val w = ModuleAuth.getRowsChecked("public", table, "select=$col&$wide")
+                val r = if (w.ok) w else ModuleAuth.getRowsChecked("public", table, "select=$col&$old")
+                if (!r.ok) return false to emptySet()
+                val ids = mutableSetOf<String>()
+                for (i in 0 until r.rows.length()) {
+                    val v = r.rows.getJSONObject(i).optString(col, "")
+                    if (v.isNotBlank()) ids.add(v)
+                }
+                return true to ids
+            }
+            val myPatientIds = mutableSetOf<String>()
+            val (regIdsOk, regIds) = idsBoth("patients", "id", minePatNew, minePat)
+            val (payIdsOk, payIds) = idsBoth("payments", "patientId", minePayNew, minePay)
+            if (regIdsOk) myPatientIds.addAll(regIds)
+            if (payIdsOk) myPatientIds.addAll(payIds)
+            val myPatientsOk = regIdsOk && payIdsOk
+            val myPatients = myPatientIds.size
             // AUDIT FIX (2026-08-06): use the checked sum so a network failure
             // shows "…" instead of a misleading ₹0 (see loadStats/report below).
             val collR = ModuleAuth.sumPublicChecked("payments", minePayNew, "amount").let {
@@ -3917,6 +3944,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                 .put("appOk", appR.ok)   // 🟢 V590
                 .put("appCalls", appCalls).put("outsideCalls", outCalls).put("totalCalls", appCalls + outCalls)
                 .put("leaveDays", leaveDays)
+                .put("myPatients", myPatients).put("myPatientsOk", myPatientsOk)
             callback(stats)
         }.start()
     }
@@ -3962,17 +3990,13 @@ class WorkNotebookActivity : AppCompatActivity() {
         // নেই, আর আগের `Thread.sleep(600)`-নির্ভর আন্দাজ-টাইমিংও বাদ গেল।
         fetchStats(if (type == "daily") "day" else "month", key) { s ->
             // 🔴 B331 (03.08.2026, TK-নির্দেশ — "কতজন পেশেন্ট এসেছিল" আগে থেকে
-            // সাজেস্ট হবে Chamber Attendance থেকে, staff চাইলে বদলাবে): শুধু
-            // স্থানীয় (এই ফোনের) cache পড়া হয় — কোনো নতুন network/Supabase কল
-            // না (Egress-কোটার ঝুঁকি নেই)। cache না থাকলে ফাঁকা, staff নিজে লিখবেন।
+            // সাজেস্ট হবে, staff চাইলে বদলাবে) + TK-নির্দেশ (১৮.০৯.২০২৬,
+            // চেম্বার-মোট নয়, শুধু এই স্টাফের নিজের registeredBy/receivedBy
+            // রোগী) — fetchStats()-এর একই ব্যাকগ্রাউন্ড কলেই এই সংখ্যা আসে,
+            // আলাদা network round-trip লাগে না। পড়া ব্যর্থ হলে ফাঁকা, staff
+            // নিজে লিখবেন।
             var suggestedPatients = ""
-            if (type == "daily") {
-                try {
-                    val branch = NativeSession.current(this)?.branch
-                    val board = com.tkbiswas.pilesclinic.native.ChamberAttendanceRepository.loadCachedBoard(this, key, branch)
-                    if (board != null) suggestedPatients = board.totals.arrivedCount.toString()
-                } catch (_: Throwable) { }
-            }
+            if (type == "daily" && s.optBoolean("myPatientsOk", true)) suggestedPatients = s.optInt("myPatients").toString()
             runOnUiThread {
                 out.removeAllViews()
                 // AUDIT FIX (2026-08-06): when a count could NOT be loaded (weak
