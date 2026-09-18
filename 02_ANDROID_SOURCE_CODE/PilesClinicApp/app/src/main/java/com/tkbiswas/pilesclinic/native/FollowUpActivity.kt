@@ -624,7 +624,7 @@ class FollowUpActivity : AppCompatActivity() {
             binding.tvEmpty.visibility = View.VISIBLE
             setListVisible(false)
         }
-        loadTab(stage, silent = true)
+        loadTab(stage, silent = true, fromTabSwitch = true)
     }
 
     // TK-REPORTED BUG FIX (2026-07-23): this used to be a raw count-only
@@ -932,7 +932,7 @@ class FollowUpActivity : AppCompatActivity() {
         try { if (binding.swipeRefresh.isRefreshing) binding.swipeRefresh.isRefreshing = false } catch (_: Throwable) {}
     }
 
-    private fun loadTab(stage: String, silent: Boolean = false) {
+    private fun loadTab(stage: String, silent: Boolean = false, fromTabSwitch: Boolean = false) {
         // 🔒 খাতার সারি B90: মিশ্র মোড চালু থাকলে এক সেকশনের তালিকা আনা হয় না —
         // তিনটে একসাথে আনা হয়। ⛔ নিচের পুরনো কোডের একটি লাইনও বদলানো হয়নি,
         // তাই স্বাভাবিক ব্যবহারে (মোড বন্ধ) সবকিছু আগের মতোই চলে।
@@ -1013,8 +1013,22 @@ class FollowUpActivity : AppCompatActivity() {
                 // 🚀🔒 V1531 — dedup: refreshTabCounts/loadTodayAllSections একই
                 // মুহূর্তে এই একই ট্যাবের fetchTab() চালাচ্ছে থাকলে সেটার সাথেই
                 // জোড়া লাগে, দুবার একই ভারী কাজ হয় না।
+                /* 🚨🔒 V1539 (১৮.০৯.২০২৬, TK-রিপোর্ট, বারবার — "এক ট্যাব থেকে
+                   অন্য ট্যাবে যেতে অনেক সময় লাগে")। fetchTabDelta()-এর নিজের
+                   টীকাই (উপরে, ১৪৪৬-৪৭ লাইন) বলছে এটা **শুধু ২৫-সেকেন্ড
+                   নিজে-নিজে-রিফ্রেশের জন্য**, ট্যাব-বদলে নয় — কিন্তু switchTab()
+                   ও নিজে-নিজে-রিফ্রেশ দুটোই `loadTab(..., silent = true)`
+                   ডাকত, তাই `loadTab()`-এর ভিতর থেকে দুটো আলাদা করার উপায়ই
+                   ছিল না। ফল: ট্যাব বদলালেও delta-পথে যেত — "since" জমা না
+                   থাকলে (বা ৩ ঘণ্টার পুরনো হলে) ভিতরেই একটা **পূর্ণ fetchTab()**
+                   চালিয়ে তার উপরে আরও delta-জমানোর বাড়তি কাজ করত ⇒ সাধারণ
+                   fetchTabDeduped()-এর চেয়েও বেশি সময় লাগত। এখন switchTab()
+                   স্পষ্ট করে `fromTabSwitch = true` পাঠায়, তাই ট্যাব-বদল
+                   সবসময় সরাসরি fetchTabDeduped() (পূর্ণ, dedup করা) ব্যবহার
+                   করে — নিজে-নিজে-রিফ্রেশ (currentStage-এই থাকা) আগের মতোই
+                   delta-পথে। */
                 val items = withContext(Dispatchers.IO) {
-                    if (silent) repository.fetchTabDelta(stage, effectiveBranch(), user.name, user.mobile)
+                    if (silent && !fromTabSwitch) repository.fetchTabDelta(stage, effectiveBranch(), user.name, user.mobile)
                     else FollowUpRepository.fetchTabDeduped(repository, stage, effectiveBranch(), user.name, user.mobile).await()
                 }
                 // TK-REPORTED BUG FIX (2026-07-19): if the person switched tabs
