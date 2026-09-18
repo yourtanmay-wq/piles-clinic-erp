@@ -6124,5 +6124,14 @@
     },
     "excluded": ".git/00_GUARD/.kotlinc(guard-tool)/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ; এবার আলাদা করে কোনো ছবি/ফোল্ডার বাদ দেওয়া হয়নি",
     "note": "V1514 — AMIT GOLDAR-এর ব্যাকডেট-পেমেন্ট ব্যর্থতার আসল-কারণ-দেখানো ডায়াগনস্টিক (V1584) + COB-UTTAMA-র স্ট্যাল-ওভারডিউ স্ব-সারাই ফিক্স (V1587) + ModuleAuth সাইন-ইন একসাথে-দুবার-না-চলার লক (V1581) + আজ সকালের মাস্টার-পরিচয় বাগ ফিক্স (V1570) + ড্যাশবোর্ড সার্চ-গতি ফিক্স + Follow-up বছর-ছাঁকনি Enquiry/Visit ট্যাবেও + FIELD-OFFICER সাসপেন্ড-সংশোধন SQL; ভার্সন ১৫১৩→১৫১৪। AMIT GOLDAR ও COB-UTTAMA-র ফিক্স এখনো আসল ফোনে পরীক্ষা করা বাকি।"
+  },
+  {
+    "file": "PILES_CLINIC_APP_V1528_FINAL.zip",
+    "when": "১৮.০৯.২০২৬",
+    "size_mb": 26.57,
+    "total_files": 2129,
+    "top_folders": {},
+    "excluded": ".git/00_GUARD/.kotlinc(guard-tool)/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ",
+    "note": "V1528 — Cooch Behar address fix + stale Pending Leave auto-expire + Bill extra-zero guard + V1527 Action consistency + Follow-up Overdue-স্থায়ী-আটকানো ৬-জায়গার SYNCED-সঙ্গে-সঙ্গে ফিক্স (কোডে যাচাই করা, verify_zip_root_name ও verify_zip_contents PASS; পূর্ণ Kotlin কম্পাইল-পাহারা এই sandbox-এ Android SDK না থাকায় চালানো যায়নি — TK/স্টাফকে আসল ফোনে/Android Studio-তে পরীক্ষা করে দেখতে হবে)।"
   }
 ]
