@@ -142,6 +142,10 @@ object VoiceReportRepository {
     data class IncentiveRow(val personCode: String, val patientRowId: String, val patientCode: String, val amount: Double, val reason: String, val branch: String = "")
     // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — "গত সপ্তাহে কতজন পেশেন্ট RMP পাঠিয়েছে"
     data class RmpReferredRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val refDoctor: String, val registrationDate: String, val branch: String = "")
+    // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — "শুধু ডিসকাউন্ট কত" · "কতজন রোগীর ছবি"
+    data class DiscountSummary(val total: Double, val patientCount: Int)
+    data class DiscountRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val amount: Double, val registrationDate: String, val branch: String = "")
+    data class PhotoRow(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String, val branch: String = "")
 
     private fun args(branch: String, from: String, to: String): JSONObject = JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to)
     private fun args(branch: String): JSONObject = JSONObject().put("p_branch", branch)
@@ -328,6 +332,17 @@ object VoiceReportRepository {
     fun rmpReferredCount(b: String, f: String, t: String): RepoResult<Int> = firstRow("rmp_referred_count", args(b, f, t)).mapRow { it.optInt("total", 0) }
     fun rmpReferredList(b: String, f: String, t: String): RepoResult<List<RmpReferredRow>> = rowList("rmp_referred_list", args(b, f, t)).mapRows {
         RmpReferredRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("ref_doctor"), it.optString("reg_date"), it.optString("branch")) }
+
+    // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — "শুধু ডিসকাউন্ট কত হয়েছে"
+    fun discountSummary(b: String, f: String, t: String): RepoResult<DiscountSummary> = firstRow("discount_summary", args(b, f, t)).mapRow {
+        DiscountSummary(it.optDouble("total", 0.0), it.optInt("patient_count", 0)) }
+    fun discountList(b: String, f: String, t: String): RepoResult<List<DiscountRow>> = rowList("discount_list", args(b, f, t)).mapRows {
+        DiscountRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optDouble("amount", 0.0), it.optString("reg_date"), it.optString("branch")) }
+
+    // 🎤🔒 V1534 — "কতজন রোগীর ছবি তোলা হয়েছে"
+    fun photoCount(b: String, f: String, t: String): RepoResult<Int> = firstRow("patient_photo_count", args(b, f, t)).mapRow { it.optInt("total", 0) }
+    fun photoList(b: String, f: String, t: String): RepoResult<List<PhotoRow>> = rowList("patient_photo_list", args(b, f, t)).mapRows {
+        PhotoRow(it.optString("patient_row_id"), it.optString("patient_code"), it.optString("name"), it.optString("mobile"), it.optString("reg_date"), it.optString("branch")) }
 
     /* 🎤 V1428 (আইটেম ২০) — "কোন ব্রাঞ্চে সবচেয়ে বেশি/কম": পাঁচ ব্রাঞ্চের **একই** ফাংশন পাঁচবার
        (নতুন SQL নেই), ফল সাজিয়ে ফেরত — বেশি→কম, "min" হলে কম→বেশি। একটা ব্রাঞ্চে ভুল হলে পুরোটা ভুল। */

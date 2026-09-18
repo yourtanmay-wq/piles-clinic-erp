@@ -52,7 +52,11 @@ object VoiceReportModel {
         PAYING_PATIENTS_COUNT,
         // 🎤🔒 V1533 (১৮.০৯.২০২৬, TK-নির্দেশ) — "গত সপ্তাহে/গত মাসে কতজন পেশেন্ট
         // RMP পাঠিয়েছে" — নতুন SQL: reports.rmp_referred_count/_list।
-        RMP_REFERRED_COUNT
+        RMP_REFERRED_COUNT,
+        // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — "শুধু ডিসকাউন্ট কত হয়েছে" ·
+        // "কতজন রোগীর ছবি তোলা হয়েছে" — নতুন SQL: reports.discount_summary/_list,
+        // reports.patient_photo_count/_list।
+        DISCOUNT_SUMMARY, PHOTO_COUNT
     }
 
     // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
@@ -225,6 +229,10 @@ object VoiceReportModel {
         val hasSaline = q.contains("স্যালাইন")
         val hasEnquiry = q.contains("এনকোয়ারি")
         val hasRefund = q.contains("রিফান্ড")
+        // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — "শুধু ডিসকাউন্ট কত হয়েছে" (রিফান্ড থেকে আলাদা)
+        val hasDiscount = q.contains("ডিসকাউন্ট") || lower.contains("discount")
+        // 🎤🔒 V1534 — "কতজন রোগীর ছবি তোলা হয়েছে"
+        val hasPhotoCount = q.contains("ছবি") && (q.contains("রোগী") || q.contains("পেশেন্ট")) && q.contains("কতজন")
         val hasHandover = q.contains("হ্যান্ডওভার")
         val hasDueWord = q.contains("বাকি") || q.contains("বাকী")
         val hasRmpDue = q.contains("কমিশন") && hasDueWord
@@ -333,6 +341,8 @@ object VoiceReportModel {
             hasRmpDue -> Metric.RMP_DUE
             hasTrash -> Metric.TRASH_COUNT
             hasCall -> Metric.CALL_COUNT
+            hasDiscount -> Metric.DISCOUNT_SUMMARY
+            hasPhotoCount -> Metric.PHOTO_COUNT
             hasRefund -> Metric.REFUND
             hasEnquiry -> Metric.ENQUIRY_COUNT
             // 🎤🔒 V1531 — plain hasMoney (Metric.COLLECTION)-এর আগে চেক করতে হবে,

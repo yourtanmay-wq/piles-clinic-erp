@@ -111,6 +111,34 @@ class VoiceReportDetailActivity : AppCompatActivity() {
                         binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${p.refDoctor} · ${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
                     }
                 }
+                // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — শুধু ডিসকাউন্ট · রোগীর ছবির তালিকা
+                "DISCOUNT_SUMMARY" -> {
+                    val (sum, list) = withContext(Dispatchers.IO) {
+                        VoiceReportRepository.discountSummary(branch, from, to) to VoiceReportRepository.discountList(branch, from, to)
+                    }
+                    if (!sum.ok) { fail(sum.message); return@launch }
+                    val s = sum.value
+                    binding.tvSummary.text = if (s != null) "Total: ₹${"%,.0f".format(s.total)} · ${s.patientCount} patients" else "Total: —"
+                    val rows = if (list.ok) list.value ?: emptyList() else emptyList()
+                    if (rows.isEmpty()) empty("No discounts found for this period.")
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${FollowUpModel.displayDate(p.registrationDate)}", "₹${"%,.0f".format(p.amount)}", "#B3820C", onTap))
+                    }
+                }
+                "PHOTO_COUNT" -> {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.photoList(branch, from, to) }
+                    if (!got.ok) { fail(got.message); return@launch }
+                    val rows = got.value ?: emptyList()
+                    binding.tvSummary.text = "Total: ${rows.size} patients"
+                    if (rows.isEmpty()) empty("No patients with photo found for this period.")
+                    rows.forEach { p ->
+                        val branchTag = if (branch == "ALL") "${p.branch} · " else ""
+                        val onTap: (() -> Unit)? = if (p.mobile.filter { it.isDigit() }.takeLast(10).length == 10) { { startActivity(android.content.Intent(this@VoiceReportDetailActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
+                        binding.rowsHost.addView(row(p.name.ifBlank { p.mobile }, "$branchTag${FollowUpModel.displayDate(p.registrationDate)}", "›", "#94A3B8", onTap))
+                    }
+                }
                 "COLLECTION" -> {
                     val (sum, list) = withContext(Dispatchers.IO) {
                         VoiceReportRepository.collectionSummary(branch, from, to) to VoiceReportRepository.collectionList(branch, from, to)

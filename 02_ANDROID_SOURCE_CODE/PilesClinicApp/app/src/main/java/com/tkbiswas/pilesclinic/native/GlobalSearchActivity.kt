@@ -794,6 +794,31 @@ class GlobalSearchActivity : AppCompatActivity() {
                     else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
                 }
             }
+            // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — "শুধু ডিসকাউন্ট কত হয়েছে" · "কতজন রোগীর ছবি তোলা হয়েছে"
+            VoiceReportModel.Metric.DISCOUNT_SUMMARY -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "DISCOUNT_SUMMARY").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.discountSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = "₹${"%,.0f".format(got.value.total)}"; subView.text = "${got.value.patientCount} patients • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
+            VoiceReportModel.Metric.PHOTO_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "PHOTO_COUNT").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.photoCount(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.toString(); subView.text = "patients with photo • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
             VoiceReportModel.Metric.MEDICINE_SALE, VoiceReportModel.Metric.SALINE_SALE -> {
                 val kind = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "medicinePayment" else "salinePayment"
                 val metricName = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "MEDICINE_SALE" else "SALINE_SALE"

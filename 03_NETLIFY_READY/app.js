@@ -24501,6 +24501,9 @@ function wlv1VoiceParse(q){
   const hasSaline = q.includes('স্যালাইন');
   const hasEnquiry = q.includes('এনকোয়ারি');
   const hasRefund = q.includes('রিফান্ড');
+  // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — "শুধু ডিসকাউন্ট কত হয়েছে" · "কতজন রোগীর ছবি তোলা হয়েছে"
+  const hasDiscount = q.includes('ডিসকাউন্ট')||lower.includes('discount');
+  const hasPhotoCount = q.includes('ছবি') && (q.includes('রোগী')||q.includes('পেশেন্ট')) && q.includes('কতজন');
   const hasHandover = q.includes('হ্যান্ডওভার');
   const hasDueWord = q.includes('বাকি')||q.includes('বাকী');
   const hasRmpDue = q.includes('কমিশন') && hasDueWord;
@@ -24567,7 +24570,7 @@ function wlv1VoiceParse(q){
     [hasExpected,'EXPECTED_COUNT'],[hasLeave,'LEAVE_COUNT'],[hasDoctorReminder,'DOCTOR_REMINDER'],[hasReminder,'STAFF_REMINDER_OPEN'],
     [hasFieldVisit,'FIELD_VISIT'],[hasStaffHours,'STAFF_HOURS'],[hasStaffPresent,'STAFF_PRESENT'],[hasRmpCallDue,'RMP_CALL_DUE'],[hasRmpReferred,'RMP_REFERRED_COUNT'],[hasRmpCalled,'RMP_CALLED'],
     [hasNewPatients,'NEW_PATIENTS'],[hasDisease,'DISEASE_COUNT'],[hasRmpPaid,'RMP_PAID'],
-    [hasAdvance,'RMP_ADVANCE'],[hasRmpDue,'RMP_DUE'],[hasTrash,'TRASH_COUNT'],[hasCall,'CALL_COUNT'],[hasRefund,'REFUND'],
+    [hasAdvance,'RMP_ADVANCE'],[hasRmpDue,'RMP_DUE'],[hasTrash,'TRASH_COUNT'],[hasCall,'CALL_COUNT'],[hasDiscount,'DISCOUNT_SUMMARY'],[hasPhotoCount,'PHOTO_COUNT'],[hasRefund,'REFUND'],
     [hasEnquiry,'ENQUIRY_COUNT'],[hasPayingPatientCount,'PAYING_PATIENTS_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'PATIENTS_VISITED']];
   const hit = picks.find(p=>p[0]); const metric = hit?hit[1]:null;
   if(!metric) return null;
@@ -24734,6 +24737,20 @@ async function wlv1ShowVoiceAnswer(q){
     $('#wlv1VoiceAnswerNum').textContent = money(s.total);
     $('#wlv1VoiceAnswerSub').textContent = `${s.refund_count} refunds • tap to see list ›`;
     $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('REFUND',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='DISCOUNT_SUMMARY'){
+    // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — নতুন SQL (00_SQL/V1534...) লাগবে
+    const r = await c.rpc('discount_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    const s=r.data[0];
+    $('#wlv1VoiceAnswerNum').textContent = money(s.total);
+    $('#wlv1VoiceAnswerSub').textContent = `${s.patient_count} patients • tap to see list ›`;
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('DISCOUNT_SUMMARY',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='PHOTO_COUNT'){
+    const r = await c.rpc('patient_photo_count',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    $('#wlv1VoiceAnswerNum').textContent = String(r.data[0].total);
+    $('#wlv1VoiceAnswerSub').textContent = 'patients with photo • tap to see list ›';
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('PHOTO_COUNT',parsed.branch,parsed.from,parsed.to,title);
   } else if(parsed.metric==='CASH_HANDOVER'){
     const r = await c.rpc('cash_handover_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
     if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
@@ -24916,6 +24933,32 @@ async function wlv1VoiceReportDetail(metric,branch,from,to,title,extra){
         + `<span class="tiny">${esc(branchTag)}${esc(fmtDate(p.refunded_on||''))}</span>`
         + `<span style="float:right;font-weight:700;color:#B42318">${money(p.amount)}</span></div>`;
     }).join('') || '<div class="card mut">No refunds found for this period.</div>';
+  } else if(metric==='DISCOUNT_SUMMARY'){
+    // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ)
+    const r = await c.rpc('discount_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    const sr = await c.rpc('discount_summary',{p_branch:branch,p_from:from,p_to:to});
+    const s = (!sr.error&&Array.isArray(sr.data)&&sr.data.length)?sr.data[0]:null;
+    $('#wlv1VoiceDetailSummary').textContent = s ? `Total: ${money(s.total)} · ${s.patient_count} patients` : 'Total: —';
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(branchTag)}${esc(fmtDate(p.reg_date||''))}</span>`
+        + `<span style="float:right;font-weight:700;color:#B3820C">${money(p.amount)}</span></div>`;
+    }).join('') || '<div class="card mut">No discounts found for this period.</div>';
+  } else if(metric==='PHOTO_COUNT'){
+    const r = await c.rpc('patient_photo_list',{p_branch:branch,p_from:from,p_to:to});
+    if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
+    const rows=r.data||[];
+    $('#wlv1VoiceDetailSummary').textContent = `Total: ${rows.length} patients`;
+    $('#wlv1VoiceDetailRows').innerHTML = rows.map(p=>{
+      const m=mob(p.mobile), branchTag=branch==='ALL'?(p.branch||'')+' · ':'';
+      return `<div class="card" ${m?`style="cursor:pointer" onclick="wlv1FullJourney('${esc(m)}')"`:''}>`
+        + `<b style="${m?'color:#1457B8':''}">${esc(p.name||m||'-')}${m?' ›':''}</b><br>`
+        + `<span class="tiny">${esc(branchTag)}${esc(fmtDate(p.reg_date||''))}</span></div>`;
+    }).join('') || '<div class="card mut">No patients with photo found for this period.</div>';
   } else if(metric==='CASH_HANDOVER'){
     const r = await c.rpc('cash_handover_list',{p_branch:branch,p_from:from,p_to:to});
     if(r.error){ $('#wlv1VoiceDetailSummary').textContent='Could not load this report'; return; }
