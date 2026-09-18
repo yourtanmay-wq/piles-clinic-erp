@@ -24540,6 +24540,8 @@ function wlv1VoiceParse(q){
   const hasStaffPresent = q.includes('হাজির')||q.includes('উপস্থিত')||lower.includes('present');
   const hasDisease = wlv1VoiceDisease(q)!==null && (q.includes('রোগী')||q.includes('পেশেন্ট')||q.includes('কতজন'));
   const hasMoney = q.includes('কালেকশন')||q.includes('জমা')||(q.includes('টাকা')&&!q.includes('পেশেন্ট'));
+  // 🎤🔒 V1531 — "কতজনের কাছ থেকে টাকা এসেছে" (কতজন মানুষ, টাকার অঙ্ক নয়)
+  const hasPayingPatientCount = hasMoney && (q.includes('কতজন')||q.includes('কয়জন'));
   const hasPatientCount = (q.includes('পেশেন্ট')||q.includes('রোগী')) && (q.includes('কতজন')||q.includes('এসেছিল')||q.includes('এসেছে'));
   // 📊 V1426 (TK: "হ্যাঁ") — "এই মাসে গত মাসের তুলনায়/চেয়ে কত বেশি/কম" — দুই মাসের তুলনা
   const hasCompare = q.includes('তুলনা')||q.includes('চেয়ে')||lower.includes('compare');
@@ -24563,7 +24565,7 @@ function wlv1VoiceParse(q){
     [hasFieldVisit,'FIELD_VISIT'],[hasStaffHours,'STAFF_HOURS'],[hasStaffPresent,'STAFF_PRESENT'],[hasRmpCallDue,'RMP_CALL_DUE'],[hasRmpCalled,'RMP_CALLED'],
     [hasNewPatients,'NEW_PATIENTS'],[hasDisease,'DISEASE_COUNT'],[hasRmpPaid,'RMP_PAID'],
     [hasAdvance,'RMP_ADVANCE'],[hasRmpDue,'RMP_DUE'],[hasTrash,'TRASH_COUNT'],[hasCall,'CALL_COUNT'],[hasRefund,'REFUND'],
-    [hasEnquiry,'ENQUIRY_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'PATIENTS_VISITED']];
+    [hasEnquiry,'ENQUIRY_COUNT'],[hasPayingPatientCount,'PAYING_PATIENTS_COUNT'],[hasMoney,'COLLECTION'],[hasPatientCount,'PATIENTS_VISITED']];
   const hit = picks.find(p=>p[0]); const metric = hit?hit[1]:null;
   if(!metric) return null;
   const extra = metric==='DISEASE_COUNT' ? (wlv1VoiceDisease(q)||'')
@@ -24762,6 +24764,16 @@ async function wlv1ShowVoiceAnswer(q){
     $('#wlv1VoiceAnswerNum').textContent = money(s.total);
     $('#wlv1VoiceAnswerSub').textContent = `${s.advance_count} advance payments • tap to see list ›`;
     $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('RMP_ADVANCE',parsed.branch,parsed.from,parsed.to,title);
+  } else if(parsed.metric==='PAYING_PATIENTS_COUNT'){
+    // 🎤🔒 V1531 (১৮.০৯.২০২৬, TK-নির্দেশ) — "কতজনের কাছ থেকে টাকা এসেছে"।
+    // ⛔ নতুন SQL লাগেনি — একই collection_summary RPC, শুধু বড় সংখ্যাটা এখানে
+    // patient_count (মানুষ), টাকার অঙ্ক সাবটাইটেলে (ফোনের VoiceReportModel-এর হুবহু নিয়ম)।
+    const r = await c.rpc('collection_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
+    if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }
+    const s=r.data[0];
+    $('#wlv1VoiceAnswerNum').textContent = String(s.patient_count);
+    $('#wlv1VoiceAnswerSub').textContent = `patients paid • ${money(s.total)} total • tap to see list ›`;
+    $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail('COLLECTION',parsed.branch,parsed.from,parsed.to,title);
   } else {
     const r = await c.rpc('collection_summary',{p_branch:parsed.branch,p_from:parsed.from,p_to:parsed.to});
     if(r.error||!Array.isArray(r.data)||!r.data.length){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Not allowed for this branch'; return; }

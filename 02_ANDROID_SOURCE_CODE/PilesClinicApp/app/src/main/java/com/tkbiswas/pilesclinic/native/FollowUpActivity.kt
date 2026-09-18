@@ -536,9 +536,12 @@ class FollowUpActivity : AppCompatActivity() {
             try {
                 val three = withContext(Dispatchers.IO) {
                     kotlinx.coroutines.coroutineScope {
-                        val a = async { try { repository.fetchTab("Inquiry", branch, user.name, user.mobile) } catch (_: Throwable) { null } }
-                        val b = async { try { repository.fetchTab("Patient", branch, user.name, user.mobile) } catch (_: Throwable) { null } }
-                        val c = async { try { repository.fetchTab("Treatment", branch, user.name, user.mobile) } catch (_: Throwable) { null } }
+                        // 🚀🔒 V1531 — একই মুহূর্তে অন্য কোথাও (যেমন refreshTabCounts)
+                        // একই স্টেজের fetchTab() চললে দ্বিতীয়বার নতুন করে শুরু না
+                        // করে সেটার সাথেই জোড়া লাগে (নিচে fetchTabDeduped)।
+                        val a = async { try { FollowUpRepository.fetchTabDeduped(repository, "Inquiry", branch, user.name, user.mobile).await() } catch (_: Throwable) { null } }
+                        val b = async { try { FollowUpRepository.fetchTabDeduped(repository, "Patient", branch, user.name, user.mobile).await() } catch (_: Throwable) { null } }
+                        val c = async { try { FollowUpRepository.fetchTabDeduped(repository, "Treatment", branch, user.name, user.mobile).await() } catch (_: Throwable) { null } }
                         Triple(a.await(), b.await(), c.await())
                     }
                 }
@@ -731,9 +734,11 @@ class FollowUpActivity : AppCompatActivity() {
                 // number was shown -- so one slow tab held the other two's
                 // correct figures back. Each tab now updates the moment its
                 // own figure arrives.
-                val dEnq = async(Dispatchers.IO) { try { repository.fetchTab("Inquiry", branch, user.name, user.mobile) } catch (_: Throwable) { null } }
-                val dVisit = async(Dispatchers.IO) { try { repository.fetchTab("Patient", branch, user.name, user.mobile) } catch (_: Throwable) { null } }
-                val dPat = async(Dispatchers.IO) { try { repository.fetchTab("Treatment", branch, user.name, user.mobile) } catch (_: Throwable) { null } }
+                // 🚀🔒 V1531 — dedup: switchTab()-এর নিজের fetchTab() এখানকারই কোনো
+                // ডাক তখনো চলতে থাকলে সেটার সাথেই জোড়া লাগে, দ্বিতীয়বার শুরু হয় না।
+                val dEnq = async(Dispatchers.IO) { try { FollowUpRepository.fetchTabDeduped(repository, "Inquiry", branch, user.name, user.mobile).await() } catch (_: Throwable) { null } }
+                val dVisit = async(Dispatchers.IO) { try { FollowUpRepository.fetchTabDeduped(repository, "Patient", branch, user.name, user.mobile).await() } catch (_: Throwable) { null } }
+                val dPat = async(Dispatchers.IO) { try { FollowUpRepository.fetchTabDeduped(repository, "Treatment", branch, user.name, user.mobile).await() } catch (_: Throwable) { null } }
                 launch { val r = dEnq.await(); if (r != null) { lastEnqAll = r; paintTabCounts(); maybeFocusFromLists() } }
                 launch { val r = dVisit.await(); if (r != null) { lastVisitAll = r; paintTabCounts(); maybeFocusFromLists() } }
                 launch { val r = dPat.await(); if (r != null) { lastPatAll = r; paintTabCounts(); maybeFocusFromLists() } }
@@ -1005,9 +1010,12 @@ class FollowUpActivity : AppCompatActivity() {
                 // (auto-refresh) পথে, শুধু Inquiry ট্যাবে delta-fetch — বাকি সব
                 // ক্ষেত্রে (প্রথম খোলা/tab-switch/Patient/Treatment ট্যাব) আগের
                 // মতোই পূর্ণ fetchTab()।
+                // 🚀🔒 V1531 — dedup: refreshTabCounts/loadTodayAllSections একই
+                // মুহূর্তে এই একই ট্যাবের fetchTab() চালাচ্ছে থাকলে সেটার সাথেই
+                // জোড়া লাগে, দুবার একই ভারী কাজ হয় না।
                 val items = withContext(Dispatchers.IO) {
                     if (silent) repository.fetchTabDelta(stage, effectiveBranch(), user.name, user.mobile)
-                    else repository.fetchTab(stage, effectiveBranch(), user.name, user.mobile)
+                    else FollowUpRepository.fetchTabDeduped(repository, stage, effectiveBranch(), user.name, user.mobile).await()
                 }
                 // TK-REPORTED BUG FIX (2026-07-19): if the person switched tabs
                 // (e.g. Enquiry -> Patient) while this fetch was still running --

@@ -41,7 +41,15 @@ object VoiceReportModel {
         DUPLICATE_PAYMENTS,
         // 🎤🔒 V1578 (১৭.০৯.২০২৬, আইটেম ৩৩) — অসময়ের এনকোয়ারির ইনসেন্টিভ।
         // TK: মাস = রেজিস্ট্রেশনের দিন, ব্রাঞ্চ = রোগীর ব্রাঞ্চ (প্রশ্ন করে নেওয়া)।
-        INCENTIVE
+        INCENTIVE,
+        // 🎤🔒 V1531 (১৮.০৯.২০২৬, TK-নির্দেশ) — "কতজনের কাছ থেকে টাকা এসেছে"
+        // (কত জন, টাকার অঙ্ক নয়) — "কত টাকা কালেকশন" থেকে আলাদা প্রশ্ন।
+        // ⛔ নতুন কোনো SQL/RPC লাগেনি — reports.collection_summary আগে থেকেই
+        // patient_count ফেরত দেয় (CollectionSummary.patientCount, GlobalSearchActivity-র
+        // COLLECTION-উত্তরে এখনো সাবটাইটেলে দেখা যায়) — এখানে শুধু সেটাই
+        // প্রধান সংখ্যা হিসেবে দেখানো হয় যখন প্রশ্নটা টাকার বদলে মানুষ-সংখ্যা
+        // নিয়ে করা।
+        PAYING_PATIENTS_COUNT
     }
 
     // 🩺 V1422 — বলা রোগের নাম → ডেটাবেসে যে বানানে জমা থাকে (RegistrationActivity-র ৬টা নাম)
@@ -254,6 +262,9 @@ object VoiceReportModel {
         val hasStaffPresent = q.contains("হাজির") || q.contains("উপস্থিত") || lower.contains("present")
         val hasDisease = findDisease(q) != null && (q.contains("রোগী") || q.contains("পেশেন্ট") || q.contains("কতজন"))
         val hasMoney = q.contains("কালেকশন") || q.contains("জমা") || (q.contains("টাকা") && !q.contains("পেশেন্ট"))
+        // 🎤🔒 V1531 (১৮.০৯.২০২৬, TK-নির্দেশ) — "কতজনের কাছ থেকে টাকা এসেছে"
+        // (কতজন মানুষ, টাকার অঙ্ক নয়) — সাধারণ "কত টাকা কালেকশন" থেকে আলাদা।
+        val hasPayingPatientCount = hasMoney && (q.contains("কতজন") || q.contains("কয়জন"))
         val hasPatientCount = (q.contains("পেশেন্ট") || q.contains("রোগী")) &&
             (q.contains("কতজন") || q.contains("এসেছিল") || q.contains("এসেছে"))
         // 📊 V1426 (TK: "হ্যাঁ") — "এই মাসে গত মাসের তুলনায়/চেয়ে কত বেশি/কম" — দুই মাসের তুলনা
@@ -315,6 +326,9 @@ object VoiceReportModel {
             hasCall -> Metric.CALL_COUNT
             hasRefund -> Metric.REFUND
             hasEnquiry -> Metric.ENQUIRY_COUNT
+            // 🎤🔒 V1531 — plain hasMoney (Metric.COLLECTION)-এর আগে চেক করতে হবে,
+            // নইলে "কতজনের কাছ থেকে টাকা এসেছে"ও COLLECTION-এই চলে যেত।
+            hasPayingPatientCount -> Metric.PAYING_PATIENTS_COUNT
             hasMoney -> Metric.COLLECTION
             hasPatientCount -> Metric.PATIENTS_VISITED
             else -> null

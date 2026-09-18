@@ -413,6 +413,63 @@ class FollowUpRepository(private val context: Context? = null) {
               "৫৬ বনাম ৪৭"-এর সমস্যা) — তাই দুটো সবসময় এক মাপে রাখতে হবে। */
         private const val FU_FULL_REFRESH_INTERVAL_MS = 3L * 60L * 60L * 1000L   // ৩ ঘণ্টা (V1258; আগে ৩০ মিনিট)
         private const val FU_SAFETY_BACK_MS = 5_000L
+
+        /* 🚀🔒 V1531 (১৮.০৯.২০২৬, TK-রিপোর্ট: "Visit ট্যাব থেকে Patient ট্যাবে
+           যেতে সময় লেগে যাচ্ছে")। গভীরে গিয়ে যাচাই করে আসল কারণ পাওয়া গেল:
+           · "Patient" ট্যাব (ভিতরের নাম "Treatment") নিজের fetchTab()-এ বাকি
+             দুটো ট্যাবের চেয়ে সত্যিই বেশি কাজ করে — একটা বাড়তি নেটওয়ার্ক-কল
+             (Cancelled/Incomplete বাদ দেওয়ার তালিকা) + সব patients-এর উপর
+             আরেকটা লুপ (যারা টাকা দিয়েছেন কিন্তু এখনো তালিকায় ওঠেননি তাঁদের
+             ধরার জন্য) — এই দুটোই ইচ্ছাকৃত, আগে TK-অনুমোদিত ফিক্স, একটা
+             অক্ষরও ছোঁয়া হয়নি।
+           · পর্দা খোলার পরপরই ব্যাকগ্রাউন্ডে তিনটে ট্যাবের জন্যই একবার
+             fetchTab() চলে (FollowUpActivity.refreshTabCounts, খাতার সারি
+             B31)। সেটা শেষ হওয়ার আগেই স্টাফ নিজে "Patient" ট্যাবে চাপলে,
+             ট্যাব-বদলের নিজের fetchTab()-ও শুরু হয়ে যেত — অর্থাৎ একই ভারী
+             কাজ **দুবার সমান্তরালে**, দুটোই "Patient" ট্যাবের সেই বাড়তি
+             কাজটুকু নতুন করে করছে। তাই দেরিটা সবচেয়ে বেশি টের পাওয়া যেত
+             ঠিক ওই ট্যাবেই, ঠিক ওই মুহূর্তে।
+           ⛔ সাবধানতা: `fetchTab()`-এর ভিতরের একটাও লাইন এখানে বদলানো হয়নি —
+              এটা শুধু তার **বাইরের একটা মোড়ক**। একই মুহূর্তে একই
+              (stage+branch)-এর জন্য দ্বিতীয় ডাক এলে নতুন কাজ শুরু না করে
+              আগেরটাই শেষ হওয়া পর্যন্ত অপেক্ষা করে সেই একই ফলাফল ফেরত দেয়।
+              ফলাফল কী আসবে, cache-এ কী লেখা হবে — কিছুই বদলায়নি, শুধু কাজটা
+              দুবারের বদলে একবার হয়। ব্যর্থ হলে (ব্যতিক্রম) মানচিত্র থেকে
+              নিজে থেকেই সরে যায়, পরের ডাক আবার নতুন করে চেষ্টা করে —
+              কোনো স্থায়ী "আটকে থাকা" ঝুঁকি নেই।
+           ⛔ শুধু এই ফাইলের ভিতরের তিনটে জায়গায় (FollowUpActivity-র
+              refreshTabCounts/loadTodayAllSections/loadTab) ব্যবহার করা
+              হয়েছে — Dashboard/Dialer/FollowCalendar-এর নিজের পুরনো ডাক
+              এক অক্ষরও ছোঁয়া হয়নি (ঝুঁকি কম রাখার জন্য, এই স্ক্রিনের বাইরে
+              হাত দেওয়া হয়নি)। */
+        private val fetchTabInFlight = java.util.concurrent.ConcurrentHashMap<String, Deferred<List<FollowUpItem>>>()
+        // ⛔ GlobalScope নয় (kotlinx.coroutines 1.7.3-এ @DelicateCoroutinesApi —
+        // opt-in ছাড়া কম্পাইলই হয় না)। নিজের ছোট্ট scope, SupervisorJob দিয়ে
+        // যাতে একটা fetch ব্যর্থ হলে বাকি সমান্তরাল fetch-গুলো বাতিল না হয়।
+        private val fetchTabScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
+        /** [FollowUpRepository.fetchTab]-এর হুবহু একই ফল — শুধু একই মুহূর্তে
+         *  একই (stage+branch)-এর জন্য দ্বিতীয় ডাক এলে আগেরটার সাথেই জোড়া
+         *  লাগিয়ে দেয়, নতুন করে সেই ভারী কাজ শুরু করে না। */
+        fun fetchTabDeduped(
+            repo: FollowUpRepository, stage: String, branchFilter: String?,
+            creatorName: String? = null, creatorMobile: String? = null
+        ): Deferred<List<FollowUpItem>> {
+            val key = "$stage|${branchFilter ?: ""}"
+            // ConcurrentHashMap.compute একটাই চাবির জন্য একসাথে একবারই চলে
+            // (thread-safe) — তাই দুটো থ্রেড একই মুহূর্তে এলেও নতুন কাজ
+            // দুবার শুরু হওয়ার সুযোগ নেই।
+            return fetchTabInFlight.compute(key) { _, existing ->
+                if (existing != null && existing.isActive) existing
+                else fetchTabScope.async {
+                    try {
+                        repo.fetchTab(stage, branchFilter, creatorName, creatorMobile)
+                    } finally {
+                        fetchTabInFlight.remove(key)
+                    }
+                }
+            }!!
+        }
     }
 
     // TK-REPORTED BUG FIX (2026-07-16): every write function below

@@ -764,6 +764,22 @@ class GlobalSearchActivity : AppCompatActivity() {
                     else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
                 }
             }
+            // 🎤🔒 V1531 (১৮.০৯.২০২৬, TK-নির্দেশ) — "কতজনের কাছ থেকে টাকা এসেছে"।
+            // ⛔ নতুন SQL লাগেনি — একই collection_summary RPC, শুধু বড় সংখ্যাটা
+            // এখানে patientCount (মানুষ), আর টাকার অঙ্কটা সাবটাইটেলে (আগের
+            // COLLECTION-এ যেটা উল্টো ছিল)।
+            VoiceReportModel.Metric.PAYING_PATIENTS_COUNT -> {
+                box.setOnClickListener {
+                    startActivity(Intent(this, VoiceReportDetailActivity::class.java)
+                        .putExtra("metric", "COLLECTION").putExtra("branch", parsed.branch)
+                        .putExtra("from", parsed.from).putExtra("to", parsed.to).putExtra("title", title))
+                }
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) { VoiceReportRepository.collectionSummary(parsed.branch, parsed.from, parsed.to) }
+                    if (got.ok && got.value != null) { numView.text = got.value.patientCount.toString(); subView.text = "patients paid • ₹${"%,.0f".format(got.value.total)} total • tap to see list ›" }
+                    else { numView.text = "?"; subView.text = got.message.ifBlank { "Could not verify" } }
+                }
+            }
             VoiceReportModel.Metric.MEDICINE_SALE, VoiceReportModel.Metric.SALINE_SALE -> {
                 val kind = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "medicinePayment" else "salinePayment"
                 val metricName = if (parsed.metric == VoiceReportModel.Metric.MEDICINE_SALE) "MEDICINE_SALE" else "SALINE_SALE"
