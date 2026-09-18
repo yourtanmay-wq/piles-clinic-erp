@@ -1637,6 +1637,7 @@
                         <TextView android:id="@+id/savedGroupNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" />
                         <TextView android:id="@+id/savedGroupChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/savedGroupPreview" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
                     <LinearLayout android:id="@+id/savedGroupBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>

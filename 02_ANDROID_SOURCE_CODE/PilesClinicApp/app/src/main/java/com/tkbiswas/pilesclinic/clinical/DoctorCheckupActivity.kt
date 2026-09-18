@@ -2701,12 +2701,80 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 body.visibility = android.view.View.GONE
                 findViewById<TextView>(R.id.savedGroupChev)?.text = "⌄"
             }
+            /* 🟢🔒 V1536 (১৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — "SAVED · N ⌄"
+               লেখাটার বদলে একবারের তথ্যগুলো (Complaint/Grade/DRE-Proctoscopy/
+               Treatment Plan/Estimated Cost/Photos) ছোট করে এক নজরে দেখানো।
+               ⛔ এডিট/সেভ-এর কোনো নিয়ম ছোঁয়া হয়নি — মাথায় (savedGroupHead)
+               চাপলে আগের মতোই নিচের আসল ঘরগুলো খুলবে, ওখানেই বদলানো যাবে। */
+            renderSavedGroupPreview(down)
         } catch (_: Throwable) {
             // ⛔ এখানে কিছু ভুল হলেও চেকআপ পর্দা ভাঙে না — সাজানোটা শুধু দেখার জিনিস।
         } finally {
             savedGroupBusy = false
         }
     }
+
+    /* 🟢🔒 V1536 (১৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফে পাশ) — "History/Clinical/
+       Estimate/Photo জীবনে একবারই" তথ্যগুলো ছোট, পাশাপাশি দুই-কলামে এক
+       নজরে (TK-এর কথায় "Patient Treatment Summary")। ⛔ শুধু দেখার জিনিস —
+       `collect()`-এর হুবহু একই মান পড়ে, কোনো নতুন সেভ/নিয়ম নেই। ফাঁকা ঘর
+       (কিছুই লেখা হয়নি) দেখানো হয় না (৭ক-৩: ডেটা না থাকলেও ঠিক দেখাতে হবে)। */
+    private fun renderSavedGroupPreview(down: Int) {
+        val box = findViewById<android.view.ViewGroup>(R.id.savedGroupPreview) ?: return
+        box.removeAllViews()
+        if (down == 0) return
+        val r = try { collect() } catch (_: Throwable) { return }
+        val photos = listOf(
+            "Before" to r.beforePhoto, "During" to r.duringPhoto, "After" to r.afterPhoto
+        ).filter { it.second.isNotBlank() }.map { it.first }
+        val rows = listOf(
+            "Complaint" to r.complaint,
+            "Duration" to r.duration,
+            "Grade" to r.grade,
+            "DRE / Proctoscopy" to listOf(r.dre, r.proctoscopy).filter { it.isNotBlank() }.joinToString(", "),
+            "Treatment Plan" to r.treatmentPlan,
+            "Estimated Cost" to r.estimatedCost,
+            "Photos" to photos.joinToString(", ")
+        ).filter { it.second.isNotBlank() }
+        if (rows.isEmpty()) return
+        var i = 0
+        while (i < rows.size) {
+            val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            line.addView(previewCell(rows[i]))
+            if (i + 1 < rows.size) line.addView(previewCell(rows[i + 1]))
+            box.addView(line)
+            i += 2
+        }
+        // "View full history →" — আগে থেকেই থাকা openCheckupHistory()-ই ডাকা হয়,
+        // নতুন কোনো ডেটা-লজিক নেই।
+        box.addView(TextView(this).apply {
+            text = "View full history →"
+            setTextColor(android.graphics.Color.parseColor("#0B5E8A")); textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(2))
+            isClickable = true; isFocusable = true
+            setOnClickListener { openCheckupHistory() }
+        })
+    }
+
+    private fun previewCell(kv: Pair<String, String>): android.view.View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(5), dp(2), dp(5))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            addView(TextView(this@DoctorCheckupActivity).apply {
+                text = kv.first.uppercase()
+                setTextColor(android.graphics.Color.parseColor("#5A6B76")); textSize = 9.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            addView(TextView(this@DoctorCheckupActivity).apply {
+                text = kv.second
+                setTextColor(android.graphics.Color.parseColor("#101828")); textSize = 12.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+        }
 
     /** ধাপটা নিচের "SAVED" বাক্সের ভিতরে থাকলে বাক্সটা খুলে দেয়। */
     private fun openSavedGroupIfHolding(target: android.view.View) {

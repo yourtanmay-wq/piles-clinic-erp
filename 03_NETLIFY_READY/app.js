@@ -12154,6 +12154,28 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  let previousResult=p.previousResult||p.prevResult||'';
  let previousCost=p.previousCost||p.prevCost||'';
  let treatmentDuration=p.treatmentDuration||p.prevTreatmentDuration||'';
+ /* 🟢🔒 V1536 (১৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফে পাশ) — "History/Clinical/
+    Estimate/Photo জীবনে একবারই" তথ্যগুলো ছোট, পাশাপাশি দুই-কলামে এক নজরে
+    (ফোনের DoctorCheckupActivity.renderSavedGroupPreview()-এর হুবহু যমজ)।
+    ⛔ শুধু দেখার জিনিস — এই ফাংশনের ভিতরের একই note/p মান পড়ে, কোনো নতুন
+    সেভ/নিয়ম নেই। এই রোগীর আগে থেকেই doctorComplete=true থাকলে তবেই দেখায়
+    (মানে একবারের ঘরগুলো আগে সেভ হয়ে আছে) — নতুন/প্রথমবার চেকআপে দেখায় না। */
+ let wlv1CkSummary='';
+ if(wlv1Flag(p.doctorComplete)){
+   let photos=[['Before',note.beforePhoto],['During',note.duringPhoto],['After',note.afterPhoto]].filter(x=>x[1]).map(x=>x[0]).join(', ');
+   let rows=[['Complaint',complaint],['Duration',duration],['Grade',val('grade')],
+     ['DRE / Proctoscopy',[val('dre'),val('proctoscopy')].filter(Boolean).join(', ')],
+     ['Treatment Plan',val('treatmentPlan')],['Estimated Cost',val('estimatedCost')],['Photos',photos]]
+     .filter(x=>x[1]);
+   if(rows.length){
+     let cells=rows.map(x=>`<div class="wlv1CkSumCell"><small>${x[0].toUpperCase()}</small><b>${x[1]}</b></div>`).join('');
+     wlv1CkSummary=`<div class="card" style="background:#F4F7FA;border-left:4px solid #0F5132">
+       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:20px;height:20px;border-radius:50%;background:#0F5132;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">✓</span><b>Patient Treatment Summary</b></div>
+       <div class="wlv1CkSumGrid">${cells}</div>
+       <div style="text-align:center;padding-top:6px"><a href="javascript:void(0)" onclick="wlv1CheckupHistory('${esc(p.id)}')" style="color:#0B5E8A;font-weight:700;font-size:12.5px">View full history →</a></div>
+     </div>`;
+   }
+ }
  /* 🖥️🔵 Doctor Check-up — পপ-আপ থেকে **পূর্ণ পাতা** (TK-অনুমোদিত, ১৫.০৮.২০২৬)।
     Android-এ এটা পূর্ণ পর্দা (`clinical/DoctorCheckupActivity.kt`), অথচ ডেস্কটপে ছোট
     বাক্সে ধরা পড়ত — এই ফর্মটাই সবচেয়ে বড় (৫টা ভাগ · ~৯০০০ অক্ষর)।
@@ -12197,6 +12219,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   ${wlv1DnSavedStrip(p)}
  </div>
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
+ ${wlv1CkSummary}
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
  <div id="wlv1CkBox">
  <!-- V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): "মেইন পয়েন্টগুলো
