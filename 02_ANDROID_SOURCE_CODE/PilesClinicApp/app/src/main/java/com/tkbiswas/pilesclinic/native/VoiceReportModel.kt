@@ -101,7 +101,10 @@ object VoiceReportModel {
         "STAFF", "COMMISSION", "HOW", "MANY", "MUCH", "WAS", "WERE", "THE", "FOR", "AND", "GIVEN", "CALL", "CALLS",
         "WORK", "FROM", "HOME", "ATTENDANCE", "STILL", "NOT", "MARKED", "PATIENT", "PATIENTS", "CAME", "COLLECTION",
         "PILES", "FISSURE", "FISTULA", "HYDROCELE", "GUPT", "ROG", "OTHER", "LIST", "TOTAL", "WHO", "WHOM", "TO", "IS", "ARE", "MISSING",
-        "KISHANGANJ", "JALPAIGURI", "COOCH", "BEHAR", "COOCHBEHAR", "FALAKATA", "BIRPARA"
+        "KISHANGANJ", "JALPAIGURI", "COOCH", "BEHAR", "COOCHBEHAR", "FALAKATA", "BIRPARA",
+        // 🎤🔒 V1530 — মাসের ইংরেজি নাম যেন ভুল করে কারো "নাম" হিসেবে ছাঁকনিতে না ঢোকে
+        "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST",
+        "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
     )
     val NAME_METRICS = setOf(Metric.RMP_PAID, Metric.STAFF_PRESENT, Metric.STAFF_HOURS, Metric.STAFF_REMINDER_OPEN, Metric.OUT_MISSING, Metric.IN_MISSING)
 
@@ -124,6 +127,49 @@ object VoiceReportModel {
 
     private data class Range(val from: String, val to: String, val label: String)
 
+    /* 🎤🔒 V1530 (১৮.০৯.২০২৬, TK-নির্দেশ, ছবিসহ) — নির্দিষ্ট মাসের নাম ধরে
+       প্রশ্ন ("আগস্ট মাসে...")। আগে শুধু আপেক্ষিক সময় (আজ/গতকাল/এই মাস/গত
+       এক মাস) চেনা হত — নির্দিষ্ট মাসের নাম একেবারেই চেনা যেত না।
+       ⛔ "মে"-র মতো ছোট শব্দ আলাদা শব্দ হিসেবে (স্পেস/শুরু/শেষ ঘেরা) মেলে,
+          নইলে "সময়ে"/"নামে"-এর মতো শব্দের ভিতরে ভুল করে মিলে যেত।
+       বছর ধরে নেওয়ার নিয়ম: চলতি বছরের ওই মাস ভবিষ্যতে পড়লে (এখনো আসেইনি),
+       গত বছরের ওই মাস ধরা হয় — ভবিষ্যতের ডেটা চাওয়া অর্থহীন। */
+    private val MONTH_MAP = linkedMapOf(
+        "জানুয়ারি" to 1, "january" to 1,
+        "ফেব্রুয়ারি" to 2, "ফেব্রুয়ারী" to 2, "february" to 2,
+        "মার্চ" to 3, "march" to 3,
+        "এপ্রিল" to 4, "april" to 4,
+        "মে" to 5, "may" to 5,
+        "জুন" to 6, "june" to 6,
+        "জুলাই" to 7, "july" to 7,
+        "আগস্ট" to 8, "অগাস্ট" to 8, "august" to 8,
+        "সেপ্টেম্বর" to 9, "september" to 9,
+        "অক্টোবর" to 10, "october" to 10,
+        "নভেম্বর" to 11, "november" to 11,
+        "ডিসেম্বর" to 12, "december" to 12
+    )
+    private val MONTH_LABEL_EN = arrayOf(
+        "", "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    )
+    private fun containsWord(q: String, word: String): Boolean =
+        Regex("(^|\\s)" + Regex.escape(word) + "(\\s|$)", RegexOption.IGNORE_CASE).containsMatchIn(q)
+
+    private fun findNamedMonth(q: String): Range? {
+        val lower = q.lowercase()
+        for ((word, monthNum) in MONTH_MAP) {
+            if (!containsWord(lower, word.lowercase())) continue
+            val t = today()
+            var year = t.year
+            var start = LocalDate.of(year, monthNum, 1)
+            if (start.isAfter(t)) { year -= 1; start = LocalDate.of(year, monthNum, 1) }
+            val monthEnd = start.withDayOfMonth(start.lengthOfMonth())
+            val end = if (monthEnd.isAfter(t)) t else monthEnd
+            return Range(iso(start), iso(end), "${MONTH_LABEL_EN[monthNum]} $year")
+        }
+        return null
+    }
+
     /* 🇬🇧 নিয়ম ৯ (স্টাফের পর্দায় সব লেখা ইংরেজি): এখানে .contains() শর্তে বাংলা
        শব্দ থাকে (ব্যবহারকারীর বাংলায় লেখা/বলা প্রশ্ন চেনার জন্য — অপরিহার্য),
        কিন্তু ফেরত-আসা `label`-টা সবসময় **ইংরেজি**, কারণ সেটাই পর্দায় দেখানো
@@ -143,7 +189,8 @@ object VoiceReportModel {
             // V1419 — "এই মাসে" = চলতি মাসের ১ তারিখ থেকে আজ পর্যন্ত
             q.contains("এই মাস") || q.contains("this month") ->
                 Range(iso(t.withDayOfMonth(1)), iso(t), "This month")
-            else -> null
+            // 🎤🔒 V1530 — উপরের কোনোটাই না মিললে, নির্দিষ্ট মাসের নাম আছে কিনা দেখা হয়
+            else -> findNamedMonth(q)
         }
     }
 
@@ -154,7 +201,12 @@ object VoiceReportModel {
         else -> "${FollowUpModel.displayDate(from)} – ${FollowUpModel.displayDate(to)} ($label)"
     }
 
-    private fun findMetric(q: String): Metric? {
+    private fun findMetric(qRaw: String): Metric? {
+        // 🎤🔒 V1530 (১৮.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — স্টাফ/TK ফোনে টাইপ করার
+        // সময় "পেশেন্ট"-এর বদলে প্রায়ই "পেসেন্ট" (স দিয়ে) লেখেন — উচ্চারণ
+        // একই, বানান আলাদা। আগে শুধু "পেশেন্ট" চেনা হত, তাই এই বানানে লিখলে
+        // "Not understood" দেখাত। এখন দুটো বানানই একই ধরে নেওয়া হয়।
+        val q = qRaw.replace("পেসেন্ট", "পেশেন্ট")
         val hasSale = q.contains("বিক্রি")
         val hasMedicine = q.contains("মেডিসিন") || q.contains("ওষুধ")
         val hasSaline = q.contains("স্যালাইন")

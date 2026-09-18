@@ -24435,6 +24435,26 @@ function wlv1VoiceDateRange(q){
   if(q.includes('এক মাস')||q.includes('1 mash')) return {from:day(-30),to:day(0),label:'Last 1 month'};
   // V1419 — "এই মাসে" = চলতি মাসের ১ তারিখ থেকে আজ পর্যন্ত (ফোনের VoiceReportModel.kt-এর হুবহু নিয়ম)
   if(q.includes('এই মাস')||q.includes('this month')){ const f=new Date(kolkataNow); f.setDate(1); return {from:wlv1VoiceIsoDate(f),to:day(0),label:'This month'}; }
+  // 🎤🔒 V1530 — নির্দিষ্ট মাসের নাম (ফোনের VoiceReportModel.findNamedMonth-এর হুবহু নিয়ম)
+  return wlv1VoiceNamedMonth(q, kolkataNow);
+}
+const WLV1_VOICE_MONTH_MAP=[['জানুয়ারি',1],['january',1],['ফেব্রুয়ারি',2],['ফেব্রুয়ারী',2],['february',2],
+  ['মার্চ',3],['march',3],['এপ্রিল',4],['april',4],['মে',5],['may',5],['জুন',6],['june',6],
+  ['জুলাই',7],['july',7],['আগস্ট',8],['অগাস্ট',8],['august',8],['সেপ্টেম্বর',9],['september',9],
+  ['অক্টোবর',10],['october',10],['নভেম্বর',11],['november',11],['ডিসেম্বর',12],['december',12]];
+const WLV1_VOICE_MONTH_LABEL=['','January','February','March','April','May','June','July','August','September','October','November','December'];
+function wlv1VoiceContainsWord(q,word){ return new RegExp('(^|\\s)'+word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\s|$)','i').test(q); }
+function wlv1VoiceNamedMonth(q, kolkataNow){
+  const lower=q.toLowerCase();
+  for(const [word,monthNum] of WLV1_VOICE_MONTH_MAP){
+    if(!wlv1VoiceContainsWord(lower, word.toLowerCase())) continue;
+    let year=kolkataNow.getFullYear();
+    let start=new Date(year, monthNum-1, 1);
+    if(start.getTime()>kolkataNow.getTime()){ year-=1; start=new Date(year, monthNum-1, 1); }
+    let end=new Date(year, monthNum, 0);
+    if(end.getTime()>kolkataNow.getTime()) end=kolkataNow;
+    return {from:wlv1VoiceIsoDate(start), to:wlv1VoiceIsoDate(end), label:`${WLV1_VOICE_MONTH_LABEL[monthNum]} ${year}`};
+  }
   return null;
 }
 function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('কয়টা')||q.includes('কয়জন')||q.includes('কালেকশন')||q.includes('বিক্রি')||q.includes('হাজির')||q.includes('সবচেয়ে')||q.includes('কোন ব্রাঞ্চ')||q.includes('কোন শাখা')||q.includes('কমিশন')||q.includes('ডুপ্লিকেট')||q.toLowerCase().includes('duplicate'); }   // V1428 · V1447 (TK-রিপোর্ট: "কয়টা" ধরা পড়ছিল না, ফোনের হুবহু একই ফিক্স) · 🎤🔒 V1504
@@ -24469,6 +24489,9 @@ function wlv1VoiceRpcClient(real){
   } };
 }
 function wlv1VoiceParse(q){
+  // 🎤🔒 V1530 (১৮.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — "পেসেন্ট" (স দিয়ে) বানানও
+  // "পেশেন্ট"-এর মতোই ধরা হয় (ফোনের VoiceReportModel.kt-এর হুবহু নিয়ম)।
+  q = q.replace(/পেসেন্ট/g, 'পেশেন্ট');
   let branch=null; const lower=q.toLowerCase();
   for(const [k,v] of wlv1VoiceBranchMap) if(lower.includes(k.toLowerCase())){branch=v;break}
   if(!branch) branch='ALL';   // V1423 — সব ব্রাঞ্চ মিলিয়ে
