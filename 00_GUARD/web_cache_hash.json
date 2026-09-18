@@ -1,15 +1,15 @@
 {
   "styles.css": {
-    "v": "v1509",
-    "sha": "48b32436c5a004518029f346be25b7485d3c770ed6acd8ae9c6cb5efadb43b92"
+    "v": "v1536",
+    "sha": "9f5558ac379f4da2349d2a3a48f37f97b014d9fd583465c470ecd6f8f18e61e7"
   },
   "config.js": {
-    "v": "v1510",
-    "sha": "ec870d75d660723b66a35c91697c9bcac5eef6767ef17d0df94d925f6c87ffd6"
+    "v": "v1538",
+    "sha": "99d553bf700e358e08584b4cec0c1ed8c1ee801c7a858c66cd54ea7e480e00a4"
   },
   "app.js": {
-    "v": "v1513",
-    "sha": "37e7029414914027829df2e6dc92b3dddfecfead2a3d53d4cf29309c64439134"
+    "v": "v1537",
+    "sha": "fecd9331611621757fbe8d2a41339fb488c7115a9031e91b61785c770ac69ece"
   },
   "module_core.js": {
     "v": "v1570",
@@ -24,8 +24,8 @@
     "sha": "6bac0a4f7e668619b86fe0e7ed052801aed1baa3392dc51ff24a2bd0a5cdeffc"
   },
   "notebook.js": {
-    "v": "v1406",
-    "sha": "ad9729c2d9278e81300d3476b30750111cce49da25d5b28497de156207a71103"
+    "v": "v1536",
+    "sha": "8adf66be37f44e01f41daa6ae108281545f422f7afc3a202198154370102f179"
   },
   "finance.js": {
     "v": "v1441",
@@ -36,7 +36,7 @@
     "sha": "76a4539d37da512ac08bb1b3e9df2810ea30d4776718783ab8b4270489b781d6"
   },
   "rmp_commission.js": {
-    "v": "v1469",
-    "sha": "220a24709b774f2403da387d8e5e7fbf143f9c37521d228a363873a5a89db179"
+    "v": "v1521",
+    "sha": "d0086206cec7541049270532d3b74a8ca83ac2f64982cad3179c0e6868a616b9"
   }
 }

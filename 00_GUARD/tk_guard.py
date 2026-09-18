@@ -1478,7 +1478,15 @@ def check_dialog_suggestion_guard():
             st = l.strip()
             if ".show()" not in l or st.startswith("//") or st.startswith("*"):
                 continue
-            if "Toast" in l or "Snackbar" in l:
+            # 🟢 V1538 (১৮.০৯.২০২৬) — আগে শুধু `.show()`-এর নিজের লাইনে "Toast"/
+            # "Snackbar" খুঁজত। কিন্তু `Toast.makeText(...)` প্রায়ই কয়েক লাইনে
+            # ভাঙা থাকে (আর্গুমেন্ট আলাদা লাইনে), তখন `.show()`-এর লাইনে একা
+            # "Toast" শব্দটাই থাকে না — মিথ্যা রিপোর্ট হত (যেমন
+            # PatientTimelineActivity.kt-এর "Duplicate blocked" Toast)।
+            # এখন উপরের ৬ লাইন পর্যন্ত দেখা হয় — আসল Dialog.show()-এর ঠিক
+            # উপরে এত কাছে "Toast("/"Snackbar." থাকার সুযোগ নেই, তাই ঝুঁকি নেই।
+            near = "\n".join(lines[max(0, i - 6):i + 1])
+            if "Toast(" in near or "Toast.makeText(" in near or "Snackbar." in near:
                 continue
             ctx = "\n".join(lines[i:i + 6])
             if ("PremiumAlert.paint" in ctx or "scrubAnyDialog" in ctx

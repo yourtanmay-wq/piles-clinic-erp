@@ -520,6 +520,30 @@ object NoBengali {
         // (VoiceReportModel.kt)। এগুলো পর্দায় দেখানো হয় না (ফেরত-আসা label
         // সবসময় ইংরেজি) — শুধু ব্যবহারকারীর বাংলা-লেখা প্রশ্নের সাথে মেলানোর
         // জন্য .contains()-এ থাকে, তাই পাহারা ৯.১৪ ধরে; এখানেও যোগ করা হলো।
+        // 🎤🔒 V1538 (১৮.০৯.২০২৬) — VoiceReportModel.kt-এর MONTH_MAP-এর মাসের
+        // নাম — উপরের V1415-এর মতোই, শুধু প্রশ্ন চেনার জন্য, পর্দায় দেখানো
+        // হয় না (উত্তরে সবসময় ইংরেজি মাসের নাম, MONTH_LABEL_EN থেকে)।
+        "জানুয়ারি" to "January",
+        "ফেব্রুয়ারি" to "February",
+        "ফেব্রুয়ারী" to "February",
+        "মার্চ" to "March",
+        "এপ্রিল" to "April",
+        "মে" to "May",
+        "জুন" to "June",
+        "জুলাই" to "July",
+        "আগস্ট" to "August",
+        "অগাস্ট" to "August",
+        "সেপ্টেম্বর" to "September",
+        "অক্টোবর" to "October",
+        "নভেম্বর" to "November",
+        "ডিসেম্বর" to "December",
+        "গত মাস" to "last month",
+        "পেসেন্ট" to "patient",   // 🎤 V1530 — "পেশেন্ট"-এর ভুল বানানও ধরা হয়
+        "ডিসকাউন্ট" to "Discount",
+        "ছবি" to "photo",
+        "পাঠিয়েছে" to "sent",
+        "পাঠানো" to "sent",
+        "রেফার" to "refer",
         "কিশানগঞ্জ" to "Kishanganj",
         "জলপাইগুড়ি" to "Jalpaiguri",
         "কোচবিহার" to "Cooch Behar",

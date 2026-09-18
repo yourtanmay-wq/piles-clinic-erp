@@ -1,5 +1,5 @@
 {
-  "versionCode": 1535,
-  "versionName": "15.35",
-  "note": "V1535: Follow-up 'Patient' tab speed fix (duplicate work avoided); Search understands 'কতজনের কাছ থেকে টাকা এসেছে', 'RMP referred patients', 'discount only', and 'photo count' questions, plus 'গত মাসে' phrasing; A4 report label colors darkened. RMP-referral, discount, and photo-count questions need the attached V1533/V1534 SQL run in Supabase first."
+  "versionCode": 1538,
+  "versionName": "15.38",
+  "note": "V1538: 'Today Patient' now counts only patients this staff registered/paid (not the whole branch); Doctor Checkup shows a compact 'Patient Treatment Summary' for once-only data instead of re-showing the full form every visit; Chamber reopen request notice no longer repeats the date 4 times. V1533/V1534 SQL already run in Supabase (RMP-referral/discount/photo-count questions are live)."
 }
