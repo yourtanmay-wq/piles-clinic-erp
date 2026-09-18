@@ -402,7 +402,10 @@ body{background:#fff;color:#111;position:relative;min-height:1123px;display:flex
    ⛔ যেখানে জায়গা আছে সেখানে হুবহু আগের মতোই এক লাইনে বসে। */
 .cell{width:50%;padding:4.5px 12px;font-size:11.5px;border-bottom:1px solid #f0f3f1;display:flex;flex-wrap:wrap;gap:6px;line-height:1.35;}
 .cell.full{width:100%;}
-.cell .k{color:#6b7680;min-width:94px;flex:0 0 auto;}
+/* 🔴🔒 V1529 (১৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — লেবেলের রং আগে
+   ছিল #6b7680 (হালকা ধূসর), TK-এর পড়তে কষ্ট হচ্ছিল। এখন গাঢ় #333333।
+   ⛔ শুধু রং বদলেছে — ফন্ট/মাপ/গঠন/সেভ-লজিক কিছুই বদলায়নি। */
+.cell .k{color:#333333;min-width:94px;flex:0 0 auto;}
 .cell .v{color:#111;font-weight:700;min-width:0;overflow-wrap:anywhere;}
 .cell:nth-child(odd){border-right:1px solid #f0f3f1;}
 .one .cell{width:100%;border-right:0;}
