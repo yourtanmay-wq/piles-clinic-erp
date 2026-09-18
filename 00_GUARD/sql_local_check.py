@@ -118,6 +118,38 @@ def build_fin_schema():
     r = psql("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='fin'", db=DB)
     return r.stdout.strip()
 
+REPORTS_FILES = [   # ক্রম গুরুত্বপূর্ণ — Voice/Search-এর `reports` স্কিমা লাইভে যে ক্রমে বসেছিল
+    "V1415_VOICE_REPORT_PHASE1_2026-09-13.sql", "V1416_VOICE_REPORT_PHASE2_PRODUCT_SALE_2026-09-13.sql",
+    "V1417_VOICE_REPORT_PHASE2_ENQUIRY_REFUND_2026-09-13.sql", "V1418_VOICE_REPORT_PHASE2_HANDOVER_RMPDUE_2026-09-13.sql",
+    "V1419_VOICE_REPORT_PHASE2_DUE_CALLS_TRASH_ADVANCE_2026-09-13.sql",
+    "V1420_VOICE_REPORT_PHASE2_APPT_EXPECTED_REQUESTS_LEAVE_REMINDERS_2026-09-13.sql",
+    "V1421_VOICE_REPORT_PHASE2_UNCLOSED_NOSHOW_OUT_WFH_DUP_FEE_CALLS_MSG_2026-09-13.sql",
+    "V1422_VOICE_REPORT_PHASE2_NEWPT_FUCALLS_DISEASE_RMPCALLS_FIELD_HOURS_PRESENT_2026-09-13.sql",
+    "V1428_VOICE_REPORT_PHASE3_RMP_PAID_IN_MISSING_2026-09-13.sql",
+    "V1448_ADD_BRANCH_TO_ALL_REPORT_LISTS_2026-09-14.sql",
+    "V1503_VOICE_PATIENTS_VISITED_2026-09-15.sql", "V1504_VOICE_DUPLICATE_PAYMENTS_2026-09-15.sql",
+]
+def build_reports_schema():
+    """🎤🔒 V1536 (১৮.০৯.২০২৬) — SQL-টা `reports.` ছুঁলে Voice/Search-এর গোটা
+       স্কিমাটাও নকলে লাইভের ক্রমেই বসে (fin-এর হুবহু একই কৌশল, V1309) —
+       নইলে `reports.can_access_branch` ইত্যাদি না থাকায় "schema reports does
+       not exist" বলে প্রতিটা নতুন reports.*-স্পর্শ করা SQL মিথ্যা FAIL দেখাত।
+       ⛔ শুধু নকল ডেটাবেসে — লাইভ ছোঁয়া হয় না।"""
+    psql("""do $$ begin
+      if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
+      if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if; end $$;""", db=DB)
+    psql("""create schema if not exists hr;
+      create or replace function hr.is_master() returns boolean language sql as $$ select true $$;
+      create or replace function hr.my_code() returns text language sql as $$ select 'TEST' $$;""", db=DB)
+    n = 0
+    for f in REPORTS_FILES:
+        fp = os.path.join(ROOT, "00_SQL", f)
+        if os.path.exists(fp):
+            psql(file=fp, db=DB)
+            n += 1
+    r = psql("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='reports'", db=DB)
+    return n, r.stdout.strip()
+
 def main():
     if len(sys.argv) < 2: sys.exit(__doc__)
     if sys.argv[1] == "--stdin": sql = sys.stdin.read(); name = "(stdin)"
@@ -129,6 +161,9 @@ def main():
     if re.search(r'\bfin\.', sql):
         nfin = build_fin_schema()
         print(f"RMP-কমিশনের ছাঁচ (fin) নকলে বসল — ফাংশন {nfin}")
+    if re.search(r'\breports\.', sql):
+        nfiles, nrep = build_reports_schema()
+        print(f"Voice/Search-এর ছাঁচ (reports) নকলে বসল — ফাইল {nfiles} · ফাংশন {nrep}")
     if re.search(r'"?updatedAt"?\s*=\s*now\(\)', sql, re.I):
         print("⚠️ সতর্কতা: \"updatedAt\" = now() — অ্যাপের ছাঁচ নয় (T…Z); to_char(now() at time zone 'utc','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') লিখুন (তালিকা ৪১১-⑦)")
     wrapped = "begin;\n" + sql.rstrip().rstrip(";") + ";\nrollback;\n"
