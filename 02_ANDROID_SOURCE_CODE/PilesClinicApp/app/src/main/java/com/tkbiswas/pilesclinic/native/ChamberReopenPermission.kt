@@ -31,20 +31,22 @@ object ChamberReopenPermission {
     ): Boolean {
         return try {
             if (branch.isBlank() || date.isBlank()) return false
-            val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
             val sb = StringBuilder()
-            sb.append("Chamber reopen request\n")
             sb.append("Branch : ").append(branch).append("\n")
             /* 🔴🔒 V936 — TK-রিপোর্ট (ছবিসহ): এই লাইনটায় কাঁচা `2026-08-31`
                দেখাত, অথচ প্রজেক্টের বাকি সব জায়গায় `31.08.2026`। এখন দেখার
                লেখাটা ঠিক, আর নিচের `approveAndReopen()` সেটা `DateUtil.iso()`
-               দিয়ে ফিরিয়ে পড়ে — তাই Approve আগের মতোই কাজ করে। */
-            sb.append("Date : ").append(DateUtil.display(date)).append("\n")
-            sb.append("Requested by : ").append(who).append("\n")
-            /* 🔴🔒 V936 — TK: *"তারিখের পাশে সময় থাকা জরুরী"*। অনুরোধটা **কখন**
-               এলো সেটা এই লাইনেই। ⛔ কোনো কোড এই লাইন পড়ে না, তাই ঝুঁকি নেই। */
-            sb.append("Requested at : ").append(DateUtil.displayWithTime(java.util.Date())).append("\n")
-            sb.append("\nMaster: অনুমোদন দিলে এই দিনের চেম্বার আবার এডিটযোগ্য হয়ে যাবে।")
+               দিয়ে ফিরিয়ে পড়ে — তাই Approve আগের মতোই কাজ করে।
+               ⛔ V1537 (১৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ, "তারিখের পাশে
+               সময় থাকবে") — এখন সময়টা এই একই লাইনে জুড়ে বসে ("·"-এর পরে)।
+               `DateUtil.iso()`-এর regex লাইনের **শুরু**র dd.MM.yyyy অংশটুকুই
+               পড়ে, পরের যেকোনো লেখা (এই সময়সহ) চুপচাপ বাদ যায় — তাই Approve
+               বোতাম আগের মতোই কাজ করে, ভেঙে যায় না। আগে আলাদা "Chamber reopen
+               request"/"Requested by"/"Requested at"/Master-বাক্য লাইনগুলো
+               ছিল (শিরোনাম ও নিচের "By ..."-এর সাথে ডুপ্লিকেট) — TK বললেন
+               সেগুলো লাগবে না। */
+            sb.append("Date : ").append(DateUtil.display(date))
+                .append(" · ").append(DateUtil.displayWithTime(java.util.Date()).substringAfter(" : "))
             BriefingRepository().post(
                 context,
                 "🔓 Chamber reopen request — $branch " + FollowUpModel.displayDate(date),

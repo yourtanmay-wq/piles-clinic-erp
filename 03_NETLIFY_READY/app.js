@@ -23969,13 +23969,16 @@ async function wlv1RequestReopenChamber(){
   try{
     const rid = 'reopen_'+String(br).trim().toUpperCase().replace(/[^A-Z0-9]/g,'')+'_'+date;
     const req = {id:'brief_'+rid, date:today(), title:'Reopen request — '+br,
-      message:'Chamber reopen requested for '+br+
         /* 🔴🔒 V936 — আগে কাঁচা `2026-08-31` লেখা হত; নিচের Approve এখন
            `wlv1IsoDate()` দিয়ে ফিরিয়ে পড়ে, তাই লেখাটা মানুষের ধাঁচে করা গেল।
-           TK: *"তারিখের পাশে সময় থাকা জরুরী"* ⇒ অনুরোধ কখন এলো সেটাও বসল। */
-        '\nBranch : '+br+'\nDate : '+wlv1Dot(date)+
+           ⛔ V1537 (১৮.০৯.২০২৬, TK-নির্দেশ, ফোনে ফটো-প্রুফ পাশ, "তারিখের পাশে
+           সময় থাকবে") — এখন সময়টা একই Date লাইনে জুড়ে বসে, আলাদা "Requested
+           at" লাইন নেই। শিরোনামের সাথে ডুপ্লিকেট হওয়া "Chamber reopen
+           requested for br" লাইনটাও বাদ। ফোনের ChamberReopenPermission.kt-এর
+           হুবহু যমজ — Branch/Date লাইন দুটো Approve-এ যেভাবে পড়া হয় তা
+           বদলায়নি। */
+      message:'Branch : '+br+'\nDate : '+wlv1Dot(date)+' · '+(typeof wlv1Time12==='function'?wlv1Time12(new Date().toISOString()):'')+
         '\nRequested by : '+((typeof codeName==='function'?codeName(user&&user.mobile):'')||(user&&user.mobile)||'')+
-        '\nRequested at : '+wlv1Dot(today())+' '+(typeof wlv1Time12==='function'?wlv1Time12(new Date().toISOString()):'')+
         '\nApprove/Reject from the bell.',
       targets:{roles:['master']}, branch:br, seen:[], replies:[],
       createdBy:(user&&user.mobile)||'', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()};
