@@ -29,45 +29,32 @@ object DialerRepository {
 
     /** ডায়াল করার সাথে সাথে (ব্যাকগ্রাউন্ডে) ডাকা হয় — কল করাটা কখনো এর
      *  জন্য অপেক্ষা করে না, ব্যর্থ হলেও নিঃশব্দে বাদ (কল করাই আসল কাজ)। */
+    /* 🔴🔒 V1540 (১৯.০৯.২০২৬, TK-নির্দেশ) — TK: *"স্টাফ তো কলই করে নাই, তাহলে
+       এটা কেন আসলো... Remarks না লিখলে কল গণ্য হবে না এটা তো আগেই বলা ছিল
+       (তালিকা ২৩৭, ০৫.০৯.২০২৬)।"* আগে এই ফাংশন (`CallChooser.open()`-এর
+       মাধ্যমে অ্যাপের **যেকোনো** 📞 বোতাম চাপলেই, শুধু Dialer পর্দা থেকে নয়)
+       নিজে থেকেই "Called via COB"-এর মতো একটা লেখা `remark` হিসেবে বসিয়ে
+       রোগীর ইতিহাসে সারি বসাত ও কল-গোনা বাড়াত — এটা আসলে স্টাফের নিজের
+       লেখা কোনো মন্তব্য নয়, অ্যাপের নিজের বসানো কথা। TK-র "শুধু রিমার্ক
+       লিখলে তবেই কল গণ্য" নিয়মের সাথে সরাসরি সাংঘর্ষিক ছিল।
+       ⇒ এখন followups-এর remark/history/callCount কিছুই ছোঁয়া হয় না —
+       শুধু `dialer_calls` টেবিলে (আগে শুধু না-মেলা নম্বরের জন্য ব্যবহৃত)
+       ডায়াল করা হয়েছে এইটুকু তথ্য জমা থাকে, রোগীর পাতায় দেখা যায় না।
+       ⛔ `ModuleAuth.logCallTap()` (Work Notebook-এর "App Calls (auto)")
+       আলাদা, ওটা ছোঁয়া হয়নি — শুধু বোতাম-চাপ গোনে, ভুয়া রিমার্ক লেখে না। */
     fun logDialedCall(context: Context, dialedNumber: String, staffMobile: String, staffName: String, branch: String) {
         Thread {
             try {
                 val digits = dialedNumber.filter { it.isDigit() }.takeLast(10)
                 if (digits.length != 10) return@Thread
-
-                val rows = try { SupabaseClient.findByMobile("followups", digits, "id,stage,branch", 10) } catch (_: Throwable) { org.json.JSONArray() }
-                var matchedId = ""
-                if (rows.length() > 0) {
-                    // TK-এর আসল দৃশ্যকল্প — ফরওয়ার্ড হওয়া এনকোয়ারিতে ফিরতি
-                    // কল, তাই "Enquiry" ধাপকে অগ্রাধিকার; না পেলে প্রথম যেটা
-                    // পাওয়া যায় (Visit/Patient) সেটাই।
-                    var pick: JSONObject? = null
-                    for (i in 0 until rows.length()) {
-                        val r = rows.getJSONObject(i)
-                        if (r.optString("stage") == "Enquiry") { pick = r; break }
-                    }
-                    val finalPick = pick ?: rows.getJSONObject(0)
-                    matchedId = finalPick.optString("id")
-                }
-
-                if (matchedId.isNotBlank()) {
-                    // 🔒 B602 (TK-নির্দেশ 09.08.2026): "Called via Dialer"-এর বদলে
-                    // ব্রাঞ্চ-কোড — "Called via JPE/KNE/COB/FLK/BIR" (যে স্টাফ যে
-                    // ব্রাঞ্চ থেকে কল করেছে)। বিদ্যমান PatientIdGenerator.branchCode() রি-ইউজ।
-                    val viaCode = PatientIdGenerator.branchCode(branch)
-                    FollowUpRepository(context).updateRemark(
-                        matchedId, "Called via $viaCode", staffName.ifBlank { staffMobile }, incrementCall = true
-                    )
-                } else {
-                    val row = JSONObject()
-                        .put("id", "dc_" + System.currentTimeMillis() + "_" + (0..999).random())
-                        .put("staffMobile", staffMobile.filter { it.isDigit() }.takeLast(10))
-                        .put("staffName", staffName)
-                        .put("branch", branch)
-                        .put("dialedNumber", digits)
-                        .put("calledAt", isoNow())
-                    SupabaseClient.upsert("dialer_calls", row)
-                }
+                val row = JSONObject()
+                    .put("id", "dc_" + System.currentTimeMillis() + "_" + (0..999).random())
+                    .put("staffMobile", staffMobile.filter { it.isDigit() }.takeLast(10))
+                    .put("staffName", staffName)
+                    .put("branch", branch)
+                    .put("dialedNumber", digits)
+                    .put("calledAt", isoNow())
+                SupabaseClient.upsert("dialer_calls", row)
             } catch (_: Throwable) { /* কল করাটা কখনো এর জন্য থামবে না */ }
         }.start()
     }
