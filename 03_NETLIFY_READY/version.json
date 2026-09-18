@@ -1,5 +1,5 @@
 {
-  "versionCode": 1528,
-  "versionName": "15.28",
-  "note": "V1528: Cooch Behar address corrected to Sengupta Complex 1st Floor; stale prior-day Pending Leave requests expire; abnormal extra-zero Total Bill guard added. Includes all V1527 Action consistency fixes."
+  "versionCode": 1529,
+  "versionName": "15.29",
+  "note": "V1529: Doctor Check-up A4 report field labels (Chief Complaint, Duration, Probable Disease, Estimated Cost, Time Asked, Treatment Plan, etc.) darkened from #6b7680 to #333333 for readability."
 }
