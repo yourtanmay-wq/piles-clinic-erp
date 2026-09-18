@@ -6142,5 +6142,14 @@
     "top_folders": {},
     "excluded": ".git/00_GUARD/.kotlinc(guard-tool)/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ",
     "note": "V1529 — Doctor Check-up A4 report-এর লেবেল রং গাঢ় (#6b7680 → #333333), Android+Web দুটোতেই। web_browser_test PASS, verify_version_json PASS, verify_zip_root_name/verify_zip_contents PASS। পূর্ণ Kotlin কম্পাইল-পাহারা এই sandbox-এ শেষ করা যায়নি (kotlinc নামানো যায়নি) — বদলটা শুধু একটা রং-স্ট্রিং, কোড-গঠন ছোঁয়া হয়নি।"
+  },
+  {
+    "file": "PILES_CLINIC_APP_V1535_FINAL.zip",
+    "when": "১৮.০৯.২০২৬",
+    "size_mb": 26.58,
+    "total_files": 2131,
+    "top_folders": {},
+    "excluded": ".git/00_GUARD/.kotlinc(guard-tool)/build/.gradle/.idea/node_modules/.cxx/captures/apk/aab/local.properties — সবসময়ই বাদ",
+    "note": "V1535 — Follow-up Patient ট্যাবের গতি ঠিক, Search-এ ৪টা নতুন প্রশ্ন (কতজনের কাছ থেকে টাকা, RMP-পাঠানো, ডিসকাউন্ট, ছবি সংখ্যা) + গত মাসে বোঝা, A4 লেবেল রং গাঢ়। ⚠️ RMP/ডিসকাউন্ট/ছবি প্রশ্ন তিনটে কাজ করার আগে TK-কে 00_SQL/V1533 ও V1534 লাইভ Supabase-এ চালাতে হবে। সব Kotlin/Web পাহারা PASS।"
   }
 ]
