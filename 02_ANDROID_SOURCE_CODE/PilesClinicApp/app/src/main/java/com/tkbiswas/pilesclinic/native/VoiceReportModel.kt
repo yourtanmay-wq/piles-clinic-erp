@@ -230,7 +230,7 @@ object VoiceReportModel {
         val hasEnquiry = q.contains("এনকোয়ারি")
         val hasRefund = q.contains("রিফান্ড")
         // 🎤🔒 V1534 (১৮.০৯.২০২৬, TK-নির্দেশ) — "শুধু ডিসকাউন্ট কত হয়েছে" (রিফান্ড থেকে আলাদা)
-        val hasDiscount = q.contains("ডিসকাউন্ট") || lower.contains("discount")
+        val hasDiscount = q.contains("ডিসকাউন্ট") || q.lowercase().contains("discount")
         // 🎤🔒 V1534 — "কতজন রোগীর ছবি তোলা হয়েছে"
         val hasPhotoCount = q.contains("ছবি") && (q.contains("রোগী") || q.contains("পেশেন্ট")) && q.contains("কতজন")
         val hasHandover = q.contains("হ্যান্ডওভার")
