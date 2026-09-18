@@ -1,5 +1,5 @@
 {
-  "versionCode": 1529,
-  "versionName": "15.29",
-  "note": "V1529: Doctor Check-up A4 report field labels (Chief Complaint, Duration, Probable Disease, Estimated Cost, Time Asked, Treatment Plan, etc.) darkened from #6b7680 to #333333 for readability."
+  "versionCode": 1535,
+  "versionName": "15.35",
+  "note": "V1535: Follow-up 'Patient' tab speed fix (duplicate work avoided); Search understands 'কতজনের কাছ থেকে টাকা এসেছে', 'RMP referred patients', 'discount only', and 'photo count' questions, plus 'গত মাসে' phrasing; A4 report label colors darkened. RMP-referral, discount, and photo-count questions need the attached V1533/V1534 SQL run in Supabase first."
 }
