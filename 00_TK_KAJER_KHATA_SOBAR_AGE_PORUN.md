@@ -28383,3 +28383,30 @@ period is over" হলুদ ব্যানার দেখে নতুন ঝ
 "Grace period is over" ব্যানার দেখলে, প্রথমেই এই খাতায় "Grace period"
 শব্দ খুঁজে আগের যাচাই আছে কিনা দেখব — TK আগেই "ঝুঁকি নেই" বলে থাকলে আর
 নতুন করে সতর্ক করব না, শুধু কাজের ফলাফল (Success/Fail) নিয়ে বলব।
+
+## ১৮.০৯.২০২৬ — Checkup পর্দায় "Patient Treatment Summary" বসানো হলো (V1536)
+
+TK-র নির্দেশ: History/Clinical/Estimate/Photo (একবারের তথ্য) ছোট করে
+পাশাপাশি এক নজরে দেখাতে হবে, Remark/Today's Treatment/Next Visit Plan
+আগের মতোই প্রতিবার খোলা থাকবে। ফটো-প্রুফ (Artifact) TK পাশ করার পরে বসানো।
+
+**ফোন:** `DoctorCheckupActivity.kt`-এর V1504-এর "SAVED · N ⌄" কোল্যাপস-বাক্সের
+মাথায় এখন Complaint/Duration/Grade/DRE-Proctoscopy/Treatment Plan/Estimated
+Cost/Photos — ছোট দুই-কলাম গ্রিডে (`renderSavedGroupPreview()`, `collect()`-এর
+হুবহু একই মান পড়ে) + "View full history →" (আগে থেকে থাকা `openCheckupHistory()`
+ডাকে)। মাথায় চাপলে আগের মতোই আসল ফর্ম খুলে এডিট করা যায় — কিছুই বন্ধ হয়নি।
+
+**কম্পিউটার:** `doctorCheck()`-এ একই রকম বাক্স — শুধু `p.doctorComplete=true`
+হলে দেখায় (অর্থাৎ একবারের তথ্য আগেই সেভ হয়ে আছে)। প্রতিটা ভাগ (`<details>`)
+আগের মতোই আলাদা করে খোলা/এডিট করা যায়, কিছু সরানো হয়নি।
+
+⛔ সেভ/ডেটার কোনো নিয়ম বদলায়নি — শুধু "SAVED" লাইনটার জায়গায় কী দেখা যায়
+তাই বদলেছে (নতুন কোনো টেবিল/RPC/কলাম লাগেনি)।
+
+**যাচাই:** verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০), verify_android_resources.py
+✅ PASS, node --check app.js ✅, web_browser_test/run.py ✅ সব পাশ। tk_guard.py-এ
+৩টা পুরনো (আজকের কাজের বাইরের) সতর্কতা অটুট আছে (config.js cache, PatientTimelineActivity
+পপ-আপ পাহারা, VoiceReportModel-এর মাস-নামের বাংলা অনুবাদ) — আজকের বদলের কারণে নতুন
+কিছু তৈরি হয়নি।
+
+📴 লাইভ TK/স্টাফের ফোনে চাপ দিয়ে দেখা এখনো বাকি (আসল বিল্ড Android Studio-তেই হয়)।
