@@ -3371,7 +3371,9 @@ class DoctorVisitActivity : AppCompatActivity() {
                         box.addView(TextView(this@DoctorVisitActivity).apply { text = value; textSize = 15f; gravity = android.view.Gravity.CENTER; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.parseColor(colorHex)) })
                         return box
                     }
-                    summaryRow2.addView(sumBox("Referred", if (viewAllLoaded) data.referred.size.toString() else "…", "#10223A"))
+                    // 🔴🔒 V1541 (১৯.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ) — "Earned/Paid/Due
+                    // এই তিনটাই শুধু থাকবে", "Referred" বাক্স বাদ। ⛔ data.referred
+                    // নিজে ছোঁয়া হয়নি — "Referred Patient" বোতাম আগের মতোই কাজ করে।
                     lateinit var refEarnedBox: android.widget.LinearLayout
                     lateinit var refPaidBox: android.widget.LinearLayout
                     lateinit var refDueBox: android.widget.LinearLayout
