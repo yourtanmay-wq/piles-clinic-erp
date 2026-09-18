@@ -1,5 +1,5 @@
 {
-  "versionCode": 597,
-  "versionName": "5.97",
-  "note": "Latest Android build. The app reads this file to warn a phone that is still running an older APK. Update BOTH numbers whenever the APK version changes."
+  "versionCode": 1528,
+  "versionName": "15.28",
+  "note": "V1528: Cooch Behar address corrected to Sengupta Complex 1st Floor; stale prior-day Pending Leave requests expire; abnormal extra-zero Total Bill guard added. Includes all V1527 Action consistency fixes."
 }

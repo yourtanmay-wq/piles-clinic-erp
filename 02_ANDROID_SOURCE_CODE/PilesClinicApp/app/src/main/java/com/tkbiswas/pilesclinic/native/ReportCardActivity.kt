@@ -165,8 +165,13 @@ class ReportCardActivity : AppCompatActivity() {
                         // than every other screen. It now reads the same way and
                         // applies the ONE shared rule.
                         val rid = data.rowId
-                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchList("patients", "id=eq.$rid", 1)
-                            else SupabaseClient.findByMobile("patients", "+91$mobile", "*", 50)
+                        /* 🔴🔒 V794 — এই সারিটা থেকে শুধু বয়স/ঠিকানা/লিঙ্গ নেওয়া হয়
+                           (যাচাই করা); ছবিটা আসে `PatientTimelineRepository.build`
+                           থেকে। তাই এখানে ছবি ছাড়া পড়া হয়। */
+                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchListSlim("patients",
+                                "id=eq.$rid", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                            else SupabaseClient.findByMobile("patients", "+91$mobile",
+                                SupabaseClient.PATIENT_NO_PHOTO_COLS, 50)
                         val ownBranch = NativeSession.current(this@ReportCardActivity)?.branch.orEmpty()
                         PatientIdentity.pickPatientRow(arr, ownBranch)
                     } catch (_: Throwable) { null }
@@ -262,7 +267,15 @@ class ReportCardActivity : AppCompatActivity() {
         // app-wide standard — LEFT: Name/Age/ID/Mobile, RIGHT: Date/Sex/
         // Diseases/Address. Same box, same photo, same smallLine() style —
         // nothing visual besides the field order/content changed.
-        leftCol.addView(smallLine("AGE", age.ifBlank { "—" }))
+        /* 🎨🔒 V894 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+           TK: *"Age 30 MALE — অন্যান্য জায়গায় যেমন পাশাপাশি ছিল সে রকম থাকবে"*।
+           বয়স ও লিঙ্গ এখন এক লাইনেই ("30 / MALE"), ঠিক যেমন ছাপার কাগজে
+           (`PrintMappers`-এ "Age / Gender: 30 / MALE") আগে থেকেই আছে।
+           ⛔ ডানের কলাম থেকে SEX লাইনটা বাদ, তাই কিছু দুবার দেখায় না; আর
+              দু-কলামের লাইন সমান হওয়ায় DATE · DISEASE · ADDRESS নিজে থেকেই
+              একটু উপরে উঠে নামের সারি বরাবর বসে (TK-এর দ্বিতীয় নির্দেশ)। */
+        leftCol.addView(smallLine("AGE / SEX",
+            age.ifBlank { "—" } + " / " + sex.ifBlank { "—" }))
         leftCol.addView(smallLine("ID", data.patientId.ifBlank { "—" }))
         leftCol.addView(smallLine("MOB", "+91${data.mobile}"))
         val rightCol = LinearLayout(this).apply {
@@ -270,7 +283,6 @@ class ReportCardActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         rightCol.addView(smallLine("DATE", formatDisplayDate(today())))
-        rightCol.addView(smallLine("SEX", sex.ifBlank { "—" }))
         rightCol.addView(smallLine("DISEASE", data.disease.ifBlank { "—" }))
         rightCol.addView(smallLine("ADDRESS", address.ifBlank { "—" }))
         prow.addView(leftCol)
@@ -285,8 +297,9 @@ class ReportCardActivity : AppCompatActivity() {
         // 🔒 V217 (§B216, 31.07.2026): `paidEffect` ব্যবহার — approved refund
         // এখন Report Card-এর PAID থেকেও সত্যিই বিয়োগ হয় (আগে যোগ হয়ে যেত,
         // ভুল দিকে); pending/rejected refund কোনো প্রভাব ফেলে না।
-        val paidTotal = data.entries.filter { it.paymentId != null && it.payType != "visit_fee" && it.payType != "attendance_mark" && it.payType != "bill_edit" && it.payType != "chamber_expected" }
-            .sumOf { it.paidEffect }
+        val paidTotal = data.entries.filter {
+            it.paymentId != null && (it.payType.equals("treatment", true) || it.payType.equals("refund", true))
+        }.sumOf { it.paidEffect }
         val dueTotal = if (bill > 0.0) (bill - paidTotal).coerceAtLeast(0.0) else 0.0
         val totals = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 0, 0, dp(10)) }
         totals.addView(totalBox("TOTAL BILL", money(bill), "#EEF3FB", "#3f6fb0", "#1c3d6e") {
@@ -318,19 +331,37 @@ class ReportCardActivity : AppCompatActivity() {
         // show. visit_fee/bill_edit/chamber_expected stay excluded, same as
         // before -- this only removes the attendance_mark exclusion.
         val payEntries = data.entries
-            .filter { it.paymentId != null && it.payType != "visit_fee" && it.payType != "bill_edit" && it.payType != "chamber_expected" }
+            .filter {
+                it.paymentId != null && (
+                    it.payType.equals("treatment", true) ||
+                    it.payType.equals("attendance_mark", true) ||
+                    it.payType.equals("refund", true)
+                )
+            }
             .sortedBy { it.sortKey }
         val byDate = LinkedHashMap<String, MutableList<TimelineEntry>>()
         for (e in payEntries) byDate.getOrPut(e.date) { mutableListOf() }.add(e)
         var run = 0.0
         var idx = 0
-        for ((visitDate, dayList) in byDate) {
+        for ((visitDate, allDayEntries) in byDate) {
+            val hasVisitAnchor = allDayEntries.any {
+                it.payType.equals("treatment", true) || it.payType.equals("attendance_mark", true)
+            }
+            if (!hasVisitAnchor) continue  // refund-only / audit-only day is NOT a visit row
             idx++
-            // 🔒 V217 (§B216): এখানেও paidEffect — refund-এর দিনে সারির Paid ও
-            // চলমান মোট এখন সঠিক দিকে (বিয়োগ) নড়ে, running Due-ও তাই ঠিক থাকে।
-            val paidThisDay = dayList.sumOf { it.paidEffect }
+            val financialEntries = allDayEntries.filter {
+                it.payType.equals("treatment", true) || it.payType.equals("refund", true)
+            }
+            val paidThisDay = financialEntries.sumOf { it.paidEffect }
+            val displayPaidThisDay = allDayEntries
+                .filter { it.payType.equals("treatment", true) }
+                .sumOf { it.paidEffect.coerceAtLeast(0.0) }
+            val hasRealTreatmentPayment = allDayEntries.any {
+                it.payType.equals("treatment", true) && it.paymentAmount > 0.0
+            }
             run += paidThisDay
             val due = if (bill > 0.0) (bill - run).coerceAtLeast(0.0) else 0.0
+            val dayList = allDayEntries
             // TK-REPORTED BUG FIX (2026-07-25, from TK's own screenshot):
             // this used to join EVERY same-day payment's raw .note
             // together -- including the auto-generated "₹amount · MODE"
@@ -351,11 +382,16 @@ class ReportCardActivity : AppCompatActivity() {
             // and that guess failed. It now reads the value the Timeline itself marks
             // as genuinely typed by a person (typedRemark), so the app's own
             // payment text and audit lines can never appear here again.
-            val progress = dayList.map { it.typedRemark }
+            // V1526: Progress belongs to the visit itself, never to a refund/audit row.
+            // A same-day refund may change summary Paid/Due, but its reason (e.g. DEMO)
+            // must not replace the treatment progress shown to the patient.
+            val progress = dayList
+                .filter { it.payType.equals("treatment", true) || it.payType.equals("attendance_mark", true) }
+                .map { it.typedRemark }
                 .filter { it.isNotBlank() }
                 .distinct()
                 .joinToString(" · ")
-            table.addView(tableDataRow(idx, visitDate, progress, paidThisDay, due, dayList))
+            table.addView(tableDataRow(idx, visitDate, progress, displayPaidThisDay, due, dayList, hasRealTreatmentPayment))
         }
         box.addView(table)
     }
@@ -376,14 +412,17 @@ class ReportCardActivity : AppCompatActivity() {
         val v = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            /* 🎨🔒 V894 — TK: *"total bill due paid — এই ঘরগুলো একটু
+               উচ্চতায় কম হবে"*। উপর-নিচের ফাঁক ৮ → ৫/৬। বাঁ-ডানের ফাঁক · রং ·
+               বর্ডার · টাকার অঙ্ক — কিছুই বদলায়নি। */
+            setPadding(dp(8), dp(5), dp(8), dp(6))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(android.graphics.Color.parseColor(bg)); cornerRadius = dp(9).toFloat()
                 setStroke(dp(1), android.graphics.Color.parseColor(border))
             }
         }
         v.addView(TextView(this).apply { text = label; textSize = 9.5f; setTextColor(android.graphics.Color.parseColor(border)); setTypeface(typeface, android.graphics.Typeface.BOLD) })
-        v.addView(TextView(this).apply { text = value; textSize = 15f; setTextColor(android.graphics.Color.parseColor(textColor)); setTypeface(typeface, android.graphics.Typeface.BOLD) })
+        v.addView(TextView(this).apply { text = value; textSize = 14f; setTextColor(android.graphics.Color.parseColor(textColor)); setTypeface(typeface, android.graphics.Typeface.BOLD) })
         if (onEdit != null) TripleTapEdit.attach(v) { onEdit() }
         return v
     }
@@ -418,7 +457,7 @@ class ReportCardActivity : AppCompatActivity() {
         return if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else iso
     }
 
-    private fun tableDataRow(visitNo: Int, date: String, progress: String, paid: Double, due: Double, dayList: List<TimelineEntry>): View {
+    private fun tableDataRow(visitNo: Int, date: String, progress: String, paid: Double, due: Double, dayList: List<TimelineEntry>, hasRealTreatmentPayment: Boolean): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(if (visitNo % 2 == 0) android.graphics.Color.parseColor("#F6F9FB") else android.graphics.Color.WHITE)
@@ -427,7 +466,7 @@ class ReportCardActivity : AppCompatActivity() {
         row.addView(cell(formatDisplayDate(date), dp(78), 0f, "#10223A", false))
         val prog = cell(progress.ifBlank { "—" }, 0, 1f, "#334155", false, left = true)
         row.addView(prog)
-        val paidCell = cell(money(paid), dp(64), 0f, "#0c8a4e", true)
+        val paidCell = cell(if (hasRealTreatmentPayment) money(paid) else "—", dp(64), 0f, "#0c8a4e", true)
         row.addView(paidCell)
         // TK-REQUESTED (2026-07-20): DUE column not shown on screen.
 
@@ -435,22 +474,32 @@ class ReportCardActivity : AppCompatActivity() {
         TripleTapEdit.attach(prog) { editProgressGroup(dayList) }
         // Paid edit — staff same-day only; master any time. If the day has
         // more than one payment (e.g. part cash + part online), pick which.
-        TripleTapEdit.attach(paidCell) { editPaidGroup(dayList) }
+        if (hasRealTreatmentPayment) TripleTapEdit.attach(paidCell) { editPaidGroup(dayList) }
         return row
     }
 
     private fun editProgressGroup(dayList: List<TimelineEntry>) {
-        val target = dayList.firstOrNull() ?: return
+        // V1526: never save a Progress edit into a refund row just because it
+        // happened earlier on the same date. Prefer the actual visit/progress holder.
+        val target = dayList.firstOrNull {
+            (it.payType.equals("treatment", true) || it.payType.equals("attendance_mark", true)) &&
+                it.typedRemark.isNotBlank() && it.paymentId != null
+        } ?: dayList.firstOrNull {
+            it.payType.equals("treatment", true) && it.paymentId != null
+        } ?: dayList.firstOrNull {
+            it.payType.equals("attendance_mark", true) && it.paymentId != null
+        } ?: return
         editProgress(target)
     }
 
     private fun editPaidGroup(dayList: List<TimelineEntry>) {
-        if (dayList.isEmpty()) return
-        if (dayList.size == 1) { editPaid(dayList[0]); return }
-        val labels = dayList.map { "${money(it.paymentAmount)} · ${it.paymentMode}" }.toTypedArray()
+        val editablePayments = dayList.filter { it.payType.equals("treatment", true) && it.paymentId != null }
+        if (editablePayments.isEmpty()) return
+        if (editablePayments.size == 1) { editPaid(editablePayments[0]); return }
+        val labels = editablePayments.map { "${money(it.paymentAmount)} · ${it.paymentMode}" }.toTypedArray()
         AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "কোন পেমেন্ট Edit করবেন?"))
-            .setItems(labels) { _, which -> editPaid(dayList[which]) }
+            .setCustomTitle(PremiumAlert.header(this, "Which payment do you want to Edit?"))
+            .setItems(labels) { _, which -> editPaid(editablePayments[which]) }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
     }
@@ -475,8 +524,15 @@ class ReportCardActivity : AppCompatActivity() {
     // column here has no maxLines limit at all, so a long remark was even
     // more likely to get clipped. WRAP_CONTENT sizes every cell to its own
     // real content -- never clips, whatever else is in the row.
+    /* 🎨🔒 V894 (৩১.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"নিচের বক্সগুলি দেখুন"*):
+       প্রতিটা ঘরের উচ্চতা আলাদাভাবে মাপা হতো (`WRAP_CONTENT`)। বাংলা লেখাওয়ালা
+       PROGRESS ঘরটা একটু লম্বা হয়ে যেত, ফলে **শেষ সারিতে দাগগুলো মিলত না** —
+       ঘরের নিচের রেখা এক জায়গায়, পাশেরটার আরেক জায়গায়।
+       এখন এক সারির সব ঘর **একই উচ্চতার** (`MATCH_PARENT`) — এই ফাইলেরই
+       `headCell()` আগে থেকে এটাই ব্যবহার করে, নতুন কিছু নয়।
+       ⛔ লেখা · টাকা · তারিখ · এডিট (ট্রিপল-ট্যাপ) — কিচ্ছু বদলায়নি, শুধু মাপ। */
     private fun cell(t: String, w: Int, weight: Float, color: String, bold: Boolean, left: Boolean = false): TextView = TextView(this).apply {
-        layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+        layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.MATCH_PARENT, weight)
         text = t; gravity = if (left) Gravity.CENTER_VERTICAL else Gravity.CENTER
         textSize = 12f; setTextColor(android.graphics.Color.parseColor(color))
         if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -609,7 +665,7 @@ class ReportCardActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(
                         this@ReportCardActivity, NoBengali.s(if (ok) "Master-এর কাছে অনুরোধ পাঠানো হয়েছে ✅" else "পাঠানো যায়নি — আবার চেষ্টা করুন"),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -670,11 +726,12 @@ class ReportCardActivity : AppCompatActivity() {
     }
 
     private fun savePayment(pid: String, fields: JSONObject, onDone: () -> Unit) {
+        val stamped = JSONObject(fields.toString()).put("updatedAt", SupabaseClient.localWriteStamp())
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) {
-                try { SupabaseClient.updateById("payments", pid, fields) } catch (_: Throwable) { false }
+                try { SupabaseClient.updateById("payments", pid, stamped) } catch (_: Throwable) { false }
             }
-            if (!ok) GenericUpdateQueue.queue(this@ReportCardActivity, "payments", pid, fields)
+            if (!ok) GenericUpdateQueue.queue(this@ReportCardActivity, "payments", pid, stamped)
             android.widget.Toast.makeText(this@ReportCardActivity, if (ok) "Saved ✅" else "Failed — retry", android.widget.Toast.LENGTH_SHORT).show()
             if (ok) onDone()
         }

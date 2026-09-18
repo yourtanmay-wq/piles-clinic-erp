@@ -30,12 +30,71 @@ import com.tkbiswas.pilesclinic.native.StaffDirectory
 object ModuleAuth {
 
     private const val EMAIL_DOMAIN = "staff.piles"
-    private val http = OkHttpClient()
+    /* 🔴🔴🔒 V803 (২৮.০৮.২০২৬) — **"Staff Profile তো খুলছেই না"** (TK-রিপোর্ট, ফটো সহ:
+       সাদা ফাঁকা পর্দা, নিচে "Opening..." লেখা আটকে আছে)।
+       ─── আসল কারণ (কোড ধরে প্রমাণিত) ────────────────────────────────────────
+       এখানে লেখা ছিল খালি `OkHttpClient()` — **একটাও timeout বসানো ছিল না**।
+       OkHttp-র নিজের ডিফল্টে `callTimeout = 0`, মানে **কোনো সময়সীমা নেই**।
+       নেট আধমরা হয়ে উত্তরটা ফোঁটা-ফোঁটা করে এলে `readTimeout` প্রতিবার নতুন
+       করে শুরু হয় ⇒ ডাকটা **কোনোদিনই শেষ হয় না**। আর Staff Profile পর্দা
+       ঠিক এই ডাকটার উত্তরের জন্যই অপেক্ষা করে (`ModuleUi.ensureSignedIn`),
+       তাই পর্দা সাদা থেকে যায়, কোনো ভুলের বার্তাও আসে না।
+       ⛔ এটা নতুন কোনো আবিষ্কার নয় — প্রজেক্টেই আগে ধরা পড়েছিল ও সারানো
+          হয়েছিল: `SupabaseClient.kt:19-29`-এ হুবহু এই কারণটা লেখা আছে
+          ("...loading spinner just span forever. callTimeout caps the TOTAL time")।
+          শুধু **এই ফাইলটায় সেটা বসানো হয়নি** — খাতার নিয়ম ৬.২ অনুযায়ী এখন বসল।
+       ─── সারানো ─────────────────────────────────────────────────────────────
+       মূল অ্যাপের প্রমাণিত মাপগুলোই: connect ৮s · read ৮s · **callTimeout ২৫s**।
+       ⇒ সবচেয়ে খারাপ অবস্থাতেও ২৫ সেকেন্ডে ডাক শেষ হয়ে "Could not open"
+       বার্তা আসে — পর্দা আর চিরকাল সাদা হয়ে বসে থাকে না। */
+    /* 🔴🔒 V808 (২৮.০৮.২০২৬) — TK: "staff Profile খুলছে না তো, কি কাজ করেছেন আপনি?"
+       V803-এ সময়সীমা বসিয়ে সাদা-পর্দা থামিয়েছিলাম — কিন্তু ওটা ছিল **উপসর্গ**
+       সারানো, রোগ নয়। পর্দা এখন "Could not open — timeout" দেখায়, খোলে না।
+       ─── "timeout" লেখাটা কেন অকেজো ──────────────────────────────────────
+       OkHttp ডিফল্টে **নিজে থেকেই বারবার অন্য রাস্তায় চেষ্টা করে**
+       (`retryOnConnectionFailure`)। তাই আসল ভুলটা (যেমন "connect হলো না" বা
+       HTTP ৪২৯) চাপা পড়ে যেত, আর শেষে শুধু `callTimeout`-এর নিরর্থক
+       "timeout" বেরিয়ে আসত — যা দিয়ে কারণ বোঝার উপায় নেই।
+       ─── এখন ────────────────────────────────────────────────────────────
+       বারবার চেষ্টা বন্ধ ⇒ আসল ভুলটা **তাড়াতাড়ি ও নিজের নামেই** আসে।
+       সময়সীমা একটু বাড়ানো হলো (দুর্বল নেটে যেন অকারণে না কাটে)। */
+    /* 🔴🔴🔴🔒 V809 (২৮.০৮.২০২৬) — **আমার নিজের করা ক্ষতি ফিরিয়ে নেওয়া হলো।**
+       TK: *"এক জলপাইগুড়ির স্টাফ পাঠিয়েছে — timeout, কাজ হচ্ছে না। কেন এরকম
+       ফাজলামো করলেন আপনি আমার সাথে?"*
+       ─── git-এর প্রমাণ ─────────────────────────────────────────────────────
+       V793 (যেটা এতদিন সবার ফোনে চলছিল) — `private val http = OkHttpClient()`
+         ⇒ OkHttp-র ডিফল্ট: connect ১০s · read ১০s · **মোট সময়ের কোনো সীমা নেই**
+       আমি V803-এ বসিয়েছিলাম — connect ৮s · read ৮s · **মোট ২৫s**
+       V808-এ আরও কড়া করেছিলাম — `retryOnConnectionFailure(false)`
+       ⇒ **তিনটে দিকেই আমি আগের চেয়ে কড়া করে দিয়েছিলাম।**
+       দুর্বল নেটে (স্টাফের ফোনে ৫ KB/s) যে ডাকটা আগে ধীরে হলেও **শেষ হত**,
+       সেটা এখন ২৫ সেকেন্ডে **জোর করে কেটে** যেত ⇒ "timeout"।
+       অর্থাৎ আগে পর্দাটা **ধীর** ছিল, আমি সেটাকে **ভাঙা** বানিয়ে ফেলেছি।
+       ─── এখন যা করা হলো ───────────────────────────────────────────────────
+       প্রতিটা মাপ V793-এর চেয়ে **উদার** — তাই আগে যা চলত, সবই চলবে:
+         connect ১০s → **২০s** · read ১০s → **৪০s** · বারবার চেষ্টা **আবার চালু**
+       শুধু একটা **শেষ ভরসার** সীমা (১২০s) রাখা হলো, যাতে V803-এর আসল সমস্যাটা
+       (পর্দা চিরকাল সাদা হয়ে বসে থাকা) ফিরে না আসে। ১২০ সেকেন্ড এত বড় যে
+       সত্যিকারের কোনো কাজ এতে কাটা পড়বে না। */
+    private val http = OkHttpClient.Builder()
+        .retryOnConnectionFailure(true)
+        .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(40, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
     private val JSON = "application/json".toMediaType()
 
     @Volatile var accessToken: String? = null; private set
     @Volatile var personCode: String? = null; private set
     @Volatile var isMaster: Boolean = false; private set
+    // 🔴🔒 V1512 (RLS-প্রস্তুতি, ১৭.০৯.২০২৬, যাচাই করে ধরা পড়া দোষ) —
+    // `isSignedIn` শুধু accessToken ফাঁকা কিনা দেখে, মেয়াদ শেষ হয়েছে কিনা
+    // নয়। এতদিন এটা ক্ষতি করেনি কারণ Staff Profile/বেতনের পর্দা মাঝেমধ্যে
+    // খোলা হয়, ১ ঘণ্টার বেশি একটানা চললেই তবে সমস্যা হত (কম দেখা যেত)।
+    // patients/payments-এর মতো সবসময় ব্যবহৃত পথে এই একই টোকেন বসালে,
+    // মেয়াদ ফুরোনোর পর (~১ ঘণ্টা) থেকে **পুরো শিফট জুড়ে** সব কল ব্যর্থ
+    // হত। তাই এখন মেয়াদও আলাদাভাবে RAM-এ রাখা হচ্ছে (নিচের tokenFresh())।
+    @Volatile private var accessTokenExpiresAt: Long = 0L
     // 🔵 সর্বশেষ সফল সাইন-ইনের applicationContext — টোকেন মেয়াদ শেষ হলে গোপনে আবার
     // লগইন করতে লাগে (নিচের reAuth দেখুন)। শুধু ব্যর্থ-পথে ব্যবহার হয়।
     @Volatile private var appCtx: Context? = null
@@ -72,6 +131,7 @@ object ModuleAuth {
             accessToken = tok
             personCode = p.getString("personCode", savedCode)
             isMaster = p.getBoolean("isMaster", false)
+            accessTokenExpiresAt = expiresAt   // 🔴🔒 V1512
         } catch (_: Throwable) { }
     }
 
@@ -81,6 +141,7 @@ object ModuleAuth {
             // ৬০ সেকেন্ড আগেই "মেয়াদ শেষ" ধরা হয় — ঘড়ির সামান্য গরমিল ঢাকতে,
             // যাতে কখনো মেয়াদ-উত্তীর্ণ টোকেন দিয়ে read না যায়।
             val expiresAt = System.currentTimeMillis() + (safeSeconds - 60L).coerceAtLeast(60L) * 1000L
+            accessTokenExpiresAt = expiresAt   // 🔴🔒 V1512 — RAM-এও রাখা, tokenFresh() এটাই দেখে
             prefs(context).edit()
                 .putString("code", code)
                 .putString("token", accessToken)
@@ -95,7 +156,12 @@ object ModuleAuth {
         try { context?.let { prefs(it).edit().clear().apply() } } catch (_: Throwable) { }
     }
 
-    val isSignedIn: Boolean get() = !accessToken.isNullOrBlank()
+    // 🔴🔒 V1512 — শুধু টোকেন "আছে" কিনা নয়, মেয়াদও তাজা কিনা দেখে। এই একটা
+    // জায়গা ঠিক হওয়ায় গোটা কোডবেসে `.isSignedIn` ব্যবহার-করা প্রতিটা জায়গাই
+    // (WorkNotebook, Worker-গুলো, DoctorVisit ইত্যাদি) এখন থেকে মেয়াদ-উত্তীর্ণ
+    // টোকেনকে "সাইন-ইন করা আছে" ভুল করে ধরবে না।
+    val isSignedIn: Boolean
+        get() = !accessToken.isNullOrBlank() && System.currentTimeMillis() < accessTokenExpiresAt
 
     /** 🔴🔒 V429 (TK-নির্দেশ ১৭.০৮.২০২৬ — *"আমি সাধারণ ব্যবহারকারী, আমার সামনে
      *  যেন কোনো সমস্যা না আসে; এই সিদ্ধান্ত আপনাকে নিতে হবে"*)।
@@ -175,9 +241,45 @@ object ModuleAuth {
             "9002610352" -> "DR-GOKUL"
             "7810907954" -> "DR-SAIKAT-ROY"
             "9242009205" -> "DR-PRANAB-BISWAS"
-            else -> user.name.trim().uppercase()
+            // 🔑 V749 (২৭.০৮.২০২৬, TK: *"KNE-LAXMI — এত মানুষ"*) —
+            //    অ্যাপ থেকে যোগ করা লোকের **কোড** এখন জমানো তালিকা থেকে আসে,
+            //    নাম থেকে নয়। তাই পর্দায় আসল নাম দেখানো যায়, আর মডিউলের
+            //    auth-ইমেল (`<কোড>@staff.piles`) ঠিকঠাক মেলে।
+            //
+            //    ⚠️⚠️ **শর্তটা খেয়াল করুন — বাঁধা তালিকায় থাকলে এখানে ঢোকাই হয় না।**
+            //      অর্থাৎ আজকের ২৩ জনের ক্ষেত্রে আগের নিয়মই (নাম→কোড) অটুট,
+            //      এক অক্ষরও বদল নেই। মেঘের তালিকা না পেলেও আগের নিয়মেই ফেরে।
+            //    ⛔ `cachedCodeFor` কখনো নেটে যায় না — শুধু ফোনে জমানোটা পড়ে।
+            else -> {
+                var out = user.name.trim().uppercase()
+                if (StaffDirectory.findAccount(mobile) == null) {
+                    val fromCloud = try {
+                        com.tkbiswas.pilesclinic.native.CloudStaffDirectory
+                            .cachedCodeFor(context, mobile)
+                    } catch (_: Throwable) { null }
+                    if (!fromCloud.isNullOrBlank()) out = fromCloud
+                }
+                out
+            }
         }
     }
+
+    /* 🔴🔒 V1581 (১৭.০৯.২০২৬, TK-রিপোর্ট — Staff Profile খুলতে মাঝে মাঝে
+       ৪০+ সেকেন্ড আটকে "Could not open" আসছিল, অথচ নেট ভালো) — **সন্দেহভাজন
+       কারণ:** এই ফাংশনটা প্রজেক্টের অনেক জায়গা থেকে ডাকা হয় (মূল অ্যাপে
+       লগইনের সময়ও, আজকের V1512-এর নতুন ব্যাকগ্রাউন্ড সাইন-ইন সহ) — আর
+       আজকের `isSignedIn`-মেয়াদ-ফিক্সের পরে এই ডাকটা **আগের চেয়ে বেশিবার**
+       সত্যিকারের নেট-কল (`signIn()`) পর্যন্ত পৌঁছায় (উপরের মন্তব্যেই লেখা)।
+       কোনো লক না থাকায়, দুটো জায়গা থেকে (যেমন লগইনের ব্যাকগ্রাউন্ড কল +
+       তার কিছুক্ষণ পরেই স্টাফ Staff Profile খুললে) **একই মুহূর্তে দুটো
+       আলাদা সাইন-ইন নেট-কল** একসাথে Supabase Auth-এ যেতে পারত — সেটা যদি
+       ধীরতা/সংঘাতের একটা কারণ হয়ে থাকে।
+       ⛔ ১০০% নিশ্চিত প্রমাণ করা যায়নি (ফোনে সরাসরি দেখার উপায় নেই), কিন্তু
+       এই বদলটা **সম্পূর্ণ ঝুঁকিহীন**: এখন একই মুহূর্তে সর্বোচ্চ **একটাই**
+       আসল সাইন-ইন নেট-কল চলে — অন্য যে কেউ একই সময়ে ডাকলে সে শুধু সেই
+       একই ফলের অপেক্ষা করবে (আবার আলাদা কল করবে না), তারপর একই উত্তর পাবে।
+       সফল/ব্যর্থ হওয়ার নিয়ম, পাসওয়ার্ড, ক্যাশ — কিছুই বদলায়নি। */
+    private val signInLock = Any()
 
     fun signInCurrentSession(context: Context): String? {
         appCtx = context.applicationContext
@@ -189,20 +291,31 @@ object ModuleAuth {
         // মেয়াদ-অক্ষত টোকেন SharedPreferences-এ থাকতে পারে — থাকলে সেটাই
         // ব্যবহার হয়, নতুন কোনো লগইন-কল লাগে না।
         if (!isSignedIn) loadPersisted(context, code)
+        // 🔴🔒 V1512 — `isSignedIn` এখন মেয়াদও দেখে (উপরে দেখুন), তাই এখানে
+        // আলাদা কোনো "tokenFresh" চেক লাগে না — মেয়াদ ফুরিয়ে থাকলে
+        // `isSignedIn` নিজেই false হবে আর নিচের কোড আবার সত্যিকারের সাইন-ইন করবে।
         if (isSignedIn && personCode == code) return null
 
-        // Reuse only the project's long-standing role passwords. No new
-        // password is created and no second password is shown anywhere.
-        val originalRole = StaffDirectory.findAccount(mobile)?.role ?: user.displayRole
-        val password = when (originalRole) {
-            "master" -> "admin123"
-            "doctor" -> "doctor123"
-            "field" -> "field123"
-            else -> "staff123"
+        // 🔒 V1581: আসল নেট-কলটা এখন লকের ভিতরে — একসাথে দুটো চলবে না।
+        synchronized(signInLock) {
+            // লক পাওয়ার মধ্যেই অন্য কোনো থ্রেড ইতিমধ্যে সাইন-ইন করে ফেলে
+            // থাকতে পারে (ঠিক এই কোডটাই চালিয়ে) — সেটা হলে আর নতুন কল না
+            // করে সেই ফলটাই ব্যবহার করা হয়।
+            if (isSignedIn && personCode == code) return null
+
+            // Reuse only the project's long-standing role passwords. No new
+            // password is created and no second password is shown anywhere.
+            val originalRole = StaffDirectory.findAccount(mobile)?.role ?: user.displayRole
+            val password = when (originalRole) {
+                "master" -> "admin123"
+                "doctor" -> "doctor123"
+                "field" -> "field123"
+                else -> "staff123"
+            }
+            val err = signIn(code, password)
+            if (err == null) savePersisted(context, code, lastExpiresIn)
+            return err
         }
-        val err = signIn(code, password)
-        if (err == null) savePersisted(context, code, lastExpiresIn)
-        return err
     }
 
     private fun baseUrl(): String = SupabaseConfig.url.trimEnd('/')
@@ -213,37 +326,110 @@ object ModuleAuth {
     // (savePersisted()-এর নিজস্ব safe default)।
     @Volatile private var lastExpiresIn: Int = 0
 
+    // 🔴🔒 V1570 — শেষ সফল সাইন-ইনের নিজের auth.uid() (Supabase লগইন-উত্তরের
+    // `user.id`)। নিচের identity-খোঁজায় `uid=eq.` ফিল্টার দিতে ব্যবহার হয় —
+    // দেখুন signIn()-এর বড় মন্তব্য।
+    @Volatile private var myUid: String = ""
+
     /** Sign in with Staff Code + module password. Returns null on success, else error text.
      *  Blocking network call — run it on a background thread. */
+    /* 🔴🔒 V808 — এখন ভুলের বার্তায় **ঠিক কী হয়েছে** লেখা থাকে: কোন ধাপে
+       আটকেছে · সার্ভার কী কোড পাঠিয়েছে · কত সেকেন্ড লেগেছে · কোন ধরনের গোলমাল।
+       আগে শুধু "timeout" আসত — ওটা দিয়ে কারণ বোঝার কোনো উপায় ছিল না, তাই
+       সমস্যাটা ধরাই যাচ্ছিল না। ⛔ সফল পথে এক অক্ষরও বদলায়নি। */
     fun signIn(code: String, password: String): String? {
+        val t0 = System.currentTimeMillis()
+        fun secs() = "%.1f".format((System.currentTimeMillis() - t0) / 1000.0)
         try {
             val body = JSONObject()
                 .put("email", codeToEmail(code))
                 .put("password", password)
                 .toString().toRequestBody(JSON)
+            /* 🔴🔴🔴🔒 V811 (২৮.০৮.২০২৬) — **আসল কারণ পাওয়া গেল।**
+               TK-এর নেট মেপে দেখা: 10.4 Mbps ↓ · 42.3 Mbps ↑ · latency ৫৮ ms —
+               অর্থাৎ নেট দ্রুত, "ধীর নেট" আমার আগের অনুমান **ভুল** ছিল।
+               ─── যেভাবে ধরা পড়ল (কাজ করা vs আটকে যাওয়া ডাক মিলিয়ে) ──────────
+               এই অ্যাপের **যত ডাক কাজ করে** (`SupabaseClient.kt:333-334, 464-465`)
+               সবগুলোই **দুটো** হেডার পাঠায়:
+                     apikey: <key>   ও   Authorization: Bearer <key>
+               ওয়েবের Supabase SDK-ও (`createClient`) দুটোই পাঠায় — ওয়েবে তাই
+               মডিউল-লগইন চলে।
+               কিন্তু **এই একটামাত্র ডাক** পাঠাত **শুধু `apikey`** — `Authorization`
+               হেডারটাই ছিল না। নতুন ধরনের চাবিতে (`sb_publishable_…`) Supabase-এর
+               গেটওয়ে দুটোই চায়; একটা না পেলে ডাকটা সাড়াই দেয় না ⇒ অ্যাপ
+               অপেক্ষা করতেই থাকে ⇒ V793-এ সাদা পর্দা, V803-এর পরে "timeout"।
+               ─── প্রমাণ যে সময়সীমা দোষী নয় ─────────────────────────────────
+               `SupabaseClient`-এর নিজের মাপও connect ৮s · read ৮s · call ২৫s —
+               **হুবহু একই**, আর ওগুলো দিব্যি কাজ করে। তাই ২৫ সেকেন্ড কম ছিল না।
+               ⇒ আমি আগে যে বলেছিলাম "সময়সীমা কমিয়ে আমি ভেঙেছি" — **সেটাও ভুল
+                 ছিল**। দোষটা এই অনুপস্থিত হেডার, প্রথম দিন থেকেই।
+               ⛔ সারানো: বাকি সব ডাকের মতোই দুটো হেডারই পাঠানো হয়। */
             val req = Request.Builder()
                 .url(baseUrl() + "/auth/v1/token?grant_type=password")
                 .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + anonKey())
                 .addHeader("Content-Type", "application/json")
                 .post(body).build()
             http.newCall(req).execute().use { resp ->
                 val txt = resp.body?.string() ?: ""
                 if (!resp.isSuccessful) {
-                    return try { JSONObject(txt).optString("error_description", "Sign-in failed") }
-                    catch (e: Exception) { "Sign-in failed" }
+                    val why = try { JSONObject(txt).optString("error_description", "").ifBlank {
+                        JSONObject(txt).optString("msg", "")
+                    } } catch (_: Exception) { "" }
+                    return "Step 1 (login) — server said HTTP ${resp.code}" +
+                        (if (why.isNotBlank()) ": $why" else "") +
+                        "\n\nCode: $code · ${secs()}s"
                 }
                 val json = JSONObject(txt)
                 accessToken = json.optString("access_token", "")
                 lastExpiresIn = json.optInt("expires_in", 3600)
-                if (accessToken.isNullOrBlank()) return "Sign-in failed"
+                if (accessToken.isNullOrBlank()) return "Step 1 (login) — no token came back. ${secs()}s"
+                myUid = json.optJSONObject("user")?.optString("id", "").orEmpty()
             }
-            val id = getRows("hr", "app_identity", "select=person_code,role_kind,is_master&limit=1")
+            // 🔴🔴🔴🔒 V1570 (১৭.০৯.২০২৬, TK-ভিডিওতে ধরা পড়া — মাস্টারের ফোনে
+            // "Staff Profiles" বারবার একজন নির্দিষ্ট স্টাফের (COB-4) নিজের
+            // পাতা দেখাচ্ছিল, মাস্টারের তালিকা নয়) — **আসল কারণ, কোডে যাচাই
+            // করে ধরা:** এই লাইনটা "আমার নিজের পরিচয়" আনতে `uid=eq.<নিজের>`
+            // ফিল্টার **ছাড়াই** `select=...&limit=1` চালাত, শুধু RLS-এর
+            // "নিজেরটাই দেখা যায়" নিয়মের উপর ভরসা করে। কিন্তু মাস্টারের RLS
+            // **সবার** সারি দেখতে দেয় — তাই `limit=1` (কোনো ORDER BY নেই)
+            // মাস্টারের বেলায় হর্তা-কর্তা RLS-এর জন্য **এলোমেলো যেকোনো একটা
+            // সারি** ফিরিয়ে দিত (এখানে সবসময় COB-4-এর, কারণ ২৩ জনের সবার
+            // `created_at` হুবহু এক সেকেন্ডে বসেছিল — V246, তাই সাজানোর কোনো
+            // স্বাভাবিক ক্রম নেই)। ফল: মাস্টারের `personCode`/`isMaster`
+            // চুপচাপ COB-4-এর মানে বদলে যেত, তাই "Staff Profiles" তাঁকে
+            // মাস্টার না ভেবে COB-4 ভেবে তাঁরই পাতা দেখাত।
+            // ⛔ এই বাগ **আজকের কাজে তৈরি হয়নি, আগে থেকেই ছিল** — কিন্তু
+            //   আগে `isSignedIn` মেয়াদ দেখত না বলে একবার (ভাগ্যক্রমে ঠিক
+            //   বা ভুল) কোনো একটা পরিচয় ক্যাশ হয়ে গেলে সেটাই চিরকাল
+            //   ব্যবহার হতো, তাই এই ভুল ডাকটা কমই আবার চলত। আজ `isSignedIn`
+            //   ঠিক করার পর টোকেন সত্যিই ফুরোলে/প্রতি লগইনে ডাকটা আবার
+            //   চলছে, তাই ভুলটা এখন বারবার চোখে পড়ছে।
+            // ✅ সমাধান: Supabase-এর লগইন-উত্তরেই থাকা নিজের `uid` (auth.uid())
+            //   দিয়ে সরাসরি ফিল্টার করা হলো — RLS যতই চওড়া হোক, `uid=eq.`
+            //   দিয়ে সবসময় **শুধু নিজের** সারিটাই আসবে, মাস্টার হোক বা স্টাফ।
+            val uidFilter = if (myUid.isNotBlank()) "&uid=eq.$myUid" else ""
+            val id = getRows("hr", "app_identity", "select=person_code,role_kind,is_master$uidFilter&limit=1")
             if (id.length() > 0) {
                 personCode = id.getJSONObject(0).optString("person_code", code)
                 isMaster = id.getJSONObject(0).optBoolean("is_master", false)
             } else { personCode = code; isMaster = false }
             return null
-        } catch (e: Exception) { return e.message ?: "Sign-in error" }
+        } catch (e: Exception) {
+            val kind = e.javaClass.simpleName
+            val msg = e.message.orEmpty()
+            val plain = when {
+                kind.contains("UnknownHost") -> "Could not find the server — check the internet connection."
+                kind.contains("SSL") || kind.contains("Certificate") -> "Secure connection failed."
+                msg.contains("timeout", true) || kind.contains("Timeout") ->
+                    "The server did not answer in time."
+                kind.contains("ConnectException") || kind.contains("SocketException") ->
+                    "Could not reach the server."
+                else -> "Could not sign in."
+            }
+            return "Step 1 (login) — $plain\n\n$kind" +
+                (if (msg.isNotBlank()) ": $msg" else "") + " · ${secs()}s"
+        }
     }
 
     // 🔴🔒 V453: context ঐচ্ছিক — পুরনো ৫+ ব্যবহারের জায়গা (identity-switch
@@ -306,18 +492,29 @@ object ModuleAuth {
     }
 
     /** UPSERT one row (id-keyed) into a schema-qualified table. */
-    fun upsert(schema: String, table: String, row: JSONObject): Boolean {
-        return try {
-            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table)
-                .addHeader("apikey", anonKey())
-                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
-                .addHeader("Content-Profile", schema)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Prefer", "resolution=merge-duplicates,return=minimal")
-                .post(JSONArray().put(row).toString().toRequestBody(JSON)).build()
-            http.newCall(req).execute().use { resp -> resp.isSuccessful }
-        } catch (e: Exception) { false }
+    /* 🔴🔒 V1432 (১৩.০৯.২০২৬, তালিকা ৫৫০, নিয়ম ৭) — read (`getRowsChecked`) · rpc · delete আগে থেকেই
+       টোকেনের মেয়াদ শেষ হলে (401) একবার গোপনে re-login করে আবার চেষ্টা করত, কিন্তু
+       **লেখা** (upsert · upsertOnConflict · insert · update) করত না ⇒ এক ঘণ্টা অ্যাপ খোলা থাকলে
+       Save-এ "Retry"। এখন সব লেখা-পথে একই সেল্ফ-হিল। ⛔ সফল লেখায় কিছু বদলায় না। */
+    private fun postOnce(url: String, schema: String, prefer: String, body: String): Pair<Boolean, Int> = try {
+        val req = Request.Builder().url(url)
+            .addHeader("apikey", anonKey())
+            .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+            .addHeader("Content-Profile", schema)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Prefer", prefer)
+            .post(body.toRequestBody(JSON)).build()
+        http.newCall(req).execute().use { resp -> Pair(resp.isSuccessful, resp.code) }
+    } catch (_: Exception) { Pair(false, -1) }
+
+    private fun postWithReauth(url: String, schema: String, prefer: String, body: String): Boolean {
+        var r = postOnce(url, schema, prefer, body)
+        if (!r.first && r.second == 401 && reAuth()) r = postOnce(url, schema, prefer, body)
+        return r.first
     }
+
+    fun upsert(schema: String, table: String, row: JSONObject): Boolean =
+        postWithReauth(baseUrl() + "/rest/v1/" + table, schema, "resolution=merge-duplicates,return=minimal", JSONArray().put(row).toString())
 
     // 🔵 TK-ORDER (07.08.2026): উপরের upsert() `merge-duplicates` করে **PK (id)**
     // ধরে — কিন্তু IN TIME-এর `day`-তে id থাকে না, তাই একই দিনের সারিতে না বসে
@@ -326,18 +523,8 @@ object ModuleAuth {
     // থাকলে নতুন বসে, থাকলে আপডেট হয় — কখনো ব্যর্থ হয় না, ডুপ্লিকেটও হয় না।
     // ⛔ পুরনো upsert() এক অক্ষরও বদলায়নি (অন্য জায়গায় অক্ষত)। শুধু payload-এ
     //    থাকা কলামগুলোই আপডেট হয়, বাকি ঘর (যেমন আগের check_out) অক্ষত থাকে।
-    fun upsertOnConflict(schema: String, table: String, row: JSONObject, onConflict: String): Boolean {
-        return try {
-            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?on_conflict=" + onConflict)
-                .addHeader("apikey", anonKey())
-                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
-                .addHeader("Content-Profile", schema)
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Prefer", "resolution=merge-duplicates,return=minimal")
-                .post(JSONArray().put(row).toString().toRequestBody(JSON)).build()
-            http.newCall(req).execute().use { resp -> resp.isSuccessful }
-        } catch (e: Exception) { false }
-    }
+    fun upsertOnConflict(schema: String, table: String, row: JSONObject, onConflict: String): Boolean =
+        postWithReauth(baseUrl() + "/rest/v1/" + table + "?on_conflict=" + onConflict, schema, "resolution=merge-duplicates,return=minimal", JSONArray().put(row).toString())   // V1432 — 401 সেল্ফ-হিল
 
     /** INSERT one row (outside_calls / call_taps / work_reports / payments). */
     fun insert(schema: String, table: String, row: JSONObject): Boolean =
@@ -358,6 +545,11 @@ object ModuleAuth {
     data class InsertResult(val ok: Boolean, val code: Int, val duplicate: Boolean, val message: String)
 
     fun insertChecked(schema: String, table: String, row: JSONObject): InsertResult {
+        val first = insertOnce(schema, table, row)
+        if (!first.ok && first.code == 401 && reAuth()) return insertOnce(schema, table, row)   // V1432 — 401 সেল্ফ-হিল
+        return first
+    }
+    private fun insertOnce(schema: String, table: String, row: JSONObject): InsertResult {
         return try {
             val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table)
                 .addHeader("apikey", anonKey())
@@ -404,7 +596,7 @@ object ModuleAuth {
 
     /** PATCH: update rows in a schema-qualified table matching `filter`. */
     fun update(schema: String, table: String, filter: String, patch: JSONObject): Boolean {
-        return try {
+        fun once(): Pair<Boolean, Int> = try {
             val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
                 .addHeader("apikey", anonKey())
                 .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
@@ -412,8 +604,55 @@ object ModuleAuth {
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Prefer", "return=minimal")
                 .patch(patch.toString().toRequestBody(JSON)).build()
-            http.newCall(req).execute().use { resp -> resp.isSuccessful }
-        } catch (e: Exception) { false }
+            http.newCall(req).execute().use { resp -> Pair(resp.isSuccessful, resp.code) }
+        } catch (e: Exception) { Pair(false, -1) }
+        var r = once()
+        if (!r.first && r.second == 401 && reAuth()) r = once()   // V1432 — 401 সেল্ফ-হিল
+        return r.first
+    }
+
+    /** 📊 V824 — DELETE from a schema-qualified table (raw PostgREST filter).
+     *  ⛔ শুধু নতুন `fin.registration_count_excluded` ("গোনায় ধরব না" দাগ)
+     *     সরাতে ব্যবহার হয় — রোগী · টাকা · Follow-up কোনো টেবিলে এটা ডাকা
+     *     হয় না। RLS সার্ভারেই ঠিক করে কে মুছতে পারে (শুধু মাস্টার)।
+     *  ⛔ পুরনো কোনো ফাংশন ছোঁয়া হয়নি — এটা সম্পূর্ণ নতুন ও আলাদা। */
+    fun deleteRows(schema: String, table: String, filter: String): Boolean {
+        fun once(): Pair<Boolean, Int> = try {
+            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
+                .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+                .addHeader("Content-Profile", schema)
+                .addHeader("Accept-Profile", schema)
+                .addHeader("Prefer", "return=minimal")
+                .delete().build()
+            http.newCall(req).execute().use { resp -> Pair(resp.isSuccessful, resp.code) }
+        } catch (_: Exception) { Pair(false, -1) }
+        var result = once()
+        if (!result.first && result.second == 401 && reAuth()) result = once()
+        return result.first
+    }
+
+    /** PATCH করে সত্যিই অন্তত একটি সারি বদলেছে কি না যাচাই করে।
+     *  PostgREST `return=minimal`-এ ০ সারিও HTTP-success হওয়ায় Remove-এর মতো
+     *  গুরুত্বপূর্ণ কাজে সেই পুরনো Boolean যথেষ্ট নয়। */
+    fun updateAtLeastOne(schema: String, table: String, filter: String, patch: JSONObject): Boolean {
+        fun once(): Pair<Boolean, Int> = try {
+            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
+                .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+                .addHeader("Content-Profile", schema)
+                .addHeader("Accept-Profile", schema)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=representation")
+                .patch(patch.toString().toRequestBody(JSON)).build()
+            http.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: "[]"
+                Pair(resp.isSuccessful && try { JSONArray(body).length() > 0 } catch (_: Throwable) { false }, resp.code)
+            }
+        } catch (_: Exception) { Pair(false, -1) }
+        var result = once()
+        if (!result.first && result.second == 401 && reAuth()) result = once()
+        return result.first
     }
 
     /** Count rows in the EXISTING public tables (read-only; those tables have
@@ -539,6 +778,58 @@ object ModuleAuth {
         return try { localCallTapPrefs(context).getInt("calltaps_${staffCode}_$dateIso", 0) } catch (_: Throwable) { 0 }
     }
 
+    // 🔴🔴🔒 V1338 (১১.০৯.২০২৬, TK-নির্দেশ, উদাহরণ JPE-CRP ১৭-বনাম-৪) — call_taps
+    // এতদিন **পুরোপুরি fire-and-forget** ছিল: প্রতিবার Call বোতাম চাপলে একটা
+    // ব্যাকগ্রাউন্ড Thread ইনসার্ট চেষ্টা করত, ঠিক তার পরেই ফোনের ডায়ালার
+    // খুলতে গিয়ে অ্যাপ ব্যাকগ্রাউন্ডে চলে যেত — কম-RAM ফোনে Android মাঝেমধ্যে
+    // ওই Thread শেষ হওয়ার আগেই প্রসেস থামিয়ে দিতে পারে, আর তাতে কোনো
+    // retry/queue না থাকায় সেই কলটা চিরকালের জন্য গোনা থেকে বাদ পড়ে যেত —
+    // স্টাফ চাপলেন, তবু সংখ্যা বাড়ল না, অথচ পর্দায় কোনো ভুল বার্তাও দেখায়নি।
+    // ⛔ পুরনো ৫৫+ জায়গায় ব্যবহৃত CloudWriteQueue `public` স্কিমার জন্য বানানো
+    //    (Content-Profile হেডার নেই) — এই মুহূর্তে সেটা `wn` স্কিমা পর্যন্ত
+    //    বাড়ানো ঝুঁকিপূর্ণ (এত বড় শেয়ার্ড কোড, আসল ZIP পাঠানোর ঠিক আগে)।
+    //    তাই call_taps-এর জন্য এই ছোট, আলাদা, শুধু এই একটা কাজের queue —
+    //    পুরনো CloudWriteQueue-র একটি লাইনও ছোঁয়া হয়নি।
+    // কাজ করে যেভাবে: প্রতিটা tap-এর নিজস্ব client-তৈরি UUID (`id`) থাকে, তাই
+    // পরে আবার পাঠালেও ডুপ্লিকেট হয় না (on_conflict=id)। পাঠানোর **আগেই**
+    // (নেট শুরু হওয়ার আগে, মূল থ্রেডে) SharedPreferences-এ ছোট্ট JSON-এ
+    // সেভ হয়ে যায় — অ্যাপ পরমুহূর্তে মারা গেলেও এই এক-লাইনের সেভটুকু থাকে।
+    // সফল হলে সেখান থেকে মুছে যায়; ব্যর্থ হলে পরে অ্যাপ খোলার সময়
+    // (`flushPendingCallTaps`, BottomNav.kt-এর অন্য সবগুলোর মতোই) আবার
+    // চেষ্টা হয়।
+    private fun pendingCallTapPrefs(context: Context) = context.getSharedPreferences("wn_pending_call_taps", Context.MODE_PRIVATE)
+
+    private fun savePendingCallTap(context: Context, id: String, row: JSONObject) {
+        try {
+            val p = pendingCallTapPrefs(context)
+            p.edit().putString(id, row.toString()).commit()   // ⛔ commit() ইচ্ছে করেই — এর পরেই অ্যাপ ব্যাকগ্রাউন্ডে চলে যায়
+        } catch (_: Throwable) { }
+    }
+    private fun clearPendingCallTap(context: Context, id: String) {
+        try { pendingCallTapPrefs(context).edit().remove(id).apply() } catch (_: Throwable) { }
+    }
+
+    /** ⛔ শুধু call_taps-এর নিজস্ব ছোট queue — বাকি সব app-এর retry (CloudWriteQueue)
+     * এতটুকুও বদলায়নি। BottomNav.kt-এ বাকি সব flushPending()-এর পাশে বসানো, প্রতি
+     * পর্দা খোলার সময় একবার — একজন স্টাফের একদিনে সর্বোচ্চ কয়েক ডজন tap, তাই খরচ নগণ্য। */
+    fun flushPendingCallTaps(context: Context) {
+        try {
+            val p = pendingCallTapPrefs(context)
+            val all = p.all
+            if (all.isEmpty()) return
+            if (!isSignedIn) { try { signInCurrentSession(context) } catch (_: Throwable) { } }
+            if (!isSignedIn) return
+            for ((id, raw) in all) {
+                try {
+                    val row = JSONObject(raw as? String ?: continue)
+                    if (upsertOnConflict("wn", "call_taps", row, "id")) {
+                        clearPendingCallTap(context, id)
+                    }
+                } catch (_: Throwable) { }
+            }
+        } catch (_: Throwable) { }
+    }
+
     fun logCallTap(mobileDigits: String, context: Context) {
         try {
             // 🔴 V452 (19.08.2026, TK-অনুমোদিত): Staff Performance-এ Master যেন
@@ -571,6 +862,19 @@ object ModuleAuth {
                     bumpLocalCallTapCount(context, staffCodeNow, today)
                 }
             } catch (_: Throwable) { }
+            // 🔴🔒 V1338 — id **এখানে, মূল থ্রেডেই** তৈরি ও SharedPreferences-এ
+            // সেভ হয় (নেট পাঠানোর চেষ্টার আগেই) — অ্যাপ ব্যাকগ্রাউন্ডে যাওয়ার
+            // পরপরই প্রসেস মারা গেলেও এই তথ্যটুকু হারায় না।
+            // ⛔ `personCode` (লগইন-থ্রেডে বসে) এখানে নির্ভরযোগ্য নাও হতে পারে —
+            // `expectedCode()`-ই ব্যবহার করা হচ্ছে, ঠিক যেভাবে উপরের local-count
+            // বাড়ানোর সময় হয় (নেট ছাড়াই, session থেকে সরাসরি জানা যায়)।
+            val tapId = java.util.UUID.randomUUID().toString()
+            val staffForTap = try { expectedCode(context) } catch (_: Throwable) { null }
+            val pendingRow: JSONObject? = if (staffForTap != null) {
+                JSONObject().put("id", tapId).put("staff_code", staffForTap).put("target_mobile_mask", masked)
+                    .also { if (fullMobile.isNotBlank()) it.put("target_mobile", fullMobile) }
+            } else null
+            if (pendingRow != null) { try { savePendingCallTap(context, tapId, pendingRow) } catch (_: Throwable) { } }
             Thread {
                 try {
                     val expected = expectedCode(context)
@@ -593,11 +897,22 @@ object ModuleAuth {
                              অর্থাৎ যা ঠিক আছে তাকে খারাপ করা হত।
                            ⚠️ ওয়েব (`module_core.js`) নিজে থেকে তারিখ পাঠায়, কিন্তু
                               সেটা একই ডিফল্টের সঙ্গেই মেলে, তাই কোনো অমিল হয় না। */
-                        val row = JSONObject()
-                            .put("staff_code", personCode)
-                            .put("target_mobile_mask", masked)
-                        if (fullMobile.isNotBlank()) row.put("target_mobile", fullMobile)
-                        insert("wn", "call_taps", row)
+                        if (pendingRow != null) {
+                            // 🔴🔒 V1338 — plain insert()-এর বদলে id-ধরা upsertOnConflict:
+                            // ব্যর্থ হলে pending-এ থেকেই যায় (পরে flushPendingCallTaps
+                            // আবার চেষ্টা করবে); সফল হলে সঙ্গে সঙ্গে pending থেকে মুছে যায়।
+                            if (upsertOnConflict("wn", "call_taps", pendingRow, "id")) {
+                                clearPendingCallTap(context, tapId)
+                            }
+                        } else {
+                            // ⛔ খুব বিরল edge-case (তখনো session/staffCode জানাই ছিল না)
+                            // — আগের মতোই একবার সরাসরি insert, pending-queue ছাড়া।
+                            val row = JSONObject()
+                                .put("staff_code", personCode)
+                                .put("target_mobile_mask", masked)
+                            if (fullMobile.isNotBlank()) row.put("target_mobile", fullMobile)
+                            insert("wn", "call_taps", row)
+                        }
                     }
                 } catch (_: Throwable) { /* logging must never affect the call */ }
             }.start()

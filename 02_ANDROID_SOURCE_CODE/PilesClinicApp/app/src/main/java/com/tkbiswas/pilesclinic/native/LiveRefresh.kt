@@ -96,6 +96,13 @@ object LiveRefresh {
      */
     private const val SAFETY_BACK_MS = 5_000L
 
+    /* 🔴🔒 V1522 (18.09.2026, Supabase Free-plan egress audit): V1519 true
+       Realtime চালু হওয়ার পরেও পুরনো 30-second count fallback একই হারে চলছিল।
+       Realtime server-confirmed healthy থাকলে ওই fallback এখন 5 মিনিটে একবার
+       safety check মাত্র। Socket healthy না থাকলে পুরনো 30-second fallback
+       হুবহু আগের মতোই চলে — তাই Realtime ব্যর্থ হলেও freshness হারায় না। */
+    private const val REALTIME_SAFETY_POLL_MS = 5L * 60L * 1000L
+
     /** এখন কি জেগে থাকার সময়? রাত ১০টা – সকাল ৬টা হলে সব বন্ধ। */
     fun awake(): Boolean {
         val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -125,6 +132,47 @@ object LiveRefresh {
         private var key: String = ""
         /** সর্বশেষ কোন সময় পর্যন্ত দেখা হয়েছে (UTC, Supabase-এর ধাঁচে)। */
         private var since: String = ""
+        /** 🔴 V1360 — একই মুহূর্ত, ফোনের ঘড়িতে (ফোন থেকে লেখা সারির ধাঁচে)। */
+        private var sinceLocal: String = ""
+        private var lastFallbackPollAt: Long = 0L
+
+        /* 🟢🔒 V1519 — true Realtime is only a wake-up signal. The old 30-second
+           count check below stays untouched as fallback. Callback is debounced so a
+           save that changes two related rows causes one screen reload, not two. */
+        private val realtimeHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        private var realtimeToken: Long = 0L
+        private var realtimePending: Runnable? = null
+
+        fun startRealtime(
+            branchProvider: () -> String? = { null },
+            rowFilter: ((RealtimeRefresh.Change) -> Boolean)? = null,
+            onChanged: () -> Unit
+        ) {
+            stopRealtime()
+            realtimeToken = RealtimeRefresh.subscribe(tables) { change ->
+                val wanted = try { branchProvider()?.trim().orEmpty() } catch (_: Throwable) { "" }
+                val got = change.branch?.trim().orEmpty()
+                if (wanted.isNotBlank() && !wanted.equals("All", true) &&
+                    got.isNotBlank() && !wanted.equals(got, true)
+                ) return@subscribe
+                if (rowFilter != null && try { !rowFilter(change) } catch (_: Throwable) { true }) return@subscribe
+
+                realtimePending?.let { realtimeHandler.removeCallbacks(it) }
+                val task = Runnable {
+                    realtimePending = null
+                    if (LiveRefresh.awake()) try { onChanged() } catch (_: Throwable) { }
+                }
+                realtimePending = task
+                realtimeHandler.postDelayed(task, 350L)
+            }
+        }
+
+        fun stopRealtime() {
+            realtimePending?.let { realtimeHandler.removeCallbacks(it) }
+            realtimePending = null
+            if (realtimeToken != 0L) RealtimeRefresh.unsubscribe(realtimeToken)
+            realtimeToken = 0L
+        }
 
         /**
          * @return গতবারের পরে সত্যিই কিছু বদলেছে কি না (দেওয়া টেবিলগুলোর
@@ -134,16 +182,31 @@ object LiveRefresh {
          */
         fun changed(newKey: String, branch: String?): Boolean {
             try {
+                RealtimeRefresh.poke()
                 // তালিকা বদলে গেলে (অন্য তারিখ/ব্রাঞ্চ/ট্যাব) নতুন করে শুরু।
                 if (key != newKey) {
                     key = newKey
                     since = stampNow()
+                    sinceLocal = localStampNow()
+                    lastFallbackPollAt = 0L
                     return false
                 }
-                if (since.isBlank()) {
+                if (since.isBlank() || sinceLocal.isBlank()) {
                     since = stampNow()
+                    sinceLocal = localStampNow()
                     return false
                 }
+                // V1522: true Realtime is the fast path. While Supabase has
+                // acknowledged the socket, keep this old count path only as a
+                // 5-minute safety net. If the socket is not healthy, do NOT skip
+                // anything — the original 30-second fallback remains intact.
+                val pollNow = System.currentTimeMillis()
+                if (RealtimeRefresh.healthy() &&
+                    lastFallbackPollAt > 0L &&
+                    pollNow - lastFallbackPollAt < REALTIME_SAFETY_POLL_MS
+                ) return false
+                lastFallbackPollAt = pollNow
+
                 val branchPart =
                     if (branch != null && branch.isNotBlank() && branch != "All") {
                         "&branch=eq." + enc(branch)
@@ -157,9 +220,24 @@ object LiveRefresh {
                 // আসল বদল যেন হারিয়ে না যায়।
                 var anyChanged = false
                 var anyKnown = false
+                /* 🔴🔒 V1360 (১১.০৯.২০২৬, পুরো প্রজেক্ট যাচাইয়ে ধরা — Payment/Follow-up
+                   পর্দা "সেভের পরে ধীর"): ফোন থেকে লেখা সারির `updatedAt` আর এই
+                   পাহারাদারের `since` — দুটো **দু'রকম ঘড়িতে** লেখা (ফোনেরটা ভারতের
+                   সময়, এখানেরটা UTC — ৫.৫ ঘণ্টা এগিয়ে)। তাই এই ফোনে যেকোনো সেভের
+                   পরে **৫.৫ ঘণ্টা ধরে প্রতি ৩০ সেকেন্ডে** "নতুন কিছু বদলেছে" ধরা পড়ত
+                   ⇒ প্রতিবার পুরো তালিকা আবার নামত (নেট খরচ + ধীর)।
+                   ⇒ এখন দু'রকম সারি দু'রকম মাপে দেখা হয়, একই ছোট প্রশ্নে:
+                      · কম্পিউটারের লেখা (UTC): since-এর পরে **কিন্তু এখনকার UTC-র
+                        মধ্যে** — ফোনের সারি এই সীমায় পড়েই না (৫.৫ ঘণ্টা এগিয়ে)।
+                      · ফোনের লেখা (ভারতের সময়): ফোনের ঘড়ির since-এর পরে।
+                   ⛔ একটাও সারি নামে না (আগের মতোই শুধু গোনা) · সময়-ঘরের লেখা
+                      কোথাও বদলানো হয়নি · বদল সত্যিই হলে আগের মতোই ধরা পড়ে। */
+                val upperUtc = utcStampPlus(60_000L)
                 for (table in tables) {
                     val n = try {
-                        SupabaseClient.fetchCount(table, "updatedAt=gt." + enc(since) + branchPart)
+                        SupabaseClient.fetchCount(table,
+                            "or=(and(updatedAt.gt." + enc(since) + ",updatedAt.lte." + enc(upperUtc) + ")," +
+                                "updatedAt.gt." + enc(sinceLocal) + ")" + branchPart)
                     } catch (_: Throwable) { -1 }
                     if (n < 0) continue
                     anyKnown = true
@@ -171,6 +249,7 @@ object LiveRefresh {
                 if (!anyChanged) return false
                 // সত্যিই বদলেছে — এবার থেকে এই সময়ের পরের বদলগুলোই খোঁজা হবে।
                 since = stampNow()
+                sinceLocal = localStampNow()
                 return true
             } catch (_: Throwable) {
                 return false
@@ -186,6 +265,19 @@ object LiveRefresh {
             java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
                 .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
                 .format(java.util.Date(System.currentTimeMillis() - SAFETY_BACK_MS))
+        } catch (_: Throwable) { "" }
+
+        /** 🔴 V1360 — ফোনের ঘড়িতে একই মুহূর্ত (ফোন থেকে লেখা সারির ধাঁচে; কেবল তুলনার জন্য)। */
+        private fun localStampNow(): String = try {
+            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                .format(java.util.Date(System.currentTimeMillis() - SAFETY_BACK_MS))
+        } catch (_: Throwable) { "" }
+
+        /** 🔴 V1360 — কম্পিউটারের (UTC) লেখার উপরের সীমা: এখনকার UTC + সামান্য। */
+        private fun utcStampPlus(aheadMs: Long): String = try {
+            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                .format(java.util.Date(System.currentTimeMillis() + aheadMs))
         } catch (_: Throwable) { "" }
     }
 }

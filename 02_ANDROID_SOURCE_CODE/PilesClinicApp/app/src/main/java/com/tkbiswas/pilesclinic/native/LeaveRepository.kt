@@ -25,16 +25,28 @@ object LeaveRepository {
         return f.format(java.util.Date())
     }
     private fun enc(s: String) = try { java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20") } catch (_: Throwable) { s }
-    private fun dotDate(iso: String): String = try { val p = iso.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (_: Throwable) { iso }
+    private fun dotDate(iso: String): String = try { val p = iso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (_: Throwable) { iso }
 
-    /** master → সব pending; ব্রাঞ্চ-ডাক্তার → শুধু নিজের ব্রাঞ্চের pending।
-     *  (RLS পড়া খোলা — অ্যাপ ব্রাঞ্চ ধরে ছাঁকে।) */
+    /** V1528: prior-day pending leave is no longer actionable. On opening the
+     *  approval list, close stale rows in Cloud first; the existing V1520 DB
+     *  trigger then soft-closes the matching Leave Request notice. Only today's
+     *  or future pending requests are returned. */
     fun fetchPending(user: NativeUser): JSONArray {
         val isMaster = user.role == "master"
+        val todayIst = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        }.format(java.util.Date())
+        try {
+            ModuleAuth.update(
+                "wn", "leave_requests",
+                "status=eq.pending&leave_date=lt.${enc(todayIst)}",
+                JSONObject().put("status", "expired").put("updated_at", nowIso())
+            )
+        } catch (_: Throwable) { }
         val q = if (isMaster)
-            "select=*&status=eq.pending&order=leave_date.asc"
+            "select=*&status=eq.pending&leave_date=gte.${enc(todayIst)}&order=leave_date.asc"
         else
-            "select=*&status=eq.pending&branch=eq.${enc(user.branch)}&order=leave_date.asc"
+            "select=*&status=eq.pending&leave_date=gte.${enc(todayIst)}&branch=eq.${enc(user.branch)}&order=leave_date.asc"
         return try { ModuleAuth.getRows("wn", "leave_requests", q) } catch (_: Throwable) { JSONArray() }
     }
 

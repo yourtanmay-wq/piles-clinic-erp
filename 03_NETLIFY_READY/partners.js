@@ -547,15 +547,17 @@
     'Bills — Electricity / Water / Internet', 'Medicine / Surgical', 'Advertisement',
     'Office — Printing / Cleaning / Repair / Equipment', 'Transport / Parcel', 'Food',
     'License / Govt Fee', 'Other Expense'];
+  /* 📝🔒 V1203 (০৮.০৯.২০২৬, TK-নির্দেশ — নিয়ম ৭ মেনে একই ধরনের সব পর্দায়):
+     Category-র তালিকা-ঘর বাদ, **একটাই ঐচ্ছিক লেখার ঘর** ("Spent On"), আর ক্রম
+     Date → Amount → Mode → Spent On — মাস্টারের Add Expense-এর হুবহু যমজ।
+     ⛔ PCATS মোছা হয়নি (TK-নিয়ম: নিজে থেকে কোড মোছা হয় না)। */
   function partnerAddExpense(branch) {
-    var opts = PCATS.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
     app().innerHTML = partnerHead() +
       '<div class="card" style="padding:14px"><div style="font-weight:800;color:#B42318;margin-bottom:8px">＋ Add Expense · ' + esc(branch) + '</div>' +
       fldP('Date', '<input id="peDate" class="input" type="date" value="' + today() + '">') +
-      fldP('Category', '<select id="peCat" class="input">' + opts + '</select>') +
       fldP('Amount ₹', '<input id="peAmt" class="input" inputmode="decimal" placeholder="0">') +
       fldP('Mode', '<select id="peMode" class="input"><option value="Cash">Cash</option><option value="Online">Online</option></select>') +
-      fldP('Note (optional)', '<input id="peNote" class="input" placeholder="e.g. paid to…">') +
+      fldP('Spent On (optional)', '<input id="peCat" class="input" placeholder="Type here…">') +
       '<div style="background:#FBEAE8;color:#8f2a20;border:1px dashed #e0a49c;border-radius:10px;padding:9px 11px;font-size:11.5px;margin-bottom:10px">✎ You can fix this entry today only. From tomorrow it is locked.</div>' +
       '<div style="display:flex;gap:9px">' +
       '<div onclick="partnerHome()" style="flex:1;text-align:center;color:#fff;font-weight:800;border-radius:12px;padding:12px;background:#5b6b62;cursor:pointer">← Back</div>' +
@@ -569,8 +571,10 @@
     var mob10 = myAppMobile();
     if (mob10.length !== 10) { alert('Your login mobile is missing — please log in again.'); return; }
     var client = await sb();
-    var row = { id: M().uuid(), entry_date: v('peDate') || today(), branch: branch, category: v('peCat') || 'Other Expense',
-      paid_to: '', amount: amt, mode: v('peMode') || 'Cash', note: v('peNote') || '', created_by: mob10, ignored: false };
+    /* 📝 V1203 — ঘরটা ঐচ্ছিক; ফাঁকা হলে আগের মতোই "Other Expense"। */
+    var row = { id: M().uuid(), entry_date: v('peDate') || today(), branch: branch,
+      category: String(v('peCat') || '').trim() || 'Other Expense',
+      paid_to: '', amount: amt, mode: v('peMode') || 'Cash', note: '', created_by: mob10, ignored: false };
     try { await client.schema('fin').from('expenses').insert(row); }
     catch (e) { alert('Could not save (network?): ' + (e && e.message ? e.message : e)); return; }
     alert('Saved.');

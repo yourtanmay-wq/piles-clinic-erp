@@ -69,6 +69,10 @@ object PremiumAlert {
         ).any { low.contains(it) } || t.contains("মুছ") || t.contains("ধ্বংস")
         if (red) return SEV_RED
         val yellow = listOf(
+            // 🟡🔒 V814 (২৮.০৮.২০২৬, TK-নির্দেশ, ছবিসহ: *"সবুজ কালারের বদলে
+            //    হলুদ কালার দিলে ভালো হয় যাতে সহজেই বুঝতে পারি"*) —
+            //    "already paid"/"duplicate" এখন সতর্কতার হলুদ, সবুজ নয়।
+            "already paid", "duplicate",
             "already exists", "already in the system", "confirm", "logout",
             "restore", "problem", "crash", "error", "warning", "overpay"
         ).any { low.contains(it) } ||
@@ -104,6 +108,9 @@ object PremiumAlert {
             low.contains("remark") || low.contains("note") -> "📝"
             low.contains("payment") || low.contains("income") || t.contains("পেমেন্ট") -> "💰"
             low.contains("arrived") || low.contains("approve") || low.contains("confirm") -> "✅"
+            // 🟡🔒 V814 — "already paid"-এর আইকন ⚠️, নইলে "payment" ধরে 💰 বসত
+            //    আর একই দিনে দ্বিতীয়বার টাকা নেওয়ার সতর্কতাটা চোখেই পড়ত না।
+            low.contains("already paid") || low.contains("duplicate") -> "⚠️"
             low.contains("crash") || low.contains("error") || low.contains("problem") -> "⚠️"
             low.contains("branch") || low.contains("select") -> "📋"
             low.contains("call") -> "📞"
@@ -174,6 +181,11 @@ object PremiumAlert {
             // প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়।
             // ⛔ বাংলা বন্ধ না থাকলে এটা কিছুই করে না।
             try { NoBengali.installDialog(dialog) } catch (_: Throwable) { }
+            // 🔴🔒 V752 (TK-রিপোর্ট ছবিসহ: "এরকম যেন সাজেস্ট না করে") — পপ-আপের
+            //    নিজের আলাদা উইন্ডো, তাই পর্দার Autofill-পাহারা এখানে পৌঁছায় না।
+            //    এই এক লাইনেই প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়
+            //    (ঠিক উপরের NoBengali-র প্রমাণিত পথেই)।
+            try { NoAutofill.scrubDialogWindow(dialog.window) } catch (_: Throwable) { }
             val ctx = dialog.context
             val d = ctx.resources.displayMetrics.density
             dialog.window?.setBackgroundDrawable(GradientDrawable().apply {
@@ -227,6 +239,11 @@ object PremiumAlert {
             // প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়।
             // ⛔ বাংলা বন্ধ না থাকলে এটা কিছুই করে না।
             try { NoBengali.installDialog(dialog) } catch (_: Throwable) { }
+            // 🔴🔒 V752 (TK-রিপোর্ট ছবিসহ: "এরকম যেন সাজেস্ট না করে") — পপ-আপের
+            //    নিজের আলাদা উইন্ডো, তাই পর্দার Autofill-পাহারা এখানে পৌঁছায় না।
+            //    এই এক লাইনেই প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়
+            //    (ঠিক উপরের NoBengali-র প্রমাণিত পথেই)।
+            try { NoAutofill.scrubDialogWindow(dialog.window) } catch (_: Throwable) { }
             val d = dialog.context.resources.displayMetrics.density
             dialog.window?.setBackgroundDrawable(GradientDrawable().apply {
                 setColor(Color.WHITE)

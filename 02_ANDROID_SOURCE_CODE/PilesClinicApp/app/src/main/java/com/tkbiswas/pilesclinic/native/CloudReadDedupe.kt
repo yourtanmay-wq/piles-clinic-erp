@@ -184,6 +184,21 @@ object CloudReadDedupe {
         synchronized(lock) { entries.clear(); bytes = 0L }
     }
 
+    /* 🟠🔒 V1461 (১৪.০৯.২০২৬, TK-অনুমোদিত — তালিকা ৪৬২-ক, `CloudListRevalidate`-এর
+       হুবহু একই টেবিল-বাছাই যুক্তি এখানেও)। `body()`-তে চাবি সবসময় url-ই থাকে
+       (`SupabaseClient`-এর `/rest/v1/<table>?...`-ছাঁচ), তাই এই মিল নির্ভরযোগ্য।
+       table না দিলে আগের মতোই সব মুছে যায় — পুরনো কোনো ডাক বদলায়নি। */
+    fun clear(table: String) {
+        val needle = "/rest/v1/$table?"
+        synchronized(lock) {
+            val it = entries.entries.iterator()
+            while (it.hasNext()) {
+                val e = it.next()
+                if (e.key.contains(needle)) { bytes -= e.value.body.length.toLong(); it.remove() }
+            }
+        }
+    }
+
     /** শুধু পরীক্ষার জন্য — এখন কতগুলো উত্তর জমা আছে। */
     fun debugSize(): Int = synchronized(lock) { entries.size }
 

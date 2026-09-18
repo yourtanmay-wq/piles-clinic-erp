@@ -20,8 +20,8 @@ plugins {
 // versionName আর APK-র নাম তিনটেই একসাথে বদলাবে, কোনোটা বাদ পড়বে না।
 // ⛔ অ্যাপের কাজ · ডিজাইন · ডেটা · Supabase কিছুই ছোঁয়া হয়নি; শুধু বিল্ডের নাম।
 // ═══════════════════════════════════════════════════════════════════════════
-val appVersionCode = 597
-val appVersionName = "5.97"
+val appVersionCode = 1528
+val appVersionName = "15.28"
 
 base {
     archivesName.set("PilesClinic-V$appVersionCode")
@@ -314,6 +314,9 @@ dependencies {
 
     // -- Background auto-sync --
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    // 🔔 V1298 push (FCM) — তালিকা ৪১৪
+    implementation(platform("com.google.firebase:firebase-bom:33.4.0"))
+    implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
@@ -329,8 +332,25 @@ dependencies {
     // android.print APIs — no extra library required.
     implementation("com.google.zxing:core:3.5.3")
 
+    // 🗺️🔒 V1500 (১৫.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ — "OpenStreetMap
+    // দিয়েই করুন") — Field Visit Tracking-এ RUPAM/ARMAN-এর আজকের চলমান
+    // অবস্থান সরাসরি অ্যাপের ভিতরেই মানচিত্রে দেখানোর জন্য। osmdroid
+    // সম্পূর্ণ বিনামূল্যে/ওপেন-সোর্স, কোনো API-চাবি বা টাকা-লাগা Google
+    // Maps SDK লাগে না, কোনো নতুন অনুমতিও (INTERNET/ACCESS_NETWORK_STATE
+    // আগে থেকেই আছে)। ⛔ Google Maps-এর পুরনো "OPEN IN GOOGLE MAPS"
+    // লিংক-বোতাম (আগের দিনগুলোর জন্য) এক অক্ষরও বদলায়নি।
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+
     // Phase 9: regression unit tests (pure-JVM logic only; anything touching
     // Context/Room/Android framework is covered by the manual test steps in
     // FINAL_TEST_REPORT.md instead, since that needs an instrumented/emulator run).
     testImplementation("junit:junit:4.13.2")
+}
+
+// 🔔 V1298: google-services.json থাকলে তবেই Firebase plugin — ফাইল না থাকলেও বিল্ড ভাঙবে না
+// (push তখন চালু হয় না, বাকি সব আগের মতোই চলে)।
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    println("V1298: app/google-services.json নেই — push (FCM) বন্ধ, বিল্ড স্বাভাবিক")
 }

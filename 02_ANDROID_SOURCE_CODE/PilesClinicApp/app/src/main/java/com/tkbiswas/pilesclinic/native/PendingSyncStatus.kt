@@ -98,6 +98,98 @@ object PendingSyncStatus {
         return Summary(total, detailFull)
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🟢🔒 V706 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — TK-এর প্রশ্ন:
+       *"কোন পেশেন্ট এর পেমেন্ট আটকে রয়েছে সেটাই বা আমি জানবো কি করে"*।
+       এতদিন লাল বাক্সে শুধু **সংখ্যা** দেখা যেত, কার টাকা আটকে তা জানার
+       কোনো উপায় ছিল না।
+
+       ⛔ এই অংশটা **শুধু পড়ে** — ঠিক সেই একই SharedPreferences তালিকা থেকে,
+          যেগুলো `summary()` আগে থেকেই গোনে। একটাও লেখা/মোছা/ক্লাউড-কল নেই,
+          তাই টাকার হিসাবে এর কোনো প্রভাব পড়তে পারে না।
+       ⛔ TK-নির্দেশ: *"বাংলা হবে না, শুধুমাত্র ইংরেজিতে করুন"* ⇒ নিচের
+          প্রতিটা দেখানোর লেখা ইংরেজি; সংখ্যাও ইংরেজি (Locale.US)।
+       ═══════════════════════════════════════════════════════════════════ */
+    data class Item(
+        val kind: String,
+        val name: String,
+        val code: String,
+        val amount: String,
+        val date: String,
+        /** কেন আটকে আছে — শেষ চেষ্টায় যা পাওয়া গেছে (ইংরেজি)। জানা না থাকলে ফাঁকা। */
+        val why: String
+    )
+
+    /** prefs file name → the English word shown in the list. */
+    private val DETAIL_QUEUES = listOf(
+        "piles_clinic_payment_pending" to "Payment",
+        "piles_clinic_registration_pending" to "Registration",
+        "piles_clinic_enquiry_pending" to "Enquiry",
+        "piles_clinic_followup_pending" to "Follow-up",
+        "piles_clinic_followup_heal_pending" to "Follow-up",
+        "piles_clinic_chamber_pending" to "Chamber",
+        "piles_clinic_medical_pending" to "Prescription",
+        "piles_clinic_briefing_pending" to "Briefing",
+        "piles_clinic_generic_update_pending" to "Correction"
+    )
+
+    /** First non-blank value among these keys, looking inside "paymentRow"
+     *  too (the Payment queue keeps the real row nested there). */
+    private fun pick(entry: org.json.JSONObject, vararg keys: String): String {
+        val nested = entry.optJSONObject("paymentRow")
+        for (k in keys) {
+            val v = entry.optString(k, "")
+            if (v.isNotBlank() && v != "null") return v
+            val n = nested?.optString(k, "") ?: ""
+            if (n.isNotBlank() && n != "null") return n
+        }
+        return ""
+    }
+
+    private fun money(entry: org.json.JSONObject): String {
+        val nested = entry.optJSONObject("paymentRow")
+        val a = when {
+            nested != null && nested.has("amount") -> nested.optDouble("amount", 0.0)
+            entry.has("amount") -> entry.optDouble("amount", 0.0)
+            else -> 0.0
+        }
+        if (a <= 0.0) return ""
+        // ⛔ Locale.US — সংখ্যা সবসময় ইংরেজিতে (প্রজেক্টের নিয়ম ৯.১১)।
+        return "Rs " + java.text.DecimalFormat("#,##0", java.text.DecimalFormatSymbols(java.util.Locale.US)).format(a)
+    }
+
+    /**
+     * Every row still waiting, in a form a person can read. Read only.
+     * Payment rows come first, because that is the money.
+     */
+    fun details(context: Context, max: Int = 200): List<Item> {
+        val out = ArrayList<Item>()
+        for ((prefsName, kind) in DETAIL_QUEUES) {
+            val arr = try {
+                val raw = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+                    .getString("queue", "[]") ?: "[]"
+                org.json.JSONArray(raw)
+            } catch (_: Throwable) { org.json.JSONArray() }
+            for (i in 0 until arr.length()) {
+                if (out.size >= max) return out
+                val e = arr.optJSONObject(i) ?: continue
+                out.add(
+                    Item(
+                        kind = kind,
+                        name = pick(e, "patientName", "name").ifBlank { "(no name)" },
+                        code = pick(e, "patientCode", "patientId"),
+                        amount = money(e),
+                        date = pick(e, "date", "createdAt", "updatedAt"),
+                        // 🟢🔒 V706 — `PaymentRepository.flushPending()` শেষ ব্যর্থ
+                        //    চেষ্টায় এই ঘরটা লিখে রাখে। না থাকলে ফাঁকা।
+                        why = e.optString("lastWhy", "")
+                    )
+                )
+            }
+        }
+        return out
+    }
+
     /**
      * Runs the SAME flush functions BottomNav.wire already runs on every
      * screen open . nothing new, just triggered on demand by the banner.
@@ -122,7 +214,9 @@ object PendingSyncStatus {
         try { CloudWriteQueue.flush(context) } catch (_: Throwable) { }
         try { EnquiryRepository(context).flushPending() } catch (_: Throwable) { }
         try { RegistrationRepository(context).flushPending() } catch (_: Throwable) { }
-        try { PaymentRepository(context).flushPending() } catch (_: Throwable) { }
+        // 🔴🔒 V715 — মালিক/স্টাফ নিজে বোতাম চেপেছেন, তাই `force = true`:
+        //    পরপর ব্যর্থ হওয়া সারির অপেক্ষা এখানে মানা হয় না, সঙ্গে সঙ্গে চেষ্টা।
+        try { PaymentRepository(context).flushPending(force = true) } catch (_: Throwable) { }
         try { FollowUpRepository(context).flushPending() } catch (_: Throwable) { }
         try { ChamberAttendanceRepository.flushPending(context) } catch (_: Throwable) { }
         try { com.tkbiswas.pilesclinic.clinical.ClinicalCloudRepository.flushPending(context) } catch (_: Throwable) { }

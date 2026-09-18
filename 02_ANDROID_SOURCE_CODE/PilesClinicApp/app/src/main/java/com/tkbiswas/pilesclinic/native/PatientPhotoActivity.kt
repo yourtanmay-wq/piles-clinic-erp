@@ -174,7 +174,7 @@ class PatientPhotoActivity : AppCompatActivity() {
                 .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
                 .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
                 .setOnCancelListener { finishWith(null) }
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         }
 
     private fun findPatient() {
@@ -355,7 +355,7 @@ class PatientPhotoActivity : AppCompatActivity() {
                 this@PatientPhotoActivity,
                 if (ok) "Photo saved" else "Failed — check connection",
                 Toast.LENGTH_SHORT
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             binding.btnSave.isEnabled = !ok
             // সেভ হয়ে গেলে বোতামটা আবার সরে যায় — নিচে শুধু একটাই বোতাম থাকে।
             if (ok) {

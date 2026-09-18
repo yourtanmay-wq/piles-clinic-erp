@@ -241,6 +241,30 @@ object CloudListRevalidate {
         bytes = 0L
     }
 
+    /* 🟠🔒 V1461 (১৪.০৯.২০২৬, TK-অনুমোদিত — তালিকা ৪৬২-ক): **শুধু যে টেবিলে
+       লেখা হলো, তারই জমানো সই/তালিকা মুছে যায় — বাকি টেবিলগুলোর ১০-মিনিটের
+       জমানো উত্তর অক্ষত থাকে।**
+       আগে যেকোনো একটা টেবিলে (যেমন payments) সেভ করলে `clear()` (উপরের,
+       প্যারামিটার-হীন) followups/patients/enquiries — সব টেবিলের জমানো সই
+       একসাথে মুছে দিত, যদিও তাদের একটা সারিও বদলায়নি। ফলে পরের যে-কোনো
+       পর্দা খুললেই ওই না-বদলানো টেবিলগুলোও আবার পুরো তালিকা নামাত।
+       ⛔ যেটা বদলেছে (table প্যারামিটার) তার জমানো সব মুছে যাওয়া আগের মতোই
+          অটুট — বাসি তথ্য দেখানোর কোনো ঝুঁকি নতুন করে তৈরি হয়নি।
+       ⛔ url সবসময় `/rest/v1/<table>?...`-এর হুবহু একই ছাঁচে বসে
+          (`SupabaseClient`-এর প্রতিটা তালিকা-পড়ায়) — তাই এই মিলটা নির্ভরযোগ্য।
+       ⛔ table না দিলে (পুরনো ডাক) আগের মতোই সব মুছে যায় — কোনো আচরণ বদলায়নি। */
+    fun clear(table: String) = synchronized(lock) {
+        val needle = "/rest/v1/$table?"
+        val prefix = "$table|"
+        val eIt = entries.entries.iterator()
+        while (eIt.hasNext()) {
+            val e = eIt.next()
+            if (e.key.contains(needle)) { bytes -= e.value.body.length.toLong(); eIt.remove() }
+        }
+        val pIt = probes.keys.iterator()
+        while (pIt.hasNext()) { if (pIt.next().startsWith(prefix)) pIt.remove() }
+    }
+
     /** পরীক্ষার জন্য (কোনো পর্দা এটা ব্যবহার করে না)। */
     fun debugSize(): Int = synchronized(lock) { entries.size }
 }

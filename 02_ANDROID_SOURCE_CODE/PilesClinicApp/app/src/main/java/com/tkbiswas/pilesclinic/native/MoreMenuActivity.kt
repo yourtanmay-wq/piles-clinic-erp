@@ -53,6 +53,7 @@ class MoreMenuActivity : AppCompatActivity() {
         user = session
 
         binding.btnBack.setOnClickListener { finish() }
+        addCallIdCard()   // ☎️ V1427
         // 🆕🔒 TK-নির্দেশ (05.08.2026): Dialer এখন Dashboard-এর টাইল থেকেই
         // খোলে (দেখুন DashboardActivity.kt) — এখান থেকে বাটন-ওয়্যারিং
         // সরানো হয়েছে, কারণ XML থেকেই কার্ডটা তুলে দেওয়া হয়েছে।
@@ -71,10 +72,39 @@ class MoreMenuActivity : AppCompatActivity() {
         // সরিয়ে দেয় (বাকি item weight=1 থাকায় নিজে থেকে পুরো সারি নিয়ে
         // নেয়), আর row-টা সম্পূর্ণ ফাঁকা হয়ে গেলে (দুটো item-ই লুকানো)
         // পুরো row-টাও GONE করে দেয়, যাতে ফাঁকা জায়গা/মার্জিন না থাকে।
+        // 📌🔒 V1572 (১৭.০৯.২০২৬) — এই ফাংশনটা এখন Doctor Reminder/Staff
+        // Profiles-এর সারিতেও লাগে, তাই সেই ব্যবহারের আগেই এখানে আনা হলো।
         fun hideItem(row: LinearLayout, item: View) {
             item.visibility = View.GONE
             row.removeView(item)
             if (row.childCount == 0) row.visibility = View.GONE
+        }
+
+        /* 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Doctor reminder icon টা উপরে
+           ডান সাইডে যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
+           ⇒ Dashboard-এর ঘরটা লুকানো হলো (DashboardActivity), আর এখানে এলো।
+           ⛔ কারা দেখবেন সেই নিয়ম **হুবহু আগের মতোই** — master · staff · doctor
+              (Dashboard-এর ঘরটায় ঠিক এই তিনজনই ছিল)। Field-এর পর্দায় বসে না।
+           ⛔ Doctor Reminder পর্দাটা এক অক্ষরও বদলায়নি — শুধু পৌঁছানোর পথ বদলাল।
+           📌🔒 V1572 (১৭.০৯.২০২৬, TK-নির্দেশ: *"doctor reminder, staff profile
+           পাশাপাশি রাখুন"*) — rowDocModules5 এখন Staff Profiles-এরও ঘর, তাই
+           পুরো সারি VISIBLE/GONE না করে rowManagement1-এর মতোই শুধু নিজের
+           আইটেমটা hideItem() দিয়ে সরানো হয় — বাকিটা (isMaster ব্লকে) ঠিক
+           করবে Staff Profiles আসলে দেখা যাবে কিনা। */
+        run {
+            val who = user.displayRole
+            // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE: Doctor Reminder-ও
+            // এখান থেকে বাদ (এতে রোগী/ডাক্তারের নোট থাকে) — Menu-তে শুধু
+            // Logout + App Version থাকবে, আর কিছু না।
+            val allowed = (isMaster || who == "staff" || who == "doctor") &&
+                !RoleRules.isDoctorVisitOnly(this)
+            if (allowed) {
+                binding.btnDocDoctorReminder.setOnClickListener {
+                    startActivity(Intent(this, DoctorReminderActivity::class.java))
+                }
+            } else {
+                hideItem(binding.rowDocModules5, binding.btnDocDoctorReminder)
+            }
         }
 
         // Reports / Backup&Settings / Trash / Password / Export / Staff
@@ -109,9 +139,15 @@ class MoreMenuActivity : AppCompatActivity() {
             // non-master-এর পর্দায় এই সেকশনের দুটো সারিই খালি হয়ে লুকিয়ে যায়,
             // অথচ "🛡️ Security & Data" শিরোনামটা একা দাঁড়িয়ে থাকত। এখন সেটাও লুকায়।
             binding.securityHeader.visibility = View.GONE
-            // Staff Profiles/Income & Expense (btnStaffProfiles/btnIncomeExpense)
-            // থেকেই যায় visibility=gone (XML-এর ডিফল্ট) — এখানে কিছু করার
-            // দরকার নেই, master-এর branch-এই শুধু VISIBLE করা হয়েছে।
+            // 📌🔒 V1572 (১৭.০৯.২০২৬) — Staff Profiles এখন rowDocModules5-এর
+            // ভিতরে (Doctor Reminder-এর পাশে), তাই XML-এর ডিফল্ট ভিজিবল —
+            // non-master-দের জন্য hideItem()-দিয়ে সরিয়ে নিতে হয় (আগে XML
+            // ডিফল্ট gone-ই যথেষ্ট ছিল, যখন এটা নিজের আলাদা পূর্ণ-প্রস্থ card
+            // ছিল)। ⛔ কারা দেখবেন সেই নিয়ম (শুধু master) বদলায়নি।
+            hideItem(binding.rowDocModules5, binding.btnStaffProfiles)
+            // Income & Expense (btnIncomeExpense) থেকেই যায় visibility=gone
+            // (XML-এর ডিফল্ট, নিজের আলাদা full-width card) — master-এর
+            // branch-এই শুধু VISIBLE করা হয়েছে।
 
             // 🔒🔒 B605 (10.08.2026, TK-নির্দেশ): "My Profile" এখন শুধু Master-এর জন্য
             // (Master-এর "Staff Profiles" থেকেই সব)। staff/doctor/field-এর পর্দা থেকে
@@ -186,7 +222,7 @@ class MoreMenuActivity : AppCompatActivity() {
                 if (!patientOnly) {
                     val dm = resources.displayMetrics.density
                     val ieBtn = android.widget.TextView(this).apply {
-                        text = "💵  আয় ও ব্যয়"
+                        text = NoBengali.s("💵  আয় ও ব্যয়")
                         textSize = 15f
                         setTextColor(android.graphics.Color.WHITE)
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -235,6 +271,78 @@ class MoreMenuActivity : AppCompatActivity() {
                 binding.badgeChamberClose.visibility = View.VISIBLE
             }
         }.start()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshCallIdCard()   // ☎️ V1427
+    }
+
+
+    /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-রিপোর্ট + ছবি-প্রুফ পাশ) — More মেনুর সবার উপরে
+       "Call ID Banner — ON/OFF" ঘর, **সব রোলে** (কল যে ফোনেই আসুক)। চাপলে
+       CallIdSetupActivity — যেটা বাকি সেটাই একে একে চেয়ে নেয়।
+       ⛔ TK: Home-এ কিছু বসবে না — তাই শুধু এখানেই।
+       ⛔ কোডে আঁকা কার্ড, XML-এর লক করা ডিজাইনের বাকি সব কার্ডের হুবহু মাপে
+          (সাদা · ১৬dp গোল · ১৪dp প্যাডিং · ৪২dp আইকন-ব্যাজ); XML ছোঁয়া হয়নি। */
+    private var callIdSub: android.widget.TextView? = null
+    private var callIdIcon: android.widget.TextView? = null
+
+    private fun addCallIdCard() {
+        try {
+            val parent = binding.rowManagement1.parent as? LinearLayout ?: return
+            val at = parent.indexOfChild(binding.rowManagement1)
+            val d = resources.displayMetrics.density
+            fun dp(v: Int) = (v * d).toInt()
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+                background = androidx.core.content.ContextCompat.getDrawable(this@MoreMenuActivity, com.tkbiswas.pilesclinic.R.drawable.bg_more_card)
+                elevation = 2 * d
+                isClickable = true; isFocusable = true
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(dp(17), dp(12), dp(17), dp(2)) }
+                setOnClickListener { startActivity(Intent(this@MoreMenuActivity, CallIdSetupActivity::class.java)) }
+            }
+            val icon = android.widget.TextView(this).apply {
+                textSize = 20f; gravity = android.view.Gravity.CENTER
+                background = androidx.core.content.ContextCompat.getDrawable(this@MoreMenuActivity, com.tkbiswas.pilesclinic.R.drawable.bg_more_icon_badge)
+                layoutParams = LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(12) }
+            }
+            callIdIcon = icon
+            card.addView(icon)
+            val col = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            col.addView(android.widget.TextView(this).apply {
+                text = "Call ID Banner"; textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B2545"))
+            })
+            val sub = android.widget.TextView(this).apply { textSize = 12f }
+            callIdSub = sub
+            col.addView(sub)
+            card.addView(col)
+            card.addView(android.widget.TextView(this).apply {
+                text = "›"; textSize = 20f
+                setTextColor(android.graphics.Color.parseColor("#9AA8B7"))
+            })
+            parent.addView(card, at)
+            refreshCallIdCard()
+        } catch (_: Throwable) { }
+    }
+
+    private fun refreshCallIdCard() {
+        try {
+            val on = CallIdSetup.isOn(this)
+            callIdIcon?.text = if (on) "📞" else "📵"
+            callIdSub?.text = CallIdSetup.summary(this)
+            callIdSub?.setTextColor(android.graphics.Color.parseColor(if (on) "#0B6B3A" else "#C2410C"))
+            callIdSub?.setTypeface(callIdSub?.typeface, if (on) android.graphics.Typeface.NORMAL else android.graphics.Typeface.BOLD)
+        } catch (_: Throwable) { }
     }
 
     private fun confirmLogout() {

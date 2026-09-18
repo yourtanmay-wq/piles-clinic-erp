@@ -45,7 +45,21 @@ object ChamberUnclosedRepository {
     // 🔵 TK-ORDER (07.08.2026): পড়া ব্যর্থ হলে এখন **null** ফেরে (আগে emptyList)।
     // আচরণ একই থাকে (findUnclosedCached ব্যর্থে ভুল সতর্কতা দেয় না) — কিন্তু ব্যর্থতা
     // আর ২ মিনিট "কিছু বাকি নেই" হিসেবে cache হয় না। ⛔ একই দুটো cloud-read।
-    fun findUnclosed(context: Context?, branchFilter: String?, days: Int = 7): List<UnclosedDay>? {
+    // 🔔🔒 V1437 (১৩.০৯.২০২৬, TK-নির্দেশ) — [serverBranchFilter] শুধু **নতুন
+    // স্টাফ-তাগাদার কাজটার** জন্য: একটা নির্দিষ্ট ব্রাঞ্চ চাওয়া হলে টাকার
+    // সারিগুলো **সার্ভারেই** ওই ব্রাঞ্চে ছেঁকে আনা হয় (প্রজেক্টের প্রমাণিত
+    // একই ধাঁচ — PaymentRepository:223 · ChamberAttendanceRepository:251)।
+    // নিচের হিসাবে এক অক্ষরও বদলায় না — ওই সারিগুলো এমনিতেও এখানে বাদ পড়ত;
+    // শুধু পাঁচ ব্রাঞ্চের বদলে এক ব্রাঞ্চের সারি নামে, তাই স্টাফের ফোনে
+    // রোজকার খরচ অনেক কম।
+    // ⛔ default `false` — মাস্টারের পর্দা ও মেনুর সংখ্যা (পুরনো দুই ডাক)
+    //    হুবহু আগের মতোই চলে, একটুও ছোঁয়া হয়নি।
+    fun findUnclosed(
+        context: Context?,
+        branchFilter: String?,
+        days: Int = 7,
+        serverBranchFilter: Boolean = false
+    ): List<UnclosedDay>? {
         return try {
             val from = isoDaysAgo(days)
             val to = isoDaysAgo(1)          // গতকাল পর্যন্ত
@@ -68,14 +82,17 @@ object ChamberUnclosedRepository {
             } catch (_: Throwable) { return null }   // পড়া ব্যর্থ — null (আগে emptyList; ভুল সতর্কতা নয়, cache-বিষও নয়)
 
             // ---- ২) ওই ক'দিনে কোন দিনে কোন ব্রাঞ্চে কাজ হয়েছে ----
+            val only = branchFilter?.trim()?.takeIf { it.isNotBlank() && !it.equals("All", ignoreCase = true) }
+
+            // 🔔 V1437 — একটা ব্রাঞ্চ চাওয়া হলে (আর ডাকার জায়গা চাইলে) সার্ভারেই ছাঁকা।
+            val branchPart = if (serverBranchFilter && only != null)
+                "&branch=eq.${java.net.URLEncoder.encode(only, "UTF-8")}" else ""
             val pays = try {
                 SupabaseClient.fetchListSlim(
-                    "payments", "date=gte.$from&date=lte.$to", 5000,
+                    "payments", "date=gte.$from&date=lte.$to$branchPart", 5000,
                     "id,date,branch,mobile,amount,payType,refundApprovalStatus,updatedAt"
                 )
             } catch (_: Throwable) { return null }   // পড়া ব্যর্থ — null
-
-            val only = branchFilter?.trim()?.takeIf { it.isNotBlank() && !it.equals("All", ignoreCase = true) }
             val people = HashMap<String, HashSet<String>>()
             val money = HashMap<String, Double>()
             val label = HashMap<String, Pair<String, String>>()   // key -> (date, branch)
@@ -142,6 +159,16 @@ object ChamberUnclosedRepository {
         cacheAt = now
         cacheVal = out
         return out
+    }
+
+    /** 🟢🔒 V604 (২৪.০৮.২০২৬, TK-রিপোর্ট) — "পুরনো ডেটা থাকলেও প্রতিবার
+     *  Loading দেখায় কেন?" এই ফাংশনটা নেট না ছুঁয়ে **শুধু মেমরির উপরের
+     *  ক্যাশটাই** দেখে — এখনো তাজা (২ মিনিটের কম) থাকলে তালিকাটা তৎক্ষণাৎ
+     *  ফেরায়, নইলে null। ⛔ `findUnclosedCached` এক অক্ষরও বদলায়নি। */
+    fun peekCached(branchFilter: String?, days: Int = 30): List<UnclosedDay>? {
+        val key = (branchFilter ?: "") + "|" + days
+        val now = System.currentTimeMillis()
+        return if (cacheKey == key && now - cacheAt < 120_000L) cacheVal else null
     }
 
     /** একটা দিন বন্ধ করার পরে স্মৃতিটা ফেলে দিতে হয়, নইলে পুরনো তালিকা দেখাবে। */

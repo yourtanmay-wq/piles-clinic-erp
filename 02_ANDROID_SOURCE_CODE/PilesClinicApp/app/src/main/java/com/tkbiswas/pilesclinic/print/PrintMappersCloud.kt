@@ -42,7 +42,7 @@ object PrintMappersCloud {
         if (raw.isBlank()) return "-"
         return try {
             val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(raw.take(10))
-            SimpleDateFormat("dd.MM.yyyy", Locale.US).format(date ?: Date())
+            SimpleDateFormat("dd/MM/yyyy", Locale.US).format(date ?: Date())
         } catch (e: Exception) { raw }
     }
 

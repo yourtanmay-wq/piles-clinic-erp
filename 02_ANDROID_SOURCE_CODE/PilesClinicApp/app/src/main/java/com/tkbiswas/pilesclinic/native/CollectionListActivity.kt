@@ -42,6 +42,10 @@ class CollectionListActivity : AppCompatActivity() {
     private val monthKeys = mutableListOf<String>()     // yyyy-MM, newest first
     private var selectedBranch = ""                      // 🟢🔒 V398: মনে-রাখা মানের প্রতিচ্ছবি
     private var selectedMonth = ""
+    // V1521 — Collection History keeps its old All-Years default. Year is only
+    // applied when Master explicitly picks one from ⋮, so upgrading cannot hide
+    // older money records silently. Monthly Collection remains month-driven.
+    private var selectedHistoryYear: Int? = null
 
     // 🔴🔒 V457 (20.08.2026, TK-অনুমোদিত ছোট কাজ): PaymentActivity.kt-এর
     // প্রমাণিত একই lifecycle pattern — Monthly Collection/History-ও ৩০
@@ -69,7 +73,7 @@ class CollectionListActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val changed = withContext(Dispatchers.IO) {
-                    autoWatch.changed("colllist|$monthly|$selectedMonth|$br", br)
+                    autoWatch.changed("colllist|$monthly|$selectedMonth|${selectedHistoryYear ?: "all"}|$br", br)
                 }
                 if (isFinishing || isDestroyed) return@launch
                 if (!changed) return@launch
@@ -85,11 +89,17 @@ class CollectionListActivity : AppCompatActivity() {
         super.onResume()
         autoHandler.removeCallbacks(autoTick)
         autoHandler.postDelayed(autoTick, LiveRefresh.TICK_MS)
+        autoWatch.startRealtime({ selectedBranch }) {
+            if (!::repository.isInitialized || !::user.isInitialized || !autoScreenFocused) return@startRealtime
+            if (BranchFilterStore.notChosen(this, user)) return@startRealtime
+            load()
+        }
     }
 
     override fun onPause() {
         super.onPause()
         autoHandler.removeCallbacks(autoTick)
+        autoWatch.stopRealtime()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -142,11 +152,38 @@ class CollectionListActivity : AppCompatActivity() {
         }
 
         binding.btnBack.setOnClickListener { finish() }
+        setupHistoryYearMenu()
 
         setupBranchSpinner()
         if (monthly) setupMonthSpinner()
 
         load()
+    }
+
+    private fun setupHistoryYearMenu() {
+        if (monthly) { binding.btnMore.visibility = View.GONE; return }
+        binding.btnMore.visibility = View.VISIBLE
+        binding.btnMore.setOnClickListener { anchor ->
+            val pm = android.widget.PopupMenu(this, anchor)
+            val nowYear = Calendar.getInstance().get(Calendar.YEAR)
+            for (y in nowYear downTo nowYear - 5) {
+                pm.menu.add(0, 10000 + y, 0, (if (selectedHistoryYear == y) "✓ " else "") + "Year $y")
+            }
+            pm.menu.add(0, 20001, 0, (if (selectedHistoryYear == null) "✓ " else "") + "All Years")
+            pm.setOnMenuItemClickListener { item ->
+                selectedHistoryYear = if (item.itemId == 20001) null else item.itemId - 10000
+                updateHistoryTitle()
+                load()
+                true
+            }
+            pm.show()
+        }
+        updateHistoryTitle()
+    }
+
+    private fun updateHistoryTitle() {
+        if (monthly) return
+        binding.tvTitle.text = selectedHistoryYear?.let { "Collection History · $it" } ?: "Collection History"
     }
 
     private fun setupBranchSpinner() {
@@ -251,8 +288,14 @@ class CollectionListActivity : AppCompatActivity() {
             from = r.first
             to = r.second
         } else {
-            from = "2000-01-01"
-            to = PaymentModel.today()
+            val y = selectedHistoryYear
+            if (y == null) {
+                from = "2000-01-01"
+                to = PaymentModel.today()
+            } else {
+                from = String.format(Locale.US, "%04d-01-01", y)
+                to = String.format(Locale.US, "%04d-12-31", y)
+            }
         }
         // 🔵🔒 (09.08.2026, TK-নির্দেশ "লোডিং দেরি ঠিক করুন, খুব সাবধানে" — Appointment/
         // ExpectedTomorrow-এর প্রমাণিত cache-first প্যাটার্নের মিরর): শেষবার সফলভাবে আনা
@@ -322,7 +365,8 @@ class CollectionListActivity : AppCompatActivity() {
     // 🔵 এই পর্দার নিজের cache (Appointment/ExpectedTomorrow-এর মতোই) — ব্রাঞ্চ+মাস/সব ধরে।
     // ⛔ টাকার হিসাব এখানে নয় (শুধু শেষ-জানা তালিকা); আসল সংখ্যা ক্লাউড রিফ্রেশে বসে।
     private fun collCachePrefs() = getSharedPreferences("collection_list_cache", MODE_PRIVATE)
-    private fun collCacheKey() = "cl_" + selectedBranch + "_" + (if (monthly) "m_" + selectedMonth else "all")
+    private fun collCacheKey() = "cl_" + selectedBranch + "_" +
+        (if (monthly) "m_" + selectedMonth else "history_" + (selectedHistoryYear?.toString() ?: "all"))
     private fun loadCachedCollection(key: String): List<CollectionRow>? {
         return try {
             val json = collCachePrefs().getString(key, null) ?: return null

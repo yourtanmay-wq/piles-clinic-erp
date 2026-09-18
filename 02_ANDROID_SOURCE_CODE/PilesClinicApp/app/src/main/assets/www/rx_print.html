@@ -30,13 +30,14 @@ body { background: linear-gradient(145deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
 .printTable { width: 100%; border-collapse: collapse; margin-top: 10px; }
 .printTable th, .printTable td { border: 1px solid rgb(34, 34, 34); padding: 6px; text-align: left; font-size: 12px; }
 .printTable th { background: rgb(238, 242, 246); }
-@media print{@page { size: a4; margin: 0mm; }
+@media print{@page { size: a4; margin: 0mm;
 body { background: rgb(255, 255, 255) !important; }
 .printArea.prescriptionLock { position: relative; min-height: 282mm; font-family: Arial, "Noto Sans Bengali", sans-serif; color: rgb(17, 17, 17); background: rgb(255, 255, 255); overflow: hidden; border: 1.3px solid rgb(24, 79, 59); padding: 0px !important; }
 .printHead.compact { border-bottom: 2px solid rgb(17, 107, 74); background: linear-gradient(90deg, rgb(247, 255, 251), rgb(255, 253, 244)); display: grid !important; grid-template-columns: 58px 1fr 68px !important; gap: 6px !important; align-items: center !important; text-align: center !important; padding: 5mm 6mm 2mm !important; }
 .logoCell { height: 48px; display: grid; place-items: center; }
 .printLogoImg { max-width: 48px; max-height: 48px; border-radius: 50%; object-fit: contain; }
 .clinicCell h2 { letter-spacing: 0.5px; color: rgb(7, 59, 43); line-height: 1.05; margin: 0px !important; font-size: 18px !important; }
+/* 🖨️🔒 V955 (TK-নির্দেশ): ঠিকানা+মোবাইল দু-লাইনে ভেঙে যাচ্ছিল ⇒ ফন্ট একটু ছোট করে এক লাইনে। */
 .clinicCell p { line-height: 1.2; color: rgb(34, 34, 34); margin: 2px 0px 0px !important; font-size: 9.5px !important; }
 .printTitle { text-align: center; font-weight: 900; font-size: 12px; margin: 2mm 6mm 1mm; padding: 1mm; border-top: 1px solid rgb(212, 177, 95); border-bottom: 1px solid rgb(212, 177, 95); color: rgb(7, 59, 43); letter-spacing: 0.6px; }
 .rxBox { position: relative; min-height: 196mm; margin: 0px 6mm 1.5mm; border: 1px solid rgb(224, 224, 224); padding: 5mm 3mm 2mm; background: rgba(255, 255, 255, 0.84); }
@@ -84,7 +85,7 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 @media print{.printArea.prescriptionLock { break-after: avoid !important; }
 .printHead.compact { min-height: 21mm !important; }
 .printTitle, .medicalPrintTitle { break-after: avoid !important; }
-.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 1mm !important; text-align: center !important; font-size: 8px !important; color: rgb(17, 107, 74) !important; }
+.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 7mm !important; /* 🖨️🔒 V766 (২৭.০৮.২০২৬, TK-রিপোর্ট: "প্রেসক্রিপশন ও মেডিসিন স্লিপ প্রিন্ট আউটে একদম নিচের লাইনটা হাফ কেটে যায়")। মেপে দেখা গেছে এই ফিতেটা কাগজের প্রান্ত থেকে মাত্র 1mm উপরে শেষ হত, আর ভিতরের লেখা 1.6mm — কিন্তু **প্রতিটা প্রিন্টারই** নিচের 3-5mm ছাপতে পারে না, তাই অর্ধেক কেটে যেত। এখন 7mm উপরে। ⛔ এটা absolute অবস্থানে, তাই কাগজের আর কিছুই নড়ে না ও পাতা বাড়ে না (PDF-এ পাতা গুনে যাচাই করা)। ⛔ @page-এ হাত দেওয়া হয়নি — সেটা বদলাতে গিয়ে ২ পাতা হয়ে যাচ্ছিল, পরীক্ষায় ধরা পড়ে ফিরিয়ে নেওয়া হয়েছে। */ text-align: center !important; font-size: 8px !important; color: rgb(17, 107, 74) !important; }
 .finalPrintTable { break-inside: auto !important; }
 .finalPrintTable tr { break-inside: avoid !important; break-after: auto !important; }}
 @media print{.printArea.prescriptionLock .printHead.compact { min-height: 22mm !important; padding: 3mm 7mm 1.8mm !important; grid-template-columns: 20mm 1fr !important; gap: 3mm !important; }
@@ -113,7 +114,10 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .rxPrescriptionPrint .printTitle { display: block !important; }
 .rxPrescriptionPrint .medicalPrintTitle { display: none !important; }
 .rxPatientInfo { display: grid !important; grid-template-columns: 1.12fr 0.88fr !important; gap: 3mm !important; margin: 2mm 8mm !important; padding: 2mm 3mm !important; border: 1px solid rgb(200, 215, 206) !important; border-radius: 5px !important; background: rgba(255, 255, 255, 0.92) !important; font-size: 10px !important; line-height: 1.32 !important; position: relative !important; z-index: 1 !important; }
-.clinicPadRx { min-height: 184mm !important; margin: 0px 8mm 1.5mm !important; padding: 8mm 4mm 3mm !important; border: 1.2px solid rgb(207, 216, 220) !important; border-radius: 7px !important; background: rgba(255, 255, 255, 0.8) !important; position: relative !important; z-index: 1 !important; }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): TK — *"মেডিসিন লেখার বক্সের ডান দিকের দাগটা
+   অনেক দূর পর্যন্ত, ওটা আরেকটু কাছে আনতে হবে"*। ডান-বাঁয়ের ভিতরের ফাঁক
+   ৪mm → ২mm ⇒ টেবিলটা বাক্সের ধার ছুঁয়ে বসে, ফাঁকা জায়গা কমে। */
+.clinicPadRx { min-height: 184mm !important; margin: 0px 8mm 1.5mm !important; padding: 8mm 2mm 3mm !important; border: 1.2px solid rgb(207, 216, 220) !important; border-radius: 7px !important; background: rgba(255, 255, 255, 0.8) !important; position: relative !important; z-index: 1 !important; }
 .clinicPadRx .rxMark, .rxBox .rxMark { font-size: 34px !important; color: rgb(11, 93, 42) !important; top: 4mm !important; left: 5mm !important; font-family: Georgia, serif !important; font-weight: 700 !important; }
 .rxPrescriptionPrint .finalPrintTable { margin-top: 10mm !important; }
 .finalPrintTable { width: 100% !important; border-collapse: collapse !important; background: rgba(255, 255, 255, 0.94) !important; }
@@ -127,7 +131,7 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .doctorLine small { display: block !important; font-size: 8.5px !important; line-height: 1.15 !important; color: rgb(51, 51, 51) !important; }
 .docLeft { text-align: left !important; }
 .docRight { text-align: right !important; }
-.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 0px !important; background: rgb(11, 93, 42) !important; color: rgb(255, 255, 255) !important; text-align: center !important; font-size: 8.8px !important; font-weight: 900 !important; padding: 1.4mm 0px !important; z-index: 2 !important; }}
+.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 7mm !important; /* V766 — প্রিন্টারের নিচের ছাপাহীন অংশে যেন না পড়ে */ background: rgb(11, 93, 42) !important; color: rgb(255, 255, 255) !important; text-align: center !important; font-size: 8.8px !important; font-weight: 900 !important; padding: 1.4mm 0px !important; z-index: 2 !important; }}
 @media screen{.rxPrescriptionPrint .medicalPrintTitle { display: none !important; }
 .rxPrescriptionPrint .printTitle { display: block !important; }}
 @media screen{img { max-width: 100%; height: auto; }}
@@ -144,10 +148,18 @@ body.printModeActive .printArea { display: block !important; visibility: visible
   0%, 100% { background: transparent; }
   30% { background: rgb(253, 236, 234); }
 }
-.printArea .printHead .logoCell, .printArea.prescriptionLock .logoCell { height: 70px !important; width: 70px !important; display: flex !important; align-items: center !important; justify-content: center !important; }
-.printArea .printHead .printLogoImg, .printArea.prescriptionLock .printLogoImg { max-width: 70px !important; max-height: 70px !important; width: 70px !important; height: 70px !important; object-fit: contain !important; border-radius: 50% !important; }
+/* 🖨️🔒 V833 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"শুধুমাত্র লোগোটা সামান্য
+   একটু বড় হবে, আরেকটু উপরের দিকে উঠবে … হেডারের সাইজ যা ছিল তাই থাকবে"*)।
+   লোগো 70 → 80px, আর ঘরটা **70px উচ্চতাতেই** রইল; ছবিটা উপরে টেনে
+   (`align-items:flex-start` + `margin-top:-10px`) বসানো হলো ⇒ **হেডারের
+   উচ্চতা এক চুলও বাড়ে না** (মেপে দেখা: আগে 70px, এখনও 70px)।
+   ⛔ ক্লিনিকের নাম ও ঠিকানার ফন্ট এক অক্ষরও বদলায়নি। */
+.printArea .printHead .logoCell, .printArea.prescriptionLock .logoCell { height: 70px !important; width: 80px !important; display: flex !important; align-items: flex-start !important; justify-content: center !important; }
+.printArea .printHead .printLogoImg, .printArea.prescriptionLock .printLogoImg { max-width: 80px !important; max-height: 80px !important; width: 80px !important; height: 80px !important; margin-top: -10px !important; object-fit: contain !important; border-radius: 50% !important; }
 .printArea .clinicCell h2, .printArea.prescriptionLock .clinicCell h2 { font-size: 24px !important; line-height: 1.1 !important; margin: 0px !important; font-weight: 950 !important; }
-.printArea .clinicCell p, .printArea.prescriptionLock .clinicCell p { font-size: 11px !important; margin: 3px 0px 0px !important; }
+/* 🖨️🔒 V833 — TK: *"ক্লিনিকের নাম এবং ঠিকানার মধ্যে সামান্য গ্যাপ থাকবে"* ⇒ 3px → 6px।
+   ⛔ ফন্টের মাপ অপরিবর্তিত, তাই হেডারের উচ্চতাও কার্যত একই। */
+.printArea.prescriptionLock .clinicCell p { font-size: 11px !important; margin: 6px 0px 0px !important; }
 .printArea .wm, .printArea.prescriptionLock .wm { position: absolute !important; inset: 0px !important; opacity: 0.06 !important; display: grid !important; place-items: center !important; z-index: 0 !important; }
 .printArea .wm .printLogoImg, .printArea.prescriptionLock .wm .printLogoImg { max-width: 140mm !important; max-height: 140mm !important; width: auto !important; height: auto !important; }
 @keyframes fadeSlideUp { 
@@ -178,25 +190,36 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .printArea.prescriptionLock .doctorLine { margin-top: auto !important; }
 .printArea.prescriptionLock .wm { bottom: 24mm !important; }}
 @media (min-width: 900px){body { background: linear-gradient(135deg, rgb(234, 242, 251), rgb(241, 251, 246) 45%, rgb(253, 246, 234)); }}
-.rxApprovedGrid { display: grid; grid-template-columns: 25% 75%; align-items: stretch; position: relative; background: rgb(255, 255, 255); }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): বাঁ কলামের দাগটা আরও বাঁয়ে ⇒ ওষুধ লেখার জায়গা বড় (২৫% → ১৫%, TK দু-দফায় বলেছেন) */
+.rxApprovedGrid { display: grid; grid-template-columns: 17.5% 82.5%; align-items: stretch; position: relative; background: rgb(255, 255, 255); }
 .rxComplaintHistory { border: 1px solid rgb(10, 84, 40); padding: 12mm 3mm 3mm; min-height: 145mm; background: rgb(255, 255, 255); }
 .rxComplaintHistory div { margin-bottom: 5mm; }
 .rxComplaintHistory b, .rxComplaintHistory span { display: block; font-size: 10px; line-height: 1.35; }
-.rxComplaintHistory b { color: rgb(11, 93, 42); margin-bottom: 1mm; text-transform: uppercase; }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): কলাম সরু হওয়ায় "CHIEF COMPLAINT" ও
+   "PROVISIONAL DIAGNOSIS" দু-লাইনে ভাঙছিল। ফন্ট সামান্য ছোট ও অক্ষরের ফাঁক
+   কমিয়ে এক লাইনে আনা হলো। ⛔ কলামের চওড়া ১৫% → ১৭.৫% (সামান্য), ওষুধের
+   জায়গা আগের মতোই বড়ই থাকে। */
+.rxComplaintHistory b { color: rgb(11, 93, 42); margin-bottom: 1mm; text-transform: uppercase; font-size: 8.6px !important; letter-spacing: -0.2px !important; white-space: nowrap !important; }
 .rxApprovedGrid section { min-width: 0px; background: rgb(255, 255, 255); position: relative; }
 .rxApprovedGrid section::after { content: ""; position: absolute; z-index: 0; width: 52mm; height: 52mm; border-radius: 50%; left: 50%; bottom: 9mm; transform: translateX(-50%); background: var(--clinic-watermark,none) center/contain no-repeat; opacity: 0.08; pointer-events: none; }
 .rxApprovedGrid section > * { position: relative; z-index: 1; }
 .rxApprovedGrid .finalPrintTable { margin-top: 0px; table-layout: fixed; }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): TK — *"Dose ও Duration যেহেতু ফিক্সড,
+   কিন্তু When কখনো ছোট-বড় হতে পারে — ওই ঘরটা একটু বড় রাখুন"*।
+   When ১৬% → ২০%; Dose ১৩% → ১১%, Duration ১২% → ১০% (দুটোই ছোট, স্থির লেখা)।
+   ⛔ ওষুধের নামের ঘর ৫২%-ই থাকল, SL-ও অপরিবর্তিত। মোট ১০০%। */
 .rxApprovedGrid .finalPrintTable th:nth-child(1) { width: 7%; }
 .rxApprovedGrid .finalPrintTable th:nth-child(2) { width: 52%; }
-.rxApprovedGrid .finalPrintTable th:nth-child(3) { width: 13%; }
-.rxApprovedGrid .finalPrintTable th:nth-child(4) { width: 16%; }
-.rxApprovedGrid .finalPrintTable th:nth-child(5) { width: 12%; }
+.rxApprovedGrid .finalPrintTable th:nth-child(3) { width: 11%; }
+.rxApprovedGrid .finalPrintTable th:nth-child(4) { width: 20%; }
+.rxApprovedGrid .finalPrintTable th:nth-child(5) { width: 10%; }
 .rxGridMark { height: 8mm; padding-left: 4mm; display: flex; align-items: center; color: rgb(11, 93, 42); font: 700 20px Georgia, serif; }
 .rxPrintAdvice { border: 1px solid rgb(10, 84, 40); min-height: 0px; padding: 2mm 3mm; background: rgb(255, 255, 255); white-space: nowrap; font-size: 11px; }
 .rxPrintAdvice b { color: rgb(11, 93, 42); }
 .rxPrintAdvice .rxDietLine { display: block; margin-top: 1.5mm; white-space: normal; }
-@media print{.rxApprovedGrid { grid-template-columns: 25% 75% !important; }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ, দু-দফায়): ছাপার সময় এই নিয়মটাই জোর করে
+   ২৫% বসাত, তাই উপরের বদল কাজ করত না। এখানেও ১৫% ⇒ ওষুধ লেখার জায়গা বড়। */
+@media print{.rxApprovedGrid { grid-template-columns: 17.5% 82.5% !important; }
 .rxComplaintHistory { min-height: 145mm !important; }
 .rxApprovedGrid .printTable th, .rxApprovedGrid .printTable td { padding: 3px 4px !important; font-size: 9.5px !important; }
 .rxApprovedGrid .rxPrintType { font-size: 8px !important; }
@@ -244,7 +267,7 @@ body { background: linear-gradient(135deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
 .printArea.rxPrescriptionPrint .verifyCenter .vbar { order: 1 !important; height: 5mm !important; width: 30mm !important; margin: 0px auto 0.8mm !important; }
 .printArea.rxPrescriptionPrint .verifyCenter b { order: 2 !important; display: block !important; font-size: 6pt !important; color: rgb(10, 84, 40) !important; font-weight: bold !important; }
 .printArea.rxPrescriptionPrint .verifyCenter .vid { display: none !important; }
-.printArea.rxPrescriptionPrint .thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 0px !important; margin: 0px !important; }
+.printArea.rxPrescriptionPrint .thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 7mm !important; /* V766 — প্রিন্টারের নিচের ছাপাহীন অংশে যেন না পড়ে */ margin: 0px !important; }
 </style><style>/* V425 — TK-নির্দেশ ১৭.০৮.২০২৬: (১) ℞ সামান্য ডানে · (২) ℞-এর ঠিক উপরের
    পাতলা ধূসর দাগটা বাদ (তার উপরের সবুজ দাগটাই থাকবে)। ⛔ আর কিছু বদলায়নি। */
 .rxPrescriptionPrint .rxBox{border-top:0 !important}
@@ -258,8 +281,179 @@ body { background: linear-gradient(135deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
 .rxPrescriptionPrint .rxComplaintHistory{min-height:197mm !important}
 @media print{.rxPrescriptionPrint .rxComplaintHistory{min-height:197mm !important}}
 @media print{.rxPrescriptionPrint .rxComplaintHistory span:empty{display:block !important;min-height:6mm !important}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🖨️🔒 V796 (২৮.০৮.২০২৬) — TK-রিপোর্ট: প্রেসক্রিপশন A4-এর ৫টি সমস্যা।
+   সবগুলোই Chromium-এ print media, 794×1123px-এ **মেপে** ধরা হয়েছে, আন্দাজে নয়।
+
+   ① সবুজ ফিতে সইয়ের নিচের লেখা ঢেকে দিত —
+        মাপ:  .docLeft small  → y 1075.7 … 1085.5
+              .thanksStrip    → y 1075.5 … 1096.1   (z-index:2, নিরেট সবুজ)
+        অর্থাৎ "Founder & Consultant" ও "(B.A.M.S) Regd 12386" **পুরোপুরি** ঢাকা।
+        কারণ: V766-এ ফিতেটা bottom:0 → bottom:7mm-এ তোলা হয়েছিল (প্রিন্টারের
+        ছাপাহীন প্রান্ত বাঁচাতে), কিন্তু .doctorLine আগে থেকেই bottom:7mm-এ ছিল।
+        ⛔ ফিতে 7mm-এই থাকছে (V766-এর প্রমাণিত কাজ নষ্ট করা হয়নি), সইয়ের
+        লাইনটাকেই ফিতের উপরে তোলা হলো।
+
+   ② ADVICE ও NEXT FOLLOW-UP উপরে চলে যেত —
+        কারণ: `.rxPrescriptionPrint .rxComplaintHistory > div:first-child
+        {margin-top:0!important}` (specificity 0,4,1)। HISTORY ফাঁকা থাকলে
+        .anRxBot-ই first-child হয়ে যেত, তাই তার `margin-top:auto` মুছে যেত।
+        এখানে বেশি specificity (0,5,2) দিয়ে শুধু .anRxBot-কে ফেরত আনা হলো —
+        HISTORY-র নিজের first-child নিয়ম অক্ষত।
+
+   ③ ক্লিনিকের নাম লাল ও বড়   ④ ঠিকানা বড়   ⑤ tagline এক লাইনে
+   ══════════════════════════════════════════════════════════════════════════ */
+.printArea.prescriptionLock.rxPrescriptionPrint .doctorLine{bottom:13.5mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxBox{margin-bottom:43mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxApprovedGrid>aside.rxComplaintHistory>div.anRxBot{
+  margin-top:auto!important;padding-top:3mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .clinicCell h2{
+  color:#C0192B!important;font-size:34px!important;line-height:1.06!important}
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): TK — *"উপরে ঠিকানা আর মোবাইল নম্বর দু-লাইনে
+   ভেঙে গেছে · প্রয়োজনে ফন্টের সাইজ একটু ছোট করুন যাতে এক লাইনে চলে আসে"*।
+   এটাই ঠিকানার **শেষ ও কার্যকর** নিয়ম (আগে ১৪px ছিল, তাই দু-লাইনে ভাঙত)।
+   ৯.৩px + `nowrap` ⇒ এক লাইনেই ধরে। ⛔ ক্লিনিকের নাম · ব্রাঞ্চ · লোগো অটুট। */
+.printArea.prescriptionLock.rxPrescriptionPrint .clinicCell p{
+  font-size:12.1px!important;line-height:1.25!important;text-transform:uppercase!important;
+  white-space:nowrap!important;letter-spacing:-0.05px!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline{
+  line-height:1.2!important;padding:1.4mm 3mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b,
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{
+  display:inline!important;white-space:nowrap!important;margin:0!important}
+/* V797 (২৮.০৮.২০২৬) — TK: "We provide … সম্পূর্ণ ঐ লাইনটাও ক্যাপিটাল লেটার এই
+   করুন, একই সাইজের ফন্ট হবে সবগুলো" ⇒ দুই টুকরোই 8.5px ও uppercase।
+   মেপে: এক লাইনে মোট চওড়া 621px, জায়গা আছে 733px। */
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b,
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{
+/* 🖨️🔒 V833 — TK: *"We Provide ওই লাইনটার ফন্ট সাইজ একটু বড় করতে হবে সামান্য,
+   একলাইনেই হবে"* ⇒ 8.5px → 9.5px, একলাইনই (উপরের `display:inline` অক্ষত)।
+   ⚠️ **মেপে দেখা (আন্দাজ নয়):** 9.5px-এ লাইনটা 732px জায়গা নেয়, বাক্সে আছে
+      732px — **কোনোমতে ধরে**। এর বেশি বড় করলে লেখা বাক্সের বাইরে বেরিয়ে
+      যাবে (`white-space:nowrap`), তাই 9.5-ই সর্বোচ্চ নিরাপদ মাপ। */
+  font-size:9.5px!important;text-transform:uppercase!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b::after{content:"  —  "}
+
+/* V796 — সইয়ের লাইন 6.5mm উপরে ওঠায় বাঁদিকের খাড়া দাগ দুটোও ততটাই ছোট করা হলো,
+   যাতে V425-এর নিয়ম ("দাগ ২টা সইয়ের ঘরের ঠিক উপর পর্যন্ত") ঠিক আগের মতোই থাকে।
+   মেপে: দাগের তলা ↔ সইয়ের দাগ — আগে 33px, এখন 26px। */
+.printArea.prescriptionLock.rxPrescriptionPrint .rxComplaintHistory{min-height:193mm!important}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🔎🔒 V799 (২৮.০৮.২০২৬) — TK: "যাচাই করে দেখুন সঠিকভাবে কার্যকরী হয়েছে কিনা"।
+   যাচাই করতে গিয়েই একটা **ভবিষ্যতের ফাটল** ধরা পড়ল, TK রিপোর্ট করার আগেই।
+
+   ─── কী ধরা পড়ল (মেপে) ────────────────────────────────────────────────────
+   কিশনগঞ্জ ছাড়া অন্য ব্রাঞ্চে মাথায় একটা বাড়তি লাইন বসে ("PURNIA BRANCH")।
+   তখন মেপে পাওয়া গেল:  .rxBox তলা = 1024.8 · .doctorLine মাথা = 1022.4
+   ⇒ ২.৪px ঢুকে গেছে। এখনো চোখে পড়ে না (সইয়ের দাগ 1028.1-এ), কিন্তু ঠিকানা
+   দুই লাইন হলে বা ব্রাঞ্চের নাম লম্বা হলে সইয়ের ঘরের উপরে উঠে যেত।
+
+   ─── আসল কারণ ────────────────────────────────────────────────────────────
+   বাঁ ঘরটার উচ্চতা **পাথরে খোদাই** ছিল (`min-height:197mm`)। কাগজের উচ্চতা
+   ফিক্সড 297mm, তাই মাথা যতটা বাড়ে বাক্সটা ততটাই নিচে নামে — ছোট হয় না।
+
+   ─── স্থায়ী সমাধান ───────────────────────────────────────────────────────
+   খোদাই করা উচ্চতা তুলে দিয়ে ঘরটাকে **যতটা জায়গা আছে ততটাই ভরতে** বলা হলো
+   (`align-items:stretch`)। এখন মাথা যত বড়ই হোক, খাড়া দাগ দুটো **নিজে থেকেই**
+   সইয়ের ঘরের ঠিক উপরে গিয়ে থামে — V425-এর নিয়ম চিরকালের জন্য নিশ্চিত।
+   ⛔ কোনো লেখা/ঘর/বোতাম বাদ যায়নি — শুধু উচ্চতা মাপার নিয়ম বদলাল।
+   ══════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ যাচাই করতে গিয়ে আরও একটা জিনিস ধরা পড়ল: এই কাগজটাকে "খাড়া flex কলাম"
+   বানানোর নিয়মটা (`.printArea.rxPrescriptionPrint{display:flex}`) **কখনোই চালু
+   হয়নি** — কারণ `body.printModeActive .printArea{display:block!important}`-এর
+   ওজন (0,2,2) বেশি ছিল। তাই বাক্সটা নিজে থেকে জায়গা ভরতে পারত না, আর
+   বাঁ ঘরের উচ্চতা হাতে-লেখা `min-height` দিয়ে ধরে রাখতে হচ্ছিল। এখন ওজন
+   বাড়িয়ে নিয়মটা সত্যিই চালু করা হলো। */
+body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
+.printArea.prescriptionLock.rxPrescriptionPrint{
+  display:flex!important;flex-direction:column!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxBox{
+  display:flex!important;flex-direction:column!important;margin-bottom:28.5mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxApprovedGrid{
+  flex:1 1 auto!important;align-items:stretch!important;min-height:0!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxApprovedGrid>aside.rxComplaintHistory{
+  min-height:0!important;height:auto!important}
+
+</style>
+
+<style>
+/* 🖨️🔒 V994 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — ছাপা কাগজের
+   ব্যবধান · দাগ · উজ্জ্বলতা। ⛔ সাজানো, ঘর, লেখা — কিছুই বদলায়নি,
+   শুধু দেখতে কেমন লাগে সেটুকু। ওয়েবের `styles.css`-এ হুবহু একই ব্লক আছে,
+   তাই ফোন ও কম্পিউটারের কাগজ এক থাকে। */
+
+@media print{
+ /* ১ — বাঁ কলামের ব্যবধান (লক করা #১ এর মতোই) */
+ .printArea.prescriptionLock .rxComplaintHistory div{margin-bottom:2.6mm !important;}
+ .printArea.prescriptionLock .rxComplaintHistory span:empty{min-height:3.4mm !important;}
+ /* ২ — দাগগুলো নরম ও পরিষ্কার */
+ .printArea.prescriptionLock .rxComplaintHistory{border-right:0.7px solid rgb(196,214,202) !important;}
+ .printArea.prescriptionLock .finalPrintTable{border-collapse:separate !important;border-spacing:0 !important;
+   border:0.9px solid rgb(176,193,203) !important;border-radius:5px !important;overflow:hidden !important;}
+ .printArea.prescriptionLock .finalPrintTable th{border:0 !important;
+   border-bottom:1.1px solid rgb(11,93,42) !important;border-right:0.7px solid rgb(214,228,220) !important;
+   background:rgb(241,249,244) !important;letter-spacing:.2px !important;}
+ .printArea.prescriptionLock .finalPrintTable th:last-child{border-right:0 !important;}
+ .printArea.prescriptionLock .finalPrintTable td{border:0 !important;
+   border-top:0.7px solid rgb(223,232,236) !important;border-right:0.7px solid rgb(228,236,240) !important;}
+ .printArea.prescriptionLock .finalPrintTable td:last-child{border-right:0 !important;}
+ .printArea.prescriptionLock .finalPrintTable tr:first-child td{border-top:0 !important;}
+ .printArea.prescriptionLock .rxPatientInfo.anRxPt{border-bottom:0.9px solid rgb(163,192,173) !important;}
+ .printArea.prescriptionLock .rxBox.clinicPadRx{border:0.9px solid rgb(219,227,231) !important;border-radius:7px !important;}
+ .printArea.prescriptionLock .doctorLine > .docLeft,
+ .printArea.prescriptionLock .doctorLine > .docRight{border-top:0.8px solid rgb(90,107,98) !important;}
+ .printArea.prescriptionLock .anRxNext{border-top:0.7px solid rgb(212,224,216) !important;}
+ .printArea.prescriptionLock .anRxNext span{letter-spacing:0 !important;border-bottom:0.8px solid rgb(154,168,160) !important;
+   min-height:4.6mm !important;margin-top:2mm !important;}
+}
+
+@media print{
+ /* ৩ক — প্রিন্টার যেন রং বাদ না দেয় */
+ *,*::before,*::after{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+ /* ৩খ — লেখা খাঁটি কালো */
+ .printArea.prescriptionLock{color:#000 !important;}
+ .printArea.prescriptionLock .rxPatientInfo b,
+ .printArea.prescriptionLock .rxPatientInfo span,
+ .printArea.prescriptionLock .rxPatientInfo i,
+ .printArea.prescriptionLock .finalPrintTable td,
+ .printArea.prescriptionLock .rxComplaintHistory span,
+ .printArea.prescriptionLock .rxPrintAdvice span,
+ .printArea.prescriptionLock .anRxNext span,
+ .printArea.prescriptionLock .doctorLine b{color:#000 !important;}
+ .printArea.prescriptionLock .doctorLine small,
+ .printArea.prescriptionLock .rxTagline span{color:#2b2b2b !important;}
+ .printArea.prescriptionLock .clinicCell p{color:#000 !important;}
+ /* সবুজ শিরোনামগুলো আরও গাঢ় সবুজ */
+ .printArea.prescriptionLock .rxComplaintHistory b,
+ .printArea.prescriptionLock .anRxNext b,
+ .printArea.prescriptionLock .rxPrintAdvice b,
+ .printArea.prescriptionLock .finalPrintTable th{color:rgb(6,66,30) !important;}
+ /* ৩গ — হরফ একটু বড় */
+ .printArea.prescriptionLock .rxPatientInfo{font-size:10.4px !important;}
+ .printArea.prescriptionLock .finalPrintTable th{font-size:11.4px !important;}
+ .printArea.prescriptionLock .finalPrintTable td{font-size:12px !important;padding:6px 6px !important;}
+ .printArea.prescriptionLock .rxComplaintHistory b{font-size:8.9px !important;letter-spacing:-.25px !important;}
+ .printArea.prescriptionLock .rxComplaintHistory span{font-size:11px !important;}
+ .printArea.prescriptionLock .rxPrintAdvice span{font-size:9pt !important;}
+ .printArea.prescriptionLock .rxPrintAdvice span{white-space:nowrap !important;font-size:7.9pt !important;letter-spacing:-.15px !important;}
+ .printArea.prescriptionLock .anRxNext b{font-size:8.9px !important;letter-spacing:-.25px !important;}
+ /* দাগগুলো একটু গাঢ়, যাতে ছাপায় হারিয়ে না যায় */
+ .printArea.prescriptionLock .finalPrintTable{border-color:rgb(122,142,154) !important;}
+ .printArea.prescriptionLock .finalPrintTable td{border-top-color:rgb(186,200,208) !important;border-right-color:rgb(190,203,211) !important;}
+ .printArea.prescriptionLock .finalPrintTable th{border-right-color:rgb(180,204,190) !important;}
+ .printArea.prescriptionLock .rxComplaintHistory{border-right-color:rgb(150,182,161) !important;}
+ .printArea.prescriptionLock .rxBox.clinicPadRx{border-color:rgb(186,199,206) !important;}
+ .printArea.prescriptionLock .rxPrintType{background:rgb(96,112,128) !important;color:#fff !important;}
+}
+
 </style>
 </head>
 <body class="printModeActive"><div id="app">
-<div class="printArea prescriptionLock rxPrescriptionPrint"><div class="wm"><img class="printLogoImg" src="{{LOGO}}" alt="Clinic Logo"></div><div class="printHead compact"><div class="logoCell"><img class="printLogoImg" src="{{LOGO}}" alt="Clinic Logo"></div><div class="clinicCell"><h2>{{CLINIC}}</h2>{{BRANCH_SUB}}<p>{{CLINIC_ADDR}}</p></div></div><div class="rxTagline"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b><span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div><div class="printTitle">{{TITLE}}</div><div class="rxPatientInfo anRxPt"><div class="c"><div><b>Patient Name</b><i>:</i><span>{{NAME}}</span></div><div><b>Age</b><i>:</i><span>{{AGE}}</span></div><div><b>Patient ID</b><i>:</i><span>{{PID}}</span></div><div><b>Mobile</b><i>:</i><span>{{MOBILE}}</span></div></div><div class="c"><div><b>Date</b><i>:</i><span>{{DATE}}</span></div><div><b>Sex</b><i>:</i><span>{{SEX}}</span></div><div><b>Diseases</b><i>:</i><span>{{DISEASE}}</span></div><div class="ad"><b>Address</b><i>:</i><span>{{ADDRESS}}</span></div></div></div><div class="rxBox clinicPadRx finalMedicalPrint"><div class="rxMark">Rx</div><h3 class="medicalPrintTitle">{{TITLE}}</h3><div class="rxApprovedGrid" style="--clinic-watermark:url('{{LOGO}}')"><aside class="rxComplaintHistory">{{HISTORY}}<div class="anRxBot"><div class="rxPrintAdvice">{{ADVICE}}{{DIET}}</div><div class="anRxNext"><b>Next Follow-up Date</b><span>{{NEXT}}</span></div></div></aside><section><div class="rxGridMark">℞</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>{{ROWS}}</table></section></div></div><div class="doctorLine"><div class="docLeft"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div><div class="verifyCenter"><b>Document Digitally Verified</b><small>No Physical Signature Required</small><div class="vbar"></div><div class="vid">{{VID}}</div></div>{{DOCTOR}}</div><div class="thanksStrip">All treatments are Ayurvedic &amp; Natural &nbsp;|&nbsp; Bring this prescription on your next visit &nbsp;|&nbsp; <b>In an emergency, visit your nearest hospital immediately</b></div></div>
+<div class="printArea prescriptionLock rxPrescriptionPrint"><div class="wm"><img class="printLogoImg" src="{{LOGO}}" alt="Clinic Logo"></div><div class="printHead compact"><div class="logoCell"><img class="printLogoImg" src="{{LOGO}}" alt="Clinic Logo"></div><div class="clinicCell"><h2>{{CLINIC}}</h2>{{BRANCH_SUB}}<p>{{CLINIC_ADDR}}</p></div></div><div class="rxTagline"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b><span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div><div class="printTitle">{{TITLE}}</div><!-- 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — রোগীর তথ্যের সাজানো
+     বদল: বাঁয়ে NAME · AGE · SEX · DISEASES, ডানে DATE & TIME · PATIENT ID ·
+     MOB · ADDRESS। ⛔ একটাও ঘর বাদ যায়নি/যোগ হয়নি — শুধু কোনটা কোন পাশে। -->
+<div class="rxPatientInfo anRxPt"><div class="c"><div><b>Name</b><i>:</i><span>{{NAME}}</span></div><div><b>Age</b><i>:</i><span>{{AGE}}</span></div><div><b>Sex</b><i>:</i><span>{{SEX}}</span></div><div><b>Diseases</b><i>:</i><span>{{DISEASE}}</span></div></div><div class="c"><div><b>Date &amp; Time</b><i>:</i><span>{{DATE}}</span></div><div><b>Patient ID</b><i>:</i><span>{{PID}}</span></div><div><b>Mob</b><i>:</i><span>{{MOBILE}}</span></div><div class="ad"><b>Address</b><i>:</i><span>{{ADDRESS}}</span></div></div></div><div class="rxBox clinicPadRx finalMedicalPrint"><div class="rxMark">Rx</div><h3 class="medicalPrintTitle">{{TITLE}}</h3><div class="rxApprovedGrid" style="--clinic-watermark:url('{{LOGO}}')"><aside class="rxComplaintHistory">{{HISTORY}}<div class="anRxBot"><div class="rxPrintAdvice">{{ADVICE}}{{DIET}}</div><div class="anRxNext"><b>Next Follow-up Date</b><span>{{NEXT}}</span></div></div></aside><section><div class="rxGridMark">℞</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>{{ROWS}}</table></section></div></div><div class="doctorLine"><div class="docLeft"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div><div class="verifyCenter"><b>Document Digitally Verified</b><small>No Physical Signature Required</small><div class="vbar"></div><div class="vid">{{VID}}</div></div>{{DOCTOR}}</div><div class="thanksStrip">All treatments are Ayurvedic &amp; Natural &nbsp;|&nbsp; Bring this prescription on your next visit &nbsp;|&nbsp; <b>In an emergency, visit your nearest hospital immediately</b></div></div>
 </div></body></html>

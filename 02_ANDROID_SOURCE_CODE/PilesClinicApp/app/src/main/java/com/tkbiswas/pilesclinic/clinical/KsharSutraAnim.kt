@@ -38,6 +38,122 @@ object KsharSutraAnim {
     const val TRACT_TIE   = 13  // দুই মাথায় গিঁট
     const val TRACT_CUT   = 14  // কেটে গেল · পরিষ্কার
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       🔴🔒 V793 (২৮.০৮.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ অনুমোদনের পরে) —
+       **রোগীকে তিনটে কথা বোঝানো: কোথায় সমস্যা · না সারালে কী হবে ·
+       আমরা কীভাবে সারাই।**
+
+       TK-এর কথা (হুবহু): *"সেই রোগীর চিকিৎসা না করলে তার সমস্যাটা কত বাড়তে
+       পারে সেটা যেন বোঝাতে পারি, এবং সেই রোগের চিকিৎসা আমরা এখানে কিভাবে
+       করি সেটা যেন ধাপে ধাপে বোঝাতে পারি"* ·
+       *"সুতা প্রতি সপ্তাহ চেঞ্জ করতে হয় … ফুটবলের সাইজ প্রথম ছিল ১০ নম্বর,
+       তারপরে ৯, ৮, ৭ … আকারে ছোট হয়"* ·
+       *"কোন কোন পেশেন্টের তো চার সপ্তাহেও ঠিক হয়ে যেতে পারে"*।
+
+       ⛔ পুরোনো `stepsFor()` এক অক্ষরও বদলায়নি — সেটা আগের মতোই চলে।
+          এটা **নতুন, আলাদা** তালিকা; পুরোনো কিছু ভাঙার পথ নেই।
+       ═══════════════════════════════════════════════════════════════════ */
+    // ⚠️ না সারালে — তিন ধাপে বাড়তে থাকে (তিন রোগেই)
+    const val WORSE_1 = 21
+    const val WORSE_2 = 22
+    const val WORSE_3 = 23
+    // ✂️ ফিশারের চিকিৎসা — ক্ষার-কর্ম (সুতো বাঁধা হয় **না**; PMC7685256)
+    const val FIS_DRAWN = 31
+    const val FIS_NUMB  = 32
+    const val FIS_KSHAR = 33
+    const val FIS_WASH  = 34
+    const val FIS_HEAL  = 35
+    // 🔄 ফিস্টুলা — নালীতে সুতো, তারপর সপ্তাহে সপ্তাহে বদল
+    const val TRACT_HEAL = 39
+    /** `TRACT_WEEK + n` = n তম সপ্তাহ (n = 1…weeks)। */
+    const val TRACT_WEEK = 40
+
+    /** সপ্তাহের সংখ্যা — ডাক্তার ➖ ➕ দিয়ে বদলান (TK: "চার সপ্তাহেও হতে পারে")। */
+    const val WEEKS_MIN = 2
+    const val WEEKS_MAX = 12
+    const val WEEKS_DEFAULT = 4
+    fun clampWeeks(n: Int): Int = if (n < WEEKS_MIN) WEEKS_MIN else if (n > WEEKS_MAX) WEEKS_MAX else n
+
+    /**
+     * নতুন ধাপ-তালিকা।
+     * @param worse `true` = "না সারালে কী হবে", `false` = "আমরা কীভাবে সারাই"
+     * @param weeks ফিস্টুলায় কত সপ্তাহ (অন্য রোগে লাগে না)
+     */
+    fun stepsFor2(kind: String, withInjection: Boolean, worse: Boolean,
+                  weeks: Int = WEEKS_DEFAULT): List<Int> {
+        if (worse) return listOf(WORSE_1, WORSE_2, WORSE_3)
+        return when (kind) {
+            AnatomyModel.KIND_BULGE, AnatomyModel.KIND_PILE ->
+                if (withInjection) listOf(LUMP_DRAWN, LUMP_INJECT, LUMP_SWELL, LUMP_TIE, LUMP_FALL)
+                else listOf(LUMP_DRAWN, LUMP_TIE, LUMP_FALL)
+            AnatomyModel.KIND_FISSURE ->
+                listOf(FIS_DRAWN, FIS_NUMB, FIS_KSHAR, FIS_WASH, FIS_HEAL)
+            AnatomyModel.KIND_TRACT -> {
+                val w = clampWeeks(weeks)
+                val out = ArrayList<Int>()
+                out.add(TRACT_DRAWN); out.add(TRACT_LACE)
+                for (i in 1..w) out.add(TRACT_WEEK + i)
+                out.add(TRACT_HEAL)
+                out
+            }
+            else -> emptyList()
+        }
+    }
+
+    /** ওই ধাপের লেখা (নতুন ধাপগুলোর জন্য)। রোগ অনুযায়ী "না সারালে"-র কথা বদলায়। */
+    fun caption2(step: Int, kind: String, weeks: Int = WEEKS_DEFAULT): String {
+        if (step in WORSE_1..WORSE_3) {
+            val n = step - WORSE_1
+            return when (kind) {
+                AnatomyModel.KIND_FISSURE -> listOf(
+                    "1) এখন এই অবস্থা — ফাটল",
+                    "2) না সারালে — ফাটল আরো গভীর ও লম্বা",
+                    "3) আরো পরে — কিনারা শক্ত, বাইরে মাংস বড়")[n]
+                AnatomyModel.KIND_TRACT -> listOf(
+                    "1) এখন এই অবস্থা — নালী",
+                    "2) না সারালে — নালী লম্বা হয়",
+                    "3) আরো পরে — নতুন মুখ, পুঁজ পড়ে")[n]
+                else -> listOf(
+                    "1) এখন এই অবস্থা — ফোলা মাংস",
+                    "2) না সারালে — মাংস আরো বড়",
+                    "3) আরো পরে — অনেক বড়, রক্ত বেশি")[n]
+            }
+        }
+        if (step > TRACT_WEEK) {
+            val n = step - TRACT_WEEK
+            return if (n >= clampWeeks(weeks)) "$n) শেষ সপ্তাহ — সুতো প্রায় শেষ"
+                   else "$n) সপ্তাহ $n — সুতো বদল, গোল ছোট হলো"
+        }
+        return when (step) {
+            FIS_DRAWN -> "1) ফাটল — আপনার টানা জায়গাতেই"
+            FIS_NUMB  -> "2) জায়গাটা অবশ করা হচ্ছে"
+            FIS_KSHAR -> "3) ফাটলের উপর ক্ষার লাগানো হচ্ছে"
+            FIS_WASH  -> "4) ক্ষার ধুয়ে ফেলা — শক্ত কিনারা গলে গেল"
+            FIS_HEAL  -> "5) ঘা ভরে উঠছে — সপ্তাহে একবার, 3-4 বারে সারে"
+            TRACT_HEAL -> "নালী নেই — ঘা ভরে গেছে"
+            else -> caption(step)
+        }
+    }
+
+    /** "না সারালে" ধাপে মাংস/নালী কতটা বেড়েছে (০…১)। */
+    fun worseGrow(step: Int, t: Float): Float = when (step) {
+        WORSE_1 -> 0f
+        WORSE_2 -> 0.5f * t
+        WORSE_3 -> 0.5f + 0.5f * t
+        else -> 0f
+    }
+
+    /** ফিস্টুলায় এই সপ্তাহে নালীর কতটা কেটে ভরে গেছে (০…১)। */
+    fun weekHealed(step: Int, t: Float, weeks: Int): Float {
+        if (step == TRACT_HEAL) return 1f
+        if (step <= TRACT_WEEK) return 0f
+        val w = clampWeeks(weeks)
+        val n = (step - TRACT_WEEK).coerceIn(1, w)
+        val a = (n - 1).toFloat() / w
+        val b = n.toFloat() / w
+        return a + (b - a) * t
+    }
+
     /** এই ধাপে ডাক্তারকে কী লেখা দেখানো হবে। */
     fun caption(step: Int): String = when (step) {
         LUMP_DRAWN  -> "1) যেভাবে আঁকা হয়েছে"

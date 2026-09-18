@@ -82,8 +82,14 @@ check("২.৩ কতগুলো বকেয়া, নোটিফিকে�
 check("২.৪ ড্যাশবোর্ডের ব্যানারেও আজ + বকেয়া (ফোন)",
       "fun isDue(f: FollowUpItem): Boolean = f.nextFollow.isNotBlank() && f.nextFollow <= today" in dash
       and ".count { isDue(it) }" in dash)
-check("২.৫ ব্যানারে বকেয়ার সংখ্যা দেখায় (ফোন)",
-      '"📞 $count calls pending — $overdue overdue — tap to call"' in dash)
+# 📞🔒 V1115 (০৫.০৯.২০২৬) — **TK নিজে এই নিয়মটা তুলে দিয়েছেন:**
+#   *"51 Calls Pending, 33 over Due তার পাশের ট্যাপ টু কল — এটা রাখতে হবে না"*
+#   *"Call icon 2 বার কেন? এখানে Over due-ও লেখা থাকবে না"* (ফটো-প্রুফ পাশ)
+# ⇒ পট্টিতে এখন শুধু "N calls pending"। তাই পুরনো "বকেয়ার সংখ্যা দেখাতেই হবে"
+#   যাচাইটা আর চলে না — বদলে **গোনাটা যেন হারিয়ে না যায়** সেটাই পাহারা দেওয়া
+#   হয় (V590-এর আসল কাজ: আজ + বকেয়া দুটোই গোনা)।
+check("২.৫ ব্যানারে আজ + বকেয়া দুটোই গোনা হয় (ফোন) · লেখায় শুধু মোট (TK, ০৫.০৯.২০২৬)",
+      '"$count calls pending"' in dash and "overdueFrom(" in dash)
 check("২.৬ ব্যানার থেকে খুললে তালিকাতেও আজ + বকেয়া (ফোন)",
       '"Today" -> if (bannerCallsOnly) items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= today }' in follow)
 check("২.৭ নিজে 'Today' চাপলে আগের মতোই শুধু আজকের (ফোন)",
@@ -91,8 +97,9 @@ check("২.৭ নিজে 'Today' চাপলে আগের মতোই �
 check("২.৮ ওয়েবেও আজ + বকেয়া, একই নিয়ম",
       "return d!=='' && d<=t;" in js
       and "if(f.callsOnly) return rows.filter(x=>{const d=String(x.nextFollow||'').slice(0,10); return d!=='' && d<=t;});" in js)
-check("২.৯ ওয়েবের ব্যানারেও বকেয়ার সংখ্যা",
-      "${over} overdue" in js)
+# 📞 V1115 — উপরের একই কারণে ওয়েবেও লেখাটা ছোট হলো; গোনাটা অটুট।
+check("২.৯ ওয়েবের ব্যানারেও আজ + বকেয়া গোনা হয় (TK, ০৫.০৯.২০২৬)",
+      "calls pending`" in js and "overdue" in js)
 
 # ───────── ৩ · Trash Bin-এর View ─────────
 check("৩.১ আসল Adapter ডেকে কার্ড বানানো হয় (ফোন)",

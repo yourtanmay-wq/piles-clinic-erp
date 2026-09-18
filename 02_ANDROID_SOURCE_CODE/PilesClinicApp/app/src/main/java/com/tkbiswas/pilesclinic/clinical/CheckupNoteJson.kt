@@ -49,6 +49,7 @@ object CheckupNoteJson {
         "historyDetail" to r.historyDetail,
         "lifestyle" to r.lifestyle,
         "probableDisease" to r.probableDisease,
+        "doctorRemark" to r.doctorRemark,   // 🔵 V947
         "timeAsked" to r.timeAsked,
         "anatomy" to r.anatomy,
         "visual" to r.visual,
@@ -66,6 +67,8 @@ object CheckupNoteJson {
         "amtKsharSutra" to r.amtKsharSutra,
         "counselling" to r.counselling,
         "estimatedCost" to r.estimatedCost,
+        // 💰 V971 — ভাঙা হিসাব; ওয়েবেও ঠিক এই "estimate" নামেই বসে।
+        "estimate" to r.estimateJson,
         "recoveryTime" to r.recoveryTime,
         "advanceDiscussed" to r.advanceDiscussed,
         "patientDecision" to r.patientDecision,
@@ -90,6 +93,7 @@ object CheckupNoteJson {
             historyDetail = g("historyDetail"),
             lifestyle = g("lifestyle"),
             probableDisease = g("probableDisease"),
+            doctorRemark = g("doctorRemark"),   // 🔵 V947
             timeAsked = g("timeAsked"),
             anatomy = g("anatomy"),
             visual = g("visual"),
@@ -107,6 +111,7 @@ object CheckupNoteJson {
             amtKsharSutra = g("amtKsharSutra"),
             counselling = g("counselling"),
             estimatedCost = g("estimatedCost"),
+            estimateJson = g("estimate"),
             recoveryTime = g("recoveryTime"),
             advanceDiscussed = g("advanceDiscussed"),
             patientDecision = g("patientDecision"),
@@ -132,10 +137,10 @@ object CheckupNoteJson {
      */
     val PHONE_KEYS = setOf(
         "complaint", "duration", "occupation", "previousTreatment", "patientSaid",
-        "symptomHistory", "historyDetail", "lifestyle", "probableDisease", "timeAsked",
+        "symptomHistory", "historyDetail", "lifestyle", "probableDisease", "doctorRemark", "timeAsked",
         "anatomy", "visual", "dre", "dreOther", "grade", "proctoscopy", "onProbing",
         "investigations", "treatmentPlan", "amtPerPiles", "amtFistulaPerInch",
-        "amtKsharSutra", "counselling", "estimatedCost", "recoveryTime"
+        "amtKsharSutra", "counselling", "estimatedCost", "estimate", "recoveryTime"
     )
 
     /**
@@ -144,7 +149,18 @@ object CheckupNoteJson {
      */
     fun merge(old: Map<String, String>, r: CheckupRecord): Map<String, String> {
         val out = LinkedHashMap(old)
-        for ((k, v) in toMap(r)) if (PHONE_KEYS.contains(k)) out[k] = v
+        for ((k, v) in toMap(r)) {
+            if (!PHONE_KEYS.contains(k)) continue
+            /* 💰🔒 V973 (নিজে ধরা, গভীরে যাচাই করতে গিয়ে) — **টাকার হিসাব যেন
+               কখনো ফাঁকা দিয়ে মুছে না যায়।** এস্টিমেটের ভাঙা হিসাব ফর্মের কোনো
+               ঘরে দেখা যায় না; কোনো কারণে ফর্মে না বসলে (যেমন ভুল রোগীর তথ্য
+               ঠেকাতে `populate()` বাদ পড়লে) সেভের সময় ফাঁকা লেখা গিয়ে
+               ওয়েবে বানানো হিসাবটা মুছে দিতে পারত।
+               ⇒ ফাঁকা হলে আগেরটাই থাকে; হিসাব থাকলে তবেই বদলায়।
+               ⛔ বাকি সব ঘরের আচরণ এক অক্ষরও বদলায়নি। */
+            if (k == "estimate" && v.isBlank()) continue
+            out[k] = v
+        }
         return out
     }
 }

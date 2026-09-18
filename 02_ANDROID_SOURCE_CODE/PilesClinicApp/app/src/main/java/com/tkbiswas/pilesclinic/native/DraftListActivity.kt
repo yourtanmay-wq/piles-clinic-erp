@@ -35,6 +35,14 @@ class DraftListActivity : AppCompatActivity() {
     private var branchArg: String? = null
     private var fromArg: String? = null
     private var toArg: String? = null
+    // V1521 — Year filter is an overlay on the existing Draft date filter.
+    // BASE keeps the caller's All/This Month/Custom range exactly as it was;
+    // YEAR temporarily replaces it with Jan-01..Dec-31; ALL YEARS removes only
+    // the date range. Branch/bucket/restore/delete/payment logic is untouched.
+    private var baseFromArg: String? = null
+    private var baseToArg: String? = null
+    private var selectedYear: Int? = null
+    private var allYearsSelected: Boolean = false
 
     @Suppress("UNCHECKED_CAST")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +66,8 @@ class DraftListActivity : AppCompatActivity() {
         branchArg = intent.getStringExtra("branch")
         fromArg = intent.getStringExtra("from")
         toArg = intent.getStringExtra("to")
+        baseFromArg = fromArg
+        baseToArg = toArg
         val incoming = (intent.getSerializableExtra("entries") as? ArrayList<DraftEntry>) ?: arrayListOf()
         entries.addAll(incoming)
 
@@ -70,10 +80,66 @@ class DraftListActivity : AppCompatActivity() {
         // যা দেখা যাচ্ছে ঠিক তাই CSV হয়ে নামে, তারপর ফোনের চেনা Share/Save
         // পর্দা খোলে।
         binding.btnSheet.setOnClickListener { downloadSheet() }
+        setupMoreMenu()
 
         setupBranchPicker()
         wirePullToRefresh()
         renderList()
+    }
+
+    private fun effectiveRange(): Pair<String?, String?> {
+        if (allYearsSelected) return Pair(null, null)
+        val y = selectedYear
+        if (y != null) return Pair(String.format(java.util.Locale.US, "%04d-01-01", y), String.format(java.util.Locale.US, "%04d-12-31", y))
+        return Pair(baseFromArg, baseToArg)
+    }
+
+    private fun updateHeaderTitle() {
+        val suffix = when {
+            allYearsSelected -> " · All Years"
+            selectedYear != null -> " · ${selectedYear}"
+            else -> ""
+        }
+        binding.tvTitle.text = "$screenTitle$suffix (${entries.size})"
+    }
+
+    /** V1521 — top-right ⋮: year filter + the existing Sheet action.
+     *  Default remains the caller's existing date filter, so no historical/live
+     *  list silently changes when upgrading the app. */
+    private fun setupMoreMenu() {
+        binding.btnMore.setOnClickListener { anchor ->
+            val pm = android.widget.PopupMenu(this, anchor)
+            var id = 1
+            val baseActive = !allYearsSelected && selectedYear == null
+            if (!baseFromArg.isNullOrBlank() || !baseToArg.isNullOrBlank()) {
+                pm.menu.add(0, id++, 0, (if (baseActive) "✓ " else "") + "Current Date Filter")
+            }
+            val cal = java.util.Calendar.getInstance()
+            val nowYear = cal.get(java.util.Calendar.YEAR)
+            for (y in nowYear downTo nowYear - 5) {
+                pm.menu.add(0, 10000 + y, 0, (if (!allYearsSelected && selectedYear == y) "✓ " else "") + "Year $y")
+            }
+            pm.menu.add(0, 20001, 0, (if (allYearsSelected) "✓ " else "") + "All Years")
+            pm.menu.add(0, 30001, 0, "Download Sheet")
+            pm.setOnMenuItemClickListener { item ->
+                when {
+                    item.itemId == 30001 -> downloadSheet()
+                    item.itemId == 20001 -> { allYearsSelected = true; selectedYear = null; reloadFromCloud() }
+                    item.itemId >= 10000 && item.itemId < 20000 -> {
+                        selectedYear = item.itemId - 10000
+                        allYearsSelected = false
+                        reloadFromCloud()
+                    }
+                    else -> {
+                        selectedYear = null
+                        allYearsSelected = false
+                        reloadFromCloud()
+                    }
+                }
+                true
+            }
+            pm.show()
+        }
     }
 
     /** 🔒 TK-APPROVED (01.08.2026, ফটো-প্রুফে "ওকে"): Master শুধু এই তালিকাতেই
@@ -131,7 +197,16 @@ class DraftListActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val fresh = try {
                 withContext(Dispatchers.IO) {
-                    val b = repository.load(branchArg, fromArg, toArg)
+                    // 🟢🔒🔒 V647 (২৫.০৮.২০২৬) — reloadFromCloud() সবসময় সত্যিকারের
+                    // তাজা ডেটা চায় (Restore/Delete/Remark/Next-Follow সেভের পরে,
+                    // বা Pull-to-Refresh) — তাই নতুন বসানো ২০-সেকেন্ডের ক্যাশ এখানে
+                    // প্রথমেই সাফ করা হয়, যাতে নিজের হাতে-করা এডিট নিজেরই চোখে
+                    // পুরনো/স্টেল দেখা না যায় (TK-এর "টাকা/রিমার্কস সবসময় সঙ্গে
+                    // সঙ্গে সঠিক দেখাবে" নিয়ম অক্ষত রাখতে)। ⛔ শুধু এই ২০-সেকেন্ড-
+                    // ক্যাশ সাফ হয় — বাকি কোনো ডেটা/queue/লজিক ছোঁয়া হয় না।
+                    CloudReadCache.clear()
+                    val range = effectiveRange()
+                    val b = repository.load(branchArg, range.first, range.second)
                     when (bucketKey) {
                         "received" -> b.received
                         "enqReject" -> b.enqReject
@@ -140,6 +215,9 @@ class DraftListActivity : AppCompatActivity() {
                         "complete" -> b.complete
                         "unexpectedTime" -> b.unexpectedTime
                         "refunded" -> b.refunded
+                        "returnVisit" -> b.returnVisit
+                        // 🟢🔒 V644 (২৫.০৮.২০২৬, TK-নির্দেশ) — একই প্যাটার্ন, নতুন bucket।
+                        "runningTreatment" -> b.runningTreatment
                         else -> null
                     }
                 }
@@ -192,8 +270,18 @@ class DraftListActivity : AppCompatActivity() {
     // 🟢 B631 (11.08.2026): বাল্ক Delete/Restore চলাকালীন ছোট ভাসমান "মুছে ফেলা হচ্ছে x/N" ইঙ্গিত।
     private var bulkProgressView: android.widget.TextView? = null
 
+    // 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ, বহু-দফা প্রশ্ন করে নিশ্চিত হওয়া —
+    // "একই কার্ড সব জায়গায়, ঝুঁকি ছাড়া") — এই পাঁচটা "জীবন্ত" তালিকা এখন
+    // Follow-up-এর কার্ডের মতোই দেখায় ও কাজ করে (আলাদা, স্বাধীন
+    // `FollowUpAdapter` পুনর্ব্যবহার — FollowUpActivity-এর নিজস্ব কোড
+    // (`buildFollowCard`) এক অক্ষরও ছোঁয়া হয়নি, ঝুঁকি নেওয়া হয়নি)। বাকি
+    // ৪টা ("মৃত": enqreject/visitreject/refunded/returnvisit) সম্পূর্ণ
+    // অপরিবর্তিত — DraftCardAdapter-ই থাকে।
+    private val ALIVE_BUCKETS = setOf("received", "unexpectedTime", "notComplete", "complete", "runningTreatment")
+    private var followListAdapter: FollowUpAdapter? = null
+
     private fun renderList() {
-        binding.tvTitle.text = binding.tvTitle.text.toString().substringBefore(" (") + " (${entries.size})"
+        updateHeaderTitle()
         if (entries.isEmpty()) {
             binding.tvEmpty.visibility = android.view.View.VISIBLE
             binding.recyclerDraft.visibility = android.view.View.GONE
@@ -202,6 +290,39 @@ class DraftListActivity : AppCompatActivity() {
         }
         binding.tvEmpty.visibility = android.view.View.GONE
         binding.recyclerDraft.visibility = android.view.View.VISIBLE
+
+        // 🟢🔒🔒 V646 — "জীবন্ত" পাঁচটা তালিকায় বাল্ক-পিক/Restore/Delete
+        // কিছুই নেই (এখানে সেই বোতামই দেখানো হয় না) — তাই পিক-বার সবসময়
+        // লুকানো থাকে, DraftCardAdapter-এর পিক-লজিক এই তালিকায় ছোঁয়া হয় না।
+        if (bucketKey in ALIVE_BUCKETS) {
+            binding.pickBar.visibility = android.view.View.GONE
+            val items = entries.map { it.toFollowUpItem() }
+            val existingFollow = followListAdapter
+            if (existingFollow == null) {
+                binding.recyclerDraft.layoutManager = LinearLayoutManager(this)
+                val a = FollowUpAdapter(
+                    context = this,
+                    items = items,
+                    onCall = { item -> dial(item.mobile) },
+                    onWhatsApp = { item -> whatsApp(item.mobile) },
+                    onRemark = { item -> showDraftRemarkDialog(item) },
+                    onNextFollow = { item -> showDraftNextFollowDialog(item) },
+                    onPayment = { item -> openDraftPaymentFor(item) },
+                    onPrescription = { item -> openDraftPrescriptionFor(item) },
+                    onView = { item -> viewTimeline(item.mobile) }
+                    // ⛔ onStatusMenu/onCallSignal/onEdit/onPhotoEdit ইচ্ছাকৃতভাবে
+                    // ডিফল্ট (কিছুই করে না) — এই ট্রিপল-ট্যাপ এডিট-সুবিধাগুলো
+                    // Follow-up-এর নিজের পর্দাতেই থাকে, TK-কে এই সীমাবদ্ধতা
+                    // স্পষ্টভাবে জানানো হয়েছে (ঝুঁকি না নেওয়ার জন্য)।
+                )
+                followListAdapter = a
+                binding.recyclerDraft.adapter = a
+            } else {
+                existingFollow.updateItems(items)
+            }
+            return
+        }
+
         val existing = draftAdapter
         if (existing == null) {
             binding.recyclerDraft.layoutManager = LinearLayoutManager(this)
@@ -227,6 +348,83 @@ class DraftListActivity : AppCompatActivity() {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — "জীবন্ত" কার্ডের বোতাম-ফাংশন।
+    // প্রতিটাই বিদ্যমান, প্রমাণিত পথে যায় (PaymentActivity/DoctorCheckupActivity/
+    // FollowUpRepository-এর নিজস্ব public ফাংশন) — কোনো নতুন ডায়ালগ-লজিক
+    // পুনর্লিখন করা হয়নি, তাই ঝুঁকি নেই। FollowUpActivity.kt এক অক্ষরও
+    // ছোঁয়া হয়নি।
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** FollowUpActivity.openPaymentFor()-এর হুবহু একই, প্রমাণিত ধরন। */
+    private fun openDraftPaymentFor(item: FollowUpItem) {
+        val digits = item.mobile.filter { it.isDigit() }.takeLast(10)
+        val intent = Intent(this, PaymentActivity::class.java)
+        intent.putExtra("mobile", digits)
+        intent.putExtra("patientRowId", item.refId)
+        intent.putExtra("patientCode", item.patientId)
+        startActivity(intent)
+    }
+
+    /** PatientTimelineActivity.prepareClinicalRoleSession()-এর হুবহু একই
+     *  RoleSession-পথ — DoctorCheckupActivity তাই ঠিক রোগীর সাথেই খোলে। */
+    private fun openDraftPrescriptionFor(item: FollowUpItem) {
+        val roleStr = if (user.role.equals("doctor", true)) "DOCTOR" else "STAFF"
+        com.tkbiswas.pilesclinic.clinical.RoleSession.applyFrom(
+            roleStr, item.name, item.refId.ifBlank { item.id }, item.branch,
+            item.mobile, item.address, item.age, item.sex, item.disease,
+            patientDisplayId = item.patientId
+        )
+        startActivity(Intent(this, com.tkbiswas.pilesclinic.clinical.DoctorCheckupActivity::class.java))
+    }
+
+    /** FollowUpRepository.updateRemark()-এর প্রমাণিত ফাংশনে সরাসরি লেখে —
+     *  নতুন কোনো রিমার্কস-সেভ-লজিক বানানো হয়নি। */
+    private fun showDraftRemarkDialog(item: FollowUpItem) {
+        val input = android.widget.EditText(this).apply {
+            setText(item.lastRemark.takeIf { it != "No remark" } ?: "")
+            hint = "Remark"
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, item.name.ifBlank { "Remark" }))
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val text = input.text.toString().trim()
+                if (text.isBlank()) return@setPositiveButton
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) {
+                        FollowUpRepository(this@DraftListActivity).updateRemark(item.id, text, user.name.ifBlank { user.mobile })
+                    }
+                    if (ok) { Toast.makeText(this@DraftListActivity, "Saved", Toast.LENGTH_SHORT).show(); reloadFromCloud() }
+                    else Toast.makeText(this@DraftListActivity, "Could not save — check connection", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /** FollowUpRepository.updateNextFollow()-এর প্রমাণিত ফাংশনে সরাসরি লেখে। */
+    private fun showDraftNextFollowDialog(item: FollowUpItem) {
+        val cal = java.util.Calendar.getInstance()
+        try {
+            if (item.nextFollow.isNotBlank()) {
+                val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(item.nextFollow.take(10))
+                if (d != null) cal.time = d
+            }
+        } catch (_: Throwable) { }
+        android.app.DatePickerDialog(this, { _, y, m, d ->
+            val picked = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .format(java.util.GregorianCalendar(y, m, d).time)
+            lifecycleScope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    FollowUpRepository(this@DraftListActivity).updateNextFollow(item.id, picked)
+                }
+                if (ok) { Toast.makeText(this@DraftListActivity, "Saved", Toast.LENGTH_SHORT).show(); reloadFromCloud() }
+                else Toast.makeText(this@DraftListActivity, "Could not save — check connection", Toast.LENGTH_LONG).show()
+            }
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // 🆕🔒 TK-নির্দেশ (07.08.2026, ফটো-প্রুফ অনুমোদিত) — "অনেকগুলো একসাথে মার্ক
     // করেও ডিলিট করতে পারি, অথবা অনেকগুলো একসাথে মার্ক করেও Restore করতে পারি"।
     // ⛔ **ঝুঁকি-নিয়ন্ত্রণ:** (১) প্রতিটা কাজ **একই প্রমাণিত পথেই** — Delete-এ
@@ -243,7 +441,7 @@ class DraftListActivity : AppCompatActivity() {
         binding.tvPickCount.text = "$n selected"
         // Restore যেসব তালিকায় প্রযোজ্য নয় (My Enquiry / Unexpected Time) সেখানে
         // বোতামটা লুকানো — নইলে চাপলে কিছুই হতো না, বিভ্রান্তি হতো।
-        val restorable = bucketKey == "enqReject" || bucketKey == "visitReject"
+        val restorable = bucketKey == "enqReject" || bucketKey == "visitReject" || bucketKey == "returnVisit"
         binding.btnPickRestore.visibility = if (restorable) android.view.View.VISIBLE else android.view.View.GONE
     }
 
@@ -288,7 +486,7 @@ class DraftListActivity : AppCompatActivity() {
                         try {
                             // ⛔ একক Restore/Delete-এর হুবহু একই ডাক (আচরণ/হিসাব অপরিবর্তিত)।
                             if (restoreMode) repository.restore(e, user)
-                            else repository.deleteEnquiry(e, user, isFreeDeleteTab(e.tab)) == "OK"
+                            else repository.deleteEnquiry(e, user, isFreeDelete(e)) == "OK"   // 🔴🔒 V717
                         } catch (_: Throwable) { false }
                     }
                     if (ok) done++ else { failed++; failedItems.add(e) }
@@ -305,7 +503,7 @@ class DraftListActivity : AppCompatActivity() {
                     this@DraftListActivity,
                     "$done record(s) $completedAction." + (if (failed > 0) " · $failed record(s) failed — please try again." else ""),
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         }
     }
@@ -364,6 +562,26 @@ class DraftListActivity : AppCompatActivity() {
     private fun isFreeDeleteTab(tab: String): Boolean =
         tab == "received" || tab == "enqreject" || tab == "visitreject" || tab == "unexpected"
 
+    /* 🔴🔴🔒 V717 (নিজে গভীরে যাচাই করে ধরা — TK-নির্দেশ *"কোন ভাল কাজ যেন
+       খারাপ না হয়"*):
+
+       উপরের ছাড়ের **ভিত্তি** ছিল TK-এর কথা (০৩ ও ০৭.০৮.২০২৬) — *"Enquiry
+       reject, Visit card reject — পেমেন্ট সংক্রান্ত কোনো ব্যাপার না থাকলে
+       স্টাফ নিজেই করতে পারবে"* — আর কোডে লেখা যুক্তি: **"এই দুই তালিকায়
+       কোনো টাকা জমা নেই বলে নিশ্চিত, কারণ টাকা শুধু Patient/Treatment ধাপেই
+       থাকে।"**
+
+       V716-এ "Visit Reject" তালিকায় **Treatment-ধাপের** (বাতিল করা) কার্ডও
+       দেখানো শুরু হলো — অর্থাৎ ওই "টাকা নেই" ভিত্তিটাই আর সত্যি নয়। তাহলে
+       স্টাফ **মাস্টারের অনুমতি ছাড়াই** একজন Treatment-রোগীর কার্ড মুছে
+       ফেলতে পারতেন। সেটা TK-এর লক করা নিয়মের বিরুদ্ধে।
+
+       ⇒ তাই ছাড়টা এখন **শুধু সেই কার্ডেই**, যার ধাপ Treatment নয়।
+       Treatment-ধাপের কার্ডে আগের মতোই **মাস্টারের অনুমতি লাগবে**।
+       ⛔ পুরোনো (Patient/Inquiry ধাপের) কার্ডে আচরণ এক অক্ষরও বদলায়নি। */
+    private fun isFreeDelete(e: DraftEntry): Boolean =
+        isFreeDeleteTab(e.tab) && !e.stage.equals("Treatment", ignoreCase = true)
+
     private fun confirmDelete(e: DraftEntry) {
         if (e.tab == "refunded") { confirmDeleteRefundedPatient(e); return }
         // 🆕 TK-নির্দেশ (03.08.2026) — "Enquiry reject, Visit card reject —
@@ -387,7 +605,7 @@ class DraftListActivity : AppCompatActivity() {
         // ⛔ মোছার আসল পথ (Trash Bin + followup cascade) এক অক্ষরও বদলায়নি —
         //    ডিলিট আগের মতোই ফেরানো যায় (Master → Trash Bin → Restore)।
         // (আগের কোড ছিল: if (e.tab == "enqreject" || e.tab == "visitreject"))
-        if (isFreeDeleteTab(e.tab)) {
+        if (isFreeDelete(e)) {   // 🔴🔒 V717 — Treatment-ধাপে ছাড় নেই
             showDeleteEnquiryDialogDirect(e)
             return
         }
@@ -398,7 +616,7 @@ class DraftListActivity : AppCompatActivity() {
         //    যেন কখনো না হয়।
         if (!DeletePermission.canDeleteNow(user)) {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Master-এর অনুমতি লাগবে"))
+                .setCustomTitle(PremiumAlert.header(this, "Master's approval needed"))
                 .setMessage(
                     "${e.name.ifBlank { e.mobile }}\n\n" +
                     "ডিলিট করতে পারেন শুধু Master Admin।\n" +
@@ -410,13 +628,14 @@ class DraftListActivity : AppCompatActivity() {
                         val ok = withContext(Dispatchers.IO) {
                             DeletePermission.sendRequest(
                                 this@DraftListActivity, user, "Enquiry",
-                                e.name, e.mobile, e.patientId, e.branch
+                                e.name, e.mobile, e.patientId, e.branch,
+                                disease = e.disease
                             )
                         }
                         Toast.makeText(
-                            this@DraftListActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
+                            this@DraftListActivity, NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                             Toast.LENGTH_LONG
-                        ).show()
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     }
                 }
                 .setNegativeButton("Cancel", null)
@@ -446,7 +665,7 @@ class DraftListActivity : AppCompatActivity() {
                     // দ্বিতীয় গেট `TrashHelper.canDelete`-ও পাশ কাটে), নইলে
                     // পর্দায় ছাড় দিলেও "PERMISSION" ফেরত আসত।
                     // (আগে: e.tab == "enqreject" || e.tab == "visitreject")
-                    val bypass = isFreeDeleteTab(e.tab)
+                    val bypass = isFreeDelete(e)   // 🔴🔒 V717
                     val result = withContext(Dispatchers.IO) { repository.deleteEnquiry(e, user, bypass) }
                     if (result == "OK") {
                         entries.remove(e)
@@ -508,7 +727,7 @@ class DraftListActivity : AppCompatActivity() {
                         }
                         "PERMISSION" -> {
                             androidx.appcompat.app.AlertDialog.Builder(this@DraftListActivity)
-                                .setCustomTitle(PremiumAlert.header(this@DraftListActivity, "Master-এর অনুমতি লাগবে"))
+                                .setCustomTitle(PremiumAlert.header(this@DraftListActivity, "Master's approval needed"))
                                 .setMessage(
                                     "${e.name.ifBlank { e.mobile }}\n\n" +
                                     "ডিলিট করতে পারেন শুধু Master Admin।\n" +
@@ -520,13 +739,14 @@ class DraftListActivity : AppCompatActivity() {
                                         val ok = withContext(Dispatchers.IO) {
                                             DeletePermission.sendRequest(
                                                 this@DraftListActivity, user, "Patient",
-                                                e.name, e.mobile, e.patientId, e.branch
+                                                e.name, e.mobile, e.patientId, e.branch,
+                                                disease = e.disease
                                             )
                                         }
                                         Toast.makeText(
-                                            this@DraftListActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
+                                            this@DraftListActivity, NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                                             Toast.LENGTH_LONG
-                                        ).show()
+                                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                                     }
                                 }
                                 .setNegativeButton("Cancel", null)

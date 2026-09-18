@@ -36,7 +36,7 @@ object RegistrationHtmlPrint {
                     val adapter = view.createPrintDocumentAdapter(jobName)
                     pm.print(
                         jobName, adapter,
-                        PrintAttributes.Builder()
+                        com.tkbiswas.pilesclinic.native.PrintQuality.builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .build()
@@ -62,10 +62,18 @@ object RegistrationHtml {
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     /** ওয়েবের wlv1AddrTwo — থানা-চিহ্নের আগে লাইন-ব্রেক, নইলে এক লাইনে। */
-    private fun addr2(a: String): String {
+    private fun addr2(aRaw: String): String {
+        val a = aRaw.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (a.isBlank()) return "-"
         val u = a.uppercase()
-        val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION")
+        // 🟢🔒 V1135 (০৬.০৯.২০২৬ — TK: *"অ্যান্ড্রয়েড থেকে যত ধরনের প্রিন্ট
+        // আউট হয়, একই জিনিস একই মডেল কম্পিউটার থেকেও হতে হবে"* — মিলিয়ে দেখতে
+        // গিয়ে ধরা পড়ল): ওয়েবের `wlv1AddrTwo` বাংলা **"থানা"** শব্দেও লাইন ভাঙে,
+        // অথচ এই চারটে ছাপার কাগজে সেটা বাদ ছিল ⇒ একই ঠিকানা কম্পিউটারে দুই
+        // লাইনে, ফোনে এক লাইনে ছাপত। অ্যাপের বাকি আটটা জায়গায় শব্দটা আগে থেকেই আছে।
+        // ⛔ ইংরেজি চিহ্নগুলো বড় হাতেই থাকল (উপরে `u` বড় হাতে করা), তাই আগের
+        //    আচরণ এক অক্ষরও বদলায়নি — শুধু বাংলা শব্দটা যোগ হলো।
+        val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION", "থানা")
         var idx = -1
         for (m in markers) { val k = u.indexOf(m); if (k > 0 && (idx == -1 || k < idx)) idx = k }
         if (idx <= 0) return esc(a)
@@ -140,7 +148,7 @@ object RegistrationHtml {
             rb("Estimated Cost", false) + rb("Recovery Time", false) + rb("Doctor's Remarks / Advice", true) +
             "</div></div>"
 
-        val css = """*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif}
+        val css = """*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 @page{size:A4;margin:0}body{background:#fff;color:#111}
 .gold{height:6px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}.gbar{height:3px;background:#0f5132}
 .lh{display:flex;align-items:center;gap:14px;padding:14px 22px 10px}.lh img{width:74px;height:74px;border-radius:50%}
@@ -162,7 +170,7 @@ object RegistrationHtml {
 
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>$css</style></head><body>" +
             "<div class=\"gold\"></div><div class=\"lh\"><img src=\"${info.logoAssetPath}\"><div><div class=\"cn\">${esc(info.clinicName)}</div><div class=\"tag\">Ayurveda &amp; Anorectal Diseases</div>" +
-            "<div class=\"addr\"><b>${esc(s("branch"))}:</b> ${esc(info.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(info.phoneLine)}</div></div></div><div class=\"gbar\"></div>" +
+            "<div class=\"addr\"><b>${esc(s("branch"))}:</b> ${esc(info.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(info.phoneLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(BranchCatalog.HELPLINE)}</div></div></div><div class=\"gbar\"></div>" +
             "<div class=\"tb\"><span class=\"t\">PATIENT REGISTRATION FORM</span><span class=\"r\">Reg. No: $pid<br>${esc(dateStr)}</span></div>" +
             "<div class=\"pi\"><div class=\"pphoto\">🧑</div>" +
             "<div class=\"c\"><div class=\"r\"><b>Name</b> : ${esc(s("name").ifBlank { "-" }).uppercase()}</div><div class=\"r\"><b>Patient ID</b> : $pid</div><div class=\"r\"><b>Age / Sex</b> : $ageSex</div><div class=\"r\"><b>Occupation</b> : ${esc(s("occupation").ifBlank { "-" })}</div><div class=\"r\"><b>Branch</b> : ${esc(s("branch").ifBlank { "-" })}</div></div>" +

@@ -25,6 +25,11 @@ object MobileInput {
         // No number/contact suggestions or autofill on any mobile field (TK rule):
         // stop the keyboard's personalized/clipboard number chips and the system
         // autofill dropdown from suggesting phone numbers.
+        // 🔴🔒 V1505 (15.09.2026) — this flag was removed from NoAutofill.harden()
+        // (it was silently blocking Gboard voice typing app-wide) but is kept
+        // HERE deliberately: this is a phone-number keyboard, which never shows
+        // a voice/mic button anyway, and this is the exact field type TK's
+        // original complaint (V758) was about.
         et.imeOptions = et.imeOptions or 0x1000000 // EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
         if (android.os.Build.VERSION.SDK_INT >= 26) {
             et.importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
