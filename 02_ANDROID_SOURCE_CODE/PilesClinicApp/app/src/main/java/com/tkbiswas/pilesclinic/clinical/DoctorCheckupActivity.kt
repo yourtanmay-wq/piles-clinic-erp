@@ -1957,7 +1957,22 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     body.put(NextVisitPlan.FIELD, NextVisitPlan.appended(row0, plan))
                 }
             } catch (_: Throwable) { }
-            SupabaseClient.updateById("patients", id, body)
+            // 🔴🔒 V1600 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — নেট খুব ধীর থাকা
+            // অবস্থায় সেভ করা একটা চেকআপ, "Check-up History" খুললে "এখনো
+            // সম্পূর্ণ হয়নি" দেখাচ্ছিল, অথচ তথ্য ঠিকই সেভ হয়েছিল) — আসল
+            // কারণ: এই শেষ লেখাটাই (doctorComplete=true + doctorFullNote +
+            // Next Visit Plan) কোনো retry ছাড়াই একবার মাত্র পাঠানো হতো —
+            // দুর্বল নেটে ব্যর্থ হলে চিরকালের জন্য হারিয়ে যেত, অথচ চেকআপের
+            // আসল তথ্য (`saveMedical()`) আলাদা, প্রমাণিত সেভ-পথ দিয়ে
+            // যেত বলে ঠিকই বসে যেত। এখানে ততক্ষণে আসল সারির `id` জানা হয়ে
+            // গেছে (উপরে), তাই এখন ব্যর্থ হলে প্রমাণিত `GenericUpdateQueue`-তে
+            // (App-এর প্রতিটা পর্দা খোলার সময় নিজে থেকেই আবার পাঠানোর চেষ্টা
+            // করে) জমা রাখা হয় — patientId/id নিয়ে অনিশ্চয়তার কোনো ঝুঁকি নেই,
+            // কারণ `id`-টা ততক্ষণে নির্দিষ্ট হয়েই গেছে।
+            val ok = try { SupabaseClient.updateById("patients", id, body) } catch (_: Throwable) { false }
+            if (!ok) {
+                try { com.tkbiswas.pilesclinic.native.GenericUpdateQueue.queue(this, "patients", id, body) } catch (_: Throwable) { }
+            }
         } catch (_: Exception) {
         }
     }
