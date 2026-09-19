@@ -2930,6 +2930,13 @@ Thread {
             .show().also { PremiumAlert.paint(it) }
     }
 
+    /* 🔴🔒 V1609 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — একই দিনের জন্য তিনবার
+       Reopen-অনুরোধ পাঠানোয় Master-এর ঘন্টায় তিনটে আলাদা কার্ড জমেছিল):
+       "Yes, Send" চাপার সঙ্গে সঙ্গেই পাঠানোর বদলে, আগে
+       `ChamberReopenPermission.findPendingRequest()` দিয়ে যাচাই — একই
+       ব্রাঞ্চ+তারিখের একটা এখনো-অমীমাংসিত অনুরোধ আগে থেকে থাকলে নতুন কিছু
+       পাঠানো হয় না, স্টাফকে স্পষ্ট বার্তা দেখানো হয়। ⛔ নেট/ক্লাউড ব্যর্থ
+       হলে (`null`) আগের মতোই সরাসরি পাঠানো হয় — সৎ অনুরোধ কখনো আটকায় না। */
     private fun confirmRequestReopen() {
         val u = user
         val br = if (selectedBranch != "All") selectedBranch else u.branch
@@ -2939,6 +2946,18 @@ Thread {
             .setMessage(NoBengali.s("Send a request to the Master to reopen this day ($dateDisplay, $br)?")   /* 🔤 V728 */)
             .setPositiveButton(NoBengali.s("Yes, Send")) { _, _ ->
                 lifecycleScope.launch {
+                    val pending = withContext(Dispatchers.IO) {
+                        try { ChamberReopenPermission.findPendingRequest(this@ChamberAttendanceActivity, br, selectedDate) }
+                        catch (_: Throwable) { null }
+                    }
+                    if (pending != null) {
+                        android.widget.Toast.makeText(
+                            this@ChamberAttendanceActivity,
+                            NoBengali.s("Already requested — Master এখনো এটা দেখেননি, আবার পাঠানোর দরকার নেই"),
+                            android.widget.Toast.LENGTH_LONG
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                        return@launch
+                    }
                     val ok = withContext(Dispatchers.IO) {
                         try { ChamberReopenPermission.sendRequest(this@ChamberAttendanceActivity, u, br, selectedDate) }
                         catch (_: Throwable) { false }

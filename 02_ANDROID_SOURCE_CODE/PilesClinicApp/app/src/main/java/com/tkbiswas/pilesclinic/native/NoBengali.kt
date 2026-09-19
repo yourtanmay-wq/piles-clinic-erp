@@ -390,6 +390,8 @@ object NoBengali {
         "হ্যাঁ, পাঠান" to "Yes, Send",
         "অনুরোধ পাঠানো হয়েছে — Master অনুমোদন দিলে দিনটা আবার খুলবে" to "Request sent — the day will reopen once Master approves",
         "পাঠানো গেল না — নেট চেক করে আবার চেষ্টা করুন" to "Could not send — check your network and try again",
+        // 🆕 V1609 (১৯.০৯.২০২৬) — একই দিনের জন্য বারবার Reopen-অনুরোধ আটকানোর সতর্কবার্তা।
+        "Already requested — Master এখনো এটা দেখেননি, আবার পাঠানোর দরকার নেই" to "Already requested — Master has not seen it yet, no need to send again",
         "না" to "No",
         "এই অনুরোধ থেকে Branch/Date চেনা গেল না" to "Could not read Branch/Date from this request",
         // 🆕 B607 (10.08.2026, TK-নির্দেশ) — কেউ না এলে চেম্বার বন্ধের নিশ্চিতকরণ।

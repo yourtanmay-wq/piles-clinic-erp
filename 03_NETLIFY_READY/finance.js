@@ -1985,7 +1985,34 @@ function finRowTap(id) {
     rows.push(['Total', m.money(cashTot).replace('₹', ''), m.money(onlineTot).replace('₹', ''), m.money(expTot).replace('₹', ''),
       openingOk ? m.money(running).replace('₹', '') : '—', true]);
 
-    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+    /* 🎨🔒 V1610 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — "আরো প্রফেশনাল
+       বানাতে হবে", "খরচেরগুলো সম্পূর্ণ লাল থাকতে হবে") — ফোনের
+       IncomeExpenseActivity.kt-এর statementPdfHtml-এর হুবহু জোড়া: লেটারহেড
+       (ক্লিনিকের নাম + তৈরির তারিখ) + Opening/Total In/Total Expense/Closing
+       চারটে সারাংশ বাক্স + Expense কলাম (সংখ্যা ও "-" দুটোই) বোল্ড লাল।
+       ⛔ টাকার হিসাব এক অক্ষরও বদলায়নি। */
+    var genDate = (function () { var d = new Date(); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); })();
+    var fromDot = fromIso.split('-').reverse().join('/'), toDot = toIso.split('-').reverse().join('/');
+    var html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0A5C33;padding-bottom:10px;margin-bottom:14px">' +
+      '<div><div style="font-size:15px;font-weight:bold;color:#0A5C33">MAA AYURVED PILES CLINIC</div>' +
+      '<div style="font-size:12px;color:#667085;margin-top:2px">Statement — ' + m.esc(branchSel) + '</div></div>' +
+      '<div style="text-align:right;font-size:11px;color:#667085;line-height:1.6">' + fromDot + ' – ' + toDot +
+      '<br>Generated: <b style="color:#101C2E">' + genDate + '</b></div></div>';
+    html += '<div style="display:flex;gap:8px;margin-bottom:14px">' +
+      '<div style="flex:1;border-radius:9px;padding:8px 10px;border:1px solid #CDEAD9;background:#FAFCFB">' +
+      '<div style="font-size:9px;font-weight:bold;letter-spacing:.06em;color:#667085;text-transform:uppercase">Opening</div>' +
+      '<div style="font-size:14px;font-weight:bold;margin-top:3px;color:#0A5C33">' + (openingOk ? m.money(opening) : '—') + '</div></div>' +
+      '<div style="flex:1;border-radius:9px;padding:8px 10px;border:1px solid #CDEAD9;background:#FAFCFB">' +
+      '<div style="font-size:9px;font-weight:bold;letter-spacing:.06em;color:#667085;text-transform:uppercase">Total In</div>' +
+      '<div style="font-size:14px;font-weight:bold;margin-top:3px;color:#0A7C3F">' + m.money(cashTot + onlineTot) + '</div></div>' +
+      '<div style="flex:1;border-radius:9px;padding:8px 10px;border:1px solid #F3C6BE;background:#FDEDEB">' +
+      '<div style="font-size:9px;font-weight:bold;letter-spacing:.06em;color:#667085;text-transform:uppercase">Total Expense</div>' +
+      '<div style="font-size:14px;font-weight:bold;margin-top:3px;color:#B42318">' + m.money(expTot) + '</div></div>' +
+      '<div style="flex:1;border-radius:9px;padding:8px 10px;border:1px solid #C7D7EA;background:#FAFCFB">' +
+      '<div style="font-size:9px;font-weight:bold;letter-spacing:.06em;color:#667085;text-transform:uppercase">Closing</div>' +
+      '<div style="font-size:14px;font-weight:bold;margin-top:3px;color:#0F3A66">' + (openingOk ? m.money(running) : '—') + '</div></div>' +
+      '</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
       '<tr style="background:#0A7C3F;color:#fff">' +
       '<th style="padding:6px;border:1px solid #CFE9D8">Date</th><th style="padding:6px;border:1px solid #CFE9D8">Cash</th>' +
       '<th style="padding:6px;border:1px solid #CFE9D8">Online</th><th style="padding:6px;border:1px solid #CFE9D8">খরচ</th>' +
@@ -1997,7 +2024,7 @@ function finRowTap(id) {
         '<td style="padding:6px;border:1px solid #CFE9D8;font-weight:' + (r[5] ? '700' : '400') + ';color:' + fg + '">' + m.esc(r[0]) + '</td>' +
         '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;color:#0A7C3F">' + m.esc(r[1]) + '</td>' +
         '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;color:#0A7C3F">' + m.esc(r[2]) + '</td>' +
-        '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;color:#B42318">' + m.esc(r[3]) + '</td>' +
+        '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;font-weight:700;color:#B42318">' + m.esc(r[3]) + '</td>' +
         '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;font-weight:700;color:#0F3A66">' + m.esc(r[4]) + '</td></tr>';
     });
     html += '</table>';

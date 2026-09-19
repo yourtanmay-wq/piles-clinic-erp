@@ -24006,11 +24006,44 @@ window["wlv1PaymentCloudPull"]=wlv1PaymentCloudPull;
    ⛔ Master-এর দিকের অনুমোদনের ব্যবস্থা (`wlv1ApproveReopenNotice`) আগে
       থেকেই তৈরি ছিল — এক অক্ষরও বদলানো হয়নি, শুধু অনুরোধ পাঠানোর পথটা বসল।
       বার্তার `Branch :` ও `Date :` লাইন দুটো ওই ফাংশনই পড়ে। */
+/* 🔴🔒 V1609 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — একই দিনের জন্য বারবার
+   Reopen-অনুরোধ পাঠানোয় Master-এর ঘন্টায় একাধিক আলাদা কার্ড জমেছিল):
+   পাঠানোর আগে সরাসরি ক্লাউডে ("reopen request" শিরোনামের যেকোনো অনুরোধ,
+   ফোন বা ওয়েব যেখান থেকেই পাঠানো হোক) একবার জিজ্ঞাসা করা হয় — একই
+   ব্রাঞ্চ+তারিখের একটা এখনো-অমীমাংসিত (deletedAt ফাঁকা) অনুরোধ আগে থেকে
+   থাকলে সেটাই ফেরত আসে। ফোনের ChamberReopenPermission.findPendingRequest()-
+   এর হুবহু জোড়া। ⛔ sb/নেট না থাকলে null — সৎ অনুরোধ কখনো আটকায় না। */
+function wlv1FieldFromMsg(msg,key){
+  var lines=String(msg||'').split('\n');
+  for(var i=0;i<lines.length;i++){
+    var t=lines[i].trim();
+    if(t.indexOf(key+' :')===0) return t.slice((key+' :').length).trim();
+  }
+  return '';
+}
+async function wlv1FindPendingReopen(branch,date){
+  try{
+    if(!sb || !branch || !date) return null;
+    var wantDate=wlv1Dot(date);
+    var q=await sb.from('briefings').select('id,message,deletedAt')
+      .ilike('title','%reopen request%').eq('branch',branch).limit(30);
+    if(q.error || !Array.isArray(q.data)) return null;
+    for(var i=0;i<q.data.length;i++){
+      var row=q.data[i];
+      if(row.deletedAt) continue;
+      if(wlv1FieldFromMsg(row.message,'Date')===wantDate) return row;
+    }
+    return null;
+  }catch(_e){ return null; }
+}
+window["wlv1FindPendingReopen"]=wlv1FindPendingReopen;
 async function wlv1RequestReopenChamber(){
   const br = (wlv1ChamberBranch && wlv1ChamberBranch!=='All') ? wlv1ChamberBranch : ((user&&user.branch)||'');
   const date = String(wlv1ChamberDate||'').slice(0,10);
   if(!br || br==='All' || !date) return toast('Branch/Date not found');
   if(!confirm('Send a request to Master to reopen this chamber ('+wlv1Dot(date)+', '+br+')?')) return;
+  const pending = await wlv1FindPendingReopen(br,date);
+  if(pending) return toast('Already requested — Master has not seen it yet, no need to send again');
   try{
     const rid = 'reopen_'+String(br).trim().toUpperCase().replace(/[^A-Z0-9]/g,'')+'_'+date;
     /* 🔴🔒 V1604 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — শিরোনামে ব্রাঞ্চ থাকায়

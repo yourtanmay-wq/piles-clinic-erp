@@ -72,6 +72,51 @@ object ChamberReopenPermission {
         } catch (_: Throwable) { false }
     }
 
+    /** `sendRequest()`-এর লেখা থেকে "Branch :"/"Date :" লাইন দুটো পড়া —
+     *  `approveAndReopen()` ও নিচের `findPendingRequest()` দুটোতেই এই একই
+     *  পড়ার নিয়ম, তাই কখনো দুই জায়গায় দুরকম বোঝার সুযোগ নেই। */
+    private fun field(message: String, key: String): String {
+        for (line in message.split("\n")) {
+            val t = line.trim()
+            if (t.startsWith("$key :")) return t.substringAfter("$key :").trim()
+        }
+        return ""
+    }
+
+    /* 🔴🔒 V1609 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — BARNALI ROY একই দিনের জন্য
+       তিনবার Reopen-অনুরোধ পাঠিয়েছিলেন, Master-এর ঘন্টায় তিনটে আলাদা কার্ড
+       জমেছিল): TK: *"স্টাফ বারবার রিকোয়েস্ট পাঠালে আটকান কেন না... দ্বিতীয়বার
+       করলে ওয়ার্নিং দেখাতে হবে যে একবার অলরেডি হয়ে গেছে।"*
+       ⇒ পাঠানোর ঠিক আগে এই ফাংশন দিয়ে যাচাই হয় — একই ব্রাঞ্চ+তারিখের একটা
+       **এখনো অমীমাংসিত** (Master এখনো Approve/Close করেননি, `deletedAt`
+       ফাঁকা) অনুরোধ আগে থেকে থাকলে সেটাই ফেরত আসে; ডাকা পর্দা তখন নতুন
+       অনুরোধ না পাঠিয়ে স্টাফকে সরাসরি জানায়।
+       ⛔ **সরাসরি Master-এর ঘন্টা থেকে ছোট্ট একটাই পড়া** (title মিলিয়ে, বেশি
+          সারি নয়) — নতুন কোনো টেবিল/কলাম লাগেনি।
+       ⛔ নেট/ক্লাউড ব্যর্থ হলে `null` — সৎ পেমেন্ট/অনুরোধ পাঠানোর নিয়মের মতোই
+          **কখনো আটকায় না**, শুধু জানা গেলে তবেই সতর্ক করে।
+       ⛔ title দুই প্ল্যাটফর্মেই একটু আলাদা (ফোন: "🔓 Chamber reopen request",
+          ওয়েব: "Reopen request") — তাই "reopen request" অংশটুকু মিলিয়ে দুটোই
+          ধরা পড়ে, কে কোন প্ল্যাটফর্ম থেকে পাঠিয়েছেন তাতে কিছু যায় আসে না। */
+    fun findPendingRequest(context: Context, branch: String, date: String): org.json.JSONObject? {
+        if (branch.isBlank() || date.isBlank()) return null
+        return try {
+            val wantDate = DateUtil.display(date)
+            val rows = SupabaseClient.fetchList(
+                "briefings", "title=ilike.*reopen%20request*&branch=eq.${
+                    try { java.net.URLEncoder.encode(branch, "UTF-8").replace("+", "%20") }
+                    catch (_: Throwable) { branch }
+                }", 30, select = "id,message,deletedAt"
+            )
+            for (i in 0 until rows.length()) {
+                val row = rows.getJSONObject(i)
+                if (row.s("deletedAt").isNotBlank()) continue
+                if (field(row.s("message"), "Date") == wantDate) return row
+            }
+            null
+        } catch (_: Throwable) { null }
+    }
+
     /**
      * Master-এর "Approve" চাপার মুহূর্তে চলে। অনুরোধের লেখা থেকেই Branch/Date
      * পড়ে নেওয়া হয় (`sendRequest()`-এর লেখাই এই ফরম্যাট নিশ্চিত করে)।
@@ -79,18 +124,11 @@ object ChamberReopenPermission {
      */
     fun approveAndReopen(context: Context, message: String, masterMobile: String): String {
         return try {
-            fun field(key: String): String {
-                for (line in message.split("\n")) {
-                    val t = line.trim()
-                    if (t.startsWith("$key :")) return t.substringAfter("$key :").trim()
-                }
-                return ""
-            }
-            val branch = field("Branch")
+            val branch = field(message, "Branch")
             /* 🔴🔒 V936 — লেখাটা এখন `31.08.2026`, কিন্তু চেম্বার-বন্ধের চাবি
                `yyyy-MM-dd`। তাই এখানে ফিরিয়ে নেওয়া হয়। পুরনো (কাঁচা ISO লেখা)
                অনুরোধেও `iso()` সেটাই ফেরত দেয় — কিছুই ভাঙে না। */
-            val date = DateUtil.iso(field("Date"))
+            val date = DateUtil.iso(field(message, "Date"))
             if (branch.isBlank() || date.isBlank()) return "BAD_REQUEST"
             if (ChamberCloseRepository.reopen(context, branch, date)) "OK" else "NETWORK"
         } catch (_: Throwable) { "NETWORK" }

@@ -4391,7 +4391,11 @@ class IncomeExpenseActivity : AppCompatActivity() {
             row.addView(boxCell(dotted, dateColWidth, bg, "#41506A", true))
             row.addView(boxCell(if (cash > 0) money(cash).removePrefix("₹") else "-", amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
             row.addView(boxCell(if (online > 0) money(online).removePrefix("₹") else "-", amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
-            row.addView(boxCell(if (e > 0) money(e).removePrefix("₹") else "-", 0, bg, "#B42318", false, weight = 1f, gravityV = android.view.Gravity.END))
+            // 🔴🔒 V1610 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — "খরচেরগুলো
+            // সম্পূর্ণ লাল থাকতে হবে") — খরচ না থাকা দিনের "-"ও আগে থেকেই
+            // লাল ছিল, কিন্তু পাতলা (bold নয়) বলে চোখেই পড়ত না। এখন বাকি
+            // সংখ্যাগুলোর মতোই বোল্ড, তাই পুরো কলামটাই স্পষ্ট লাল দেখায়।
+            row.addView(boxCell(if (e > 0) money(e).removePrefix("₹") else "-", 0, bg, "#B42318", true, weight = 1f, gravityV = android.view.Gravity.END))
             row.addView(boxCell(money(running).removePrefix("₹"), 0, bg, "#0F3A66", true, weight = 1.6f, gravityV = android.view.Gravity.END, noWrap = true))
             table.addView(row); builtRows.add(row)
         }
@@ -4412,24 +4416,55 @@ class IncomeExpenseActivity : AppCompatActivity() {
         // PDF বোতামের জন্য (printStatementPdf → WebView+PrintManager)।
         // ⛔ কোনো টাকার হিসাব নতুন করে গোনা হয়নি — একই dates/dayCash/
         // dayOnline/dayExp/running-এর উপর দিয়েই আরেকবার লেখা হয়।
+        /* 🎨🔒 V1610 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — "আরো প্রফেশনাল
+           বানাতে হবে", "খরচেরগুলো সম্পূর্ণ লাল থাকতে হবে") — আগে শুধু সাদা
+           টেবিল, ব্র্যান্ডিং/সারাংশ কিছুই ছিল না, খরচের "-" পাতলা লাল বলে
+           চোখেই পড়ত না। এখন: ① ক্লিনিকের নাম + তৈরির তারিখ সহ লেটারহেড
+           ② Opening/Total In/Total Expense/Closing — চারটে সারাংশ বাক্স,
+           এক নজরে বোঝার জন্য ③ Expense কলামের সংখ্যা ও "-" দুটোই বোল্ড লাল।
+           ⛔ টাকার হিসাব এক অক্ষরও বদলায়নি — শুধু দেখানোর ধরন। */
         run {
             val sb = StringBuilder()
             sb.append("<html><head><meta charset='utf-8'><style>")
                 .append("*{-webkit-print-color-adjust:exact;print-color-adjust:exact}")
-                .append("body{font-family:sans-serif;padding:14px;color:#222}")
-                .append("h2{color:#0A5C33;margin-bottom:2px}")
-                .append(".sub{color:#667085;font-size:13px;margin-bottom:14px}")
+                .append("body{font-family:sans-serif;padding:16px;color:#101C2E;font-variant-numeric:tabular-nums}")
+                .append(".lh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0A5C33;padding-bottom:10px;margin-bottom:14px}")
+                .append(".lh .clinic{font-size:15px;font-weight:bold;color:#0A5C33}")
+                .append(".lh .branch{font-size:12px;color:#667085;margin-top:2px}")
+                .append(".lh .right{text-align:right;font-size:11px;color:#667085;line-height:1.6}")
+                .append(".lh .right b{color:#101C2E}")
+                .append(".summary{display:flex;gap:8px;margin-bottom:14px}")
+                .append(".stile{flex:1;border-radius:9px;padding:8px 10px;border:1px solid #E3E9EF;background:#FAFCFB}")
+                .append(".stile .k{font-size:9px;font-weight:bold;letter-spacing:.06em;color:#667085;text-transform:uppercase}")
+                .append(".stile .v{font-size:14px;font-weight:bold;margin-top:3px}")
+                .append(".stile.op{border-color:#CDEAD9}.stile.op .v{color:#0A5C33}")
+                .append(".stile.in{border-color:#CDEAD9}.stile.in .v{color:#0A7C3F}")
+                .append(".stile.exp{border-color:#F3C6BE;background:#FDEDEB}.stile.exp .v{color:#B42318}")
+                .append(".stile.cl{border-color:#C7D7EA}.stile.cl .v{color:#0F3A66}")
                 .append("table{border-collapse:collapse;width:100%;font-size:13px}")
                 .append("th,td{border:1px solid #D9E2EC;padding:6px 8px;text-align:right}")
                 .append("th{background:#0A7C3F;color:#fff}")
                 .append("td:first-child,th:first-child{text-align:left}")
                 .append(".open,.tot{background:#EAF6EE;font-weight:bold;color:#0A5C33}")
-                .append(".exp{color:#B42318}.bal{color:#0F3A66;font-weight:bold}")
+                .append(".exp{color:#B42318;font-weight:bold}.bal{color:#0F3A66;font-weight:bold}")
                 .append("</style></head><body>")
-            sb.append("<h2>Statement — ").append(branchSel).append("</h2>")
             val fromDot2 = try { val p = fromIso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { fromIso }
             val toDot2 = try { val p = toIso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { toIso }
-            sb.append("<div class='sub'>").append(fromDot2).append(" – ").append(toDot2).append("</div>")
+            val genDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(java.util.Date())
+            sb.append("<div class='lh'><div><div class='clinic'>MAA AYURVED PILES CLINIC</div>")
+                .append("<div class='branch'>Statement — ").append(branchSel).append("</div></div>")
+                .append("<div class='right'>").append(fromDot2).append(" – ").append(toDot2)
+                .append("<br>Generated: <b>").append(genDate).append("</b></div></div>")
+            sb.append("<div class='summary'>")
+                .append("<div class='stile op'><div class='k'>Opening</div><div class='v'>")
+                .append(if (openingOk) money(opening) else "—").append("</div></div>")
+                .append("<div class='stile in'><div class='k'>Total In</div><div class='v'>")
+                .append(money(cashTot + onlineTot)).append("</div></div>")
+                .append("<div class='stile exp'><div class='k'>Total Expense</div><div class='v'>")
+                .append(money(expTot)).append("</div></div>")
+                .append("<div class='stile cl'><div class='k'>Closing</div><div class='v'>")
+                .append(if (openingOk) money(running) else "—").append("</div></div>")
+                .append("</div>")
             sb.append("<table><tr><th>Date</th><th>Cash</th><th>Online</th><th>Expense</th><th>Balance</th></tr>")
             sb.append("<tr class='open'><td>Opening</td><td>—</td><td>—</td><td>—</td><td>")
                 .append(if (openingOk) money(opening).removePrefix("₹") else "—").append("</td></tr>")
@@ -4446,7 +4481,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             }
             sb.append("<tr class='tot'><td>Total</td><td>").append(money(cashTot).removePrefix("₹"))
                 .append("</td><td>").append(money(onlineTot).removePrefix("₹"))
-                .append("</td><td>").append(money(expTot).removePrefix("₹"))
+                .append("</td><td class='exp'>").append(money(expTot).removePrefix("₹"))
                 .append("</td><td>").append(if (openingOk) money(runningPdf).removePrefix("₹") else "—").append("</td></tr>")
             sb.append("</table></body></html>")
             statementPdfHtml = sb.toString()
