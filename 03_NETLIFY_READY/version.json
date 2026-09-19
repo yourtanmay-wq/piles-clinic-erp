@@ -1,5 +1,5 @@
 {
-  "versionCode": 1599,
-  "versionName": "15.99",
-  "note": "V1543-V1599: Follow-up cards lighter (Advance/Test removed, tags share a row); RMP doctor page and Payment screen headers redesigned (Payment gets a ⋮ menu: Treatment/Medicine/Saline Payment, Monthly History, Collection); Year-filter menus (Draft lists, Collection History, Trash Bin, RMP Commission Sheet) no longer show years before a branch's own start year."
+  "versionCode": 1603,
+  "versionName": "16.03",
+  "note": "V1600-V1603: fixed a branch-switch race that could show the wrong branch's patients in Draft lists; the doctor-checkup-complete flag now retries after a weak-network failure instead of getting stuck; Password Center's 'Loading...' text now hides once the list loads; More screen header gets a menu (Call ID Banner, Backup, Export)."
 }
