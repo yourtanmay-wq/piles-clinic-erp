@@ -4220,52 +4220,61 @@ Thread {
                     android.widget.Toast.makeText(this@ChamberAttendanceActivity, "Nothing written — the earlier remark is kept", android.widget.Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                // 🔒🔒 খাতার সারি B199 (TK, 30.07.2026 রাত — Chamber Attendance
-                // লোডিং ফিক্স, "ঝুঁকিহীন ভাবে কাজটা করুন"): showRemarkDialog()-এর
-                // (খাতার সারি B197) হুবহু একই নিরাপদ প্যাটার্ন, এখানে Review
-                // পপ-আপের জন্য। ⛔ `FollowUpRepository.updateRemark()`-এর
-                // ভিতরে (ইতিহাস-মেলানো ও ২৮.০৭.২০২৬-এর যাচাই-বাগ-ফিক্স সহ)
-                // একটা অক্ষরও ছোঁয়া হয়নি — শুধু এই কল-সাইটটাই বদলেছে।
-                //
-                // আগে: `refreshBoardAndReopenReview()` পুরো বোর্ড **নতুন করে
-                // ক্লাউড থেকে নামাত** (`loadBoard()`), তারপর Review পপ-আপ আবার
-                // খুলত — তাই এখানেও সেভ শেষ না হওয়া পর্যন্ত "লোডিং"।
-                // এখন: স্টাফ যা টাইপ করেছেন তা সরাসরি স্ক্রিনে-থাকা বোর্ডের
-                // (`lastBoard`, মেমোরিতে) সেই রোগীর সারিতে বসিয়ে Review পপ-আপ
-                // **সঙ্গে সঙ্গে (কোনো নেটওয়ার্ক-কল ছাড়াই)** আবার দেখানো হয়
-                // (`showCloseReview(updatedBoard)` — যেটা এমনিতেই একটা বোর্ড
-                // অবজেক্ট নিয়ে সরাসরি পপ-আপ বানায়, তাই এখানে নতুন করে ক্লাউড
-                // থেকে আনার দরকারই নেই)। আসল সেভ পিছনে চলে।
-                val board0 = lastBoard
-                if (board0 != null) {
-                    /* 🔴🔴🔒 V939 (০১.০৯.২০২৬, নিজে ধরা — V938-এর পরে গভীরে যাচাই করে):
-                       এখানে শুধু `remark` বসত, **`remarkUpdatedAt` নয়**। V938-এ
-                       Treatment Progress-এর পাহারা Review-এর Confirm-এ সরে যাওয়ায়
-                       এটাই মারাত্মক হত: স্টাফ Review-এ লেখাটা লিখলেও তারিখ পুরনো
-                       থাকায় পাহারা আবার "লেখা হয়নি" ধরত — চেম্বার কখনোই বন্ধ করা
-                       যেত না (লিখুন → আবার আটকাল → আবার লিখুন…)।
-                       ⇒ লেখার সাথে তার নিজের তারিখটাও এখন বসে।
-                       ⛔ V933-এ জমানো বোর্ডে ঠিক এই একই ফাঁকই সারানো হয়েছিল। */
-                    /* ⛔ তারিখটা **যে দিনের বোর্ড খোলা আছে সেটাই** (`selectedDate`) —
-                       ঘড়ির UTC নয়। কারণ পাহারা ঠিক ওই দিনের সাথেই মেলায়, আর
-                       বোর্ডের payments-পথও হুবহু এই ধাঁচেই লেখে (V687)। */
-                    val nowIso = selectedDate + "T00:00:00.000Z"
-                    val updatedRows = board0.rows.map {
-                        if (it.mobile == r.mobile) it.copy(remark = remark, remarkUpdatedAt = nowIso) else it
-                    }
-                    val updatedBoard = board0.copy(rows = updatedRows)
-                    lastBoard = updatedBoard
-                    currentReviewDialog?.dismiss(); currentReviewDialog = null
-                    showCloseReview(updatedBoard)
-                }
-                android.widget.Toast.makeText(this@ChamberAttendanceActivity, "Treatment/Remark updated", android.widget.Toast.LENGTH_SHORT).show()
-                val appCtx = this@ChamberAttendanceActivity.applicationContext
+                /* 🔴🔴🔒 V1612 (১৯.০৯.২০২৬, TK-রিপোর্ট — COB-4: "Chamber Date বন্ধ
+                   হয় না, Treatment Progress লিখলে কাজ হয় না")। **আসল কারণ (কোড
+                   ধরে প্রমাণিত):** এই বাক্সটা আগে ক্লাউড-লেখা **verify না করেই**
+                   "Treatment/Remark updated" দেখাত আর বোর্ডের নিজের কপি আগেভাগে
+                   বসিয়ে দিত (`BackgroundWork.run`-এ fire-and-forget —
+                   `FollowUpRepository.updateRemark()`-এর ফেরত মানই কখনো দেখা
+                   হতো না)। দুর্বল নেটে ক্লাউড-লেখা সত্যিই ব্যর্থ হলেও (তখন শুধু
+                   ভিতরের রিট্রাই-সারিতে জমা থাকে) স্টাফ "হয়ে গেছে" দেখে Confirm
+                   Close-এ এগিয়ে যেতেন, অথচ বোর্ড পরে ক্লাউড থেকে আবার লোড হলে
+                   আসল (ফাঁকা) অবস্থাই ফিরে আসত। ঠিক পাশের `writeTreatment()`
+                   ফাংশনেই (চেম্বার-বোর্ডের ঘরে চাপ দিলে) এই ভুল কখনো ছিল না —
+                   ওটা সবসময় ক্লাউড-লেখা verify করেই সফল/ব্যর্থ দেখাত।
+                   ⇒ এখন এই বাক্সও ঠিক সেই একই প্রমাণিত পথে: ক্লাউড-লেখা **আগে
+                   verify করে**, তবেই বোর্ড বসে ও "updated" দেখায়; ব্যর্থ হলে
+                   "Failed — retry" দেখায় আর বোর্ড অপরিবর্তিত থাকে (তাই পাহারা
+                   পরের বারও সত্যিটাই ধরবে)।
+                   ⛔ সফল হলে গতি আগের মতোই — বোর্ড এখনো ক্লাউড থেকে নতুন করে
+                      নামানো হয় না (নিয়ম ৭খ), শুধু লেখা verify হওয়া পর্যন্ত
+                      (সাধারণত < ১ সেকেন্ড) অপেক্ষা। */
+                android.widget.Toast.makeText(this@ChamberAttendanceActivity, "Saving…", android.widget.Toast.LENGTH_SHORT).show()
                 val staffName = user.name.ifBlank { user.mobile }
-                BackgroundWork.run {
-                    try { FollowUpRepository(appCtx).updateRemark(r.followUpId, remark, staffName, source = "treat") } catch (_: Throwable) { }   // 🏷 V1192
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) {
+                        try { FollowUpRepository(this@ChamberAttendanceActivity).updateRemark(r.followUpId, remark, staffName, source = "treat") } catch (_: Throwable) { false }   // 🏷 V1192
+                    }
+                    if (!ok) {
+                        android.widget.Toast.makeText(this@ChamberAttendanceActivity, "Failed — retry", android.widget.Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val board0 = lastBoard
+                    if (board0 != null) {
+                        /* 🔴🔴🔒 V939 (০১.০৯.২০২৬, নিজে ধরা — V938-এর পরে গভীরে যাচাই করে):
+                           এখানে শুধু `remark` বসত, **`remarkUpdatedAt` নয়**। V938-এ
+                           Treatment Progress-এর পাহারা Review-এর Confirm-এ সরে যাওয়ায়
+                           এটাই মারাত্মক হত: স্টাফ Review-এ লেখাটা লিখলেও তারিখ পুরনো
+                           থাকায় পাহারা আবার "লেখা হয়নি" ধরত — চেম্বার কখনোই বন্ধ করা
+                           যেত না (লিখুন → আবার আটকাল → আবার লিখুন…)।
+                           ⇒ লেখার সাথে তার নিজের তারিখটাও এখন বসে।
+                           ⛔ V933-এ জমানো বোর্ডে ঠিক এই একই ফাঁকই সারানো হয়েছিল। */
+                        /* ⛔ তারিখটা **যে দিনের বোর্ড খোলা আছে সেটাই** (`selectedDate`) —
+                           ঘড়ির UTC নয়। কারণ পাহারা ঠিক ওই দিনের সাথেই মেলায়, আর
+                           বোর্ডের payments-পথও হুবহু এই ধাঁচেই লেখে (V687)। */
+                        val nowIso = selectedDate + "T00:00:00.000Z"
+                        val updatedRows = board0.rows.map {
+                            if (it.mobile == r.mobile) it.copy(remark = remark, remarkUpdatedAt = nowIso) else it
+                        }
+                        val updatedBoard = board0.copy(rows = updatedRows)
+                        lastBoard = updatedBoard
+                        currentReviewDialog?.dismiss(); currentReviewDialog = null
+                        showCloseReview(updatedBoard)
+                    }
+                    android.widget.Toast.makeText(this@ChamberAttendanceActivity, "Treatment/Remark updated", android.widget.Toast.LENGTH_SHORT).show()
+                    // 🟢 V590 — Review-এর এই বাক্সটাও এতদিন Report Card-এ কিছু পাঠাত না।
+                    syncProgressToReportCard(r, remark, selectedDate)
                 }
-                // 🟢 V590 — Review-এর এই বাক্সটাও এতদিন Report Card-এ কিছু পাঠাত না।
-                syncProgressToReportCard(r, remark, selectedDate)
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
