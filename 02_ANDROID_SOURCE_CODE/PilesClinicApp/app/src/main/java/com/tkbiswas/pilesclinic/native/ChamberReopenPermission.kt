@@ -47,9 +47,16 @@ object ChamberReopenPermission {
                সেগুলো লাগবে না। */
             sb.append("Date : ").append(DateUtil.display(date))
                 .append(" · ").append(DateUtil.displayWithTime(java.util.Date()).substringAfter(" : "))
+            // 🔴🔒 V1604 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — "তারিখ এতবার থাকবে
+            // কেন") — শিরোনামেও তারিখ (FollowUpModel.displayDate(date)) জোড়া
+            // ছিল, যা ঠিক নিচের "Date : ..." লাইনের সাথে ডুপ্লিকেট এবং কার্ডের
+            // উপরের ব্রাঞ্চ+সময়ের সারির সাথেও মিলে যেত — তিন জায়গায় একই তারিখ।
+            // এখন শিরোনামে শুধু ব্রাঞ্চ (ওয়েবের wlv1RequestReopenChamber()-এর
+            // হুবহু একই প্যাটার্ন, যেখানে কখনোই তারিখ ছিল না) — তারিখ শুধু
+            // বডির "Date :" লাইনে।
             BriefingRepository().post(
                 context,
-                "🔓 Chamber reopen request — $branch " + FollowUpModel.displayDate(date),
+                "🔓 Chamber reopen request — $branch",
                 sb.toString(),
                 "role",
                 branch,
