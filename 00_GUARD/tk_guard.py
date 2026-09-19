@@ -2591,7 +2591,7 @@ WORK_RULES = [
             "DoctorVisitActivity.kt": {
                 "must": [
                     "fun actionButton(label: String, colorHex: String, onClick: () -> Unit) = TextView(this@DoctorVisitActivity)",
-                    "android.widget.LinearLayout.LayoutParams(0, dgpx(52), 1f)",
+                    "android.widget.LinearLayout.LayoutParams(0, dgpx(38), 1f)",
                     # 🔴 TK-ORDER (31.07.2026, Section E — "Guard যদি পুরনো
                     # Button Design খুঁজে Fail করে, Guard-কেই বর্তমান
                     # approved Design অনুযায়ী আপডেট করবেন"): TK-এর B208
@@ -2599,6 +2599,9 @@ WORK_RULES = [
                     # আইকন ও লাইন-ব্রেক বাদ দেওয়া হয়েছিল, এক লাইনে ফিক্সড
                     # 10sp। Guard-এর পুরনো প্রত্যাশা এখানে আপডেট হলো, Design
                     # নিজে পুরনো নিয়মে ফেরানো হয়নি (নিয়ম অনুযায়ী সঠিক দিক)।
+                    # 🔴 V1541 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — উচ্চতা
+                    # 52dp → 38dp। একই নিয়মে (Section E) Guard-এর প্রত্যাশাও
+                    # এখানে নতুন approved মাপে আপডেট হলো।
                     '"Referred Patient"',
                     '"Referral Income"',
                     "fun forceDialogFullScreen(",
