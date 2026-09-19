@@ -1533,7 +1533,14 @@ class GlobalSearchActivity : AppCompatActivity() {
             }
 
             // বোতাম — একই কাজ, একই রং (V1322), এখন তিনটে এক সারিতে
-            fun actionButton(icon: String, text: String, fillColors: IntArray, action: () -> Unit): LinearLayout {
+            // 🔴🔒 V1614 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — REJECTED লেখা কার্ডেও
+            // Payment ও Mark Arrived আগে আগের মতোই সচল থাকত (Reject শুধু লেবেল
+            // বদলাত, অন্য কোনো পর্দাই সেটা যাচাই করত না)। ফলে রিজেক্ট করার পরও
+            // টাকা জমা ও Arrived দুটোই হয়ে যেত। এখন `flag == "REJECTED"` হলে এই
+            // দুটো বোতাম ধূসর ও নিষ্ক্রিয় — Draft-এর Reject List থেকে Restore
+            // না করা পর্যন্ত। Full Journey (শুধু দেখা, টাকা/অবস্থা বদলায় না)
+            // আগের মতোই সবসময় সচল রাখা হলো।
+            fun actionButton(icon: String, text: String, fillColors: IntArray, enabled: Boolean = true, action: () -> Unit): LinearLayout {
                 return LinearLayout(ctx).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER
@@ -1543,13 +1550,16 @@ class GlobalSearchActivity : AppCompatActivity() {
                     background = android.graphics.drawable.GradientDrawable().apply {
                         cornerRadius = dp(11).toFloat()
                         orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                        colors = fillColors
+                        colors = if (enabled) fillColors else intArrayOf(c("#B8C0CC"), c("#9AA5B1"))
                     }
                     val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     lp.marginEnd = dp(2); lp.marginStart = dp(2)
                     layoutParams = lp
                     isClickable = true; isFocusable = true
-                    setOnClickListener { action() }
+                    setOnClickListener {
+                        if (enabled) action()
+                        else android.widget.Toast.makeText(ctx, NoBengali.s("Rejected — restore from Draft's Reject List first"), android.widget.Toast.LENGTH_LONG).show()
+                    }
                     addView(TextView(ctx).apply {
                         this.text = icon; textSize = 12f
                         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = dp(4) }
@@ -1562,10 +1572,11 @@ class GlobalSearchActivity : AppCompatActivity() {
                     })
                 }
             }
+            val rejected = flag == "REJECTED"
             holder.btnRow.removeAllViews()
-            holder.btnRow.addView(actionButton("💳", "Payment", intArrayOf(c("#1D6FE0"), c("#1457B8"))) { onPayment(h) })
+            holder.btnRow.addView(actionButton("💳", "Payment", intArrayOf(c("#1D6FE0"), c("#1457B8")), enabled = !rejected) { onPayment(h) })
             holder.btnRow.addView(actionButton("🧭", "Full Journey", intArrayOf(c("#8A63E8"), c("#6A3FCB"))) { onFullJourney(h) })
-            holder.btnRow.addView(actionButton("🏥", "Mark Arrived", intArrayOf(c("#D98A2B"), c("#B45309"))) { onMarkArrived(h) })
+            holder.btnRow.addView(actionButton("🏥", "Mark Arrived", intArrayOf(c("#D98A2B"), c("#B45309")), enabled = !rejected) { onMarkArrived(h) })
 
             // 💊 মেডিসিনের বাকি — এক লাইন (V985-এর হিসাব অপরিবর্তিত)
             val due = dueOf(h.mobile)

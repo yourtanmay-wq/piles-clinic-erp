@@ -24490,7 +24490,13 @@ function wlv1SearchCard(r){
   const hold=(label,fixed)=>`onpointerdown="wlv1PatientHoldStart(this,'${label}'${fixed?`,'${esc(fixed)}'`:''})" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()"`;
   const act = (icon,label,cls,call)=>
     `<button class="wlv1SAct ${cls||''}" onclick="${call}"><span>${icon}</span><b>${label}</b></button>`;
+  /* 🔴🔒 V1614 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — REJECTED লেখা কার্ডেও Payment
+     ও Mark Arrived আগে আগের মতোই সচল থাকত (Reject শুধু লেবেল বদলাত, অন্য কোনো
+     পর্দাই সেটা যাচাই করত না) — ফোনের হুবহু একই সংশোধন। */
+  const actGate = (icon,label,cls,call)=>
+    `<button class="wlv1SAct wlv1SActOff" onclick="toast('Rejected — restore from Draft\\'s Reject List first')"><span>${icon}</span><b>${label}</b></button>`;
   const stg = wlv1SearchStage(mob(r.mobile), r.stage);
+  const rejected = stg.flag==='REJECTED';
   const dis = String(r.disease||'').trim().toUpperCase();
   const dt  = fmtDate(r.date||'');
   const alt = (r.altMobile&&r.altMobile!==mob(r.mobile))?esc(r.altMobile):'';
@@ -24508,9 +24514,9 @@ function wlv1SearchCard(r){
     ${/* 🎨 V1401 (TK: "ডেমোর মতো করুন") — ফোনের হুবহু: তিনটে বোতাম এক সারিতে,
          মেডিসিন-বাকি নিচে এক লাইনে। Report Card · Clinical History এখন ⋮-এ। */''}
     <div class="wlv1SGrid wlv1SGrid3">
-      ${act('\u{1F4B3}','Payment','blue',`patientPaymentHome()`)}
+      ${rejected?actGate('\u{1F4B3}','Payment','blue'):act('\u{1F4B3}','Payment','blue',`patientPaymentHome()`)}
       ${act('\u{1F9ED}','Full Journey','purple',`wlv1FullJourney('${m}')`)}
-      ${act('\u{1F3E5}','Mark Arrived','amber',`wlv1MarkArrived('${m}')`)}
+      ${rejected?actGate('\u{1F3E5}','Mark Arrived','amber'):act('\u{1F3E5}','Mark Arrived','amber',`wlv1MarkArrived('${m}')`)}
     </div>
     ${(function(){var __d=wlv1MedDueOf(r.mobile);
         return __d>0

@@ -2234,6 +2234,7 @@ button.doctorKpi{cursor:pointer}
 .wlv1SAct.blue{background:linear-gradient(135deg,#1D6FE0,#1457B8);color:#fff}
 .wlv1SAct.purple{background:linear-gradient(135deg,#8A63E8,#6A3FCB);color:#fff}
 .wlv1SAct.amber{background:linear-gradient(135deg,#D98A2B,#B45309);color:#fff}
+.wlv1SAct.wlv1SActOff{background:#B8C0CC;color:#fff}
 .wlv1SDue{font-size:11.5px;color:#8B98A9;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wlv1SDue.red{color:#B42318;font-weight:700;cursor:pointer}
 .wlv1SWide{width:calc(100% - 24px);margin:8px 12px 12px 12px;justify-content:center}
@@ -4194,6 +4195,7 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .wlv1SAct.blue{background:linear-gradient(135deg,#1D6FE0,#1457B8)!important;color:#fff!important}
 .wlv1SAct.purple{background:linear-gradient(135deg,#8A63E8,#6A3FCB)!important;color:#fff!important}
 .wlv1SAct.amber{background:linear-gradient(135deg,#D98A2B,#B45309)!important;color:#fff!important}
+.wlv1SAct.wlv1SActOff{background:#B8C0CC!important;color:#fff!important}
 /* 🎨 V1401 (TK: "ডেমোর মতো করুন") — তিনটে বোতাম এক সারিতে + মেডিসিন-বাকি এক লাইনে (ফোনের হুবহু) */
 .wlv1SGrid.wlv1SGrid3{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important}
 .wlv1SGrid3 .wlv1SAct{padding:9px 1px!important;gap:3px!important;min-width:0!important}
