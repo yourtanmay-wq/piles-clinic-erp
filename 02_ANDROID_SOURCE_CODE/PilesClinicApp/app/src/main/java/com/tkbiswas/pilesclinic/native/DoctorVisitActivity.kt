@@ -2633,6 +2633,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // (৫২dp) তিনটেতেই আগে থেকেই সমান ছিল (B154)। এখন **তিনটেই
                 // বাধ্যতামূলক এক লাইনে, ফিক্সড 10sp** (TK নিজে "10 sp" বলে
                 // দিয়েছেন) — কখনো দু'লাইনে ভাঙবে না, "..." দিয়েও কাটবে না।
+                // 🔴🔒 V1541 (১৯.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ) — উচ্চতা 52dp → 38dp।
                 // ⛔ TK-কে না জানিয়ে এই মাপ/লেখা আর বদলানো যাবে না।
                 fun actionButton(label: String, colorHex: String, onClick: () -> Unit) = TextView(this@DoctorVisitActivity).apply {
                     text = label
@@ -2649,7 +2650,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         setColor(android.graphics.Color.parseColor(colorHex))
                         cornerRadius = dgpx(10).toFloat()
                     }
-                    val lp = android.widget.LinearLayout.LayoutParams(0, dgpx(52), 1f)
+                    val lp = android.widget.LinearLayout.LayoutParams(0, dgpx(38), 1f)
                     lp.setMargins(dgpx(4), 0, dgpx(4), 0)
                     layoutParams = lp
                     isClickable = true
