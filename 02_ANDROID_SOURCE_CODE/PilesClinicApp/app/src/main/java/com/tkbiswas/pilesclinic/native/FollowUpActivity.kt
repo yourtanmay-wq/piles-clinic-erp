@@ -2114,15 +2114,16 @@ class FollowUpActivity : AppCompatActivity() {
         // বেশি অপেক্ষা করে, ততক্ষণে width স্থির/চূড়ান্ত হয়ে যায়। ⛔ বাকি সব
         // যুক্তি (`layoutTagsInRows`, একবারই চলা, স্ক্রলে বাড়তি ভার না থাকা)
         // এক অক্ষরও বদলায়নি — শুধু এক ফ্রেম (~১৬ms, চোখে ধরা পড়ে না) দেরি।
-        /* 🟣🔒 V707 (TK-নির্দেশ): ট্যাগ এখন **দুটো দল** —
-             দল ১ = ব্রাঞ্চ + রোগ (নীল)      → সবসময় নিজের সারিতে
-             দল ২ = ঠিকানা + Unexpected/RMP (বেগুনি) → সবসময় নিজের সারিতে
-           ⛔ কোনো দলের দুটো ট্যাগ যদি সত্যিই জায়গায় না কুলোয় (খুব লম্বা নাম),
-              তখন আগের নিয়মেই সে নিচের লাইনে নামে — কেউ কাটে না, কেউ কার্ডের
-              বাইরে বেরোয় না (খাতার সারি B184-এর প্রতিশ্রুতি অক্ষত)। */
+        /* 🟣🔒 V1543 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — "Cooch Behar ·
+           Piles · Kotwali পাশাপাশি থাকা যাবে?" আগে V707-এ ব্রাঞ্চ+রোগ আর
+           ঠিকানা+Unexpected/RMP দুটো আলাদা দল ছিল, দল বদলালেই জোর করে নতুন
+           সারি হত (জায়গা থাকলেও)। এখন সবগুলো ট্যাগ **একটাই দল** — জায়গা
+           কুলোলে সবাই এক সারিতে, না কুলোলে (লম্বা নাম) আগের নিয়মেই নিজে
+           থেকে নিচে নামে — কেউ কাটে না, কার্ডের বাইরে বেরোয় না (খাতার সারি
+           B184-এর প্রতিশ্রুতি অক্ষত, layoutTagsInRows()-এর ভিতরের কোনো
+           লজিক বদলানো হয়নি, শুধু গ্রুপিং এক করা হলো)। */
         val pillGroups = listOf(
-            listOfNotNull(branchView, diseaseView),
-            listOfNotNull(addressView, extraView)
+            listOfNotNull(branchView, diseaseView, addressView, extraView)
         ).filter { it.isNotEmpty() }
         tagsWrap.post {
             tagsWrap.post {
@@ -2228,27 +2229,10 @@ class FollowUpActivity : AppCompatActivity() {
                 })
             }
         } else if (!isTreatment) {
-            // TK APPROVED (2026-07-15): premium gradient + capital letters for
-            // this chip only. Rest of the Visit card is untouched. The older
-            // flat bg_visit_advance drawable stays as-is (still used elsewhere:
-            // Draft card, nth-payment dialog, followup card).
-            right.addView(tv("\uD83D\uDCB0 ADVANCE HERE", 10f, "#FFFFFF", true).apply {
-                gravity = android.view.Gravity.CENTER
-                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_advance_premium)
-                setPadding(dpx(8), dpx(5), dpx(8), dpx(5))
-                setOnClickListener { showAdvancePaymentDialog(item) }
-            })
-            // TK APPROVED (2026-07-15): Blood Test directly under Advance Here on
-            // the Visit card — opens ONLY Investigation Advice (not the 4-option
-            // Clinical Document menu), which already has Save & Print + Share.
-            // Premium gradient + capital letters, same as Advance Here above.
-            right.addView(tv("\uD83E\uDE78 TEST HERE", 9.5f, "#FFFFFF", true).apply {
-                gravity = android.view.Gravity.CENTER
-                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_test_premium)
-                setPadding(dpx(8), dpx(5), dpx(8), dpx(5))
-                val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); p.topMargin = dpx(5); layoutParams = p
-                setOnClickListener { openBloodTestDirect(item) }
-            })
+            /* 🔴🔒 V1543 (19.09.2026, TK-নির্দেশ, ফটো-প্রুফ পাশ) — "এখানে তেমন একটা ব্যবহার করা হয় না, সরিয়ে দিলে কার্ড হালকা হবে"।
+               ADVANCE HERE / TEST HERE বোতাম দুটো Visit কার্ড থেকে বাদ — showAdvancePaymentDialog/
+               openBloodTestDirect এখনো Patient Timeline/Action মেনু থেকে আগের মতোই করা যায়,
+               শুধু কার্ড থেকে এক-চাপে হয় না। কোনো ডেটা/হিসাব ছোঁয়া হয়নি। */
         } else {
             right.addView(tv("PRESCRIPTION", 9.5f, "#1067D8", true).apply {
                 setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_chip_blue)
