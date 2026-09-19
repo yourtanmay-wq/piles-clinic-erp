@@ -1,5 +1,5 @@
 {
-  "versionCode": 1542,
-  "versionName": "15.42",
-  "note": "V1542: Follow-up tab switching is fast again (fixed a slow-path bug); 'Called via COB' auto-text no longer counts as a call anywhere in the app (matches the 'remark required' rule); RMP doctor page shows only Earned/Paid/Due (Referred count removed) and its three buttons are shorter."
+  "versionCode": 1599,
+  "versionName": "15.99",
+  "note": "V1543-V1599: Follow-up cards lighter (Advance/Test removed, tags share a row); RMP doctor page and Payment screen headers redesigned (Payment gets a ⋮ menu: Treatment/Medicine/Saline Payment, Monthly History, Collection); Year-filter menus (Draft lists, Collection History, Trash Bin, RMP Commission Sheet) no longer show years before a branch's own start year."
 }

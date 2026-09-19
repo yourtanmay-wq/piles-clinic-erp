@@ -1,5 +1,34 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1599_FINAL.zip",
+    "versionCode": 1599,
+    "when": "19.09.2026 04.14 am",
+    "size_mb": 26.69,
+    "total_files": 2131,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 838,
+      "(root file)": 618,
+      "00_SQL": 273,
+      "04_SUPABASE_DATABASE_SETUP": 140,
+      "00_GUARD": 65,
+      "03_NETLIFY_READY": 59,
+      "08_ASSETS_BACKUP": 39,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 36,
+      "10_FUTURE_PLANS": 15,
+      "ROLLBACK_V448": 13,
+      "00_READ_ME_FIRST": 12,
+      "03_SUPABASE_SQL": 6,
+      "06_TEST_CHECKLISTS": 4,
+      "11_V223_TESTS": 3,
+      ".github": 3,
+      ".claude": 3,
+      "05_APK_AAB_BUILD_NOTES": 2,
+      "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 2
+    },
+    "excluded": "root-level .png (ডেমো ছবি) · ANATOMY_PICTURES/ORIGINAL বড় কপি — verify_zip_contents.py PASS, ০টা দরকারি ফাইল বাদ যায়নি",
+    "note": "V1543-V1599 — Follow-up card হালকা (Advance/Test বাদ, ট্যাগ এক সারিতে); RMP ডাক্তার পাতা ও PAYMENT পর্দার হেডার নতুন সাজ (PAYMENT-এ নতুন ⋮ মেনু: Treatment/Medicine/Saline Payment · Monthly History · Collection); Year-ফিল্টার মেনু (Draft তালিকা, Collection History, Trash Bin, RMP Commission Sheet) এখন ব্রাঞ্চের চালু-হওয়ার বছরের আগে কোনো বছর দেখায় না। সব পাহারা (kotlin compile, resources, node --check, web_browser_test, tk_guard --release, zip root-name, zip contents) PASS।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1542_FINAL.zip",
     "versionCode": 1542,
     "when": "19.09.2026 02.52 am",
