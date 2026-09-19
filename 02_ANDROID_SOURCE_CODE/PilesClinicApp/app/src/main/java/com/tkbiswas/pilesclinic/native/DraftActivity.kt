@@ -238,6 +238,16 @@ class DraftActivity : AppCompatActivity() {
             renderBuckets(cached)
         } else {
             binding.progressLoad.visibility = View.GONE  // TK-REQUESTED (2026-07-20): spinner must NEVER spin anywhere; cache-first shows old data instantly, content appears when ready.
+            // 🔴🔒 V1600 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — "বীরপাড়া তালিকায়
+            // কোচবিহারের রোগী কেন") — আসল কারণ: ব্রাঞ্চ বদলে এই নতুন ব্রাঞ্চের
+            // কোনো ক্যাশ না থাকলে এখানে `renderBuckets()` ডাকা হতো না, তাই
+            // পুরনো ব্রাঞ্চের `buckets` (গণনা ও তালিকা দুটোই) মেমোরিতে থেকেই
+            // যেত। ততক্ষণে উপরের পিল/গণনা তাজা ব্রাঞ্চের নাম দেখাত, আর কেউ
+            // ঠিক এই ফাঁকে কোনো তালিকার টাইলে চাপলে `showList()` পুরনো
+            // ব্রাঞ্চের কার্ডই খুলে দিত (branch=নতুন কিন্তু কার্ড=পুরনো)।
+            // এখন এই ফাঁকে buckets খালি দেখানো হয় — তাজা ডেটা এলেই
+            // renderBuckets(b) আবার ঠিকভাবে ভরে দেবে (নিচে, ২৫৯ নং লাইন)।
+            renderBuckets(DraftBuckets(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()))
         }
         lifecycleScope.launch {
             val guardAtStart = myLoadToken

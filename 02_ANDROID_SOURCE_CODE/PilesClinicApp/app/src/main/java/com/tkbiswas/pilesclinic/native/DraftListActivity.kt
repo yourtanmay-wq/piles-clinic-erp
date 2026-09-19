@@ -155,7 +155,15 @@ class DraftListActivity : AppCompatActivity() {
         // 🟢🔒 V398: Draft পর্দা থেকে যে ব্রাঞ্চ নিয়ে আসা হয়েছে সেটাই মনে রাখা
         //   ব্রাঞ্চ; না-থাকলে সরাসরি BranchFilterStore থেকে।
         branchArg = (branchArg?.takeIf { it.isNotBlank() }) ?: BranchFilterStore.get(this)
-        binding.branchPicker.text = BranchFilterStore.pillText(this)
+        // 🔴🔒 V1600 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — আগে এখানে
+        // `BranchFilterStore.pillText(this)` ব্যবহার হতো, যেটা সবসময়ই
+        // **এই মুহূর্তের গ্লোবাল** ব্রাঞ্চ দেখাত — অথচ এই তালিকার `entries`
+        // ফেচ হয়েছিল `branchArg`-এর জন্য। যদি এই পর্দা খোলার পরে অন্য কোনো
+        // পর্দায় গ্লোবাল ব্রাঞ্চ বদলে যায় (বা তালিকার নিজের রিলোড ব্যর্থ হয়ে
+        // পুরনো তালিকাই থেকে যায়), পিলে নতুন ব্রাঞ্চের নাম অথচ কার্ডে পুরনো
+        // ব্রাঞ্চের রোগী দেখাত — এখন পিল সবসময় `branchArg`-এরই প্রতিচ্ছবি,
+        // তালিকার সাথে কখনো আলাদা হবে না।
+        binding.branchPicker.text = "🏥 " + branchArg + " ▾"
         binding.branchPicker.setOnClickListener {
             val branches = BranchFilterStore.choices()
             androidx.appcompat.app.AlertDialog.Builder(this)
@@ -163,7 +171,13 @@ class DraftListActivity : AppCompatActivity() {
                 .setSingleChoiceItems(branches.toTypedArray(), BranchFilterStore.indexInChoices(this)) { dialog, which ->
                     val picked = branches[which]
                     branchArg = BranchFilterStore.set(this@DraftListActivity, picked)   // 🟢 V398
-                    binding.branchPicker.text = BranchFilterStore.pillText(this@DraftListActivity)
+                    binding.branchPicker.text = "🏥 " + branchArg + " ▾"
+                    // 🔴🔒 V1600 — নতুন ব্রাঞ্চের তাজা তালিকা না আসা পর্যন্ত
+                    // পুরনো ব্রাঞ্চের কার্ড দেখানো যাবে না (পিল আগেই বদলে
+                    // গেছে, তালিকা রিলোড ব্যর্থ হলেও যেন পুরনো ব্রাঞ্চের
+                    // রোগী না দেখায়)।
+                    entries.clear()
+                    renderList()
                     dialog.dismiss()
                     reloadFromCloud()
                 }
