@@ -2660,6 +2660,17 @@ function wlv1BranchGet(){
     return wlv1BranchNames().indexOf(v)>=0 ? v : '';
   }catch(e){ return ''; }
 }
+/* 🔒 V1599 (১৯.০৯.২০২৬, TK-নির্দেশ): "যে ব্রাঞ্চের পুরনো ইতিহাস নেই সেই ব্রাঞ্চে পুরনো
+   বছর দেখানো বিভ্রান্তিকর" — কোনো Year-ফিল্টার মেনুতে ব্রাঞ্চ চালু হওয়ার আগের
+   বছর যেন না দেখায়। Android-এর BranchCatalog.startYear-এর হুবহু যমজ (print/
+   BranchInfo.kt) — বদলাতে হলে দুই জায়গাতেই বদলাবে। */
+const WLV1_BRANCH_START_YEAR={'Kishanganj':2017,'Jalpaiguri':2023,'Cooch Behar':2025,'Falakata':2026,'Birpara':2026};
+function wlv1BranchMinYear(branch){
+  var b=String(branch||'').trim();
+  var oldest=Math.min.apply(null,Object.values(WLV1_BRANCH_START_YEAR));
+  if(!b||b==='All') return oldest;
+  return WLV1_BRANCH_START_YEAR[b]||oldest;
+}
 function wlv1BranchSet(v){
   if(!isMaster()) return '';
   var s=String(v==null?'':v).trim();
@@ -8957,7 +8968,8 @@ function wlv1DraftYearMenu(tab){
   if(wlv1DraftFilter && wlv1DraftFilter.mode){
     btn += `<button class="${raw==null?'':'ghost'}" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1DraftSetListYear('${esc(tab)}','current')">${raw==null?'✓ ':''}Current Date Filter</button>`;
   }
-  for(var y=now;y>=now-5;y--){ btn+='<button class="'+(sel===y?'':'ghost')+'" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1DraftSetListYear(\''+esc(tab)+'\','+y+')">'+(sel===y?'✓ ':'')+'Year '+y+'</button>'; }
+  var __drMinY=wlv1BranchMinYear(isMaster()?(wlv1BranchGet()||'All'):(user&&user.branch||''));
+  for(var y=now;y>=Math.max(__drMinY,now-5);y--){ btn+='<button class="'+(sel===y?'':'ghost')+'" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1DraftSetListYear(\''+esc(tab)+'\','+y+')">'+(sel===y?'✓ ':'')+'Year '+y+'</button>'; }
   btn+='<button class="ghost" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1DraftSetListYear(\''+esc(tab)+'\',\'all\')">'+(all?'✓ ':'')+'All Years</button>';
   modal('<h2>Year Filter</h2><div class="card">'+btn+'</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
 }
@@ -16528,7 +16540,8 @@ let wlv1CollMonth  = '';
 let wlv1CollYear   = '';   /* V1521: History only; blank = All Years (old behavior). */
 function wlv1CollYearMenu(){
   var now=(new Date()).getFullYear(), h='';
-  for(var y=now;y>=now-5;y--){
+  var __minY=wlv1BranchMinYear(isMaster()?(wlv1BranchGet()||'All'):(user&&user.branch||''));
+  for(var y=now;y>=Math.max(__minY,now-5);y--){
     h += `<button class="${String(wlv1CollYear)===String(y)?'':'ghost'}" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1CollYear='${y}';collectionList('History')">${String(wlv1CollYear)===String(y)?'✓ ':''}Year ${y}</button>`;
   }
   h += `<button class="ghost" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1CollYear='';collectionList('History')">${!wlv1CollYear?'✓ ':''}All Years</button>`;
@@ -18357,7 +18370,8 @@ let wlv1TrashBranch='';   /* 🟢🔒 V398: মনে-রাখা মানে�
 let wlv1TrashYear='';     /* V1521: blank = All Years, preserving old behavior. */
 function wlv1TrashYearMenu(){
   var now=(new Date()).getFullYear(), h='';
-  for(var y=now;y>=now-5;y--){
+  var __minY=wlv1BranchMinYear(wlv1BranchGet()||'All');
+  for(var y=now;y>=Math.max(__minY,now-5);y--){
     h += `<button class="${String(wlv1TrashYear)===String(y)?'':'ghost'}" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1TrashYear='${y}';wlv1RenderTrashBin()">${String(wlv1TrashYear)===String(y)?'✓ ':''}Deleted in ${y}</button>`;
   }
   h += `<button class="ghost" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1TrashYear='';wlv1RenderTrashBin()">${!wlv1TrashYear?'✓ ':''}All Years</button>`;
@@ -19305,7 +19319,8 @@ function wlv1RmcSetYear(y){
 }
 function wlv1RmcYearMenu(){
   var now=(new Date()).getFullYear(), cur=Number(String(WLV1_RMC.month||wlv1RmcYmNow()).slice(0,4))||now, h='';
-  for(var y=now;y>=now-5;y--){ h+='<button class="'+(cur===y?'':'ghost')+'" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1RmcSetYear('+y+')">'+(cur===y?'✓ ':'')+'Year '+y+'</button>'; }
+  var __minY=wlv1BranchMinYear(WLV1_RMC.branch||'All');
+  for(var y=now;y>=Math.max(__minY,now-5);y--){ h+='<button class="'+(cur===y?'':'ghost')+'" style="display:block;width:100%;margin:6px 0" onclick="closeModal();wlv1RmcSetYear('+y+')">'+(cur===y?'✓ ':'')+'Year '+y+'</button>'; }
   modal('<h2>Year</h2><div class="card">'+h+'</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
 }
 

@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.tkbiswas.pilesclinic.databinding.ActivityTrashBinBinding
+import com.tkbiswas.pilesclinic.print.BranchCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -176,7 +177,9 @@ class TrashBinActivity : AppCompatActivity() {
         binding.btnMore.setOnClickListener { anchor ->
             val pm = android.widget.PopupMenu(this, anchor)
             val nowYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-            for (y in nowYear downTo nowYear - 5) {
+            val effectiveBranch = if (user.role == "master") pickedBranch else user.branch
+            val minYear = BranchCatalog.minYearFor(effectiveBranch)
+            for (y in nowYear downTo maxOf(minYear, nowYear - 5)) {
                 pm.menu.add(0, 10000 + y, 0, (if (selectedYear == y) "✓ " else "") + "Deleted in $y")
             }
             pm.menu.add(0, 20001, 0, (if (selectedYear == null) "✓ " else "") + "All Years")

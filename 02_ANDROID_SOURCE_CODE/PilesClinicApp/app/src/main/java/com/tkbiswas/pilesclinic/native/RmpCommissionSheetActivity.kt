@@ -424,7 +424,8 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
     private fun pickYear() {
         val now = cal()
         val nowYear = now.get(Calendar.YEAR)
-        val years = (nowYear downTo nowYear - 5).toList()
+        val minYear = BranchCatalog.minYearFor(branch)
+        val years = (nowYear downTo maxOf(minYear, nowYear - 5)).toList()
         val currentYear = month.substringBefore("-").toIntOrNull() ?: nowYear
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Year"))

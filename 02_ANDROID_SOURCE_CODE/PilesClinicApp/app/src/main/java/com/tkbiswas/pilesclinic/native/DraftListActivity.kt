@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.tkbiswas.pilesclinic.databinding.ActivityDraftListBinding
+import com.tkbiswas.pilesclinic.print.BranchCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -116,7 +117,8 @@ class DraftListActivity : AppCompatActivity() {
             }
             val cal = java.util.Calendar.getInstance()
             val nowYear = cal.get(java.util.Calendar.YEAR)
-            for (y in nowYear downTo nowYear - 5) {
+            val minYear = BranchCatalog.minYearFor(branchArg)
+            for (y in nowYear downTo maxOf(minYear, nowYear - 5)) {
                 pm.menu.add(0, 10000 + y, 0, (if (!allYearsSelected && selectedYear == y) "✓ " else "") + "Year $y")
             }
             pm.menu.add(0, 20001, 0, (if (allYearsSelected) "✓ " else "") + "All Years")

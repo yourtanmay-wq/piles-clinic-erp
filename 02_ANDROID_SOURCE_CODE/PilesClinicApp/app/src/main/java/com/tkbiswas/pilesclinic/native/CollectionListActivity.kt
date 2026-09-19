@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.tkbiswas.pilesclinic.databinding.ActivityCollectionListBinding
+import com.tkbiswas.pilesclinic.print.BranchCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -166,7 +167,8 @@ class CollectionListActivity : AppCompatActivity() {
         binding.btnMore.setOnClickListener { anchor ->
             val pm = android.widget.PopupMenu(this, anchor)
             val nowYear = Calendar.getInstance().get(Calendar.YEAR)
-            for (y in nowYear downTo nowYear - 5) {
+            val minYear = BranchCatalog.minYearFor(selectedBranch)
+            for (y in nowYear downTo maxOf(minYear, nowYear - 5)) {
                 pm.menu.add(0, 10000 + y, 0, (if (selectedHistoryYear == y) "✓ " else "") + "Year $y")
             }
             pm.menu.add(0, 20001, 0, (if (selectedHistoryYear == null) "✓ " else "") + "All Years")
