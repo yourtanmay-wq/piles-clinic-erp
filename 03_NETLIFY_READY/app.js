@@ -11246,10 +11246,15 @@ async function savePatient(evt){
        নম্বরে এক ঘর টাইপ-ভুল হলে ঠিক এটাই হয়েছিল (TK-র SQL-এ তিন জোড়া প্রমাণ:
        SAGAR KUMAR SHING · DHARMENDRA SAH · SAHA ALAM)।
        ⛔ **আটকানো হয় না** — Continue চাপলে হুবহু আগের পথেই সেভ হয়।
-       ⛔ খোঁজাটা **ব্রাউজারের নিজের জমা তালিকায়** ⇒ ক্লাউডে একটাও অনুরোধ নয়।
-       ⛔ ফোনের `checkSameNamePatient()`-এর একই নিয়ম, তাই দুই জায়গায় এক আচরণ। */
+       🔴🔒 V1608 (১৯.০৯.২০২৬, TK-রিপোর্ট — BISHAKHA MANDAL দুটো আলাদা মোবাইলে
+       দুবার রেজিস্ট্রেশন): এই খোঁজাটা এতদিন **শুধু এই ব্রাউজারের নিজের জমা
+       তালিকায়** হতো — অন্য কম্পিউটার/স্টাফের করা রেজিস্ট্রেশন এই তালিকায়
+       সিঙ্ক না হয়ে থাকলে দেখতেই পেত না, ঠিক এটাই BISHAKHA-র বেলায় ঘটেছিল
+       বলে মনে হচ্ছে। এখন ফোনের checkSameNamePatient()-এর মতোই সরাসরি
+       ক্লাউডে একবার জিজ্ঞাসা করা হয় (নেট না থাকলে আগের শুধু-স্থানীয় পথেই
+       ফিরে আসে, সেভ কখনো আটকায় না)। */
     if(window.__regNameOk!==m){
-      let sameName=regSameNamePatients(name,br,m);
+      let sameName=await regSameNamePatients(name,br,m);
       if(sameName.length){
         if(btn){btn.disabled=false;btn.textContent='✓  Save Patient'}
         regSameNameWarn(sameName,m); return;
@@ -22538,13 +22543,30 @@ function regHistoryContinue(mm){ window.__regHistOk=mm; closeModal(); savePatien
    জমা তালিকা থেকেই, নতুন কোনো ক্লাউড-পড়া নেই)।
    ⛔ নাম ৩ অক্ষরের কম হলে দেখা হয় না (নইলে সব মিলে যেত)।
    ⛔ যে নম্বরটা এখন লেখা হচ্ছে সেই সারিগুলো বাদ (ওগুলো নম্বর-পাহারার কাজ)। */
-function regSameNamePatients(name,branch,mNow){
+/* 🌐🔒 V1608 (১৯.০৯.২০২৬, TK-নির্দেশ — BISHAKHA MANDAL দুটো রেজিস্ট্রেশন) —
+   আগে শুধু এই ব্রাউজারের নিজের জমা তালিকা (load('patients')) দেখত, তাই
+   অন্য কম্পিউটারে করা রেজিস্ট্রেশন দেখতেই পেত না। এখন প্রথমে সরাসরি
+   ক্লাউডে (সব ব্রাঞ্চ-কম্পিউটার একসাথে) জিজ্ঞাসা করা হয় — ফোনের
+   checkSameNamePatient()-এর হুবহু একই কোয়েরি (name ilike + branch eq,
+   সর্বোচ্চ ২০ সারি)। ক্লাউড না পেলে (নেট নেই/sb তৈরি হয়নি) আগের
+   শুধু-স্থানীয় পথেই পড়ে, সেভ কখনো আটকায় না। */
+async function regSameNamePatients(name,branch,mNow){
  try{
-  let n=String(name||'').trim().toLowerCase(), b=String(branch||'').trim().toLowerCase();
+  let n=String(name||'').trim(), b=String(branch||'').trim();
   if(n.length<3||!b) return [];
+  if(typeof sb!=='undefined' && sb){
+    try{
+      let q=await sb.from('patients').select('id,name,branch,patientId,mobile')
+        .ilike('name', n).eq('branch', b).limit(20);
+      if(!q.error && Array.isArray(q.data)){
+        return q.data.filter(function(x){ return mob(x.mobile)!==mNow; }).slice(0,20);
+      }
+    }catch(_e){}
+  }
+  let nl=n.toLowerCase(), bl=b.toLowerCase();
   return (load('patients')||[]).filter(function(x){
-    return String(x.name||'').trim().toLowerCase()===n
-        && String(x.branch||'').trim().toLowerCase()===b
+    return String(x.name||'').trim().toLowerCase()===nl
+        && String(x.branch||'').trim().toLowerCase()===bl
         && mob(x.mobile)!==mNow;
   }).slice(0,20);
  }catch(_e){ return []; }
@@ -32258,15 +32280,29 @@ window["wlv1EstDrop"]=wlv1EstDrop; window["wlv1EstSave"]=wlv1EstSave;
    হুবহু জোড়া, একই ১২টা বিন্দুর জায়গা)। Hydrocele-এ ক্লক অংশটাই দেখানো
    হয় না। Price List (wlv1EstPrices) পর্দা ছোঁয়া হয়নি -- রেডিমেড দর
    এখনো ওখানে দেখা/বদলানো যায়, শুধু এই পপ-আপ থেকে আর সরাসরি বসে না। */
-var wlv1EstPick={group:'Piles',clock:[],rate:'',qty:''};
+/* 🩹🔒 V1607 (১৯.০৯.২০২৬, TK-নির্দেশ) — TK: "ডেমো ফটো প্রুফে Piles-এর
+   গ্রেড রাখতে হবে" — উপরের V1606-এ Grade বাদ পড়ে গিয়েছিল, শুধু রেট
+   সরানোর কথা ছিল। এখন Piles-এই একটা GRADE সারি ফেরত (Grade I..IV,
+   পাশে কোনো রেট/দর দেখানো হয় না -- RATE ঘরে ডাক্তার নিজেই লেখেন)।
+   ফোনের হুবহু জোড়া (EstimateDialog.kt addTreatment()-এর rebuildGrade())। */
+var wlv1EstPick={group:'Piles',clock:[],grade:null,rate:'',qty:''};
 var WLV1_EST_CLOCK_POS={1:[123,11],2:[153,41],3:[164,82],4:[153,123],5:[123,153],6:[82,164],
   7:[41,153],8:[11,123],9:[0,82],10:[11,41],11:[41,11],12:[82,0]};
-function wlv1EstAddTreat(){ wlv1EstPick={group:'Piles',clock:[],rate:'',qty:''}; wlv1EstTreatRender() }
+var WLV1_EST_GRADES=['Grade I','Grade II','Grade III','Grade IV'];
+function wlv1EstAddTreat(){ wlv1EstPick={group:'Piles',clock:[],grade:null,rate:'',qty:''}; wlv1EstTreatRender() }
 function wlv1EstTreatRender(){
   var tabs=WLV1_EST_DISEASES.map(function(g){
     var on=g===wlv1EstPick.group;
     return '<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstPickGroup(\''+g+'\')">'+g+'</button>';
   }).join(' ');
+  var gradeHtml='';
+  if(wlv1EstPick.group==='Piles'){
+    var grades=WLV1_EST_GRADES.map(function(gr){
+      var on=gr===wlv1EstPick.grade;
+      return '<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstGrade(\''+gr+'\')">'+gr+'</button>';
+    }).join(' ');
+    gradeHtml='<div class="card"><div class="tiny mut">GRADE</div>'+grades+'</div>';
+  }
   var clockHtml='';
   if(wlv1EstPick.group!=='Hydrocele'){
     var dots='';
@@ -32282,6 +32318,7 @@ function wlv1EstTreatRender(){
   var rate=wlv1EstPick.rate||'';
   var qty=wlv1EstPick.qty||'';
   modal('<h2>➕ Add Treatment</h2><div class="card">'+tabs+'</div>'
+    +gradeHtml
     +clockHtml
     +'<div class="card"><div style="display:flex;gap:8px">'
     +'<div style="flex:1"><div class="tiny mut">RATE</div><input id="wlv1EstRate" class="input" placeholder="e.g. 8000" value="'+rate+'"></div>'
@@ -32289,7 +32326,13 @@ function wlv1EstTreatRender(){
     +'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button>'
     +'<button onclick="wlv1EstTreatAdd()">Add to estimate</button></div>');
 }
-function wlv1EstPickGroup(g){ wlv1EstPick={group:g,clock:[],rate:'',qty:''}; wlv1EstTreatRender() }
+function wlv1EstPickGroup(g){ wlv1EstPick={group:g,clock:[],grade:null,rate:'',qty:''}; wlv1EstTreatRender() }
+function wlv1EstGrade(gr){
+  wlv1EstPick.grade=(wlv1EstPick.grade===gr)?null:gr;
+  try{ var r=$('#wlv1EstRate'); if(r) wlv1EstPick.rate=r.value }catch(e){}
+  try{ var q=$('#wlv1EstQty'); if(q) wlv1EstPick.qty=q.value }catch(e){}
+  wlv1EstTreatRender();
+}
 function wlv1EstClock(h){
   var a=wlv1EstPick.clock, i=a.indexOf(h); if(i>=0)a.splice(i,1); else a.push(h);
   a.sort(function(x,y){return x-y});
@@ -32303,7 +32346,8 @@ function wlv1EstTreatAdd(){
   var rate=wlv1EstNum(($('#wlv1EstRate')||{}).value);
   if(!(rate>0)){ toast('Enter a rate'); return }
   var qty=wlv1EstNum(($('#wlv1EstQty')||{}).value)||1;
-  var measure=(wlv1EstPick.group==='Fistula')?(wlv1EstShort(qty)+' cm'):'';
+  var measure=(wlv1EstPick.group==='Fistula')?(wlv1EstShort(qty)+' cm')
+    :((wlv1EstPick.group==='Piles'&&wlv1EstPick.grade)?wlv1EstPick.grade:'');
   wlv1EstSheet.lines.push({name:wlv1EstPick.group+' Treatment',measure:measure,
     position:wlv1EstPick.clock.length?(wlv1EstPick.clock.join(', ')+" o'clock"):'',
     rate:rate,qty:qty,struck:false});
@@ -32401,7 +32445,7 @@ function wlv1EstAddPick(g,i){
   wlv1EstRender();
 }
 window["wlv1EstAddTreat"]=wlv1EstAddTreat; window["wlv1EstTreatRender"]=wlv1EstTreatRender;
-window["wlv1EstPickGroup"]=wlv1EstPickGroup;
+window["wlv1EstPickGroup"]=wlv1EstPickGroup; window["wlv1EstGrade"]=wlv1EstGrade;
 window["wlv1EstClock"]=wlv1EstClock; window["wlv1EstTreatAdd"]=wlv1EstTreatAdd;
 window["wlv1EstAddGroup"]=wlv1EstAddGroup; window["wlv1EstAddPick"]=wlv1EstAddPick;
 window["wlv1EstRender"]=wlv1EstRender;

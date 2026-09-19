@@ -390,20 +390,42 @@ object EstimateDialog {
      * দেখানো হয় না।
      * Price List পর্দা (EstimatePrices) ছোঁয়া হয়নি -- গ্রেড-ভিত্তিক রেডিমেড
      * দর এখনো ওখানে দেখা/বদলানো যায়, শুধু এই পপ-আপ থেকে আর সরাসরি বসে না।
-     * পাইলস/ফিসারে ঘড়িতে চাপলে আগের মতোই QTY-তে গোনাটা বসে (ফিস্টুলা ছাড়া)। */
+     * পাইলস/ফিসারে ঘড়িতে চাপলে আগের মতোই QTY-তে গোনাটা বসে (ফিস্টুলা ছাড়া)।
+     *
+     * 🩹🔒 V1607 (১৯.০৯.২০২৬, TK-নির্দেশ) — TK: *"ডেমো ফটো প্রুফে Piles-এর
+     * গ্রেড রাখতে হবে"* — উপরের V1606-এ Grade বাদ পড়ে গিয়েছিল, শুধু রেট
+     * সরানোর কথা ছিল। এখন Piles-এই একটা "GRADE" সারি ফেরত (Grade I..IV,
+     * পাশে কোনো রেট/দর দেখানো হয় না — সেটা এখনো শুধু RATE ঘরে ডাক্তার
+     * নিজেই লেখেন)। বাকি তিন রোগে (Fistula/Fissure/Hydrocele) কোনো গ্রেড
+     * নেই, তাই সারিটা ওখানে দেখানোই হয় না। */
     private fun addTreatment(activity: Activity, sheet: EstimateModel.Sheet, redraw: () -> Unit) {
         var group = EstimatePrices.G_PILES
+        var grade: String? = null
         val chosen = sortedSetOf<Int>()
+        val gradeOptions = listOf("Grade I", "Grade II", "Grade III", "Grade IV")
 
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, 14), dp(activity, 10), dp(activity, 14), dp(activity, 4))
         }
         val diseaseRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+        val gradeBox = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val gradeRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
         val clockBox = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         val rateField = numberField(activity, "")
         val qtyField = numberField(activity, "")
         root.addView(diseaseRow)
+        gradeBox.addView(label(activity, "GRADE"))
+        gradeBox.addView(gradeRow.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(activity, 6) }
+        })
+        root.addView(gradeBox.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(activity, 12) }
+        })
         root.addView(clockBox.apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -433,6 +455,28 @@ object EstimateDialog {
 
         lateinit var paint: () -> Unit
         val clockDots = HashMap<Int, TextView>()
+
+        // 🩹 V1607 — Piles-এই একমাত্র Grade বাছার সারি; বাকি রোগে দেখানো হয় না।
+        fun rebuildGrade() {
+            gradeRow.removeAllViews()
+            gradeBox.visibility = if (group == EstimatePrices.G_PILES) View.VISIBLE else View.GONE
+            if (group != EstimatePrices.G_PILES) return
+            for (gr in gradeOptions) {
+                gradeRow.addView(TextView(activity).apply {
+                    text = gr
+                    textSize = 11.5f
+                    gravity = Gravity.CENTER
+                    setTypeface(typeface, Typeface.BOLD)
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .apply { leftMargin = dp(activity, 3); rightMargin = dp(activity, 3) }
+                    setPadding(0, dp(activity, 9), 0, dp(activity, 9))
+                    setOnClickListener {
+                        grade = if (grade == gr) null else gr
+                        paint()
+                    }
+                })
+            }
+        }
 
         fun rebuildClock() {
             clockBox.removeAllViews()
@@ -491,6 +535,12 @@ object EstimateDialog {
                 }
                 dot.setTextColor(if (on) Color.WHITE else Color.parseColor("#63748C"))
             }
+            for (i in 0 until gradeRow.childCount) {
+                val t = gradeRow.getChildAt(i) as? TextView ?: continue
+                val on = t.text.toString() == grade
+                t.background = box(activity, if (on) NAVY else "#EFF3F8", if (on) NAVY else "#E2E9F2", 11)
+                t.setTextColor(if (on) Color.WHITE else Color.parseColor("#63748C"))
+            }
         }
 
         for (g in EstimatePrices.DISEASE_GROUPS) {
@@ -503,16 +553,16 @@ object EstimateDialog {
                     .apply { leftMargin = dp(activity, 3); rightMargin = dp(activity, 3) }
                 setPadding(0, dp(activity, 9), 0, dp(activity, 9))
                 setOnClickListener {
-                    group = g; chosen.clear()
+                    group = g; chosen.clear(); grade = null
                     rateField.setText(""); qtyField.setText("")
                     // Fistula-য় নিচের ঘরের নাম "LENGTH (CM)", বাকি সবেতে "QTY"।
                     qtyLabel?.text = if (group == EstimatePrices.G_FISTULA) "LENGTH (CM)" else "QTY"
-                    rebuildClock(); paint()
+                    rebuildGrade(); rebuildClock(); paint()
                 }
             })
         }
         qtyLabel?.text = if (group == EstimatePrices.G_FISTULA) "LENGTH (CM)" else "QTY"
-        rebuildClock(); paint()
+        rebuildGrade(); rebuildClock(); paint()
 
         val dlg = AlertDialog.Builder(activity)
             .setCustomTitle(PremiumAlert.header(activity, "➕ Add Treatment"))
@@ -523,8 +573,11 @@ object EstimateDialog {
                     android.widget.Toast.makeText(activity, "Enter a rate", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
                     val qty = EstimateModel.num(qtyField.text?.toString()).let { q -> if (q <= 0.0) 1.0 else q }
-                    val measure = if (group == EstimatePrices.G_FISTULA)
-                        EstimateModel.moneyShort(qty) + " cm" else ""
+                    val measure = when {
+                        group == EstimatePrices.G_FISTULA -> EstimateModel.moneyShort(qty) + " cm"
+                        group == EstimatePrices.G_PILES && grade != null -> grade!!
+                        else -> ""
+                    }
                     sheet.lines.add(
                         EstimateModel.Line(
                             name = group + " Treatment",
