@@ -28462,3 +28462,26 @@ History, Trash Bin, RMP Commission Sheet) Year-মেনু সবসময় "
 verify_kotlin_compile.py ✅, verify_android_resources.py ✅, node --check ✅,
 web_browser_test ✅, tk_guard.py ✅ (app.js বদলানোয় index.html-এর ক্যাশ-নম্বর
 v1599-এ বাড়ানো হলো)।
+
+## ১৯.০৯.২০২৬ সকাল — V1599 জেনুইন জমা দেওয়া হলো
+PILES_CLINIC_APP_V1599_FINAL.zip TK-কে পাঠানো হলো (verify_zip_root_name ✅,
+verify_zip_contents ✅, ২৬.৬৯ MB, ২১৩১ ফাইল)। ভার্সন build.gradle.kts +
+version.json দুটোতেই ১৫৯৯-এ বসানো, pathano_filer_talika.json-এ হিসাব লেখা হলো।
+
+## ১৯.০৯.২০২৬ সকাল ১০.১৫ — Running Patient-এ ভুল ব্রাঞ্চের রোগী (V1600)
+TK-র রিপোর্ট (ছবিসহ): "Running Patient" তালিকায় উপরে Birpara বাছা, কিন্তু
+প্রতিটা কার্ডে "COOCH BEHAR" ট্যাগ। কোডে খুঁজে আসল কারণ ধরা পড়ল: Draft
+হোম-পর্দায় (DraftActivity.kt) ব্রাঞ্চ বদলালে নতুন ব্রাঞ্চের কোনো জমানো কপি
+না থাকলে fresh fetch শেষ না হওয়া পর্যন্ত পুরনো ব্রাঞ্চের `buckets`
+মেমোরিতেই থেকে যেত — কেউ ঠিক সেই ফাঁকে কোনো তালিকায় (Running Patient
+ইত্যাদি) চাপলে পুরনো ব্রাঞ্চের রোগী নিয়ে তালিকা খুলত, শিরোনামে নতুন
+ব্রাঞ্চের নাম। এখন সেই ফাঁকে buckets খালি দেখানো হয় (renderBuckets ফাঁকা
+দিয়ে)। একই সাথে DraftListActivity.kt-এর ভিতরের ব্রাঞ্চ-পিলও আগে সরাসরি
+গ্লোবাল স্টোর থেকে পড়ত (এই তালিকার নিজের `branchArg`-এর বদলে) — এখন
+সবসময় `branchArg`-এরই প্রতিচ্ছবি, আর ব্রাঞ্চ বদলে রিলোড ব্যর্থ হলেও পুরনো
+ব্রাঞ্চের কার্ড না দেখিয়ে ফাঁকা দেখাবে। verify_kotlin_compile.py ✅,
+verify_android_resources.py ✅, tk_guard.py ✅। ওয়েবে (app.js) Draft
+হোমের গঠন ভিন্ন (একই রেন্ডারে সব ব্রাঞ্চ-ছাঁকা তালিকা তৈরি হয়, আলাদা
+cache-then-async-fetch ধাপ নেই) — তাই এই নির্দিষ্ট রেস-কন্ডিশনটা ওয়েবে
+নেই বলেই মনে হচ্ছে। কমিট V1600, এখনো নতুন ZIP পাঠানো হয়নি — TK চাইলে
+পরের বার পাঠানো হবে।
