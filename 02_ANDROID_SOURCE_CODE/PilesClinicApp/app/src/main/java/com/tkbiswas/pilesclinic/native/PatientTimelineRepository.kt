@@ -574,6 +574,27 @@ object PatientTimelineRepository {
         // patientId and merged in (id-deduped) -- purely additive, can only
         // find MORE of this patient's real payments than before, never fewer.
         var payments = preTimeline[3]
+        // 🔴🔒 V1614 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ, TK নিজে নিশ্চিত করেছেন
+        // "আলাদা মানুষ") -- এক মোবাইলে সত্যিই দু'জন আলাদা মানুষ থাকতে পারেন
+        // (পরিবারে এক ফোন)। স্টাফ "Different Patient — Same Mobile" চাপলে সেই
+        // দ্বিতীয় মানুষের patients-সারির id `pat_<mobile>_...` ফরম্যাটে বসে
+        // (PatientModel.isDeclaredSeparateRowId) — এটাই একমাত্র প্রমাণ। উপরের
+        // মোবাইল-ধরে-আনা payments-এ তাই এমন কোনো সারি থাকলে, যেটার নিজের
+        // patientId **প্রমাণিতভাবে অন্য কারো** (declared-separate, আর সেটা আমি
+        // নই), সেটা এই রোগীর Paid/Estimated-এ গোনা হবে না। ⛔ প্রমাণ ছাড়া
+        // কোনো সারি কখনো বাদ যায় না (PatientIdentity.kt-এর "হাইড করার চেয়ে
+        // বাড়তি দেখানো নিরাপদ" নিয়ম অটুট) -- এটা সেই নিয়মেরই নতুন প্রয়োগ,
+        // ব্যতিক্রম নয়।
+        run {
+            val kept = JSONArray()
+            for (i in 0 until payments.length()) {
+                val row = payments.optJSONObject(i) ?: continue
+                val pid = row.s("patientId")
+                if (PatientModel.isDeclaredSeparateRowId(pid, mobileDigits) && pid != patientId && pid != pcode) continue
+                kept.put(row)
+            }
+            payments = kept
+        }
         // TK-REPORTED (2026-07-27, "ডাটা লোড হতে প্রচুর সময় লাগে" -- the
         // Patient Details header sat on "Loading..."): these two reads do not
         // depend on each other (one is this patient's payments filed under
