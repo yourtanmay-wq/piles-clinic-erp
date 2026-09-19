@@ -136,11 +136,6 @@ class DoctorQueueActivity : AppCompatActivity() {
                     .putExtra("mobile", p.mobile)
                     .putExtra("fullJourney", true))
             },
-            onAction = { p ->
-                startActivity(Intent(this, PatientTimelineActivity::class.java)
-                    .putExtra("mobile", p.mobile)
-                    .putExtra("autoAction", true))
-            },
             // TK-REQUESTED (2026-07-28): the new fourth button opens this
             // patient's Report Card -- the very same screen (and the same
             // "mobile" it is opened with) that Chamber Date and Dr. Visit

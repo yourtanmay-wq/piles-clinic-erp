@@ -369,51 +369,52 @@ object EstimateDialog {
         return row
     }
 
-    /** রোগ বেছে চিকিৎসার লাইন — গ্রেড/ইঞ্চি ও o'clock সহ। */
+    /** ঘড়ির ১২টা বিন্দুর জায়গা — ২০০dp বৃত্ত, ৩৪dp বিন্দু (TK-অনুমোদিত ডেমোর মাপ)। */
+    private val clockDotPositions = mapOf(
+        1 to Pair(123, 11), 2 to Pair(153, 41), 3 to Pair(164, 82), 4 to Pair(153, 123),
+        5 to Pair(123, 153), 6 to Pair(82, 164), 7 to Pair(41, 153), 8 to Pair(11, 123),
+        9 to Pair(0, 82), 10 to Pair(11, 41), 11 to Pair(41, 11), 12 to Pair(82, 0)
+    )
+
+    /** রোগ বেছে চিকিৎসার লাইন — পজিশন এখন গোল ঘড়ির আকারে, রেট ডাক্তার নিজে লেখেন।
+     *
+     * ডিজাইন-বদল V1606 (১৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ):
+     * TK: "Hydrocele-এর কোনো পজিশন হয় না, রাখবেন না ... ডাক্তার যেটা বক্সের
+     * মধ্যে রেট লিখবে সেটাই থাকবে শুধুমাত্র ... Piles/Fissure/Fistula ডিফল্ট
+     * রেট এখানে থাকবে না ... পজিশন ঘড়ির আকারে থাকবে, ডাক্তার ঘড়ির আকারে
+     * যেখানে চাপ দিবে সেটাই পজিশন হিসেবে যুক্ত হবে।"
+     * আগের "GRADE/TYPE" প্রিসেট বক্স (নাম+দর একসাথে দেখানো, চাপলে রেট বসে
+     * যেত) পুরোপুরি বাদ -- এখন RATE ঘরে ডাক্তার নিজে যা লেখেন সেটাই। পজিশনের
+     * ১২টা চৌকো বোতাম বাদ, বদলে গোল ঘড়ির চেহারায় (ফ্রেম-লেআউটে ১২টা গোল
+     * বিন্দু, ঘড়ির কাঁটার আসল জায়গায় বসানো) -- Hydrocele-এ এই অংশটাই
+     * দেখানো হয় না।
+     * Price List পর্দা (EstimatePrices) ছোঁয়া হয়নি -- গ্রেড-ভিত্তিক রেডিমেড
+     * দর এখনো ওখানে দেখা/বদলানো যায়, শুধু এই পপ-আপ থেকে আর সরাসরি বসে না।
+     * পাইলস/ফিসারে ঘড়িতে চাপলে আগের মতোই QTY-তে গোনাটা বসে (ফিস্টুলা ছাড়া)। */
     private fun addTreatment(activity: Activity, sheet: EstimateModel.Sheet, redraw: () -> Unit) {
         var group = EstimatePrices.G_PILES
-        var picked: EstimatePrices.Item? = null
         val chosen = sortedSetOf<Int>()
-        // 🔴 V979 — স্টাফ নিজে দর লিখেছেন কি না; লিখে থাকলে আর মুছে দেওয়া হয় না।
-        var rateTouched = false
 
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, 14), dp(activity, 10), dp(activity, 14), dp(activity, 4))
         }
         val diseaseRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
-        val measureBox = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         val clockBox = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         val rateField = numberField(activity, "")
         val qtyField = numberField(activity, "")
         root.addView(diseaseRow)
-        root.addView(measureBox.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(activity, 10) }
-        })
         root.addView(clockBox.apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(activity, 8) }
+            ).apply { topMargin = dp(activity, 12) }
         })
         val rateRow = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(activity, 10) }
+            ).apply { topMargin = dp(activity, 12) }
         }
-        /* 📏🔒 V1279 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৪০১):
-           TK: *"ফিস্টুলার ক্ষেত্রে কোয়ান্টিটি কেন হবে · ফিস্টুলার ক্ষেত্রে তো
-           পার সেন্টিমিটার হিসাবে হবে · পাইলসের ক্ষেত্রে কোয়ান্টিটি ঠিক ছিল"*
-           ও *"RATE & LENGTH পাশাপাশি থাকতে হবে"*।
-           **যাচাই (কোডে মেপে):** Fistula-য় এই ঘরটাই **আগে থেকেই দৈর্ঘ্য** —
-           এখানে যা লেখা হয় সেটাই মাপ হয়ে বসে (`qty + " cm"`) আর দাম = রেট ×
-           ওই সংখ্যা। ⇒ তাই শুধু **নামটাই ভুল ছিল**।
-           ⇒ এখন Fistula-য় লেখা থাকে **LENGTH (CM)**, বাকি রোগে আগের মতোই **QTY**।
-           ⛔ ঘরটা · হিসাব · সেভ — এক অক্ষরও বদলায়নি, তাই পুরনো কোনো সারি
-              বা কাগজ নষ্ট হওয়ার পথ নেই (নিয়ম ৭ক-এর ৪)।
-           ⛔ RATE ও এই ঘরটা আগের মতোই **পাশাপাশি** এক সারিতেই। */
         var qtyLabel: TextView? = null
         fun cell(title: String, field: EditText): TextView {
             val c = LinearLayout(activity).apply {
@@ -425,115 +426,53 @@ object EstimateDialog {
             c.addView(lb); c.addView(field); rateRow.addView(c)
             return lb
         }
+        rateField.hint = "e.g. 8000"
         cell("RATE", rateField)
         qtyLabel = cell("QTY", qtyField)
         root.addView(rateRow)
-        rateField.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) { rateTouched = true }
-            override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
-        })
 
         lateinit var paint: () -> Unit
-
-        lateinit var rebuildMeasures: () -> Unit
-        rebuildMeasures = {
-            measureBox.removeAllViews()
-            val items = EstimatePrices.inGroup(activity, group)
-            measureBox.addView(label(activity, if (group == EstimatePrices.G_FISTULA) "TRACT LENGTH" else "GRADE / TYPE"))
-            /* 📏 V1279 — রোগ বদলালে নিচের ঘরের নামও বদলায়: Fistula-য়
-               "LENGTH (CM)", বাকি সবেতে আগের মতোই "QTY"। */
-            qtyLabel?.text = if (group == EstimatePrices.G_FISTULA) "LENGTH (CM)" else "QTY"
-            val wrap = LinearLayout(activity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = dp(activity, 6) }
-            }
-            /* ⚠️ নিজে ধরা — লুপের নাম `it` রাখলে `setOnClickListener { }`-এর
-               ভিতরে `it` মানে **ক্লিক-করা View**, দরের সারি নয়। তাই স্পষ্ট
-               নাম `item` — নইলে ভুল জিনিস বসত। */
-            for (item in items) {
-                val t = TextView(activity).apply {
-                    // 📏 V1278 — পুরনো জমা সারিতে "inch" লেখা থাকলেও পর্দায় CM
-                    /* 📏🔒 V1279 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা
-                       সারি ৪০১): *"CM 11000 ওই বক্স টা উচ্চতা কম করুন"*।
-                       ⇒ Fistula-য় লেখাটা **এক লাইনে** (`cm · 11,000`) আর
-                         উপর-নিচের ফাঁক ৯ → ৫dp ⇒ বাক্সটা প্রায় অর্ধেক উঁচু।
-                       ⛔ বাকি রোগগুলোতে (Piles · Fissure · Hydrocele) বাক্সটা
-                          **হুবহু আগের মতোই** দুই লাইনে — ছোঁয়া হয়নি।
-                       ⛔ দর · ক্লিক · চেপে-ধরে দর বদলানো — কিচ্ছু বদলায়নি। */
-                    val mTxt = if (item.measure.isBlank()) item.name else EstimateModel.unitTxt(item.measure)
-                    val oneLine = (group == EstimatePrices.G_FISTULA)
-                    text = mTxt + (if (oneLine) "  \u00b7  " else "\n") + EstimateModel.moneyShort(item.rate)
-                    textSize = 11.5f
-                    gravity = Gravity.CENTER
-                    setTypeface(typeface, Typeface.BOLD)
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                        .apply { leftMargin = dp(activity, 3); rightMargin = dp(activity, 3) }
-                    setPadding(dp(activity, 4), dp(activity, if (oneLine) 5 else 9),
-                               dp(activity, 4), dp(activity, if (oneLine) 5 else 9))
-                    setOnClickListener {
-                        picked = item
-                        /* 🔒 TK: দর নিজে থেকেই বসে; পরে হাতে বদলালে সেটাই থাকে।
-                           🔴 V979 (TK-রিপোর্ট ছবিসহ: *"এখানে 4100 ফিক্সড কেন
-                           করেছেন"*) — আগে গ্রেড আবার চাপলে হাতে-লেখা দরটা মুছে
-                           তালিকার দর ফিরে আসত। এখন **হাতে বদলানো থাকলে আর
-                           মুছবে না**; একই গ্রেড আবার চাপলে লেখাটা অটুট থাকে। */
-                        if (!rateTouched) rateField.setText(EstimateModel.moneyShort(item.rate))
-                        paint()
-                    }
-                    /* 💰🔒 V979 (TK-নির্দেশ: *"ওখানেই 4100 চেঞ্জ করতে পারবো তার
-                       ব্যবস্থা রাখতে হবে"*) — বোতামটা **চেপে ধরলে** তালিকার দরই
-                       বদলে যায় (সবসময়ের জন্য)। RATE ঘরে লেখা শুধু ওই রোগীর জন্য,
-                       তাই একজনকে ছাড় দিলে সবার দর নষ্ট হয় না। */
-                    setOnLongClickListener {
-                        editListRate(activity, item) { fresh ->
-                            picked = fresh
-                            rateTouched = false
-                            rateField.setText(EstimateModel.moneyShort(fresh.rate))
-                            rebuildMeasures(); paint()
-                        }
-                        true
-                    }
-                }
-                wrap.addView(t)
-            }
-            measureBox.addView(wrap)
-        }
+        val clockDots = HashMap<Int, TextView>()
 
         fun rebuildClock() {
             clockBox.removeAllViews()
+            clockDots.clear()
+            // Hydrocele-এর কোনো পজিশন হয় না, তাই এই গোটা অংশটাই বাদ।
+            if (group == EstimatePrices.G_HYDROCELE) return
             clockBox.addView(label(activity, "POSITION (O'CLOCK)"))
-            var row: LinearLayout? = null
-            for (h in 1..12) {
-                if (row == null || (h - 1) % 6 == 0) {
-                    row = LinearLayout(activity).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        layoutParams = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-                        ).apply { topMargin = dp(activity, 5) }
-                    }
-                    clockBox.addView(row)
+            val face = android.widget.FrameLayout(activity).apply {
+                val size = dp(activity, 200)
+                layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                    topMargin = dp(activity, 8); gravity = Gravity.CENTER_HORIZONTAL
                 }
-                val hh = h
-                row!!.addView(TextView(activity).apply {
-                    text = hh.toString()
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor("#F8FBFE"))
+                    setStroke(dp(activity, 2), Color.parseColor("#E2E9F2"))
+                }
+            }
+            for (h in 1..12) {
+                val (l, t) = clockDotPositions.getValue(h)
+                val dot = TextView(activity).apply {
+                    text = h.toString()
                     textSize = 12f
                     gravity = Gravity.CENTER
                     setTypeface(typeface, Typeface.BOLD)
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                        .apply { leftMargin = dp(activity, 2); rightMargin = dp(activity, 2) }
-                    setPadding(0, dp(activity, 9), 0, dp(activity, 9))
+                    layoutParams = android.widget.FrameLayout.LayoutParams(dp(activity, 34), dp(activity, 34)).apply {
+                        leftMargin = dp(activity, l); topMargin = dp(activity, t)
+                    }
                     setOnClickListener {
-                        if (chosen.contains(hh)) chosen.remove(hh) else chosen.add(hh)
-                        // পাইলসে o'clock গুনেই সংখ্যা — TK-এর নিয়ম।
+                        if (chosen.contains(h)) chosen.remove(h) else chosen.add(h)
+                        // পাইলসে/ফিসারে o'clock গুনেই সংখ্যা -- TK-এর আগের নিয়ম অটুট।
                         if (group != EstimatePrices.G_FISTULA && chosen.isNotEmpty())
                             qtyField.setText(chosen.size.toString())
                         paint()
                     }
-                })
+                }
+                clockDots[h] = dot
+                face.addView(dot)
             }
+            clockBox.addView(face)
         }
 
         paint = {
@@ -543,26 +482,14 @@ object EstimateDialog {
                 t.background = box(activity, if (on) NAVY else "#EFF3F8", if (on) NAVY else "#E2E9F2", 11)
                 t.setTextColor(if (on) Color.WHITE else Color.parseColor("#63748C"))
             }
-            for (i in 0 until measureBox.childCount) {
-                val wrap = measureBox.getChildAt(i) as? LinearLayout ?: continue
-                for (j in 0 until wrap.childCount) {
-                    val t = wrap.getChildAt(j) as? TextView ?: continue
-                    val items = EstimatePrices.inGroup(activity, group)
-                    val on = j < items.size && picked?.name == items[j].name
-                    t.background = box(activity, if (on) NAVY else "#F1F5F9", if (on) NAVY else "#E2E9F2", 11)
-                    t.setTextColor(if (on) Color.WHITE else Color.parseColor("#63748C"))
+            for ((h, dot) in clockDots) {
+                val on = chosen.contains(h)
+                dot.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor(if (on) "#0B7A4B" else "#F1F5F9"))
+                    setStroke(dp(activity, 1), Color.parseColor(if (on) "#0B7A4B" else "#E2E9F2"))
                 }
-            }
-            var h = 0
-            for (i in 0 until clockBox.childCount) {
-                val r = clockBox.getChildAt(i) as? LinearLayout ?: continue
-                for (j in 0 until r.childCount) {
-                    val t = r.getChildAt(j) as? TextView ?: continue
-                    h += 1
-                    val on = chosen.contains(h)
-                    t.background = box(activity, if (on) "#0B7A4B" else "#F1F5F9", if (on) "#0B7A4B" else "#E2E9F2", 9)
-                    t.setTextColor(if (on) Color.WHITE else Color.parseColor("#63748C"))
-                }
+                dot.setTextColor(if (on) Color.WHITE else Color.parseColor("#63748C"))
             }
         }
 
@@ -576,70 +503,37 @@ object EstimateDialog {
                     .apply { leftMargin = dp(activity, 3); rightMargin = dp(activity, 3) }
                 setPadding(0, dp(activity, 9), 0, dp(activity, 9))
                 setOnClickListener {
-                    group = g; picked = null; chosen.clear()
+                    group = g; chosen.clear()
                     rateField.setText(""); qtyField.setText("")
-                    rebuildMeasures(); rebuildClock(); paint()
+                    // Fistula-য় নিচের ঘরের নাম "LENGTH (CM)", বাকি সবেতে "QTY"।
+                    qtyLabel?.text = if (group == EstimatePrices.G_FISTULA) "LENGTH (CM)" else "QTY"
+                    rebuildClock(); paint()
                 }
             })
         }
-        rebuildMeasures(); rebuildClock(); paint()
+        qtyLabel?.text = if (group == EstimatePrices.G_FISTULA) "LENGTH (CM)" else "QTY"
+        rebuildClock(); paint()
 
         val dlg = AlertDialog.Builder(activity)
             .setCustomTitle(PremiumAlert.header(activity, "➕ Add Treatment"))
             .setView(ScrollView(activity).apply { addView(root) })
             .setPositiveButton("Add") { _, _ ->
-                val chosenItem = picked
-                if (chosenItem == null) {
-                    android.widget.Toast.makeText(activity, "Select a treatment first", android.widget.Toast.LENGTH_SHORT).show()
+                val rate = EstimateModel.num(rateField.text?.toString())
+                if (rate <= 0.0) {
+                    android.widget.Toast.makeText(activity, "Enter a rate", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
                     val qty = EstimateModel.num(qtyField.text?.toString()).let { q -> if (q <= 0.0) 1.0 else q }
-                    val rate = EstimateModel.num(rateField.text?.toString()).let { r -> if (r <= 0.0) chosenItem.rate else r }
                     val measure = if (group == EstimatePrices.G_FISTULA)
-                        EstimateModel.moneyShort(qty) + " cm" else chosenItem.measure   // 📏 V1278
+                        EstimateModel.moneyShort(qty) + " cm" else ""
                     sheet.lines.add(
                         EstimateModel.Line(
-                            name = chosenItem.name,
+                            name = group + " Treatment",
                             measure = measure,
                             position = chosen.joinToString(", ") + (if (chosen.isEmpty()) "" else " o'clock"),
                             rate = rate, qty = qty
                         )
                     )
                     redraw()
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-        dlg.show()
-        try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
-    }
-
-    /** 💰 V979 — তালিকার দর সবসময়ের জন্য বদলানো (গ্রেড চেপে ধরলে খোলে)। */
-    private fun editListRate(
-        activity: Activity,
-        item: EstimatePrices.Item,
-        onSaved: (EstimatePrices.Item) -> Unit
-    ) {
-        val field = numberField(activity, EstimateModel.moneyShort(item.rate))
-        val root = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(activity, 16), dp(activity, 10), dp(activity, 16), dp(activity, 4))
-            addView(label(activity, "NEW RATE FOR EVERY PATIENT", 9.5f))
-            addView(field)
-        }
-        val dlg = AlertDialog.Builder(activity)
-            .setCustomTitle(PremiumAlert.header(activity, "✏️ " + item.name))
-            .setView(root)
-            .setPositiveButton("Save") { _, _ ->
-                val v = EstimateModel.num(field.text?.toString())
-                if (v <= 0.0) {
-                    android.widget.Toast.makeText(activity, "Enter a rate", android.widget.Toast.LENGTH_SHORT).show()
-                } else {
-                    val all = EstimatePrices.list(activity).toMutableList()
-                    val at = all.indexOfFirst { it.name.equals(item.name, ignoreCase = true) }
-                    val fresh = item.copy(rate = v)
-                    if (at >= 0) all[at] = fresh else all.add(fresh)
-                    EstimatePrices.save(activity, all)
-                    onSaved(fresh)
                 }
             }
             .setNegativeButton("Cancel", null)

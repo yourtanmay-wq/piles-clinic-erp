@@ -11759,10 +11759,14 @@ window["wlv1DqToggleOverdue"]=wlv1DqToggleOverdue;
 /* 🟢🔒 B684 (15.08.2026, TK-অনুমোদিত · Android-হুবহু): CHECK-UP Queue কার্ডের
    বোতাম Android-এর item_queue_card.xml-এর মতোই করা হল —
    নাম: "🧭 Full Journey" → "History" (লাইন 105-এ Android-এ যা লেখা)
-   ক্রম: History → Report Card → Check-up → ⚡ Action (Android লাইন 105·127·149·170)
-   ⛔ কাজ একটুও বদলায়নি — একই wlv1FullJourney / wlv1ReportCard / doctorCheck / summary।
+   ক্রম: History → Report Card → Check-up (Android লাইন 105·127·149)
+   ⛔ কাজ একটুও বদলায়নি — একই wlv1FullJourney / wlv1ReportCard / doctorCheck।
    ⛔ রং একটুও বদলায়নি — যে বোতাম যেমন ছিল (ghost সাদা / আগের gradient) তেমনই আছে,
-      নতুন কোনো নেভি-ব্লু বসানো হয়নি। bill=0 হলে Report Card ধূসর — আগের মতোই। */
+      নতুন কোনো নেভি-ব্লু বসানো হয়নি। bill=0 হলে Report Card ধূসর — আগের মতোই।
+   🔴🔒 V1606 (১৯.০৯.২০২৬, TK-নির্দেশ) — "⚡ Action" বোতাম সরানো হলো (ফোনের
+   btnAction সরানোর সাথে মিলিয়ে, Android DoctorQueueAdapter.kt দ্রষ্টব্য)।
+   ⛔ summary() ফাংশন অক্ষত — অন্য জায়গা থেকে এখনো ডাকা হয়, শুধু এই কার্ডের
+      দরজাটাই বন্ধ হলো। */
 /** 🩺🔒 V839 — কার্ডের নীল ট্যাগ।
     ⛔ প্ল্যান না থাকলে **কিছুই ফেরে না** (TK: "LAST PLAN না থাকলে যেন card
        থেকে হাইড হয়ে যায়") — কার্ড হুবহু আগের মতোই দেখায়। */
@@ -11947,7 +11951,7 @@ function wlv1DqCard(p){
      **ফিকে** হয়, যাতে বাকি-রোগীর সঙ্গে গুলিয়ে না যায়। ফোনের হুবহু জোড়া।
      ⛔ একটাও বোতাম বা তথ্য সরানো/লুকানো হয়নি — সব আগের মতোই চাপা যায়। */
   var __dqDone = wlv1Flag(p.doctorComplete) ? ' dqDim' : '';
-  return `<div class="card doctorQueuePro${__dqDone}"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){ if(wlv1Flag(p.doctorComplete)) return ' style="background:#0E7C5A"'; var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${esc(__badge)}</span></div>${__m?'':wlv1NvpTagHtml(p)}${wlv1DqExtraHtml(p,__m)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
+  return `<div class="card doctorQueuePro${__dqDone}"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){ if(wlv1Flag(p.doctorComplete)) return ' style="background:#0E7C5A"'; var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${esc(__badge)}</span></div>${__m?'':wlv1NvpTagHtml(p)}${wlv1DqExtraHtml(p,__m)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button></div></div>`;
 }
 /* 🔍🔒 V974 (নিজে ধরা, দ্বিতীয়বার গভীরে যাচাই করতে গিয়ে) — খোঁজার লেখাটা
    পর্দা ছেড়ে গেলেও থেকে যেত; পরে আবার এসে স্টাফ দেখতেন তালিকা প্রায় ফাঁকা
@@ -32243,79 +32247,64 @@ window["wlv1EstOpen"]=wlv1EstOpen; window["wlv1EstEdit"]=wlv1EstEdit;
 window["wlv1EstDiscount"]=wlv1EstDiscount; window["wlv1EstStrike"]=wlv1EstStrike;
 window["wlv1EstDrop"]=wlv1EstDrop; window["wlv1EstSave"]=wlv1EstSave;
 
-/* রোগ · গ্রেড/ইঞ্চি · o'clock — TK-এর পাশ-করা প্রুফের হুবহু ধাপ। */
-var wlv1EstPick={group:'Piles',item:null,clock:[],rate:''};
-function wlv1EstAddTreat(){ wlv1EstPick={group:'Piles',item:null,clock:[],rate:''}; wlv1EstTreatRender() }
+/* রোগ · o'clock -- V1606 (১৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ)।
+   TK: "Hydrocele-এর কোনো পজিশন হয় না, রাখবেন না ... ডাক্তার যেটা বক্সের
+   মধ্যে রেট লিখবে সেটাই থাকবে শুধুমাত্র ... Piles/Fissure/Fistula ডিফল্ট
+   রেট এখানে থাকবে না ... পজিশন ঘড়ির আকারে থাকবে, ডাক্তার ঘড়ির আকারে
+   যেখানে চাপ দিবে সেটাই পজিশন হিসেবে যুক্ত হবে।"
+   আগের GRADE/TYPE প্রিসেট বক্স (নাম+দর দেখিয়ে চাপলে রেট বসে যাওয়া)
+   পুরোপুরি বাদ -- RATE ঘরে ডাক্তার নিজে যা লেখেন সেটাই। ১২টা চৌকো
+   বোতামের বদলে গোল ঘড়ির চেহারা (ফোনের EstimateDialog.kt addTreatment()-এর
+   হুবহু জোড়া, একই ১২টা বিন্দুর জায়গা)। Hydrocele-এ ক্লক অংশটাই দেখানো
+   হয় না। Price List (wlv1EstPrices) পর্দা ছোঁয়া হয়নি -- রেডিমেড দর
+   এখনো ওখানে দেখা/বদলানো যায়, শুধু এই পপ-আপ থেকে আর সরাসরি বসে না। */
+var wlv1EstPick={group:'Piles',clock:[],rate:'',qty:''};
+var WLV1_EST_CLOCK_POS={1:[123,11],2:[153,41],3:[164,82],4:[153,123],5:[123,153],6:[82,164],
+  7:[41,153],8:[11,123],9:[0,82],10:[11,41],11:[41,11],12:[82,0]};
+function wlv1EstAddTreat(){ wlv1EstPick={group:'Piles',clock:[],rate:'',qty:''}; wlv1EstTreatRender() }
 function wlv1EstTreatRender(){
-  var items=wlv1EstPrices().filter(function(p){return p.group===wlv1EstPick.group});
   var tabs=WLV1_EST_DISEASES.map(function(g){
     var on=g===wlv1EstPick.group;
     return '<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstPickGroup(\''+g+'\')">'+g+'</button>';
   }).join(' ');
-  /* 🔴🔒 V979 (TK-রিপোর্ট: *"এখানে 4100 ফিক্সড কেন করেছেন"*) — গ্রেডের পাশে
-     ছোট ✎; চাপলে **তালিকার দরই** সবসময়ের জন্য বদলায়। RATE ঘরে লেখা শুধু ওই
-     রোগীর জন্য, তাই একজনকে ছাড় দিলে সবার দর নষ্ট হয় না। ফোনে বোতাম চেপে
-     ধরলে ঠিক একই বাক্স খোলে। */
-  var meas=items.map(function(p,i){
-    var on=wlv1EstPick.item&&wlv1EstPick.item.name===p.name;
-    return '<span style="display:inline-flex;align-items:center;margin:3px">'
-      +'<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstPickItem('+i+')">'
-      +esc(wlv1EstUnitTxt(p.measure)||p.name)+' · '+wlv1EstShort(p.rate)+'</button>'   /* 📏 V1278 */
-      +'<span style="cursor:pointer;padding:0 6px;color:#0B66D8;font-weight:800" onclick="wlv1EstEditListRate('+i+')">&#9998;</span></span>';
-  }).join('');
-  var clock='';
-  for(var h=1;h<=12;h++){
-    var on=wlv1EstPick.clock.indexOf(h)>=0;
-    clock+='<button type="button" class="small'+(on?'':' ghost')+'" style="margin:2px;min-width:40px" onclick="wlv1EstClock('+h+')">'+h+'</button>';
+  var clockHtml='';
+  if(wlv1EstPick.group!=='Hydrocele'){
+    var dots='';
+    for(var h=1;h<=12;h++){
+      var on=wlv1EstPick.clock.indexOf(h)>=0;
+      var xy=WLV1_EST_CLOCK_POS[h];
+      dots+='<div onclick="wlv1EstClock('+h+')" style="position:absolute;left:'+xy[0]+'px;top:'+xy[1]+'px;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;'
+        +(on?'background:#0B7A4B;border:1.5px solid #0B7A4B;color:#fff':'background:#F1F5F9;border:1.5px solid #E2E9F2;color:#63748C')+'">'+h+'</div>';
+    }
+    clockHtml='<div class="card"><div class="tiny mut">POSITION (O\'CLOCK)</div>'
+      +'<div style="width:200px;height:200px;margin:8px auto 0;position:relative;border-radius:50%;background:#F8FBFE;border:2px solid #E2E9F2">'+dots+'</div></div>';
   }
-  var rate=wlv1EstPick.rate ? wlv1EstPick.rate
-           : (wlv1EstPick.item?wlv1EstShort(wlv1EstPick.item.rate):'');
-  var qty=wlv1EstPick.clock.length?wlv1EstPick.clock.length:'';
+  var rate=wlv1EstPick.rate||'';
+  var qty=wlv1EstPick.qty||'';
   modal('<h2>➕ Add Treatment</h2><div class="card">'+tabs+'</div>'
-    +'<div class="card"><div class="tiny mut">'+(wlv1EstPick.group==='Fistula'?'TRACT LENGTH':'GRADE / TYPE')+'</div>'+meas+'</div>'
-    +'<div class="card"><div class="tiny mut">POSITION (O\'CLOCK)</div>'+clock+'</div>'
+    +clockHtml
     +'<div class="card"><div style="display:flex;gap:8px">'
-    +'<div style="flex:1"><div class="tiny mut">RATE</div><input id="wlv1EstRate" class="input" value="'+rate+'"></div>'
-    /* 📏🔒 V1279 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৪০১):
-       TK: *"ফিস্টুলার ক্ষেত্রে কোয়ান্টিটি কেন হবে … পার সেন্টিমিটার হিসাবে
-       হবে · পাইলসের ক্ষেত্রে কোয়ান্টিটি ঠিক ছিল"* · *"RATE & LENGTH পাশাপাশি
-       থাকতে হবে"*। Fistula-য় এই ঘরটাই আগে থেকেই দৈর্ঘ্য (`qty + ' cm'`,
-       দাম = রেট × ওই সংখ্যা) ⇒ শুধু **নামটাই** বদলাল। ফোনের হুবহু জোড়া।
-       ⛔ ঘরের `id` · হিসাব · সেভ — এক অক্ষরও বদলায়নি। */
+    +'<div style="flex:1"><div class="tiny mut">RATE</div><input id="wlv1EstRate" class="input" placeholder="e.g. 8000" value="'+rate+'"></div>'
     +'<div style="flex:1"><div class="tiny mut">'+(wlv1EstPick.group==='Fistula'?'LENGTH (CM)':'QTY')+'</div><input id="wlv1EstQty" class="input" value="'+qty+'"></div></div></div>'
     +'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button>'
     +'<button onclick="wlv1EstTreatAdd()">Add to estimate</button></div>');
 }
-function wlv1EstPickGroup(g){ wlv1EstPick={group:g,item:null,clock:[],rate:''}; wlv1EstTreatRender() }
-function wlv1EstPickItem(i){ var items=wlv1EstPrices().filter(function(p){return p.group===wlv1EstPick.group});
-  /* 🔴 V979 — হাতে লেখা দর আর মুছে যায় না; একই গ্রেড আবার চাপলেও অটুট। */
+function wlv1EstPickGroup(g){ wlv1EstPick={group:g,clock:[],rate:'',qty:''}; wlv1EstTreatRender() }
+function wlv1EstClock(h){
+  var a=wlv1EstPick.clock, i=a.indexOf(h); if(i>=0)a.splice(i,1); else a.push(h);
+  a.sort(function(x,y){return x-y});
   try{ var r=$('#wlv1EstRate'); if(r) wlv1EstPick.rate=r.value }catch(e){}
-  wlv1EstPick.item=items[i]||null; wlv1EstTreatRender() }
-/* 💰 V979 — তালিকার দর সবসময়ের জন্য বদলানো (✎ চাপলে)। */
-function wlv1EstEditListRate(i){
-  var all=wlv1EstPrices();
-  var items=all.filter(function(p){return p.group===wlv1EstPick.group});
-  var it=items[i]; if(!it) return;
-  var v=prompt('New rate for every patient — '+it.name, String(it.rate));
-  if(v===null) return;
-  var n=wlv1EstNum(v); if(!(n>0)){ toast('Enter a rate'); return }
-  var at=all.findIndex(function(p){return p.name===it.name});
-  if(at>=0) all[at]=Object.assign({},all[at],{rate:n});
-  wlv1EstPricesSave(all);
-  if(wlv1EstPick.item&&wlv1EstPick.item.name===it.name){ wlv1EstPick.item=all[at]; wlv1EstPick.rate='' }
+  try{ var q=$('#wlv1EstQty'); if(q) wlv1EstPick.qty=q.value }catch(e){}
+  // পাইলসে/ফিসারে o'clock গুনেই সংখ্যা -- ফোনের হুবহু নিয়ম, ফিস্টুলা ছাড়া।
+  if(wlv1EstPick.group!=='Fistula'&&a.length) wlv1EstPick.qty=String(a.length);
   wlv1EstTreatRender();
 }
-window["wlv1EstEditListRate"]=wlv1EstEditListRate;
-function wlv1EstClock(h){ var a=wlv1EstPick.clock, i=a.indexOf(h); if(i>=0)a.splice(i,1); else a.push(h);
-  /* 🔴 V979 — ঘড়ির ঘর চাপলেও হাতে লেখা দর অটুট থাকে। */
-  try{ var r=$('#wlv1EstRate'); if(r) wlv1EstPick.rate=r.value }catch(e){}
-  a.sort(function(x,y){return x-y}); wlv1EstTreatRender() }
 function wlv1EstTreatAdd(){
-  var p=wlv1EstPick.item; if(!p){ toast('Select a treatment first'); return }
+  var rate=wlv1EstNum(($('#wlv1EstRate')||{}).value);
+  if(!(rate>0)){ toast('Enter a rate'); return }
   var qty=wlv1EstNum(($('#wlv1EstQty')||{}).value)||1;
-  var rate=wlv1EstNum(($('#wlv1EstRate')||{}).value)||p.rate;
-  var measure=(wlv1EstPick.group==='Fistula')?(wlv1EstShort(qty)+' cm'):(p.measure||'');   /* 📏 V1278 */
-  wlv1EstSheet.lines.push({name:p.name,measure:measure,
+  var measure=(wlv1EstPick.group==='Fistula')?(wlv1EstShort(qty)+' cm'):'';
+  wlv1EstSheet.lines.push({name:wlv1EstPick.group+' Treatment',measure:measure,
     position:wlv1EstPick.clock.length?(wlv1EstPick.clock.join(', ')+" o'clock"):'',
     rate:rate,qty:qty,struck:false});
   wlv1EstRender();
@@ -32412,7 +32401,7 @@ function wlv1EstAddPick(g,i){
   wlv1EstRender();
 }
 window["wlv1EstAddTreat"]=wlv1EstAddTreat; window["wlv1EstTreatRender"]=wlv1EstTreatRender;
-window["wlv1EstPickGroup"]=wlv1EstPickGroup; window["wlv1EstPickItem"]=wlv1EstPickItem;
+window["wlv1EstPickGroup"]=wlv1EstPickGroup;
 window["wlv1EstClock"]=wlv1EstClock; window["wlv1EstTreatAdd"]=wlv1EstTreatAdd;
 window["wlv1EstAddGroup"]=wlv1EstAddGroup; window["wlv1EstAddPick"]=wlv1EstAddPick;
 window["wlv1EstRender"]=wlv1EstRender;

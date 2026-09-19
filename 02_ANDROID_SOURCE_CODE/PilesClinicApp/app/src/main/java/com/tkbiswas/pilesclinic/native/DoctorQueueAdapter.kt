@@ -38,7 +38,6 @@ class DoctorQueueAdapter(
     private var items: List<QueueRow>,
     private val onCheckup: (QueuePatient) -> Unit,
     private val onFullJourney: (QueuePatient) -> Unit,
-    private val onAction: (QueuePatient) -> Unit,
     // TK-REQUESTED (2026-07-28, photo proof approved): a fourth button that
     // opens this patient's Report Card. Given a default so nothing else that
     // builds this adapter has to change.
@@ -281,7 +280,6 @@ class DoctorQueueAdapter(
                 // Action (patient's Take Action menu). Summary & Print removed.
                 b.btnFullJourney.setOnClickListener { onFullJourney(item) }
                 b.btnCheckup.setOnClickListener { onCheckup(item) }
-                b.btnAction.setOnClickListener { onAction(item) }
 
                 // 🔴 TK-নির্দেশ (04.08.2026): "Report Card তো তখনই বানানোর
                 // কথা যখন রোগী Advance করেছেন" -- Take Action/Patient
@@ -310,7 +308,6 @@ class DoctorQueueAdapter(
                 b.btnFullJourney.backgroundTintList = null
                 b.btnReportCard.backgroundTintList = null
                 b.btnCheckup.backgroundTintList = null
-                b.btnAction.backgroundTintList = null
             }
         }
     
