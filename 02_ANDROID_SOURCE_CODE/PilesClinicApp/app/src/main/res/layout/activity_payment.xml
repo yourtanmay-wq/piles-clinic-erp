@@ -23,6 +23,10 @@
             android:textSize="18sp"
             android:padding="4dp" />
 
+        <!-- 🔴🔒 V1598 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — "COOCH BEHAR"
+             লেখাটা জায়গার অভাবে উপর-নিচে ভেঙে যাচ্ছিল, তাই এই লেখাটার মাপ
+             অর্ধেক (14sp → 7sp) করা হলো। ⛔ id নেই, তাই কোথাও ব্যবহার হয় না —
+             শুধু চেহারা। -->
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -30,7 +34,7 @@
             android:layout_marginStart="10dp"
             android:text="PAYMENT"
             android:textColor="@color/white"
-            android:textSize="14sp"
+            android:textSize="7sp"
             android:textStyle="bold" />
 
         <!-- TK-REQUESTED (2026-07-28, photo proof approved): small branch box on
@@ -69,6 +73,22 @@
             android:textColor="#0A5428"
             android:textSize="11sp"
             android:textStyle="bold" />
+
+        <!-- 🔴🔒 V1598 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — তারিখের ডান
+             পাশে ⋮ মেনু (Salary Statement-এ আগে TK-অনুমোদিত একই প্যাটার্ন)।
+             ভিতরে: Treatment Payment · Medicine Payment · Saline Payment ·
+             Monthly History · Collection — কোনো আইকন ছাড়া, শুধু লেখা।
+             ⛔ তারিখ ও এই বোতামের মাঝে বাড়তি ফাঁক (marginStart="10dp")। */-->
+        <TextView
+            android:id="@+id/btnPaymentMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="⋮"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:padding="4dp" />
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView

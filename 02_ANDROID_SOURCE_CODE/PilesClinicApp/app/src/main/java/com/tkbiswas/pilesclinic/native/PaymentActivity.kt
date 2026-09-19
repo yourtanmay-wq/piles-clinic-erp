@@ -176,6 +176,36 @@ class PaymentActivity : AppCompatActivity() {
         binding.btnMedicinePayment.setOnClickListener { startActivity(Intent(this, MedicinePaymentActivity::class.java)) }
         setupDatePick()
 
+        /* 🔴🔒 V1598 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — হেডারের ডানে
+           নতুন ⋮ মেনু: Treatment Payment · Medicine Payment · Saline Payment ·
+           Monthly History · Collection (আইকন ছাড়া, শুধু লেখা)। প্রতিটাই আগে
+           থেকে থাকা কাজই ডাকে — showSearchPatientDialog()/MedicinePaymentActivity/
+           CollectionListActivity — কোনো নতুন লজিক নেই, শুধু আরেকটা রাস্তা।
+           Monthly History/Collection আগের মতোই শুধু Master দেখেন (rowMasterCollection-এর
+           একই নিয়ম)। বড় বোতাম ৪টা এখনো নিচে অক্ষত আছে। */
+        binding.btnPaymentMenu.setOnClickListener { v ->
+            val pm = android.widget.PopupMenu(this, v)
+            var idx = 0
+            pm.menu.add(0, idx++, idx, "Treatment Payment")
+            pm.menu.add(0, idx++, idx, "Medicine Payment")
+            pm.menu.add(0, idx++, idx, "Saline Payment")
+            if (user.role == "master") {
+                pm.menu.add(0, idx++, idx, "Monthly History")
+                pm.menu.add(0, idx++, idx, "Collection")
+            }
+            pm.setOnMenuItemClickListener { mi ->
+                when (mi.title?.toString()) {
+                    "Treatment Payment" -> showSearchPatientDialog()
+                    "Medicine Payment" -> startActivity(Intent(this, MedicinePaymentActivity::class.java))
+                    "Saline Payment" -> startActivity(Intent(this, MedicinePaymentActivity::class.java).putExtra("startKind", MedicinePaymentActivity.KIND_SALINE))
+                    "Monthly History" -> startActivity(Intent(this, CollectionListActivity::class.java).putExtra("mode", "monthly"))
+                    "Collection" -> startActivity(Intent(this, CollectionListActivity::class.java).putExtra("mode", "history"))
+                }
+                true
+            }
+            pm.show()
+        }
+
         // TK-APPROVED (2026-07-25, photo proof): Monthly Collection and
         // Collection History . MASTER ADMIN ONLY, so the row stays hidden for
         // Staff/Doctor/Field exactly as it is today. Each opens the same list

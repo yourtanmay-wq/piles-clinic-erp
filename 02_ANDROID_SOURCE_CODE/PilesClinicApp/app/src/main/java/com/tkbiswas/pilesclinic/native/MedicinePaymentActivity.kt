@@ -378,6 +378,13 @@ class MedicinePaymentActivity : AppCompatActivity() {
         // 🔒 B619: ব্রাঞ্চ-লক করার আগে জেনে নিই এই ইউজার master কিনা (master সব ব্রাঞ্চ পারবেন)।
         isMasterUser = NativeSession.current(this)?.role == "master"
 
+        /* 💧🔒 V1598 (১৯.০৯.২০২৬, TK-নির্দেশ) — Payment পর্দার ⋮ মেনুতে "Saline
+           Payment" আলাদা চাপলে এই পর্দাই খোলে, শুধু Saline টগল আগে থেকে বাছা
+           অবস্থায়। ⛔ ঘরটা না পাঠালে (Medicine Payment থেকে এলে) আগের মতোই
+           Medicine ডিফল্ট — কিছু বদলায়নি। */
+        try {
+            if (intent?.getStringExtra("startKind") == KIND_SALINE) selectedSaleType = KIND_SALINE
+        } catch (_: Throwable) { }
         setupMpModeButtons()
         setupSaleTypeButtons()   // 🆕 V805
         setupCustomerSuggestions()
