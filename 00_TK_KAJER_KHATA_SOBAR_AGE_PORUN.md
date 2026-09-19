@@ -28485,3 +28485,6 @@ verify_android_resources.py ✅, tk_guard.py ✅। ওয়েবে (app.js) 
 cache-then-async-fetch ধাপ নেই) — তাই এই নির্দিষ্ট রেস-কন্ডিশনটা ওয়েবে
 নেই বলেই মনে হচ্ছে। কমিট V1600, এখনো নতুন ZIP পাঠানো হয়নি — TK চাইলে
 পরের বার পাঠানো হবে।
+
+## ১৯.০৯.২০২৬ সকাল ১০.২৭ — চেকআপ সেভ হলেও 'সম্পূর্ণ হয়নি' দেখানো (V1601)
+TK-র রিপোর্ট (ছবিসহ, নেট ০.০৬-৫.০০ KB/s খুব ধীর): BHABASH PAL-এর চেকআপ ডেটা প্রিভিউতে ঠিকই দেখাচ্ছিল, কিন্তু "Check-up History" খুললে "এখনো সম্পূর্ণ হয়নি" বলছিল। DoctorCheckupActivity.kt-এর markDoctorComplete()-এ খুঁজে পাওয়া গেল: চেকআপের মূল তথ্য saveMedical()-এর মাধ্যমে ফোনে-আগে-সেভ + retry-queue-সহ পথে যায় (তাই নিরাপদ), কিন্তু "doctorComplete=true" + doctorFullNote + Next Visit Plan-এর শেষ লেখাটা (SupabaseClient.updateById("patients", id, body)) কোনো retry/queue ছাড়াই ছুঁড়ে দেওয়া হতো — রিটার্ন ভ্যালুও চেক হতো না। দুর্বল নেটে এটা ব্যর্থ হলে চিরকালের জন্য হারিয়ে যেত। এখন ব্যর্থ হলে (id ততক্ষণে নিশ্চিত হয়ে গেছে বলে নিরাপদে) প্রমাণিত GenericUpdateQueue-তে জমা রাখা হয় — BottomNav.wire()-এর মাধ্যমে পরের যেকোনো পর্দা খোলার সাথে সাথেই নিজে থেকে আবার চেষ্টা হবে। verify_kotlin_compile.py ✅, verify_android_resources.py ✅, tk_guard.py ✅। ওয়েবের এই একই ফাংশন সাধারণ upd() পথ ব্যবহার করে, যেটার নিজস্ব retry আগে থেকেই আছে — তাই ওয়েবে এই গ্যাপ নেই।
