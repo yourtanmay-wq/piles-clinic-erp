@@ -3826,10 +3826,14 @@ class FollowUpActivity : AppCompatActivity() {
                         })
                     }
                     row.addView(left)
+                    // 🔴🔒 V1605 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — এখানেও প্রতিটা
+                    // পেমেন্টের রং একই সবুজ ছিল, Refund হলেও। PaymentActivity.kt-
+                    // এর পপ-আপের হুবহু একই ফিক্স (লাল, সামনে "−")।
+                    val isRefundRow = r.s("payType").equals("refund", true)
                     row.addView(android.widget.TextView(this@FollowUpActivity).apply {
-                        text = "₹${"%,.0f".format(amount)}"; textSize = 16f
+                        text = (if (isRefundRow) "−₹" else "₹") + "%,.0f".format(amount); textSize = 16f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(android.graphics.Color.parseColor("#16A36D"))
+                        setTextColor(android.graphics.Color.parseColor(if (isRefundRow) "#B3261E" else "#16A36D"))
                     })
                     // TK-REPORTED BUG FIX (2026-07-15): this list used to be
                     // read-only — a wrongly-entered amount (e.g. staff typed

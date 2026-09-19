@@ -69,10 +69,20 @@ class TimelineAdapter(
             }
 
             if (e.paymentId != null) {
-                b.tvPaid.text = money(e.paymentAmount)
+                // \ud83d\udd34\ud83d\udd12 V1605 (\u09e7\u09ef.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK-\u09b0\u09bf\u09aa\u09cb\u09b0\u09cd\u099f, \u099b\u09ac\u09bf\u09b8\u09b9) \u2014 \u098f\u0987 \u0998\u09b0\u09c7\u09b0 \u09b0\u0982 XML-\u098f
+                // \u09b8\u09cd\u09a5\u09bf\u09b0 \u09b8\u09ac\u09c1\u099c \u09ac\u09b8\u09be\u09a8\u09cb \u099b\u09bf\u09b2 (item_timeline.xml), \u09a4\u09be\u0987 Refund \u09b8\u09be\u09b0\u09bf\u0993
+                // (\u099f\u09be\u0995\u09be \u09ac\u09c7\u09b0\u09cb\u09a8\u09cb) \u09b8\u09be\u09a7\u09be\u09b0\u09a3 \u09aa\u09c7\u09ae\u09c7\u09a8\u09cd\u099f\u09c7\u09b0 \u09ae\u09a4\u09cb\u0987 \u09b8\u09ac\u09c1\u099c \u09a6\u09c7\u0996\u09be\u09a4\u0964 \u098f\u0996\u09a8 Refund
+                // \u09b8\u09be\u09b0\u09bf\u09a4\u09c7 \u09b2\u09be\u09b2, \u09b8\u09be\u09ae\u09a8\u09c7 "\u2212" \u2014 PaymentActivity.kt-\u098f\u09b0 \u09aa\u09aa-\u0986\u09aa\u09c7\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1
+                // \u098f\u0995\u0987 \u09a8\u09bf\u09af\u09bc\u09ae/\u09b0\u0982 (#B3261E)\u0964
+                val isRefundRow = e.payType.equals("refund", true)
+                b.tvPaid.text = (if (isRefundRow) "\u2212" else "") + money(e.paymentAmount)
+                b.tvPaid.setTextColor(Color.parseColor(if (isRefundRow) "#B3261E" else "#0EA25F"))
                 b.tvDue.text = if (e.runningDue < 0) "\u2014" else money(e.runningDue)
                 TripleTapEdit.attach(b.rowRoot) { onPaymentEdit(e) }
             } else {
+                // \ud83d\udd34\ud83d\udd12 V1605 \u2014 RecyclerView \u09aa\u09c1\u09a8\u09b0\u09cd\u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0\u09c7 \u0986\u0997\u09c7\u09b0 \u09b8\u09be\u09b0\u09bf \u09b2\u09be\u09b2 \u09b0\u09c7\u0996\u09c7
+                // \u0997\u09c7\u09b2\u09c7 \u098f\u0987 "\u2014" \u09b8\u09be\u09b0\u09bf\u0993 \u09b2\u09be\u09b2 \u09a6\u09c7\u0996\u09be\u09a4\u0964 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09be\u09b0\u0987 \u09b0\u0982 \u09ab\u09bf\u09b0\u09bf\u09af\u09bc\u09c7 \u09a6\u09c7\u0993\u09af\u09bc\u09be \u09b9\u09b2\u09cb\u0964
+                b.tvPaid.setTextColor(Color.parseColor("#0EA25F"))
                 b.tvPaid.text = "\u2014"
                 b.tvDue.text = "\u2014"
                 b.rowRoot.setOnClickListener(null)

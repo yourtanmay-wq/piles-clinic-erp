@@ -750,10 +750,15 @@ class PaymentActivity : AppCompatActivity() {
                         })
                     }
                     row2.addView(left)
+                    // 🔴🔒 V1605 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — "Refund-এর কালার
+                    // সবুজ কেন") — এই লাইনটা প্রতিটা পেমেন্টকেই একই সবুজ দেখাত,
+                    // Refund (টাকা বেরোনো) হলেও। এখন Refund সারি লাল, সামনে "−"
+                    // (CollectionAdapter.kt-এ আগে থেকেই ব্যবহৃত একই লাল, #B3261E)।
+                    val isRefundRow = p.s("payType").equals("refund", true)
                     row2.addView(TextView(this@PaymentActivity).apply {
-                        text = "₹${"%,.0f".format(p.optDouble("amount", 0.0))}"
+                        text = (if (isRefundRow) "−₹" else "₹") + "%,.0f".format(p.optDouble("amount", 0.0))
                         textSize = 16f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(android.graphics.Color.parseColor("#16A36D"))
+                        setTextColor(android.graphics.Color.parseColor(if (isRefundRow) "#B3261E" else "#16A36D"))
                     })
                     if (!dateChosenFromHeader || user.role == "master") {
                         val eventCount = p.optInt("_displayEventCount", p.optJSONArray("dailyEvents")?.length() ?: 1).coerceAtLeast(1)

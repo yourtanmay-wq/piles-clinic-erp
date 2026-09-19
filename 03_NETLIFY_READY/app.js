@@ -17597,6 +17597,10 @@ function paymentHistory(id,type='all'){
     ⛔ টাকার হিসাব উপরের `totalPaid` আগের সারিগুলো ধরেই হয় — এক পয়সাও বদলায় না
        (এগুলোর টাকা এমনিতেই ০)। শুধু দেখানো বন্ধ। */
  let shownRows=rows.filter(x=>!['chamber_expected','attendance_mark','bill_edit'].includes(String(x.payType||'').trim().toLowerCase()));
+ /* 🔴🔒 V1605 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — .phPaid CSS-এ স্থির সবুজ
+    বসানো ছিল, তাই Refund সারিও সাধারণ পেমেন্টের মতোই সবুজ দেখাত। এখন
+    Refund সারিতে লাল (#B3261E, ফোনের PaymentActivity.kt-এর হুবহু একই),
+    সামনে "−" — বাকি সব পেমেন্ট আগের মতোই সবুজ (styles.css-এর .phPaid)। */
  let tableRows=shownRows.map((x,i)=>{
   runningPaid+=wlv1PayEffect(x);
   let due=Math.max(0,bill-runningPaid);
@@ -17620,7 +17624,7 @@ function paymentHistory(id,type='all'){
       if(!by||by===m) return '';
       return '<div class="tiny" style="color:#0B5F2E;font-weight:700;margin-top:2px">👤 '+esc(by)+'</div>';
     }catch(e){ return '' } })()
-  }</td><td class="phPaid" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(numFmt(x.amount))}</td><td class="phDue">${esc(numFmt(due))}</td><td style="text-align:center;cursor:pointer" title="Delete" onclick="wlv1DeletePayment('${esc(x.id)}');event.stopPropagation();">🗑️</td></tr>`;
+  }</td><td class="phPaid"${String(x.payType||'').toLowerCase()==='refund'?' style="color:#B3261E"':''} onclick="hiddenPaymentEditTap('${esc(x.id)}')">${String(x.payType||'').toLowerCase()==='refund'?'−':''}${esc(numFmt(x.amount))}</td><td class="phDue">${esc(numFmt(due))}</td><td style="text-align:center;cursor:pointer" title="Delete" onclick="wlv1DeletePayment('${esc(x.id)}');event.stopPropagation();">🗑️</td></tr>`;
  }).join('')||`<tr><td colspan="5" class="mut" style="text-align:center !important;">No payment yet</td></tr>`;
  let photo=p.photo?`<img class="summaryPhoto vaPhoto" src="${esc(p.photo)}">`:`<div class="summaryPhoto vaPhoto blank">👤</div>`;
  let fu=load('followups').find(f=>(f.refId===p.id||mob(f.mobile)===mob(p.mobile))&&(f.stage==='Treatment'||f.stage==='Patient'));
@@ -25372,7 +25376,10 @@ function wlv1TimelineRows(p){
               // 🔒 V217 (§B216): দেখানোর জন্য `paid` (আসল, positive, Android-এর
               // paymentAmount-এর মতোই অক্ষত) — হিসাবের জন্য আলাদা signed মান,
               // approved refund-এ ঋণাত্মক, pending/rejected-এ ০।
-              payEffect:wlv1PayEffect(x)});
+              payEffect:wlv1PayEffect(x),
+              // 🔴🔒 V1605 (১৯.০৯.২০২৬) — Refund সারি লাল দেখানোর জন্য
+              // (wlv1TimelineTable), Android-এর TimelineEntry.payType-এর যমজ।
+              payType:String(x.payType||'')});
   });
 
   load('medical').filter(x=>x.patientId===p.id).forEach(x=>{
@@ -25424,7 +25431,7 @@ function wlv1TimelineTable(p,t){
       <div class="wlv1TlDate">${esc(fmtDate(r.date))}</div>
       <div class="wlv1TlMid"><div class="wlv1TlTitle">${esc(r.title)}</div>
         ${r.note?`<div class="wlv1TlNote">${esc(r.note)}</div>`:''}</div>
-      <div class="wlv1TlPaid">${r.paid>0?money(r.paid):''}</div>
+      <div class="wlv1TlPaid"${String(r.payType||'').toLowerCase()==='refund'?' style="color:#B3261E"':''}>${r.paid>0?(String(r.payType||'').toLowerCase()==='refund'?'−':'')+money(r.paid):''}</div>
       <div class="wlv1TlDue">${(r.paid>0&&bill>0)?money(due):''}</div></div>`;
   }).join('');
   return `<div class="wlv1TlTable">
