@@ -56,8 +56,13 @@ object ReportCardPrinter {
                         // than every other screen. It now reads the same way and
                         // applies the ONE shared rule.
                         val rid = data.rowId
-                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchList("patients", "id=eq.$rid", 1)
-                            else SupabaseClient.findByMobile("patients", "+91$mobile", "*", 50)
+                        /* 🔴🔒 V794 — এই সারিটা থেকে শুধু বয়স/ঠিকানা/লিঙ্গ নেওয়া হয়
+                           (যাচাই করা); ছবিটা আসে `PatientTimelineRepository.build`
+                           থেকে। তাই এখানে ছবি ছাড়া পড়া হয়। */
+                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchListSlim("patients",
+                                "id=eq.$rid", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                            else SupabaseClient.findByMobile("patients", "+91$mobile",
+                                SupabaseClient.PATIENT_NO_PHOTO_COLS, 50)
                         val ownBranch = user.branch
                         PatientIdentity.pickPatientRow(arr, ownBranch)
                     } catch (_: Throwable) { null }
@@ -120,7 +125,8 @@ object ReportCardPrinter {
     // ১ম লাইন গ্রাম+পোস্ট, ২য় লাইন থানা+জেলা। চিহ্ন না পেলে এক লাইনেই থাকে।
     // CheckupA4Report.addrTwoLines/formatAddressTwoLines-এর হুবহু একই নিয়ম।
     // সেভ-হওয়া ঠিকানা বদলায় না — শুধু ছাপার সময় ভাঙা।
-    private fun addrTwoLines(raw: String): String {
+    private fun addrTwoLines(rawIn: String): String {
+        val raw = rawIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")
         var idx = -1
         for (m in markers) { val i = raw.indexOf(m, ignoreCase = true); if (i > 0 && (idx == -1 || i < idx)) idx = i }
@@ -142,9 +148,15 @@ object ReportCardPrinter {
         // agree. attendance_mark rows always carry amount=0.0, so paidTotal
         // below is unaffected either way.
         val payEntries = data.entries
-            .filter { it.paymentId != null && it.payType != "visit_fee" && it.payType != "bill_edit" && it.payType != "chamber_expected" }
+            .filter {
+                it.paymentId != null && (
+                    it.payType.equals("treatment", true) ||
+                    it.payType.equals("attendance_mark", true) ||
+                    it.payType.equals("refund", true)
+                )
+            }
             .sortedBy { it.sortKey }
-        // one row per visit (date); a day's cash + online are summed into Paid.
+        // one row per real visit day; refund-only/audit-only dates do not create a visit row.
         val byDate = LinkedHashMap<String, MutableList<TimelineEntry>>()
         for (e in payEntries) byDate.getOrPut(e.date) { mutableListOf() }.add(e)
         // 🔴 V217 self-audit fix (31.07.2026, দ্বিতীয় দফা অডিট): এই ফাইলটা
@@ -154,15 +166,29 @@ object ReportCardPrinter {
         // কাগজে ভিন্ন PAID/DUE** দেখাতে পারত (স্ক্রিন ঠিক, ছাপা ভুল) —
         // এটা রোগীর হাতে যাওয়া কাগজ বলে বিশেষ গুরুত্বপূর্ণ। এখন `paidEffect`
         // (§B216) ব্যবহার — ঠিক ReportCardActivity.kt-এর নিয়মে।
-        val paidTotal = payEntries.sumOf { it.paidEffect }
+        val paidTotal = payEntries
+            .filter { it.payType.equals("treatment", true) || it.payType.equals("refund", true) }
+            .sumOf { it.paidEffect }
         val dueTotal = if (bill > 0.0) (bill - paidTotal).coerceAtLeast(0.0) else 0.0
 
         val rows = StringBuilder()
         var run = 0.0
         var idx = 0
         for ((visitDate, dayList) in byDate) {
+            val hasVisitAnchor = dayList.any {
+                it.payType.equals("treatment", true) || it.payType.equals("attendance_mark", true)
+            }
+            if (!hasVisitAnchor) continue
             idx++
-            val paidThisDay = dayList.sumOf { it.paidEffect }
+            val paidThisDay = dayList
+                .filter { it.payType.equals("treatment", true) || it.payType.equals("refund", true) }
+                .sumOf { it.paidEffect }
+            val displayPaidThisDay = dayList
+                .filter { it.payType.equals("treatment", true) }
+                .sumOf { it.paidEffect.coerceAtLeast(0.0) }
+            val hasRealTreatmentPayment = dayList.any {
+                it.payType.equals("treatment", true) && it.paymentAmount > 0.0
+            }
             run += paidThisDay
             val due = if (bill > 0.0) (bill - run).coerceAtLeast(0.0) else 0.0
             // 🚨 TK-REPORTED, LIVE (27.07.2026, SADDAM): the PRINTED Report Card
@@ -176,80 +202,152 @@ object ReportCardPrinter {
             // কথা হুবহু থাকে। ⛔ ডেটাবেসে কিছু বদলায় না, পর্দাও বদলায় না —
             // Chamber Register-এর ছাপাও ঠিক এই একই ফাংশন ডাকে, তাই দুই
             // কাগজে কখনো দুই রকম হবে না।
-            val progress = dayList.map { it.typedRemark }.filter { it.isNotBlank() }.distinct()
+            // V1526: print only the visit's treatment/attendance progress.
+            // Refund reason/audit text never becomes a clinical Progress line.
+            val progress = dayList
+                .filter { it.payType.equals("treatment", true) || it.payType.equals("attendance_mark", true) }
+                .map { it.typedRemark }
+                .filter { it.isNotBlank() }
+                .distinct()
                 .joinToString(" · ") { com.tkbiswas.pilesclinic.print.PrintTextEnglish.forPrint(it) }
             // 🔒 V235: table থেকে DUE column বাদ (উপরের লাল DUE Summary Box বহাল)।
             // `due` হিসাব বহাল আছে যাতে ভবিষ্যতে দরকার হলে বদল সহজ হয়, কিন্তু
             // এখন আর cell-এ যায় না।
             rows.append(
                 "<tr><td class='v'>${ordinal(idx).uppercase()}</td><td>${esc(formatDisplayDate(visitDate))}</td>" +
-                "<td class='pr'>${esc(progress)}</td><td class='pd'>${money(paidThisDay)}</td></tr>"
+                "<td class='pr'>${esc(progress.ifBlank { "—" })}</td><td class='pd'>${if (hasRealTreatmentPayment) money(displayPaidThisDay) else "—"}</td></tr>"
             )
         }
-        // pad up to 20 rows like the paper (৪ column)
-        var pad = idx
-        while (pad < 20) { pad++; rows.append("<tr><td class='v'>${ordinal(pad).uppercase()}</td><td></td><td class='pr'></td><td></td></tr>") }
+        /* 🟢🔒 V1125 (০৫.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"পেশেন্ট যখন ৪ বারেই
+           পেমেন্ট কমপ্লিট করে দেবে, তাহলে এতগুলো বক্স বসানোর কোনো দরকার নেই —
+           যতগুলো পেমেন্ট ও ট্রিটমেন্ট প্রগ্রেস দেখাবে, শুধু ততগুলো বক্স ছাপবে"*
+           ⇒ ২০টা খালি সারি বসানোর নিয়মটা তুলে দেওয়া হলো। ⛔ নিচের TK BISWAS ·
+           বারকোড · Dr. K.H MANDAL পাতার একদম নিচেই স্থির থাকে (নিচের `.sp` ফাঁক),
+           তাই সারি কম হলেও কাগজটা ফাঁকা-ফাঁকা লাগে না। */
+
+        /* 🟢 V1129 — TK-এর নিয়ম ৭ক-এর ৩ (ডেটা না থাকলেও ঠিক দেখাবে): একটাও
+           ভিজিট/টাকা না থাকলে টেবিলটা শুধু মাথাসহ ফাঁকা দাঁড়িয়ে থাকত, দেখতে
+           ভাঙা লাগত। এখন একটাই পরিষ্কার সারি বসে। ⛔ একটাও সারি থাকলে এই ধাপ
+           চলেই না — আচরণ হুবহু আগের মতোই। */
+        if (idx == 0) {
+            rows.append("<tr><td class='v'>—</td><td></td>" +
+                "<td class='pr'>No visit or payment recorded yet</td><td></td></tr>")
+        }
 
         val watermark = if (logoB64.isNotBlank())
             "<img class='wm' src='data:image/jpeg;base64,$logoB64'/>" else ""
 
+        /* ═══════════════════════════════════════════════════════════════════
+           🟢🔒 V1125 (০৫.০৯.২০২৬) — **Report Card এখন পুরো A4, ঠিক ১ পাতা**
+           TK: *"প্রিন্ট বা শেয়ার করলে এরকম আসছে কেন? এটাকে প্রফেশনাল বানাতে হবে,
+           A4 Size 1 Page"* — ফটো-প্রুফ পাশ করেছেন।
+
+           🔴 **প্রমাণিত কারণ:** কাগজটা ১২৪০ px চওড়ায় আঁকা হয়, অথচ লেখার মাপ ছিল
+           ৯–১৫px। তার উপর ২০টা খালি সারিতে উচ্চতা বেড়ে যেত। নিচের PDF ধাপ পুরোটা
+           A4-তে আঁটাতে গিয়ে ছোট করে ফেলত (`min(widthScale, heightScale)`), তাই
+           লেখাগুলো ক্ষুদ্র হয়ে কাগজের উপর দিকে জড়ো হয়ে থাকত, নিচে বিরাট ফাঁকা।
+
+           ⇒ এখন কাগজটাই **A4-এর মাপে আঁকা**: চওড়া ১২৪০px, উচ্চতা ১৭৫৪px
+             (২১০ঃ২৯৭ অনুপাত), আর লেখার মাপ সেই অনুপাতেই বড়। ফলে দুই মাপের ছোট
+             করা প্রায় সমান হয় ⇒ কাগজ পুরো ভরে, এক পাতাতেই।
+
+           ⛔ প্রেসক্রিপশনের নিচের অংশটা কোডে মিলিয়ে হুবহু বসানো হলো —
+              বাঁয়ে **TK BISWAS**, মাঝে **বারকোড + Document Digitally Verified**,
+              ডানে **Dr. K.H MANDAL**, নিচে সবুজ ফিতে। (প্রেসক্রিপশনেও রোগীর
+              আইডিটা বারকোডের নিচে **লুকানোই** থাকে — মিলিয়ে দেখা, তাই এখানেও নেই।)
+           ⛔ TK-নির্দেশে **DISEASE বাঁ কলামে · MOB ডান কলামে**।
+           ⛔ শিরোনামটা ছিল "PATIENT PROGRESS REPORT OF MOVEMENT HISTORY" —
+              ইংরেজিতে "movement history" মানে পায়খানার ইতিহাস, অথচ টেবিলে আছে
+              ভিজিট · চিকিৎসার অগ্রগতি · টাকা। TK-অনুমোদনে এখন
+              **"VISIT · TREATMENT PROGRESS & PAYMENT RECORD"**।
+           ⛔ টাকার একটাও হিসাব · একটাও সারি বদলায়নি — শুধু কাগজের চেহারা।
+           ═══════════════════════════════════════════════════════════════════ */
+        /* 🎨🔒 V1491 (১৫.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ) — বারকোডের উপরের
+           "লাইন" TK BISWAS/Dr. MANDAL-এর স্বাক্ষর-লাইনের সমান উচ্চতায় ছিল না।
+           আসল কারণ (কোড ধরে যাচাই করে, আন্দাজ নয়): `.vc{border-top:0;
+           padding-top:0}` লেখা থাকলেও `.docline>div` (border-top+padding-top)
+           বেশি specificity-র জন্য সেটাকে ওভাররাইড করতে পারছিল না — বারকোডের
+           কলামে অদৃশ্য বাড়তি ৮px+১.৫px জায়গা বসে ছিল। এখন `.docline>div.vc`
+           দিয়ে specificity ঠিক করে সেই override সত্যিই কাজ করানো হলো, আর
+           TK-র পরামর্শ মতোই `.vbar`-এর উচ্চতা একটু কমানো হলো (৩৪→২৯px) —
+           দুটো মিলিয়ে বারকোডের লাইন এখন পিক্সেল-মিলিয়ে স্বাক্ষর-লাইনের সমান।
+           নকল ব্রাউজারে মেপে প্রমাণ করা হয়েছে, TK ফটো-প্রুফ দেখে পাশ করেছেন।
+           ⛔ বাকি কাগজের একটা অক্ষরও বদলায়নি। এই মন্তব্যটা ইচ্ছে করেই এখানে,
+           নিচের CSS-এর ভিতরে নয় — HTML-এর ভিতরে বাংলা মন্তব্য
+           বসালে সেটাই ছাপার/PDF-এর সোর্সে থেকে যেত। */
         return """
-<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-*{box-sizing:border-box;margin:0;padding:0;text-transform:uppercase;font-family:sans-serif}
-body{padding:10px;position:relative}
-.wm{position:fixed;top:55%;left:50%;width:55%;transform:translate(-50%,-50%);opacity:.07;z-index:-1}
-.clinic{text-align:center;color:#fff;background:linear-gradient(90deg,#0B2B59,#0e7c7b);padding:7px;border-radius:6px 6px 0 0}
-.cn{font-size:15px;font-weight:800}.ca{font-size:9px}
-/* 🔒 V235 (TK verified + demo-approved 01.08.2026): Patient Details compact +
-   photo big SQUARE (was গোল border-radius:50%)। design/রঙ অপরিবর্তিত। */
-.pd2{display:flex;border:1.5px solid #0B2B59;border-top:none;padding:6px 9px;align-items:center}
-.photo{width:74px;height:74px;border-radius:4px;border:2px solid #0e7c7b;object-fit:cover;margin-right:22px;flex:none}
-.col{flex:1;font-size:9.5px;line-height:1.4}.col b{color:#0e7c7b}
-.pname{font-size:12.5px;font-weight:800;color:#0B2B59}
-/* Summary box (BILL/PAID/লাল DUE) — অপরিবর্তিত; নিচের table-এর সাথে gap কমানো */
-.totals{display:flex;gap:14px;margin:7px 0 4px}
-.tb{flex:1;border:1.5px solid;border-radius:8px;padding:6px;text-align:center;font-weight:800}
-.tb .l{font-size:9px}.tb .n{font-size:14px}
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1240"><style>
+@page{size:A4;margin:0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{width:1240px}
+body{font-family:Arial,sans-serif;color:#10223A;min-height:1754px;background:#fff;
+     padding:30px 34px 26px;display:flex;flex-direction:column;position:relative}
+.wm{position:absolute;top:52%;left:50%;width:86%;transform:translate(-50%,-50%);opacity:.02;z-index:0;pointer-events:none}
+.clinic,.pd2,.totals,.rtitle,.tw,.docline,.thanks{position:relative;z-index:1}
+.clinic{text-align:center;color:#fff;background:linear-gradient(90deg,#0B2B59,#0e7c7b);
+        padding:16px 10px;border-radius:10px 10px 0 0}
+.cn{font-size:31px;font-weight:800;letter-spacing:.5px}
+.ca{font-size:17px;margin-top:5px;opacity:.93}
+.pd2{display:flex;border:2px solid #0B2B59;border-top:none;padding:16px 18px;align-items:center;border-radius:0 0 10px 10px}
+.photo{width:150px;height:150px;border-radius:8px;border:3px solid #0e7c7b;object-fit:cover;
+       margin-right:26px;flex:none;background:#F4F8F8}
+.col{flex:1;font-size:19px;line-height:1.55}
+.col b{color:#0e7c7b}
+.pname{font-size:27px;font-weight:800;color:#0B2B59;margin-bottom:4px}
+.totals{display:flex;gap:22px;margin:20px 0 14px}
+.tb{flex:1;border:2.5px solid;border-radius:12px;padding:12px;text-align:center;font-weight:800}
+.tb .l{font-size:16px;letter-spacing:1px}
+.tb .n{font-size:29px;margin-top:3px}
 .bill{border-color:#3f6fb0;color:#1c3d6e;background:#EEF3FB}
 .paid{border-color:#16a36d;color:#0c7a45;background:#E9F8F0}
 .due{border-color:#e5484d;color:#b02525;background:#FDECEC}
-.rtitle{text-align:center;font-weight:800;margin:2px 0 4px}
-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
-th,td{border:1px solid #0B2B59;height:24px;text-align:center;padding:1px 4px;overflow:hidden}
-/* 🔒 V235: table এখন ৪ column — DUE column বাদ; TREATMENT PROGRESS আরও চওড়া।
-   navy/teal রঙ ও border অপরিবর্তিত। */
-th:nth-child(1),td:nth-child(1){width:8%}
-th:nth-child(2),td:nth-child(2){width:15%}
-th:nth-child(3),td:nth-child(3){width:62%}
-th:nth-child(4),td:nth-child(4){width:15%}
-th{background:#0e7c7b;color:#fff}
-/* 🔒 V235 (TK, Report Card—Single A4): Treatment Progress লেখা আর কখনো কাটা/লুকানো
-   হবে না — আগের ২-লাইন clamp (line-clamp:2 · overflow:hidden) সরানো হলো। এখন
-   লম্বা note প্রয়োজনীয় সংখ্যক লাইনে পুরো দেখায় (word-break সহ), cell/row নিজে
-   থেকে বড় হয়। single A4 নিশ্চিত হয় নিচের buildPdfAndPreview()-এর fit-to-one-page
-   scaling দিয়ে (পুরো পাতাটা এক A4-তে আঁটে, দরকারে font সামান্য ছোট হয় — কোনো
-   তথ্য বাদ যায় না)। ⛔ কোনো ellipsis/`...`/overflow:hidden নেই। */
-td.pr{text-align:left;padding-left:6px;white-space:normal;overflow:visible;vertical-align:top;height:auto;line-height:1.2;word-break:break-word}
+.rtitle{text-align:center;font-weight:800;font-size:22px;letter-spacing:.6px;margin:8px 0 12px;color:#0B2B59}
+table{width:100%;border-collapse:collapse;font-size:20px;table-layout:fixed}
+th,td{border:1.5px solid #0B2B59;text-align:center;padding:14px 10px}
+th{background:#0e7c7b;color:#fff;font-size:19px;letter-spacing:.5px}
+th:nth-child(1),td:nth-child(1){width:11%}
+th:nth-child(2),td:nth-child(2){width:19%}
+th:nth-child(3),td:nth-child(3){width:53%}
+th:nth-child(4),td:nth-child(4){width:17%}
 td.v{font-weight:700;color:#0e7c7b;background:#F2FAF8}
+td.pr{text-align:left;padding-left:12px;word-break:break-word;line-height:1.25}
 td.pd{color:#0c8a4e;font-weight:700}
+.sp{flex:1}
+.docline{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin:26px 4px 0;align-items:end}
+.docline>div{border-top:1.5px solid #10223A;padding-top:8px}
+.docline b{font-size:19px;font-weight:800;color:#0B2B59}
+.docline small{display:block;font-size:14px;color:#5B6B81;margin-top:2px}
+.dl{text-align:left}.dr{text-align:right}
+.docline>div.vc{border-top:0;padding-top:0}
+.vc{text-align:center}
+.vc b{display:block;font-size:14px;color:#0B5D2A;margin-top:4px}
+.vbar{height:29px;width:190px;margin:8px auto 0;background:repeating-linear-gradient(90deg,#000 0,#000 2px,#fff 2px,#fff 4px)}
+.thanks{margin-top:14px;background:#0B5D2A;color:#fff;text-align:center;font-weight:800;font-size:15px;padding:8px 0;border-radius:6px}
 </style></head><body>
 $watermark
-<div class="clinic"><div class="cn">${esc(branch.clinicName)}</div><div class="ca">${esc(branch.addressLine)} · ${esc(branch.phoneLine)}</div></div>
+<div class="clinic"><div class="cn">${esc(branch.clinicName)}</div><div class="ca">${esc(branch.addressLine)} · ${esc(branch.phoneLine)} · Helpline: ${esc(com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE)}</div></div>
 <div class="pd2">
   ${if (data.photo.isNotBlank()) "<img class='photo' src='${esc(data.photo)}'/>" else "<div class='photo'></div>"}
-  <div class="col"><div class="pname">${esc(data.name)}</div><div><b>AGE:</b> ${esc(age)}${if (sex.isNotBlank()) "&nbsp;&nbsp;${esc(sex)}" else ""}</div><div><b>ID:</b> ${esc(data.patientId)}</div><div><b>MOB:</b> +91${esc(data.mobile)}</div></div>
-  <div class="col"><div><b>DATE:</b> ${esc(formatDisplayDate(today()))}</div><div><b>DISEASE:</b> ${esc(data.disease)}</div><div><b>ADDRESS:</b> ${addrTwoLines(address)}</div></div>
+  <div class="col"><div class="pname">${esc(data.name)}</div><div><b>AGE:</b> ${esc(age)}${if (sex.isNotBlank()) "&nbsp;&nbsp;${esc(sex)}" else ""}</div><div><b>ID:</b> ${esc(data.patientId)}</div><div><b>DISEASE:</b> ${esc(data.disease)}</div></div>
+  <div class="col"><div><b>DATE:</b> ${esc(formatDisplayDate(today()))}</div><div><b>MOB:</b> +91${esc(data.mobile)}</div><div><b>ADDRESS:</b> ${addrTwoLines(address)}</div></div>
 </div>
 <div class="totals">
   <div class="tb bill"><div class="l">TOTAL BILL</div><div class="n">${money(bill)}</div></div>
   <div class="tb paid"><div class="l">PAID</div><div class="n">${money(paidTotal)}</div></div>
   <div class="tb due"><div class="l">DUE</div><div class="n">${money(dueTotal)}</div></div>
 </div>
-<div class="rtitle">PATIENT PROGRESS REPORT OF MOVEMENT HISTORY</div>
-<table>
+<div class="rtitle">VISIT · TREATMENT PROGRESS &amp; PAYMENT RECORD</div>
+<div class="tw"><table>
   <tr><th>VISIT</th><th>DATE</th><th>TREATMENT PROGRESS</th><th>PAID</th></tr>
   $rows
-</table>
+</table></div>
+<div class="sp"></div>
+<div class="docline">
+  <div class="dl"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>
+  <div class="vc"><div class="vbar"></div><b>Document Digitally Verified</b></div>
+  <div class="dr"><b>Dr. K.H MANDAL</b><small>(B.A.M.S) Regd 12386</small></div>
+</div>
+<div class="thanks">All treatments are Ayurvedic &amp; Natural &nbsp;|&nbsp; Bring this report on your next visit &nbsp;|&nbsp; <b>In an emergency, visit your nearest hospital immediately</b></div>
 </body></html>
 """.trimIndent()
     }
@@ -318,6 +416,30 @@ $watermark
         val webView = WebView(context)
         // সফটওয়্যার লেয়ার আগে — পরে নয়।
         try { webView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null) } catch (_: Throwable) { }
+        /* 🚨🔒 V1190 (০৭.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"প্রিন্ট আউট এরকম কেন
+           আসে? … ফটো প্রুফ যেটা আমাকে দেখাবেন সেটা ভবিষ্যতে কার্যকারী হবে"*) —
+           কাগজের ডান দিক (TREATMENT PROGRESS ও PAID কলাম) কেটে যাচ্ছিল।
+
+           🔴 **আসল কারণ (কোডে মেপে বের করা, আন্দাজ নয়):** কাগজের HTML-এ লেখা
+              `width:1240px` — কিন্তু ওটা **CSS পিক্সেল**। WebView-কে না বললে সে
+              পাতার চওড়া ধরে **ঘনত্ব ভাগ করে** (২× ফোনে ১২৪০ ÷ ২ = ৬২০ CSS px)।
+              ফলে ১২৪০ চওড়া কাগজটা ৬২০-এর জানালায় আঁকা হত ⇒ **ডান দিকটা কেটে
+              যেত** (TK-র ছবিতে ঠিক অর্ধেকের একটু বেশি দেখা যাচ্ছিল)।
+              ⛔ ছাপার মাপ/scale-এর হিসাব ঠিকই ছিল; দোষটা ছিল WebView-কে
+                 CSS-চওড়াটা **বলে না দেওয়ায়**।
+
+           ✅ **সমাধান — প্রকল্পের নিজের প্রমাণিত পথ** (`CheckupA4Report` ও
+              `EstimateHtmlPrint`-এ ঠিক এটাই আছে): পাতায় `<meta name="viewport"
+              content="width=1240">` আর এখানে `useWideViewPort` চালু। তখন ১২৪০
+              CSS px ঠিক ১২৪০ পিক্সেলের ভিউয়েই বসে — **যেকোনো ফোনে, যেকোনো
+              ঘনত্বে** পুরো কাগজটা আঁকা হয়।
+           ⛔ কাগজের সাজ · লেখা · কলামের মাপ — এক অক্ষরও বদলায়নি।
+           ⚠️ **আমার দায়:** এটা আজকের কাজে ভাঙেনি (শেষ বদল V1125), কিন্তু TK-কে
+              দেখানো প্রুফটা আসল ফোনে মেলেনি — সেটা আমারই ব্যর্থতা। */
+        try {
+            webView.settings.useWideViewPort = true
+            webView.settings.loadWithOverviewMode = true
+        } catch (_: Throwable) { }
         val root = activity?.findViewById<android.view.ViewGroup>(android.R.id.content)
         if (root != null) {
             webView.alpha = 0f
@@ -470,7 +592,7 @@ $watermark
             printManager.print(
                 "Report Card",
                 adapter,
-                PrintAttributes.Builder()
+                PrintQuality.builder()
                     .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                     .build()
             )

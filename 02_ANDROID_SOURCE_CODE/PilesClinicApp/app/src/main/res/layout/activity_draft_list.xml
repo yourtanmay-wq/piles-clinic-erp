@@ -73,7 +73,21 @@
             android:insetBottom="0dp"
             android:backgroundTint="#E2F6E8"
             android:textColor="#0F7A3C"
-            android:text="⬇ Sheet" />
+            android:text="⬇ Sheet"
+            android:visibility="gone" />
+
+        <!-- V1521: compact history controls live in the top-right overflow.
+             Existing Sheet action is preserved, only moved into this menu. -->
+        <TextView
+            android:id="@+id/btnMore"
+            android:layout_width="36dp"
+            android:layout_height="32dp"
+            android:gravity="center"
+            android:text="⋮"
+            android:textColor="@color/white"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:contentDescription="More options" />
 
     </LinearLayout>
 

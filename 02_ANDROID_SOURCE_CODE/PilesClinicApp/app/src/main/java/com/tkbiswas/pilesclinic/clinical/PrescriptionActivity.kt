@@ -25,8 +25,20 @@ class PrescriptionActivity : AppCompatActivity() {
     private lateinit var tvEmptyState: TextView
     private var saveInProgress = false
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         com.tkbiswas.pilesclinic.clinical.ClinicalRepository.attachDoseMemory(this)
         setContentView(R.layout.activity_prescription)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
@@ -58,7 +70,6 @@ class PrescriptionActivity : AppCompatActivity() {
         val btnAddBlank = findViewById<MaterialButton>(R.id.btnAddBlank)
         val btnSave = findViewById<MaterialButton>(R.id.btnSavePrescription)
         val btnSaveAndPrint = findViewById<MaterialButton>(R.id.btnSaveAndPrint)
-        val btnShare = findViewById<MaterialButton>(R.id.btnSharePrescription)
 
         if (!editable) {
             findViewById<TextView>(R.id.tvReadOnlyNotice).visibility = android.view.View.VISIBLE
@@ -77,7 +88,6 @@ class PrescriptionActivity : AppCompatActivity() {
 
         btnSaveAndPrint.setOnClickListener { savePrescription(openPrintAfter = true) }
 
-        btnShare.setOnClickListener { sharePrescription() }
 
         // TK-REQUESTED CHANGE (2026-07-19): always jump straight into the
         // reference-list picker when editable — this used to only happen on
@@ -98,7 +108,9 @@ class PrescriptionActivity : AppCompatActivity() {
         // ⛔ বোতাম চেপে নিজে তালিকা খুললে আগের মতোই — ব্যাক করলে এই পর্দাতেই
         // থাকবেন, কিছু হারাবে না।
         if (editable) {
-            openedFromEntry = true
+            // 🔴 V743 — আগে এখানে `openedFromEntry = true` বসত, যেটা দিয়ে
+            //    পিকার-বাতিলে পর্দা বন্ধ করা হতো (B38/B177)। TK-এর নতুন
+            //    সিদ্ধান্তে ওই নিয়মটাই উঠে গেছে, তাই ঘরটারও দরকার নেই।
             // Read only this patient's last Doctor Check-up before the picker
             // opens. Failure safely falls back to the patient-bound phone copy.
             lifecycleScope.launch {
@@ -110,9 +122,6 @@ class PrescriptionActivity : AppCompatActivity() {
         }
     }
 
-    /** খাতার সারি B38: ঢোকার সময় নিজে থেকে তালিকা খোলা হয়েছিল কি না। */
-    private var openedFromEntry = false
-
     /** ROOT-CAUSE FIX (2026-07-15): "Generate Medicine Slip" button removed from
      *  Prescription screen (TK approved) — Prescription and Medicine Slip are
      *  separate documents with separate medicine lists now. Replaced with
@@ -120,6 +129,10 @@ class PrescriptionActivity : AppCompatActivity() {
      *  @param finishAfter closes this screen only after the cloud save finishes,
      *  so the direct-add flow (showReferencePicker) never cuts the save short. */
     private fun savePrescription(openPrintAfter: Boolean, finishAfter: Boolean = false) {
+        /* 🔴🔒 V786 — রোগী চেনা না গেলে (কল/মেমরির কারণে প্রসেস মরে পর্দা
+           আবার খোলা) এখানেই থেমে যায়। আগে ফাঁকা আইডিতেও সেভ হয়ে যেত আর
+           "saved" লেখা উঠত — ডাক্তারের লেখা চুপচাপ হারাত। */
+        if (RoleSession.blockIfNoPatient(this)) return
         if (ClinicalRepository.currentPrescription.isEmpty()) {
             Toast.makeText(this, "Add at least one medicine before saving.", Toast.LENGTH_SHORT).show()
             return
@@ -136,7 +149,7 @@ class PrescriptionActivity : AppCompatActivity() {
                 ClinicalCloudRepository.SameDayPrescriptionCheck.EXISTS -> {
                     AlertDialog.Builder(this@PrescriptionActivity)
                         .setTitle("Prescription already saved today")
-                        .setMessage("এই রোগীর আজ একটি Prescription সেভ হয়েছে। আপনি কি আবার Prescription করতে চান?")
+                        .setMessage("A Prescription has already been saved for this patient today. Do you want to make another one?")   /* 🔤 V726 */
                         .setNegativeButton("No") { _, _ -> saveInProgress = false }
                         .setPositiveButton("Yes") { _, _ -> commitPrescription(openPrintAfter, finishAfter) }
                         .setOnCancelListener { saveInProgress = false }
@@ -145,18 +158,18 @@ class PrescriptionActivity : AppCompatActivity() {
                         //   তাই এতদিন বাদ পড়ে যেত। ⛔ বাংলা-বন্ধ না থাকলে
                         //   `installDialog()` প্রথম লাইনেই ফিরে যায় — অর্থাৎ বাকি
                         //   সবার জন্য **এক অক্ষরও বদলায়নি**।
-                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }
+                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
                 }
                 ClinicalCloudRepository.SameDayPrescriptionCheck.NONE ->
                     commitPrescription(openPrintAfter, finishAfter)
                 ClinicalCloudRepository.SameDayPrescriptionCheck.UNVERIFIED -> {
                     saveInProgress = false
                     AlertDialog.Builder(this@PrescriptionActivity)
-                        .setTitle("Prescription যাচাই করা যায়নি")
-                        .setMessage("ইন্টারনেট সংযোগ পরীক্ষা করে আবার Save করুন। কোনো Prescription সেভ হয়নি।")
+                        .setTitle("Prescription could not be verified")   /* 🔤 V726 */
+                        .setMessage("Check the internet connection and Save again. No Prescription was saved.")   /* 🔤 V726 */
                         .setPositiveButton("OK", null)
                         // 🔴🔒 V512: উপরেরটার হুবহু একই কারণ ও একই নিরাপত্তা।
-                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }
+                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
                 }
             }
         }
@@ -230,7 +243,14 @@ class PrescriptionActivity : AppCompatActivity() {
     }
 
     /** TK APPROVED (2026-07-15): plain text share, same pattern as Medicine
-     *  Slip's "Share as Text" — sends via WhatsApp/SMS/any share target. */
+     *  Slip's "Share as Text" — sends via WhatsApp/SMS/any share target.
+     *
+     *  🔴 TK-নির্দেশ (২৭.০৮.২০২৬): *"share As Text থাকবে না"* — বোতামটা
+     *  পর্দা থেকে তুলে নেওয়া হয়েছে, তাই এই ফাংশনটা এখন **আর ডাকা হয় না**।
+     *  ⛔ মুছে ফেলা হয়নি — TK কখনো ফেরত চাইলে শুধু একটা লাইন
+     *     (`btnShare.setOnClickListener { sharePrescription() }`) বসালেই
+     *     আগের মতো কাজ করবে; কোড আবার নতুন করে লিখতে হবে না। */
+    @Suppress("unused")
     private fun sharePrescription() {
         val medicines = ClinicalRepository.currentPrescription
         if (medicines.isEmpty()) {
@@ -294,8 +314,18 @@ class PrescriptionActivity : AppCompatActivity() {
                 // "শুধুমাত্র এই ফটোটাই থাকবে" — পিকার থেকে কিছু না করে বেরোলে
                 // তালিকা খালি থাক বা ভরা, **সবসময়ই** সরাসরি Take Action-এ
                 // ফিরতে হবে। তাই এখন `isEmpty()` শর্তটা তুলে দেওয়া হলো।
-                if (openedFromEntry) finish()
-                openedFromEntry = false
+                /* 🔴🔒 V743 (২৭.০৮.২০২৬) — **TK-এর নতুন সিদ্ধান্ত, পুরনোটা তুলে দেওয়া।**
+                   TK ছবি দিয়ে দেখালেন: ওষুধ বাছার পর্দা → ব্যাক → সোজা Follow-up
+                   তালিকায় চলে আসে, Prescription পর্দাটা দেখাই যায় না। প্রশ্ন করলেন
+                   *"৩ থেকে ব্যাকে আবার ১ এ কেন আসে"*, আর তিনটে বিকল্প দেখানোর পর
+                   স্পষ্ট বললেন: **"২ করুন"** = B177 তুলে দিতে হবে।
+
+                   ⛔ **উপরের B38/B177-এর লেখা মুছিনি ইচ্ছে করেই** — ওটা ইতিহাস,
+                      কেন একদিন উল্টো নিয়ম ছিল সেটা যেন পরে বোঝা যায়।
+                   ⇒ এখন পিকার থেকে কিছু না নিয়ে বেরোলেও পর্দাটা **বন্ধ হয় না**,
+                     Prescription পর্দাই দেখায়; সেখান থেকে ব্যাক = Follow-up।
+                   ⚠️ তাই কিছু না নিয়ে বেরোলে **ফাঁকা Prescription পর্দা** দেখা
+                      যাবে — ঠিক যেটা B38-এ TK পছন্দ করেননি। TK-কে জানানো হয়েছে। */
             },
             /* 🔵 V488 (20.08.2026, TK-নির্দেশ): নিচের বারের নতুন "WhatsApp" বোতাম।
                Save-এর মতোই সব সেভ হয় (আগে ফোনে, পিছনে ক্লাউডে), শুধু ছাপার পর্দা
@@ -317,20 +347,31 @@ class PrescriptionActivity : AppCompatActivity() {
         ) {
             adapter.notifyDataSetChanged()
             refreshEmptyState()
-            // TK APPROVED (2026-07-15): printing matters more than just saving —
-            // the fast-add path now opens print preview too, not just Save.
-            savePrescription(openPrintAfter = true, finishAfter = true)
+            // 🔴🔴🔒 V669 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট, দ্বিতীয়বার — "এই সমস্যার
+            // কথাও তো আগে বলেছিলাম কেন ঠিক করেন নাই") — **স্বীকারোক্তি:**
+            // V662-এ শুধু "Outside List" (custom ওষুধ লেখার) পথ ঠিক করেছিলাম,
+            // কিন্তু এই "Reference List" (তালিকা থেকে টিক দিয়ে বাছার) পথের
+            // নিজের "Save"-এও একই বাগ ছিল — মিস হয়ে গিয়েছিল, TK-এর ছবিতেই
+            // ধরা পড়ল (KANKAYAN VATI ARSHA বেছে "Save (1)" চাপতেই সরাসরি
+            // Print Preview খুলেছিল)। এখন এখানেও ঠিক করা হলো — আর সরাসরি
+            // প্রিন্টে যাবে না, ডাক্তার প্রেসক্রিপশন পাতাতেই ফিরে থাকবেন।
         }
     }
 
     private fun showCustomMedicineDialog() {
+        // 🔴🔴🔒 V662 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট) — আগে এখানে একটা ওষুধ
+        // Add করলেই সরাসরি `savePrescription(openPrintAfter = true,
+        // finishAfter = true)` ডাকা হতো — অর্থাৎ সাথে সাথে সেভ+প্রিন্ট+
+        // পর্দা বন্ধ, ডাক্তারকে কোনো সুযোগ না দিয়ে (এটাই TK-এর দুটো
+        // অভিযোগেরই আসল কারণ — একটার বেশি ওষুধ লেখা যেত না, আর সরাসরি
+        // প্রিন্টে চলে যেত)। এটা ছিল TK-এরই ১৯.০৭.২০২৬-এর আগের নির্দেশ,
+        // যেটা এখন TK স্পষ্টভাবে বদলাতে বলেছেন।
+        // ⛔ এখন শুধু তালিকা রিফ্রেশ হয় — ডাক্তার Prescription পাতাতেই
+        //   ফিরে থাকেন, নিজে থেকে Save/Save & Print বেছে নেবেন (নিচের
+        //   btnSave/btnSaveAndPrint — এক অক্ষরও বদলায়নি)।
         MedicinePickerDialog.showOutsideDialog(this, "ayurvedic", MedicinePickerDialog.GREEN_AYURVEDIC) {
             adapter.notifyDataSetChanged()
             refreshEmptyState()
-            // TK-REQUESTED CHANGE (2026-07-19): match the reference-list
-            // picker's flow -- adding via Outside List also directly saves,
-            // prints, and closes the screen instead of leaving it behind.
-            savePrescription(openPrintAfter = true, finishAfter = true)
         }
     }
 

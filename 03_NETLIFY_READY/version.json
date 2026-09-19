@@ -1,5 +1,5 @@
 {
-  "versionCode": 597,
-  "versionName": "5.97",
-  "note": "Latest Android build. The app reads this file to warn a phone that is still running an older APK. Update BOTH numbers whenever the APK version changes."
+  "versionCode": 1612,
+  "versionName": "16.12",
+  "note": "V1604-V1612: Chamber reopen request notice no longer repeats branch/date in its title; Refund amounts show in red with a minus sign instead of green; CHECK-UP Queue card drops the Action button; Add Treatment redesigned (position picked on a clock face, Piles keeps its Grade picker, rate typed by hand); Registration's same-name duplicate check now searches the cloud instead of only the local device; repeated Chamber reopen requests now warn staff instead of creating duplicate cards; Statement (Income & Expense) gets a letterhead, summary tiles, and bold red expenses; Close Chamber's Treatment Progress box now verifies the cloud save actually landed before saying 'updated', fixing a case where it could look saved but revert to blank."
 }

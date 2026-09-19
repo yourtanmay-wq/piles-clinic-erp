@@ -187,7 +187,7 @@ class ReportsRepository {
             val pm = row.optString("mobile", "").filter { it.isDigit() }.takeLast(10)
             if (pm.isNotBlank()) paidByMobile[pm] = (paidByMobile[pm] ?: 0.0) + paidEffect
             val payType = row.optString("payType", "")
-            if (pm.isNotBlank() && payType != "visit_fee" && payType != "attendance_mark") {
+            if (pm.isNotBlank() && payType != "visit_fee" && payType != "attendance_mark" && !PaymentModel.isMarkerOnlyRow(payType)) {   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                 treatmentPaidByMobile[pm] = (treatmentPaidByMobile[pm] ?: 0.0) + paidEffect
             }
             // V452: a daily Treatment row may be MIXED. Never assign the
@@ -260,7 +260,7 @@ class ReportsRepository {
                 var se = 0; var sp = 0
                 for (i in 0 until enq.length()) {
                     val r = enq.getJSONObject(i)
-                    val who = last10(r.optString("receivedBy", "").ifBlank { r.optString("createdBy", "") })
+                    val who = last10(r.s("receivedBy").ifBlank { r.s("createdBy") })   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
                     if (who == m && m.isNotBlank()) se++
                 }
                 for (i in 0 until pat.length()) {

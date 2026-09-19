@@ -23,6 +23,20 @@
         <item name="android:textColor">@color/clinic_text_primary</item>
     </style>
 
+    <!-- 🎨🔒 V892 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+         TK: *"সম্পূর্ণ ফর্মে যত বক্স আছে প্রয়োজনের থেকে উচ্চতায় অনেক বেশি …
+         একটু ছোট করবেন … অফিসিয়াল ও প্রফেশনাল দেখাতে হবে"*।
+         উচ্চতা 50dp → **42dp**, উপরের ফাঁক 6dp → 5dp। লেখার আকার (14.5sp) ও
+         ভিতরের বাঁ-ডান ফাঁক (14dp) এক অক্ষরও বদলায়নি, তাই কোনো লেখা কাটে না।
+         ⛔ শেয়ার্ড `FieldInput` অক্ষত, তাই Appointment · Medicine · Check-up ·
+            Search পর্দা আগের মতোই।
+         🎨 V893 (৩১.০৮.২০২৬, TK-নির্দেশ *"এবার ইনকয়ারি ফর্ম … রেজিস্ট্রেশনের
+            ফরমের মতন"*) — Enquiry পর্দাও এখন এই একই ছোট মাপ ব্যবহার করে। -->
+    <style name="RegFieldInput" parent="FieldInput">
+        <item name="android:layout_height">42dp</item>
+        <item name="android:layout_marginTop">5dp</item>
+    </style>
+
     <style name="FieldInputMultiline">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -167,13 +181,15 @@
     <!-- 🔵 B622 (11.08.2026, TK-অনুমোদিত প্রুফ): সব Check-up field-লেবেল এক সমান সাইজে
          (আগে প্রতিটায় inline 7–10.5sp আলাদা ছিল, তাই ছোট ও অসমান দেখাত)। এখন এক জায়গায়
          12.5sp, আর লম্বা লেবেল এক লাইনে না ধরলে দু-লাইনে নামে (maxLines 2 — কাটে না)। -->
+    <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ "আরো প্রফেশনাল দেখাতে হবে, সামান্য
+         একটু বড়") — 12.5sp → 13.5sp। রং/হাইলাইট/গঠন কিছুই বদলায়নি, শুধু মাপ। -->
     <style name="DocNoteLabel">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">#374151</item>
-        <item name="android:textSize">12.5sp</item>
+        <item name="android:textSize">13.5sp</item>
         <item name="android:maxLines">2</item>
         <item name="android:ellipsize">end</item>
     </style>
@@ -213,4 +229,29 @@
         <item name="android:textColor">@color/clinic_text_primary</item>
     </style>
 
+    <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ) — শুধু
+         Investigation Advice-এর হেডার টাইটেলের জন্য, ডিফল্টের চেয়ে ছোট। -->
+    <style name="InvestigationToolbarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+        <item name="android:textSize">16sp</item>
+    </style>
+
+
+    <!-- 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের লাইনের কার্ডে
+         বিল · আজ জমা · বাকি — তিনটে সমান ঘর। ⛔ শুধু এই নতুন সারির জন্য;
+         অন্য কোনো স্টাইল ছোঁয়া হয়নি। -->
+    <!-- 📏 V976 (TK-নির্দেশ: *"উচ্চতা কম হবে … ফন্টের সাইজ আরো একটু ছোট"*) —
+         টাকার ঘর তিনটে একটু ছোট, বাকি সব আগের মতোই। -->
+    <style name="QueueMoneyCell">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginEnd">5dp</item>
+        <item name="android:background">@drawable/bg_nvp_tag</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingTop">5dp</item>
+        <item name="android:paddingBottom">5dp</item>
+        <item name="android:textSize">10.5sp</item>
+        <item name="android:lineSpacingExtra">1dp</item>
+        <item name="android:textColor">#1B2B3A</item>
+    </style>
 </resources>

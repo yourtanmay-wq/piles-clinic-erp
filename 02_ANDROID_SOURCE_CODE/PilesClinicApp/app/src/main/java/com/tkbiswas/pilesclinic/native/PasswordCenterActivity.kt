@@ -68,6 +68,11 @@ class PasswordCenterActivity : AppCompatActivity() {
                 binding.tvEmpty.visibility = View.VISIBLE
             } else {
                 binding.progressLoad.visibility = View.GONE
+                // 🔴🔒 V1602 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — তালিকা সফলভাবে
+                // এলেও "Loading..." লেখাটা (tvEmpty) কখনো লুকানো হতো না, তাই
+                // তালিকার উপরে চিরকাল আটকে থাকত। "কোনো ইউজার নেই" শাখায় এটা
+                // আগে থেকেই লুকানো হতো, শুধু এই সফল-শাখাতেই বাদ পড়েছিল।
+                binding.tvEmpty.visibility = View.GONE
                 binding.recyclerView.visibility = View.VISIBLE
                 adapter.updateItems(items)
             }
@@ -97,7 +102,7 @@ class PasswordCenterActivity : AppCompatActivity() {
                         this@PasswordCenterActivity,
                         if (ok) "Password saved" else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadList()
                 }
             }

@@ -43,17 +43,20 @@ class BriefingReminderWorker(
                 // নোটিশে ১০ মিনিট পর পর অ্যালার্ম বাজত। এখন সেগুলো বাদ দিয়ে
                 // গোনা হয়। ⛔ ঘন্টার সংখ্যা (unseenCount) আগের মতোই অপরিবর্তিত।
                 val count = repo.unseenCountForReminder(repo.fetchRawForCount(ctx), user)   // 🔵 V405: শুধু গোনা ⇒ সরু পড়া
-                if (count > 0) {
-                    notify(ctx, count)
-                    // এখনো অপঠিত আছে — ১০ মিনিট পরে আবার চেক হবে। পড়া/
-                    // "Seen" হয়ে গেলে পরের চেকে count শূন্য হবে, চেইন নিজে
-                    // থেকেই থেমে যাবে (আবার পরের অ্যাপ-চালুতে শুরু হবে)।
-                    BriefingReminderScheduler.scheduleRepeat(ctx)
-                }
+                if (count > 0) notify(ctx, count)
             }
         } catch (_: Throwable) {
             // worker কখনো crash করবে না
         }
+        /* 🔴🔒 V1510 (TK-রিপোর্ট, ১৬.০৯.২০২৬ — "সাউন্ড কেন হলো না") — আগে
+           `count > 0` হলে তবেই পরের ধাপ বসানো হত। ফলে একবার সব notice "Seen"
+           হয়ে count শূন্যে নামলে **পুরো চেইনটাই চিরকালের জন্য থেমে যেত** —
+           অ্যাপ আবার পুরোপুরি বন্ধ করে খোলা (Application.onCreate) না হওয়া
+           পর্যন্ত কোনো নতুন Leave request/Refund/ইত্যাদি নোটিসে সাউন্ড আসত না,
+           চুপচাপ শুধু Notice Board-এ বসে থাকত। TK-র ফোনে ঠিক এটাই ঘটেছিল।
+           MasterOutTimeWorker-এর প্রমাণিত নিয়মের মতোই — ফল যাই হোক, পরের
+           দফা সবসময় বসানো হচ্ছে, যাতে চেইন কখনো নিজে থেকে না থামে। */
+        try { BriefingReminderScheduler.scheduleRepeat(ctx) } catch (_: Throwable) { }
         return Result.success()
     }
 

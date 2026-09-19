@@ -71,20 +71,53 @@ class MoreMenuActivity : AppCompatActivity() {
         // সরিয়ে দেয় (বাকি item weight=1 থাকায় নিজে থেকে পুরো সারি নিয়ে
         // নেয়), আর row-টা সম্পূর্ণ ফাঁকা হয়ে গেলে (দুটো item-ই লুকানো)
         // পুরো row-টাও GONE করে দেয়, যাতে ফাঁকা জায়গা/মার্জিন না থাকে।
+        // 📌🔒 V1572 (১৭.০৯.২০২৬) — এই ফাংশনটা এখন Doctor Reminder/Staff
+        // Profiles-এর সারিতেও লাগে, তাই সেই ব্যবহারের আগেই এখানে আনা হলো।
         fun hideItem(row: LinearLayout, item: View) {
             item.visibility = View.GONE
             row.removeView(item)
             if (row.childCount == 0) row.visibility = View.GONE
         }
 
+        /* 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Doctor reminder icon টা উপরে
+           ডান সাইডে যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
+           ⇒ Dashboard-এর ঘরটা লুকানো হলো (DashboardActivity), আর এখানে এলো।
+           ⛔ কারা দেখবেন সেই নিয়ম **হুবহু আগের মতোই** — master · staff · doctor
+              (Dashboard-এর ঘরটায় ঠিক এই তিনজনই ছিল)। Field-এর পর্দায় বসে না।
+           ⛔ Doctor Reminder পর্দাটা এক অক্ষরও বদলায়নি — শুধু পৌঁছানোর পথ বদলাল।
+           📌🔒 V1572 (১৭.০৯.২০২৬, TK-নির্দেশ: *"doctor reminder, staff profile
+           পাশাপাশি রাখুন"*) — rowDocModules5 এখন Staff Profiles-এরও ঘর, তাই
+           পুরো সারি VISIBLE/GONE না করে rowManagement1-এর মতোই শুধু নিজের
+           আইটেমটা hideItem() দিয়ে সরানো হয় — বাকিটা (isMaster ব্লকে) ঠিক
+           করবে Staff Profiles আসলে দেখা যাবে কিনা। */
+        run {
+            val who = user.displayRole
+            // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE: Doctor Reminder-ও
+            // এখান থেকে বাদ (এতে রোগী/ডাক্তারের নোট থাকে) — Menu-তে শুধু
+            // Logout + App Version থাকবে, আর কিছু না।
+            val allowed = (isMaster || who == "staff" || who == "doctor") &&
+                !RoleRules.isDoctorVisitOnly(this)
+            if (allowed) {
+                binding.btnDocDoctorReminder.setOnClickListener {
+                    startActivity(Intent(this, DoctorReminderActivity::class.java))
+                }
+            } else {
+                hideItem(binding.rowDocModules5, binding.btnDocDoctorReminder)
+            }
+        }
+
+        // 🔴🔒 V1603 (১৯.০৯.২০২৬) — Backup ও Export এখন গ্রিডে নেই, উপরের ⋮
+        // মেনুতে চলে গেছে — তাই দুটো রোলেই (master/non-master) গ্রিড থেকে
+        // সরানো হলো। ⛔ ক্লিক-গন্তব্য/অনুমতি একটুও বদলায়নি, শুধু জায়গা।
+        hideItem(binding.rowManagement1, binding.btnBackup)
+        hideItem(binding.rowSecurity1, binding.btnExportData)
+
         // Reports / Backup&Settings / Trash / Password / Export / Staff
         // Photos / Chamber Close: master only (অপরিবর্তিত নিয়ম)
         if (isMaster) {
             binding.btnReports.setOnClickListener { startActivity(Intent(this, ReportsActivity::class.java)) }
-            binding.btnBackup.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
             binding.btnTrash.setOnClickListener { startActivity(Intent(this, TrashBinActivity::class.java)) }
             binding.btnPasswordCenter.setOnClickListener { startActivity(Intent(this, PasswordCenterActivity::class.java)) }
-            binding.btnExportData.setOnClickListener { startActivity(Intent(this, ExportDataActivity::class.java)) }
             // 🔒 TK-APPROVED (28.07.2026 · খাতার সারি B46): "চেম্বার বন্ধ করুন"।
             binding.btnChamberClose.setOnClickListener {
                 startActivity(Intent(this, ChamberCloseActivity::class.java))
@@ -100,18 +133,22 @@ class MoreMenuActivity : AppCompatActivity() {
             loadUnclosedCount()
         } else {
             hideItem(binding.rowManagement1, binding.btnReports)
-            hideItem(binding.rowManagement1, binding.btnBackup)
             hideItem(binding.rowManagement2, binding.btnChamberClose)
             hideItem(binding.rowManagement2, binding.btnTrash)
             hideItem(binding.rowSecurity1, binding.btnPasswordCenter)
-            hideItem(binding.rowSecurity1, binding.btnExportData)
             // 🔵 (07.08.2026, নিজের অডিটে ধরা) — Logout কার্ডটা হেডারে সরানোর পরে
             // non-master-এর পর্দায় এই সেকশনের দুটো সারিই খালি হয়ে লুকিয়ে যায়,
             // অথচ "🛡️ Security & Data" শিরোনামটা একা দাঁড়িয়ে থাকত। এখন সেটাও লুকায়।
             binding.securityHeader.visibility = View.GONE
-            // Staff Profiles/Income & Expense (btnStaffProfiles/btnIncomeExpense)
-            // থেকেই যায় visibility=gone (XML-এর ডিফল্ট) — এখানে কিছু করার
-            // দরকার নেই, master-এর branch-এই শুধু VISIBLE করা হয়েছে।
+            // 📌🔒 V1572 (১৭.০৯.২০২৬) — Staff Profiles এখন rowDocModules5-এর
+            // ভিতরে (Doctor Reminder-এর পাশে), তাই XML-এর ডিফল্ট ভিজিবল —
+            // non-master-দের জন্য hideItem()-দিয়ে সরিয়ে নিতে হয় (আগে XML
+            // ডিফল্ট gone-ই যথেষ্ট ছিল, যখন এটা নিজের আলাদা পূর্ণ-প্রস্থ card
+            // ছিল)। ⛔ কারা দেখবেন সেই নিয়ম (শুধু master) বদলায়নি।
+            hideItem(binding.rowDocModules5, binding.btnStaffProfiles)
+            // Income & Expense (btnIncomeExpense) থেকেই যায় visibility=gone
+            // (XML-এর ডিফল্ট, নিজের আলাদা full-width card) — master-এর
+            // branch-এই শুধু VISIBLE করা হয়েছে।
 
             // 🔒🔒 B605 (10.08.2026, TK-নির্দেশ): "My Profile" এখন শুধু Master-এর জন্য
             // (Master-এর "Staff Profiles" থেকেই সব)। staff/doctor/field-এর পর্দা থেকে
@@ -186,7 +223,7 @@ class MoreMenuActivity : AppCompatActivity() {
                 if (!patientOnly) {
                     val dm = resources.displayMetrics.density
                     val ieBtn = android.widget.TextView(this).apply {
-                        text = "💵  আয় ও ব্যয়"
+                        text = NoBengali.s("💵  আয় ও ব্যয়")
                         textSize = 15f
                         setTextColor(android.graphics.Color.WHITE)
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -210,6 +247,29 @@ class MoreMenuActivity : AppCompatActivity() {
         // Logout: সবার জন্য (অপরিবর্তিত) — 🔴 (07.08.2026) বোতামটা এখন নিচের
         // তালিকায় নেই, হেডারের ডান পাশে; id ও এই কোড অপরিবর্তিত।
         binding.btnLogout.setOnClickListener { confirmLogout() }
+
+        // 🔴🔒 V1603 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — Call ID Banner ·
+        // Backup · Export এখন হেডারের ⋮-এর ভিতরে (আগে আলাদা কার্ড ছিল)।
+        // ⛔ Call ID Banner সব রোলে (V1427-এর আসল নিয়ম অটুট); Backup/Export
+        // শুধু Master (গ্রিডে যেমন ছিল, তার হুবহু একই ক্লিক-গন্তব্য)।
+        binding.btnMoreMenu.setOnClickListener { v ->
+            val pm = android.widget.PopupMenu(this, v)
+            var idx = 0
+            pm.menu.add(0, idx++, idx, "Call ID Banner")
+            if (isMaster) {
+                pm.menu.add(0, idx++, idx, "Backup")
+                pm.menu.add(0, idx++, idx, "Export")
+            }
+            pm.setOnMenuItemClickListener { mi ->
+                when (mi.title?.toString()) {
+                    "Call ID Banner" -> startActivity(Intent(this, CallIdSetupActivity::class.java))
+                    "Backup" -> startActivity(Intent(this, SettingsActivity::class.java))
+                    "Export" -> startActivity(Intent(this, ExportDataActivity::class.java))
+                }
+                true
+            }
+            pm.show()
+        }
     }
 
     /**

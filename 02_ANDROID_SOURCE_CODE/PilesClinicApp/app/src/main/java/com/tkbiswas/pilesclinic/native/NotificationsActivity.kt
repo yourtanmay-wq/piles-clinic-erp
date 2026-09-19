@@ -66,6 +66,9 @@ class NotificationsActivity : AppCompatActivity() {
     private var lastExpected: List<DoctorVisitItem> = emptyList()
     private var lastCallDue: List<DoctorVisitItem> = emptyList()
     private var lastMissed: List<BranchSimHelper.CallLogRow> = emptyList()
+    // 📌 V1193 — Doctor Reminder (অপেক্ষমাণ ও "Accepted" খবর)
+    private var lastRemWaiting: List<org.json.JSONObject> = emptyList()
+    private var lastRemAccepted: List<org.json.JSONObject> = emptyList()
 
     /** মেমরিতে রাখা একই তালিকা দিয়ে আবার আঁকে — নতুন কোনো ডাউনলোড নয়। */
     private fun renderStored() {
@@ -130,12 +133,26 @@ class NotificationsActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) { DoctorVisitRepository().fetchExpectedTodayList(branchFilter) }
             } catch (_: Throwable) { emptyList() }
 
-            val callDueToday = try {
-                withContext(Dispatchers.IO) { DoctorVisitRepository().fetchNextCallDueTodayList(branchFilter) }
-            } catch (_: Throwable) { emptyList() }
+            /* 🔕🔒 V970 (০২.০৯.২০২৬, TK-নির্দেশ) — *"Today RMP Call Due
+               নোটিফিকেশন হিসাবে দেখানোর দরকার নেই, শুধুমাত্র RMP সেকশন খুললে
+               সেখানে দেখাক"*। তাই এখানে ক্লাউডে **অনুরোধই যায় না** (ফ্রি
+               প্ল্যানে একটা পড়া কমল), তালিকাও খালি।
+               ⛔ `DoctorVisitRepository.fetchNextCallDueTodayList()` মোছা হয়নি —
+                  RMP পর্দা ওটাই ব্যবহার করে। */
+            val callDueToday = emptyList<DoctorVisitItem>()
 
             val missedCallbacks = try {
                 withContext(Dispatchers.IO) { BranchSimHelper.pendingMissedCallbackNumbers(this@NotificationsActivity) }
+            } catch (_: Throwable) { emptyList() }
+
+            /* 📌🔒 V1193 (TK-নির্দেশ): *"উপরের ঘন্টাতে নোটিফিকেশন আসুক"*।
+               ⛔ ঠিক সেই দুটো ফাংশনই ডাকা হয় যেগুলো `BellCounter` গোনে,
+                  তাই ঘন্টার সংখ্যা আর এই তালিকা কখনো আলাদা হতে পারে না। */
+            lastRemWaiting = try {
+                withContext(Dispatchers.IO) { DoctorReminderRepository.waitingFor(user) }
+            } catch (_: Throwable) { emptyList() }
+            lastRemAccepted = try {
+                withContext(Dispatchers.IO) { DoctorReminderRepository.acceptedNoticesFor(user) }
             } catch (_: Throwable) { emptyList() }
 
             progressLoad.visibility = View.GONE
@@ -159,7 +176,8 @@ class NotificationsActivity : AppCompatActivity() {
         lastMissed = missedCallbacks
 
         sectionsContainer.removeAllViews()
-        val totalCount = unseenNotices + pendingRemarks.size + expectedToday.size + callDueToday.size + missedCallbacks.size
+        val totalCount = unseenNotices + pendingRemarks.size + expectedToday.size + callDueToday.size +
+            missedCallbacks.size + lastRemWaiting.size + lastRemAccepted.size
 
         findViewById<TextView>(R.id.tvHeaderTitle).text =
             if (totalCount > 0) "Notifications ($totalCount)" else "Notifications"
@@ -172,6 +190,50 @@ class NotificationsActivity : AppCompatActivity() {
         }
         tvEmpty.visibility = View.GONE
         scrollView.visibility = View.VISIBLE
+
+        /* 📌🔒 V1193 — সবচেয়ে উপরে, কারণ এগুলোতে কারো কাজ আটকে থাকে। */
+        if (lastRemWaiting.isNotEmpty()) {
+            addSectionHeader("📌 Doctor Reminder", "#0F766E")
+            for (r in lastRemWaiting) {
+                val nm = r.optString("patientName", "").ifBlank { "Patient" }
+                val mb = r.optString("patientMobile", "")
+                val by = r.optString("byName", "")
+                val rd = r.optString("remindDate", "")
+                val rt = r.optString("remindTime", "")
+                val dis = r.optString("disease", "")   // 🩺 V1194
+                addRow(
+                    icon = "📌",
+                    iconColor = "#0F766E",
+                    title = nm + (if (mb.isNotBlank()) "   $mb" else "") + (if (dis.isNotBlank()) "   ·   $dis" else ""),
+                    subtitle = r.optString("note", "") +
+                        (if (by.isNotBlank()) "  ·  By $by" else "") +
+                        (if (rd.isNotBlank()) "  ·  " + dmy(rd) + (if (rt.isNotBlank()) " · " + time12(rt) else "") else "")
+                ) { startActivity(Intent(this, DoctorReminderActivity::class.java)) }
+            }
+        }
+
+        /* ✅ V1193 — পাঠানো ব্যক্তির ঘন্টায় "Accept হয়েছে" খবরটা। চাপলে
+           পর্দা খোলে আর খবরটা দেখা-হয়েছে হিসেবে চিহ্নিত হয় (আর আসে না);
+           ⛔ History-তে সারিটা চিরকাল থাকে, কিছুই মোছে না। */
+        if (lastRemAccepted.isNotEmpty()) {
+            addSectionHeader("✅ Reminder Accepted", "#0A7C3F")
+            for (r in lastRemAccepted) {
+                val nm = r.optString("patientName", "").ifBlank { "Patient" }
+                val mb = r.optString("patientMobile", "")
+                addRow(
+                    icon = "✅",
+                    iconColor = "#0A7C3F",
+                    title = nm + (if (mb.isNotBlank()) "   $mb" else "") +
+                        (if (r.optString("disease", "").isNotBlank()) "   ·   " + r.optString("disease", "") else ""),
+                    subtitle = "Accepted by " + r.optString("acceptedByName", "") + "  ·  " + stamp(r.optString("acceptedAt", ""))
+                ) {
+                    lifecycleScope.launch {
+                        try { withContext(Dispatchers.IO) { DoctorReminderRepository.ack(r, user) } } catch (_: Throwable) { }
+                        startActivity(Intent(this@NotificationsActivity, DoctorReminderActivity::class.java))
+                    }
+                }
+            }
+        }
 
         if (unseenNotices > 0) {
             addSectionHeader("🔔 Notices", "#3b82f6")
@@ -200,44 +262,9 @@ class NotificationsActivity : AppCompatActivity() {
             }
         }
 
-        if (callDueToday.isNotEmpty()) {
-            addSectionHeader("📞 Call Doctor Today", "#16A36D")
-            // 🟢 V410: বেশি হলে এক লাইনে; চাপলে পুরো তালিকা খোলে।
-            if (callDueToday.size > COLLAPSE_OVER && !expandCallList) {
-                addRow(
-                    icon = "📞",
-                    iconColor = "#16A36D",
-                    title = "${callDueToday.size} doctors to call today",
-                    subtitle = "Tap to open the full list"
-                ) { expandCallList = true; renderStored() }
-            } else {
-                for (d in callDueToday) {
-                    addRow(
-                        icon = "📞",
-                        iconColor = "#16A36D",
-                        title = d.name.ifBlank { "UNKNOWN" },
-                        subtitle = "${d.mobile} · Next Call Date is today"
-                    ) {
-                        // 🔴 V410: ডাক্তারের ব্রাঞ্চটাও সঙ্গে যায় — নইলে RMP পর্দা সব
-                        //    ব্রাঞ্চে খুঁজত, সার্ভারের ~১,০০০ সারির সীমায় আটকে যেত, আর
-                        //    পুরনো রেকর্ডের ডাক্তার "পাওয়া যায়নি" হয়ে যেতেন।
-                        startActivity(
-                            Intent(this, DoctorVisitActivity::class.java)
-                                .putExtra("searchMobile", d.mobile)
-                                .putExtra("searchBranch", d.branch)
-                        )
-                    }
-                }
-                if (callDueToday.size > COLLAPSE_OVER) {
-                    addRow(
-                        icon = "▲",
-                        iconColor = "#6b7280",
-                        title = "Hide this list",
-                        subtitle = "Show it as one line again"
-                    ) { expandCallList = false; renderStored() }
-                }
-            }
-        }
+        /* 🔕 V970 (TK-নির্দেশ) — "📞 Call Doctor Today" সেকশনটা এখান থেকে
+           তুলে দেওয়া হলো; ওটা এখন শুধু RMP পর্দায়। ⛔ উপরের `callDueToday`
+           সবসময় খালি, তাই ঘন্টার সংখ্যাতেও আর গোনা হয় না। */
 
         if (expectedToday.isNotEmpty()) {
             addSectionHeader("🧑\u200d⚕️ Patient Expected Today", "#6941C6")
@@ -291,6 +318,34 @@ class NotificationsActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun dmy(iso: String): String = try {
+        val p = iso.take(10).split("-"); p[2] + "/" + p[1] + "/" + p[0]
+    } catch (_: Throwable) { iso }
+
+    private fun time12(hm: String): String {
+        val p = hm.trim().split(":")
+        if (p.size < 2) return hm
+        val h = p[0].toIntOrNull() ?: return hm
+        val ap = if (h >= 12) "PM" else "AM"
+        val h12 = when { h == 0 -> 12; h > 12 -> h - 12; else -> h }
+        return "$h12.${p[1]} $ap"
+    }
+
+    /** "2026-09-07T18:42:03Z" → "07/09/2026 · 6.42 PM"। চেনা না গেলে যা আছে তাই। */
+    private fun stamp(raw: String): String {
+        val t = raw.trim()
+        if (t.length < 10) return ""
+        val d = dmy(t)
+        if (t.length < 16) return d
+        return try {
+            val hh = t.substring(11, 13).toInt()
+            val mm = t.substring(14, 16)
+            val ap = if (hh >= 12) "PM" else "AM"
+            val h12 = when { hh == 0 -> 12; hh > 12 -> hh - 12; else -> hh }
+            "$d  ·  $h12.$mm $ap"
+        } catch (_: Throwable) { d }
     }
 
     private fun addSectionHeader(text: String, colorHex: String) {

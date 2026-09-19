@@ -124,6 +124,24 @@ class TrashRepository {
         //    তাই অনুরোধ আর বাতিল হয় না।
         // ⚠️ মুছে যাওয়া কোনো রেকর্ড হারায়নি — সেগুলো `trash` টেবিলে এতদিন ঠিকই
         //    জমা ছিল, শুধু পর্দায় দেখা যাচ্ছিল না।
+        /* 🟢🔒 V997 (০৩.০৯.২০২৬, TK-নির্দেশ — Egress তালিকার ২ নম্বর):
+           `trash`-এর প্রতিটা সারিতে `record` ঘরে **মুছে ফেলা পুরো সারিটাই**
+           জমা থাকে — এই টেবিলের সবচেয়ে ভারী জিনিস। অথচ তালিকার কার্ডে
+           ওই পুরো লেখাটার দরকারই পড়ে না; দরকার পড়ে **Restore চাপলে**, আর
+           সেই এক-সারির পড়াটা `restore()`-এ আগে থেকেই আছে (লাইন ২৪৭-২৫৪)।
+
+           উপরের `TRASH_LIST_COLS` (ও `recordFrom()`) এই কাজটার জন্যই লেখা
+           হয়েছিল, কিন্তু **কোথাও ব্যবহার হয়নি** — তাই তালিকা এখনো পুরো
+           `record` সহ নামত। এখন সেটাই ব্যবহার হচ্ছে।
+
+           ⛔ সরু পড়া ব্যর্থ হলে (পুরনো ডেটাবেস · ঘর নেই · নেট) **হুবহু
+              আগের পুরো পড়াটাই** চলে — V509/V512-এর সমাধান দুটোই অটুট।
+           ⛔ সাজানো আগের মতোই `deletedAt.desc` — V509-এর কারণ ছোঁয়া হয়নি।
+           ⛔ Restore · Delete · ব্রাঞ্চ-ছাঁকনি · কার্ডের লেখা — কিছুই বদলায়নি
+              (কার্ড যে ঘরগুলো পড়ে সেগুলো `RECORD_LIST_FIELDS`-এ আছে)। */
+        val slim = SupabaseClient.fetchListSlimOrNull(
+            "trash", null, 5000, TRASH_LIST_COLS, order = "deletedAt.desc.nullslast")
+        if (slim != null) return slim
         return SupabaseClient.fetchList("trash", null, 5000, order = "deletedAt.desc.nullslast")
     }
 
@@ -147,6 +165,11 @@ class TrashRepository {
     //   (এটা নতুন কোনো কৌশল নয় — Chamber Attendance · Draft · Payment ও
     //    Doctor Visit পর্দায় ঠিক এই একই সমাধান আগে থেকেই চলছে।)
     //
+    // ⚠️🔒 V798 — এই `fetchTrashRaw()` **কোথাও ডাকা হয় না** (প্রজেক্ট খুঁজে যাচাই
+    //    করা, ২৮.০৮.২০২৬)। এটা `select=*` দিয়ে পড়ে, আর `trash.record`-এ রোগীর
+    //    ছবিসহ পুরো সারি থাকে ⇒ কেউ ভবিষ্যতে এটাকে ডাকলে egress হু-হু করে বাড়বে।
+    //    ⛔ নতুন কোনো কোডে এটা ব্যবহার করবেন না — `fetchTrashRawOrNull()` ব্যবহার
+    //       করুন, ওটা সরু কলামে পড়ে।
     // ⛔ URL · টেবিল · সাজানোর নিয়ম · ৫০০০ সীমা — এক অক্ষরও বদলায়নি।
     // ⛔ উপরের `fetchTrashRaw()` **হুবহু আগের মতোই** রাখা হলো, তাই
     //    `fetchTrash()` বা অন্য কোনো ডাকার জায়গার আচরণ বদলায়নি।
@@ -170,6 +193,24 @@ class TrashRepository {
             "trash", null, 5000, order = "deletedAt.desc.nullslast", select = TRASH_LIST_COLS
         )
         if (narrow != null) return narrow
+        /* 🔴🔒 V798 (২৮.০৮.২০২৬) — TK-নির্দেশ: "Supabase egress-এর ঝুঁকি সব সারান"।
+           ─── সমস্যা যেটা ছিল ────────────────────────────────────────────────
+           উপরের সরু পড়াটা PostgREST-এর `record->>field` লেখা ব্যবহার করে।
+           কোনো কারণে ওটা ব্যর্থ হলে সোজা `select=*` চলত — আর `trash.record`
+           ঘরে **মুছে ফেলা পুরো সারিটা, রোগীর ছবিসহ** থাকে। ৫০০০ সারি × ছবি
+           = একবারেই বহু-শত MB। free প্ল্যানের জন্য এটাই সবচেয়ে বড় গর্ত ছিল।
+           ─── সারানো ───────────────────────────────────────────────────────
+           মাঝখানে আর একটা ধাপ বসল: **শুধু আসল, সাধারণ ঘরগুলো** — কোনো JSON
+           লেখা নেই, তাই সিনট্যাক্স-ভুলে ব্যর্থ হওয়ার পথ নেই। এতে পর্দা ভরে
+           ওঠে (নাম না পেলে id দেখায়), ছবি নামে না।
+           ⛔ একদম নিচের `select=*` পথটা **হুবহু আগের মতোই** রয়ে গেল, শুধু
+              এখন সেখানে পৌঁছতে হলে **দুটো** পড়াকেই ব্যর্থ হতে হবে ⇒ V512-এর
+              প্রতিশ্রুতি ("Trash Bin কখনো ফাঁকা দেখাবে না") অক্ষত। */
+        val plain = SupabaseClient.fetchListOrNullDirect(
+            "trash", null, 5000, order = "deletedAt.desc.nullslast",
+            select = "id,table,deletedAt,deletedBy,cascadedFollowups"
+        )
+        if (plain != null) return plain
         return SupabaseClient.fetchListOrNullDirect("trash", null, 5000, order = "deletedAt.desc.nullslast")
     }
 
@@ -293,6 +334,13 @@ class TrashRepository {
                     // ⛔ `enquiries`-এ এই ট্রিগার নেই, তাই সেখানে আগের মতোই শুধু status।
                     if (ctable == "followups" && status.equals("Active", ignoreCase = true)) {
                         val line = JSONObject()
+                            /* ⏰🔒 V888 (৩০.০৮.২০২৬, TK-নির্দেশ — *"তারিখ এবং সময়
+                               সমস্ত জায়গায় লাগবে"*): এই একটাই লাইন `date`/`time`
+                               ছাড়া লেখা হতো, তাই টাইমলাইনে তারিখ-সময় দুটোই ফাঁকা
+                               দেখাত। এখন প্রকল্পের বাকি সব history-লেখার হুবহু
+                               একই দুটো ঘর বসে। ⛔ পুরোনো `at`/`by` ঘর দুটো অটুট। */
+                            .put("date", com.tkbiswas.pilesclinic.native.FollowUpModel.today())
+                            .put("time", trashIsoNow())
                             .put("status", "Active")
                             .put("remark", "Restored from Trash")
                             .put("at", trashIsoNow())

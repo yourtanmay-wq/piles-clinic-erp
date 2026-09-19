@@ -17,7 +17,7 @@
 
 - Kishanganj — Caltex Chowk, Modi Gola, Kishanganj — 8676002200
 - Jalpaiguri — Raikatpara, Opp. Sports Complex, Jalpaiguri — 8436002200
-- Cooch Behar — Opp. Mini Bus Stand, Sengupta Complex 2nd Floor, Cooch Behar — 8514001100
+- Cooch Behar — Opp. Mini Bus Stand, Sengupta Complex 1st Floor, Cooch Behar — 8514001100
 - Falakata — BDO Office Road, near Hotel Nandonik, Falakata — 8514001100
 - Birpara — MG Road, near Axis Bank, Birpara — 8538002200   (TK-এর নির্দেশে বদল, 29.07.2026 · খাতার সারি B86 — পুরনো নম্বর চিরতরে বাদ)
 

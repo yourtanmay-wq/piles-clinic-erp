@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.tkbiswas.pilesclinic.databinding.ActivityTrashBinBinding
+import com.tkbiswas.pilesclinic.print.BranchCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,6 +41,10 @@ class TrashBinActivity : AppCompatActivity() {
     // ══════════════════════════════════════════════════════════════════════
     private var loaded: List<TrashItem> = emptyList()
     private var query: String = ""
+    // V1521 — All Years remains the default so upgrading cannot hide old Trash.
+    // The year filter is local to already-loaded deletedAt and never changes
+    // Restore/Delete permissions or cloud verification.
+    private var selectedYear: Int? = null
     private val picked = LinkedHashSet<String>()
 
     // ══════════════════════════════════════════════════════════════════════
@@ -123,6 +128,7 @@ class TrashBinActivity : AppCompatActivity() {
             }, 2500L)
         }
         binding.btnBack.setOnClickListener { finish() }
+        setupYearMenu()
 
         // ══════════════════════════════════════════════════════════════════
         // 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK-অনুমোদিত প্রুফ) — খোঁজা · Select মোড ·
@@ -139,6 +145,15 @@ class TrashBinActivity : AppCompatActivity() {
             }
         })
         binding.btnSelectMode.setOnClickListener { setSelectMode(!adapter.selectMode) }
+        /* 🔴🔒 V790 — উপরের সবুজ/লাল দুটো বোতামও একই ফাঁদে পড়েছিল
+           (MaterialButton `android:background` অগ্রাহ্য করে; বিশদ ব্যাখ্যা
+           `TrashAdapter.onBindViewHolder`-এ)। প্রকল্পের প্রমাণিত ওষুধ —
+           `backgroundTintList = null`। ⛔ কী চাপলে কী হয়, কিচ্ছু বদলায়নি। */
+        binding.btnBulkRestore.backgroundTintList = null
+        binding.btnBulkDelete.backgroundTintList = null
+        binding.btnBulkRestore.isAllCaps = false
+        binding.btnBulkDelete.isAllCaps = false
+
         binding.btnBulkRestore.setOnClickListener { confirmBulkRestore() }
         binding.btnBulkDelete.setOnClickListener { confirmBulkDelete() }
 
@@ -156,6 +171,27 @@ class TrashBinActivity : AppCompatActivity() {
         }
 
         loadList()
+    }
+
+    private fun setupYearMenu() {
+        binding.btnMore.setOnClickListener { anchor ->
+            val pm = android.widget.PopupMenu(this, anchor)
+            val nowYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            val effectiveBranch = if (user.role == "master") pickedBranch else user.branch
+            val minYear = BranchCatalog.minYearFor(effectiveBranch)
+            for (y in nowYear downTo maxOf(minYear, nowYear - 5)) {
+                pm.menu.add(0, 10000 + y, 0, (if (selectedYear == y) "✓ " else "") + "Deleted in $y")
+            }
+            pm.menu.add(0, 20001, 0, (if (selectedYear == null) "✓ " else "") + "All Years")
+            pm.setOnMenuItemClickListener { item ->
+                selectedYear = if (item.itemId == 20001) null else item.itemId - 10000
+                binding.tvTitle.text = selectedYear?.let { "Trash Bin · $it" } ?: "Trash Bin"
+                picked.clear()
+                if (adapter.selectMode) setSelectMode(false) else paint()
+                true
+            }
+            pm.show()
+        }
     }
 
     // V227 (item 46): branch chooser for Master only.
@@ -228,7 +264,7 @@ class TrashBinActivity : AppCompatActivity() {
                         this@TrashBinActivity,
                         "Offline - showing this phone's saved copy",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 } else {
                     // ⚠️ সৎ বার্তা: "Trash empty" নয় — কারণ আমরা জানিই না
                     //    ভিতরে কী আছে। ভুল করে "সব মুছে গেছে" মনে হওয়ার
@@ -261,9 +297,13 @@ class TrashBinActivity : AppCompatActivity() {
 
     /** খোঁজার লেখা মিলিয়ে দেখার তালিকা (আসল তালিকা অক্ষত থাকে)। */
     private fun visible(): List<TrashItem> {
+        val y = selectedYear
+        val yearScoped = if (y == null) loaded else loaded.filter { item ->
+            item.deletedAt.trim().take(4).toIntOrNull() == y
+        }
         val q = query.trim().lowercase()
-        if (q.isBlank()) return loaded
-        return loaded.filter { item ->
+        if (q.isBlank()) return yearScoped
+        return yearScoped.filter { item ->
             val r = item.record
             listOf(
                 item.label, r.s("name"), r.s("mobile"), r.s("altMobile"),
@@ -363,7 +403,7 @@ class TrashBinActivity : AppCompatActivity() {
             box.addView(card)
             // 🗑 কে মুছেছেন, কখন — Trash-এর নিজের তথ্য, কার্ডে থাকে না
             val who = TrashCardText.deletedByName(item)
-            val whenT = TrashCardText.whenText(item).replace("\n", "  ")
+            val whenT = TrashCardText.whenText(item)   // 🔴 V1162 — লাইন-ভাঙা আর নেই
             val line = listOf(who, whenT).filter { it.isNotBlank() }.joinToString("  ·  ")
             if (line.isNotBlank()) {
                 box.addView(TextView(this).apply {
@@ -445,7 +485,7 @@ class TrashBinActivity : AppCompatActivity() {
                 this@TrashBinActivity,
                 if (fail == 0) "$word $ok" else "$word $ok · $fail failed — check connection",
                 Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             loadList()
         }
     }
@@ -485,7 +525,7 @@ class TrashBinActivity : AppCompatActivity() {
                         this@TrashBinActivity,
                         if (ok) "Deleted forever" else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadList()
                 }
             }

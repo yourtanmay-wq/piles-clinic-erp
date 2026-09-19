@@ -36,7 +36,8 @@ object PrintTextEnglish {
         "DRESSING করা হল" to "DRESSING DONE",
         "MEDICINE দেওয়া হল" to "MEDICINE GIVEN",
         "KTA করা হল" to "KTA DONE",
-        "LIS করা হল" to "LIS DONE"
+        "LIS করা হল" to "LIS DONE",
+        "Visit Return করা হল" to "VISIT RETURN DONE"   // 🟢🔒 V615 (২৪.০৮.২০২৬, TK-নির্দেশ)
     ).sortedByDescending { it.first.length }
 
     /**

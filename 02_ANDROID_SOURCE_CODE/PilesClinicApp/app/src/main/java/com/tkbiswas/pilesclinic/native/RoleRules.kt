@@ -72,6 +72,25 @@ object RoleRules {
         actualRole(user) == ROLE_STAFF
 
     /**
+     * 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ স্পষ্ট করে দ্বিতীয়বার) — **ARMAN HOQUE
+     * (কোচবিহার) শুধুমাত্র Doctor Visit আর তার নিজের IN TIME/OUT TIME দেখবেন,
+     * আর কিছু না।**
+     *
+     * RUPAM-এর role এখনো "staff"-ই আছে (TK-নির্দেশ "RUPAM যা ছিল তাই থাক" —
+     * সেটা ছোঁয়া হয়নি)। ARMAN-এর জন্য আলাদা, প্রকৃত কোড-স্তরের আটকানো — শুধু
+     * এই একটা নম্বরের জন্য (role এখনো "staff", তাই login password অপরিবর্তিত)।
+     * DashboardActivity/MoreMenuActivity এই ফাংশনটাই দেখে বাকি সব বাক্স/বোতাম/
+     * সার্চ/ঘণ্টা/অনুস্মারক লুকায়।
+     */
+    private val DOCTOR_VISIT_ONLY_MOBILES = setOf("9883884394") // ARMAN HOQUE, Cooch Behar
+
+    fun isDoctorVisitOnly(user: NativeUser?): Boolean =
+        DOCTOR_VISIT_ONLY_MOBILES.contains(StaffDirectory.normalizeMobile(user?.mobile.orEmpty()))
+
+    fun isDoctorVisitOnly(context: Context): Boolean =
+        isDoctorVisitOnly(try { NativeSession.current(context) } catch (_: Throwable) { null })
+
+    /**
      * **বেতনের (Salary) পর্দা ও বোতাম কে পাবেন — একই নিয়ম।**
      *
      * TK §৩: Doctor ও Field-এর বেতনের হিসাব অ্যাপে আর ব্যবহার হবে না।

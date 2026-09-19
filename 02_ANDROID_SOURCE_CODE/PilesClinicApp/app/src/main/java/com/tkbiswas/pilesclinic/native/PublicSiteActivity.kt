@@ -37,7 +37,7 @@ class PublicSiteActivity : AppCompatActivity() {
         Branch("Jalpaiguri", "Raikatpara, Opp. Sports Complex, Jalpaiguri", "8436002200", "https://maps.app.goo.gl/fRjsuxhoXq9efBtv9"),
         // 🔒 খাতার সারি B33: কোচবিহারের ঘরে আগে ভুল করে ফালাকাটার নম্বর (8514001100) বসানো ছিল।
         // StaffDirectory-র COB-BRANCH অনুযায়ী সঠিক নম্বর 8514002200।
-        Branch("Cooch Behar", "Opp. Mini Bus Stand, Sengupta Complex 2nd Floor, Cooch Behar", "8514002200", "https://www.google.com/maps/search/?api=1&query=Maa+Ayurved+Piles+Clinic+Cooch+Behar"),
+        Branch("Cooch Behar", "Opp. Mini Bus Stand, Sengupta Complex 1st Floor, Cooch Behar", "8514002200", "https://www.google.com/maps/search/?api=1&query=Maa+Ayurved+Piles+Clinic+Cooch+Behar"),
         Branch("Falakata", "BDO Office Road, near Hotel Nandonik, Falakata", "8514001100", "https://www.google.com/maps/search/?api=1&query=Maa+Ayurved+Piles+Clinic+Falakata"),
         Branch("Birpara", "MG Road, near Axis Bank, Birpara", "8538002200", "https://www.google.com/maps/search/?api=1&query=Maa+Ayurved+Piles+Clinic+Birpara")
     )
@@ -54,20 +54,36 @@ class PublicSiteActivity : AppCompatActivity() {
         val bc = findViewById<LinearLayout>(R.id.branchContainer)
         branches.forEach { bc.addView(branchCard(it)) }
 
-        findViewById<Button>(R.id.btnBook).setOnClickListener {
+        /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ করুন, তবে সাবধানে"*)
+           — অ্যাপের থিমে XML-এর সাদামাটা `<Button>` আপনা-আপনি **MaterialButton**
+           হয়ে যায়, আর সেটা `android:background` **অগ্রাহ্য করে** নিজের গাঢ় নীল
+           `backgroundTint` বসিয়ে দেয়। ফলে XML-এ লেখা রংটা ফোনে কখনো দেখা যেত না
+           (কম্পিউটারে ঠিকই দেখা যেত)। `backgroundTintList = null` বসালে তবেই
+           XML-এর drawable-টা দেখা যায় — প্রজেক্টের নিজেরই প্রমাণিত ওষুধ
+           (`DoctorQueueAdapter` · `DraftCardAdapter`-এ আগে থেকেই চলছে, পাহারা ৯.৩২)।
+           ⛔ শুধু চেহারা — বোতামের কাজ · জায়গা · লেখা কিচ্ছু বদলায়নি। */
+        val btnBook = findViewById<Button>(R.id.btnBook)
+        val btnCallTop = findViewById<Button>(R.id.btnCallTop)
+        val btnBranchTop = findViewById<Button>(R.id.btnBranchTop)
+        val btnStaffLogin = findViewById<Button>(R.id.btnStaffLogin)
+        btnBook.backgroundTintList = null
+        btnCallTop.backgroundTintList = null
+        btnBranchTop.backgroundTintList = null
+        btnStaffLogin.backgroundTintList = null
+        btnBook.setOnClickListener {
             startActivity(Intent(this, AppointmentActivity::class.java))
         }
-        findViewById<Button>(R.id.btnStaffLogin).setOnClickListener { openLogin() }
+        btnStaffLogin.setOnClickListener { openLogin() }
         // Tapping "TK BISWAS" opens the Staff Login window.
         findViewById<View>(R.id.tkLoginChip).setOnClickListener { openLogin() }
 
-        findViewById<Button>(R.id.btnCallTop).setOnClickListener {
+        btnCallTop.setOnClickListener {
             // TK-REQUESTED (2026-07-24): "everywhere calling is possible in
             // the project" -- shared CallChooser.kt (Phone/Superfone/etc.
             // picker, Truecaller excluded).
             CallChooser.open(this, "+91${branches.first().phone}")
         }
-        findViewById<Button>(R.id.btnBranchTop).setOnClickListener {
+        btnBranchTop.setOnClickListener {
             findViewById<LinearLayout>(R.id.branchContainer).requestFocus()
             try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(branches.first().map))) } catch (_: Exception) {}
         }

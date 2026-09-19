@@ -43,22 +43,15 @@
             android:orientation="vertical"
             android:gravity="center_vertical">
 
+            <!-- 🎨🔒 V1475 (১৪.০৯.২০২৬, TK-নির্দেশ) — নিচের বাংলা সাবটাইটেল
+                 ("চেম্বারের দিন") হেডার থেকে তুলে দেওয়া হলো, শুধু এই একটা
+                 পর্দায়। উপরের ইংরেজি শিরোনাম (CHAMBER DATE) অপরিবর্তিত। -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="CHAMBER DATE"
                 android:textColor="@color/white"
                 android:textSize="14sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="চেম্বারের দিন"
-                android:textColor="@color/white"
-                android:textSize="12sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textStyle="bold" />
