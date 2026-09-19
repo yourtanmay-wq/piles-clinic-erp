@@ -23983,7 +23983,13 @@ async function wlv1RequestReopenChamber(){
   if(!confirm('Send a request to Master to reopen this chamber ('+wlv1Dot(date)+', '+br+')?')) return;
   try{
     const rid = 'reopen_'+String(br).trim().toUpperCase().replace(/[^A-Z0-9]/g,'')+'_'+date;
-    const req = {id:'brief_'+rid, date:today(), title:'Reopen request — '+br,
+    /* 🔴🔒 V1604 (১৯.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ) — শিরোনামে ব্রাঞ্চ থাকায়
+       কার্ডের উপরের সারি (ব্রাঞ্চ+সময়, সব নোটিশেই বসে) ও বডির "Branch :"
+       লাইনের সাথে মিলিয়ে ব্রাঞ্চ তিন জায়গায় দেখাত। ফোনের ChamberReopenPermission.kt-
+       এর হুবহু যমজ — এখন শিরোনাম সম্পূর্ণ সাধারণ (Refund/Delete/Leave
+       request-এর মতোই), ব্রাঞ্চ শুধু উপরের সারি ও বডির কার্যকরী "Branch :"
+       লাইনে (wlv1ApproveReopenNotice() ঠিক এই লাইন থেকেই পড়ে — সরানো যাবে না)। */
+    const req = {id:'brief_'+rid, date:today(), title:'Reopen request',
         /* 🔴🔒 V936 — আগে কাঁচা `2026-08-31` লেখা হত; নিচের Approve এখন
            `wlv1IsoDate()` দিয়ে ফিরিয়ে পড়ে, তাই লেখাটা মানুষের ধাঁচে করা গেল।
            ⛔ V1537 (১৮.০৯.২০২৬, TK-নির্দেশ, ফোনে ফটো-প্রুফ পাশ, "তারিখের পাশে
