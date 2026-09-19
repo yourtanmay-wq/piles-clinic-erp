@@ -53,7 +53,6 @@ class MoreMenuActivity : AppCompatActivity() {
         user = session
 
         binding.btnBack.setOnClickListener { finish() }
-        addCallIdCard()   // ☎️ V1427
         // 🆕🔒 TK-নির্দেশ (05.08.2026): Dialer এখন Dashboard-এর টাইল থেকেই
         // খোলে (দেখুন DashboardActivity.kt) — এখান থেকে বাটন-ওয়্যারিং
         // সরানো হয়েছে, কারণ XML থেকেই কার্ডটা তুলে দেওয়া হয়েছে।
@@ -107,14 +106,18 @@ class MoreMenuActivity : AppCompatActivity() {
             }
         }
 
+        // 🔴🔒 V1603 (১৯.০৯.২০২৬) — Backup ও Export এখন গ্রিডে নেই, উপরের ⋮
+        // মেনুতে চলে গেছে — তাই দুটো রোলেই (master/non-master) গ্রিড থেকে
+        // সরানো হলো। ⛔ ক্লিক-গন্তব্য/অনুমতি একটুও বদলায়নি, শুধু জায়গা।
+        hideItem(binding.rowManagement1, binding.btnBackup)
+        hideItem(binding.rowSecurity1, binding.btnExportData)
+
         // Reports / Backup&Settings / Trash / Password / Export / Staff
         // Photos / Chamber Close: master only (অপরিবর্তিত নিয়ম)
         if (isMaster) {
             binding.btnReports.setOnClickListener { startActivity(Intent(this, ReportsActivity::class.java)) }
-            binding.btnBackup.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
             binding.btnTrash.setOnClickListener { startActivity(Intent(this, TrashBinActivity::class.java)) }
             binding.btnPasswordCenter.setOnClickListener { startActivity(Intent(this, PasswordCenterActivity::class.java)) }
-            binding.btnExportData.setOnClickListener { startActivity(Intent(this, ExportDataActivity::class.java)) }
             // 🔒 TK-APPROVED (28.07.2026 · খাতার সারি B46): "চেম্বার বন্ধ করুন"।
             binding.btnChamberClose.setOnClickListener {
                 startActivity(Intent(this, ChamberCloseActivity::class.java))
@@ -130,11 +133,9 @@ class MoreMenuActivity : AppCompatActivity() {
             loadUnclosedCount()
         } else {
             hideItem(binding.rowManagement1, binding.btnReports)
-            hideItem(binding.rowManagement1, binding.btnBackup)
             hideItem(binding.rowManagement2, binding.btnChamberClose)
             hideItem(binding.rowManagement2, binding.btnTrash)
             hideItem(binding.rowSecurity1, binding.btnPasswordCenter)
-            hideItem(binding.rowSecurity1, binding.btnExportData)
             // 🔵 (07.08.2026, নিজের অডিটে ধরা) — Logout কার্ডটা হেডারে সরানোর পরে
             // non-master-এর পর্দায় এই সেকশনের দুটো সারিই খালি হয়ে লুকিয়ে যায়,
             // অথচ "🛡️ Security & Data" শিরোনামটা একা দাঁড়িয়ে থাকত। এখন সেটাও লুকায়।
@@ -246,6 +247,29 @@ class MoreMenuActivity : AppCompatActivity() {
         // Logout: সবার জন্য (অপরিবর্তিত) — 🔴 (07.08.2026) বোতামটা এখন নিচের
         // তালিকায় নেই, হেডারের ডান পাশে; id ও এই কোড অপরিবর্তিত।
         binding.btnLogout.setOnClickListener { confirmLogout() }
+
+        // 🔴🔒 V1603 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — Call ID Banner ·
+        // Backup · Export এখন হেডারের ⋮-এর ভিতরে (আগে আলাদা কার্ড ছিল)।
+        // ⛔ Call ID Banner সব রোলে (V1427-এর আসল নিয়ম অটুট); Backup/Export
+        // শুধু Master (গ্রিডে যেমন ছিল, তার হুবহু একই ক্লিক-গন্তব্য)।
+        binding.btnMoreMenu.setOnClickListener { v ->
+            val pm = android.widget.PopupMenu(this, v)
+            var idx = 0
+            pm.menu.add(0, idx++, idx, "Call ID Banner")
+            if (isMaster) {
+                pm.menu.add(0, idx++, idx, "Backup")
+                pm.menu.add(0, idx++, idx, "Export")
+            }
+            pm.setOnMenuItemClickListener { mi ->
+                when (mi.title?.toString()) {
+                    "Call ID Banner" -> startActivity(Intent(this, CallIdSetupActivity::class.java))
+                    "Backup" -> startActivity(Intent(this, SettingsActivity::class.java))
+                    "Export" -> startActivity(Intent(this, ExportDataActivity::class.java))
+                }
+                true
+            }
+            pm.show()
+        }
     }
 
     /**
@@ -271,78 +295,6 @@ class MoreMenuActivity : AppCompatActivity() {
                 binding.badgeChamberClose.visibility = View.VISIBLE
             }
         }.start()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        refreshCallIdCard()   // ☎️ V1427
-    }
-
-
-    /* ☎️🔒 V1427 (১৩.০৯.২০২৬, TK-রিপোর্ট + ছবি-প্রুফ পাশ) — More মেনুর সবার উপরে
-       "Call ID Banner — ON/OFF" ঘর, **সব রোলে** (কল যে ফোনেই আসুক)। চাপলে
-       CallIdSetupActivity — যেটা বাকি সেটাই একে একে চেয়ে নেয়।
-       ⛔ TK: Home-এ কিছু বসবে না — তাই শুধু এখানেই।
-       ⛔ কোডে আঁকা কার্ড, XML-এর লক করা ডিজাইনের বাকি সব কার্ডের হুবহু মাপে
-          (সাদা · ১৬dp গোল · ১৪dp প্যাডিং · ৪২dp আইকন-ব্যাজ); XML ছোঁয়া হয়নি। */
-    private var callIdSub: android.widget.TextView? = null
-    private var callIdIcon: android.widget.TextView? = null
-
-    private fun addCallIdCard() {
-        try {
-            val parent = binding.rowManagement1.parent as? LinearLayout ?: return
-            val at = parent.indexOfChild(binding.rowManagement1)
-            val d = resources.displayMetrics.density
-            fun dp(v: Int) = (v * d).toInt()
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                setPadding(dp(14), dp(14), dp(14), dp(14))
-                background = androidx.core.content.ContextCompat.getDrawable(this@MoreMenuActivity, com.tkbiswas.pilesclinic.R.drawable.bg_more_card)
-                elevation = 2 * d
-                isClickable = true; isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(dp(17), dp(12), dp(17), dp(2)) }
-                setOnClickListener { startActivity(Intent(this@MoreMenuActivity, CallIdSetupActivity::class.java)) }
-            }
-            val icon = android.widget.TextView(this).apply {
-                textSize = 20f; gravity = android.view.Gravity.CENTER
-                background = androidx.core.content.ContextCompat.getDrawable(this@MoreMenuActivity, com.tkbiswas.pilesclinic.R.drawable.bg_more_icon_badge)
-                layoutParams = LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(12) }
-            }
-            callIdIcon = icon
-            card.addView(icon)
-            val col = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            col.addView(android.widget.TextView(this).apply {
-                text = "Call ID Banner"; textSize = 15f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#0B2545"))
-            })
-            val sub = android.widget.TextView(this).apply { textSize = 12f }
-            callIdSub = sub
-            col.addView(sub)
-            card.addView(col)
-            card.addView(android.widget.TextView(this).apply {
-                text = "›"; textSize = 20f
-                setTextColor(android.graphics.Color.parseColor("#9AA8B7"))
-            })
-            parent.addView(card, at)
-            refreshCallIdCard()
-        } catch (_: Throwable) { }
-    }
-
-    private fun refreshCallIdCard() {
-        try {
-            val on = CallIdSetup.isOn(this)
-            callIdIcon?.text = if (on) "📞" else "📵"
-            callIdSub?.text = CallIdSetup.summary(this)
-            callIdSub?.setTextColor(android.graphics.Color.parseColor(if (on) "#0B6B3A" else "#C2410C"))
-            callIdSub?.setTypeface(callIdSub?.typeface, if (on) android.graphics.Typeface.NORMAL else android.graphics.Typeface.BOLD)
-        } catch (_: Throwable) { }
     }
 
     private fun confirmLogout() {

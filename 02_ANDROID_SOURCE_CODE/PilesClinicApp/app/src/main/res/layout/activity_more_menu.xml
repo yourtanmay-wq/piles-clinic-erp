@@ -107,6 +107,21 @@
                     android:textStyle="bold"
                     android:textSize="13.5sp" />
             </LinearLayout>
+
+            <!-- 🔴🔒 V1603 (১৯.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — Log Out-এর
+                 ডানে নতুন ⋮ মেনু (Payment/Salary Statement-এ আগে TK-অনুমোদিত
+                 একই ⋮-প্যাটার্ন)। ভিতরে: Call ID Banner (সব রোলে) · Backup ·
+                 Export (শুধু Master) — কোনো আইকন ছাড়া, শুধু লেখা। -->
+            <TextView
+                android:id="@+id/btnMoreMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="⋮"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:padding="4dp" />
         </LinearLayout>
 
         <!-- Section: Management -->
