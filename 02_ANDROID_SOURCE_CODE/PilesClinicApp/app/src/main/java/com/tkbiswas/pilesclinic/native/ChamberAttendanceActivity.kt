@@ -2924,6 +2924,24 @@ Thread {
                     // দিনটা এখন আর "বন্ধ" নয় — পর্দা নতুন করে পড়ে নেয়
                     // (ব্রাঞ্চ বদলালে যা হয়, ঠিক সেই একই দুটো লাইন)।
                     if (ok) try { dateClosedFlag = false; loadBoard() } catch (_: Throwable) { }
+                    // 🔴🔒 V1613 (১৯.০৯.২০২৬, TK-রিপোর্ট) — Master এখান থেকে
+                    // সরাসরি খুললে, স্টাফের পাঠানো "Chamber reopen request"
+                    // কার্ডটা Master-এর ঘন্টায় (Briefing) আগেরটাই "বাকি আছে"
+                    // দেখিয়ে চিরকাল পড়ে থাকত (confirmApproveReopen()-এর মতো
+                    // এখানে কখনো deleteOrHide() ডাকা হতো না)। এখন সরাসরি
+                    // খোলার পরেও একই ব্রাঞ্চ+তারিখের বাকি-থাকা অনুরোধ থাকলে
+                    // সেটাও বন্ধ করে দেওয়া হয় — ঠিক approveAndReopen()-এর
+                    // পরে যা হয় তারই হুবহু।
+                    if (ok) withContext(Dispatchers.IO) {
+                        try {
+                            val pending = ChamberReopenPermission.findPendingRequest(this@ChamberAttendanceActivity, br, selectedDate)
+                            if (pending != null) {
+                                val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
+                                BriefingRepository().addReply(this@ChamberAttendanceActivity, pending.s("id"), "✅ Reopened by $who", user.mobile)
+                                BriefingRepository().deleteOrHide(pending.s("id"), user)
+                            }
+                        } catch (_: Throwable) { }
+                    }
                 }
             }
             .setNegativeButton(NoBengali.s("No"), null)

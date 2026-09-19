@@ -27497,6 +27497,12 @@ async function wlv1MasterReopenChamber(){
     if(typeof sb!=='undefined'&&sb){gone=await wlv1CloudDeleteRow('chamber_close',closeId);}
     if(!gone)return toast('Cloud-এ reopen করা গেল না — আবার চেষ্টা করুন');
     try{save('chamber_close',(load('chamber_close')||[]).filter(function(r){return r&&String(r.id)!==closeId;}),{skipCloud:true,skipBackup:true});}catch(_e){}
+    /* 🔴🔒 V1613 (১৯.০৯.২০২৬, TK-রিপোর্ট) — Master এখান থেকে সরাসরি খুললে
+       স্টাফের পাঠানো "reopen request" নোটিশ Master-এর ঘন্টায় "বাকি আছে"
+       দেখিয়ে চিরকাল পড়ে থাকত (wlv1ApproveReopenNotice-এর মতো এখানে কখনো
+       wlv1CloseNotice ডাকা হতো না)। এখন সরাসরি খোলার পরেও একই ব্রাঞ্চ+
+       তারিখের বাকি-থাকা অনুরোধ থাকলে সেটাও বন্ধ করে দেওয়া হয়। */
+    try{var pending=await wlv1FindPendingReopen(br,date);if(pending)wlv1CloseNotice(pending.id,'✅ Reopened by '+(codeName(user.mobile)||user.mobile));}catch(_e){}
     toast('চেম্বার আবার খোলা হলো ✓');
     chamberAttendance();
   }catch(e){ toast('খোলা গেল না — আবার চেষ্টা করুন'); }
