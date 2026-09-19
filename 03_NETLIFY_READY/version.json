@@ -1,5 +1,5 @@
 {
-  "versionCode": 1538,
-  "versionName": "15.38",
-  "note": "V1538: 'Today Patient' now counts only patients this staff registered/paid (not the whole branch); Doctor Checkup shows a compact 'Patient Treatment Summary' for once-only data instead of re-showing the full form every visit; Chamber reopen request notice no longer repeats the date 4 times. V1533/V1534 SQL already run in Supabase (RMP-referral/discount/photo-count questions are live)."
+  "versionCode": 1542,
+  "versionName": "15.42",
+  "note": "V1542: Follow-up tab switching is fast again (fixed a slow-path bug); 'Called via COB' auto-text no longer counts as a call anywhere in the app (matches the 'remark required' rule); RMP doctor page shows only Earned/Paid/Due (Referred count removed) and its three buttons are shorter."
 }

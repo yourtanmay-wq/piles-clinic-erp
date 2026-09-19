@@ -1,17 +1,35 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1542_FINAL.zip",
+    "versionCode": 1542,
+    "when": "19.09.2026 02.52 am",
+    "size_mb": 27.0,
+    "total_files": 2131,
+    "excluded": "root-level .png (ডেমো ছবি) · ANATOMY_PICTURES/ORIGINAL বড় কপি — verify_zip_contents.py PASS",
+    "note": "V1542 — Follow-up ট্যাব-বদল দ্রুত (auto-refresh-এর ধীর delta-পথে ভুল করে যেত, এখন সবসময় পূর্ণ fetch); 'Called via COB' অটো-লেখা আর কোথাও কল-গণনা করে না (রিমার্ক-ছাড়া কল গণ্য নয় নিয়মের সাথে মিলিয়ে, DialerRepository ও CallChooser-এর সব পথে); RMP ডাক্তার পাতায় শুধু Earned/Paid/Due (Referred বাদ) + তিনটে বোতাম ছোট (52dp→38dp)। সব পাহারা (kotlin compile, resources, web_browser_test, tk_guard --release, zip root-name, zip contents) PASS।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1538_FINAL.zip",
     "versionCode": 1538,
     "when": "18.09.2026 06.36 pm",
     "size_mb": 27.0,
     "total_files": 2131,
     "top_folders": {
-      "00_GUARD": 58, "00_READ_ME_FIRST": 11, "00_SQL": 272,
-      "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1, "02_ANDROID_SOURCE_CODE": 788,
-      "03_NETLIFY_READY": 53, "03_SUPABASE_SQL": 5, "04_SUPABASE_DATABASE_SETUP": 139,
-      "05_APK_AAB_BUILD_NOTES": 1, "06_TEST_CHECKLISTS": 3,
-      "07_RELEASE_NOTES_VERSION_HISTORY": 35, "08_ASSETS_BACKUP": 36,
-      "10_FUTURE_PLANS": 10, "11_V223_TESTS": 2, "ROLLBACK_V448": 2
+      "00_GUARD": 58,
+      "00_READ_ME_FIRST": 11,
+      "00_SQL": 272,
+      "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1,
+      "02_ANDROID_SOURCE_CODE": 788,
+      "03_NETLIFY_READY": 53,
+      "03_SUPABASE_SQL": 5,
+      "04_SUPABASE_DATABASE_SETUP": 139,
+      "05_APK_AAB_BUILD_NOTES": 1,
+      "06_TEST_CHECKLISTS": 3,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 35,
+      "08_ASSETS_BACKUP": 36,
+      "10_FUTURE_PLANS": 10,
+      "11_V223_TESTS": 2,
+      "ROLLBACK_V448": 2
     },
     "excluded": "root-level .png (ডেমো ছবি) · ANATOMY_PICTURES/ORIGINAL বড় কপি — verify_zip_contents.py PASS",
     "note": "V1538 — Arman/field-স্টাফের 'Today Patient' এখন শুধু নিজের রেজিস্টার/পেমেন্ট করা রোগী গোনে (ব্রাঞ্চ-মোট নয়); Doctor Checkup পর্দায় একবারের তথ্য (History/Clinical/Estimate/Photo) ছোট 'Patient Treatment Summary' বাক্সে; Chamber reopen request নোটিশে তারিখ আর ৪ জায়গায় নয়, একবার (সময়সহ); sql_local_check.py-এ reports-স্কিমা নকলে বসানোর ব্যবস্থা যোগ (ভবিষ্যতের SQL যাচাই সহজ হবে)। V1533/V1534 SQL আগেই Supabase-এ চালানো হয়ে গেছে (TK নিজে)। সব পাহারা (kotlin compile, resources, web_browser_test, tk_guard --release, zip root-name, zip contents) PASS।"
